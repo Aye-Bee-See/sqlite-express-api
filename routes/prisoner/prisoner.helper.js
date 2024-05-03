@@ -7,23 +7,39 @@ const createPrisoner = async ({ birthName, chosenName, prison_id, inmateID, rele
   return await Prisoner.create({ birthName, chosenName, prison_id, inmateID, releaseDate, bio })
 }
 
-const getAllPrisoners = async (includePrison) => {
-  if (includePrison){
+const getAllPrisoners = async (full) => {
+  if (full) {
   return await Prisoner.findAll({
-    include: {
-      model: Prison,
-      as: 'prison'
-    }
+    include: [
+      {
+        model: Prison,
+        as: 'prison' 
+      }
+      ]
   })}
   else {
     return await Prisoner.findAll()
   };
 };
 
-const getPrisonerByID = async function(id) {
-  return await Prisoner.findOne({
-  where: {id: id},
-});
+const getPrisonerByID = async (id, full) => {
+  if (full) {
+    return await Prisoner.findOne({
+      include: [
+        {
+          model: Prison,
+          as: 'prison'
+        }
+      ],
+      where: {id: id},
+    });
+  }
+  else {
+    return await Prisoner.findOne({
+      where: {id: id},
+    });
+  }
+
 };
 
 const updatePrisoner = async function(newPrisoner) {

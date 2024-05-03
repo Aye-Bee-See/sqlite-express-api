@@ -27,16 +27,17 @@ router.get('/', function(req, res) {
 });
 
 // get all prisons
-router.get('/prisoners/:prison?', function(req, res) {
-  console.log(req.query);
-  const { prison } = req.query;
-  const ip = (prison == 'true');
-  prisonerHelper.getAllPrisoners(ip).then(prisoners => res.json(prisoners)); 
+router.get('/prisoners/:full?', function(req, res) {
+  const { full } = req.query;
+  const fullBool = (full === 'true');
+  prisonerHelper.getAllPrisoners(fullBool).then(prisoners => res.json(prisoners)); 
 });
 
-router.get('/prisoner/:id', function(req, res) {
+router.get('/prisoner/:id/:full?', function(req, res) {
   const { id } = req.params;
-  prisonerHelper.getPrisonerByID(id).then(prisoner => res.json(prisoner))
+  const { full } = req.query;
+  const fullBool = (full === 'true');
+  prisonerHelper.getPrisonerByID(id, full).then(prisoner => res.json(prisoner))
 })
 
 router.post('/create-prisoner', function(req, res, next) {

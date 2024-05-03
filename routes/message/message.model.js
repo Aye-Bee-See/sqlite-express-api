@@ -5,7 +5,7 @@ const MessageSchema = {
   chat: {
     type: DataTypes.INTEGER,
     model: 'chats',
-    key: 'id'
+    key: 'chat_key'
   },
   messageText: {
     type: DataTypes.STRING,

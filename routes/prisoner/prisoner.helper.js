@@ -12,7 +12,7 @@ const getAllPrisoners = async (includePrison) => {
   return await Prisoner.findAll({
     include: {
       model: Prison,
-      as: 'prisonDetails'
+      as: 'prison'
     }
   })}
   else {

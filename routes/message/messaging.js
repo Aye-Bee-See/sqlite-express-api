@@ -71,8 +71,8 @@ router.get('/messages', function(req, res) {
   messageHelper.readAllMessages().then(messages => res.status(200).json({messages}));
 });
 
-router.get('/message', function(req, res) {
-  const { id, chat } = req.body;
+router.get('/message/:id?/:prisoner?/:user?', function(req, res) {
+  const { id, chat } = req.query;
   if ( id == null && user == null && prisoner == null) { res.status(401).json({msg: "No id, user, or prisoner provided"}) }
   else if (id != null) {
   messageHelper.readMessagesById(id).then(chat => res.status(200).json(message));

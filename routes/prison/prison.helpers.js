@@ -6,7 +6,12 @@ const createPrison = async ({ prisonName, address }) => {
 }
 
 const getAllPrisons = async () => {
-  return await Prison.findAll();
+  return await Prison.findAll({
+    include: {
+      model: Prisoner,
+      as: "prisoners"
+    }
+  });
 };
 
 const getPrisonByID = async function(id) {
@@ -20,4 +25,3 @@ const getPrisonByID = async function(id) {
 };
 
 module.exports = {createPrison, getAllPrisons, getPrisonByID}
-

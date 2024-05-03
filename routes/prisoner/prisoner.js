@@ -40,8 +40,8 @@ router.get('/prisoner/:id', function(req, res) {
 })
 
 router.post('/create-prisoner', function(req, res, next) {
-  const { birthName, chosenName, prison, inmateID, releaseDate, bio } = req.body;
-  prisonerHelper.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio }).then(prisoner =>
+  const { birthName, chosenName, prison_id, inmateID, releaseDate, bio } = req.body;
+  prisonerHelper.createPrisoner({ birthName, chosenName, prison_id, inmateID, releaseDate, bio }).then(prisoner =>
     res.json({ prisoner, msg: 'prisoner created successfully' })
   );
 });

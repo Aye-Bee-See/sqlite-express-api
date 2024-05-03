@@ -1,4 +1,3 @@
-// TODO: Split this into multiple files
 // TODO: Make sure there are CRUD functions for all models
 const prisonSchema = require('./routes/prison/prison.model');
 const userSchema = require('./routes/user/user.model');
@@ -30,10 +29,10 @@ const Chat = sequelize.define('chat', chatSchema);
 const Message = sequelize.define('message', messageSchema);
 const Rule = sequelize.define('rule', ruleSchema);
 
-Prisoner.belongsTo(Prison, { as: 'prisonDetails', foreignKey: 'id', sourceKey: 'prison' });
+Prisoner.belongsTo(Prison, { as: 'prisonDetails', foreignKey: 'prison_id', sourceKey: 'prison' });
 Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'id', targetKey: 'prisoner' } )
 
-Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'id' });
+Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison_id' });
 Prison.hasMany(Rule, { as: 'rules', foreignKey: 'id' });
 
 Message.belongsTo(Chat, { as: 'ownerChat', foreignKey: 'id', sourceKey: 'chat'});
@@ -44,6 +43,6 @@ Chat.belongsTo(User, { as: 'userDetails', foreignKey: 'id', sourceKey: 'user' })
 
 // Force: True resets database
 // TODO: Make this only force in dev environment
-sequelize.sync({ force: true })
+sequelize.sync({ force:true })
 
 module.exports = {  Prison, Prisoner, User, Rule, Message, Chat }

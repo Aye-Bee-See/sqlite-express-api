@@ -34,8 +34,8 @@ router.get('/prisoners/:prison?', function(req, res) {
   prisonerHelper.getAllPrisoners(ip).then(prisoners => res.json(prisoners)); 
 });
 
-router.get('/prisoner', function(req, res) {
-  const { id } = req.body;
+router.get('/prisoner/:id', function(req, res) {
+  const { id } = req.params;
   prisonerHelper.getPrisonerByID(id).then(prisoner => res.json(prisoner))
 })
 

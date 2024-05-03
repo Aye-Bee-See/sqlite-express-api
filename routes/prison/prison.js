@@ -58,8 +58,8 @@ router.get('/prisons', function(req, res) {
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-router.get('/prison', function(req, res) {
-  const { id } = req.body;
+router.get('/prison/:id', function(req, res) {
+  const { id } = req.params;
   prisonHelpers.getPrisonByID(id).then(prison => res.json(prison));
 });
 

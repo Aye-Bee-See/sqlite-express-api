@@ -27,8 +27,8 @@ router.get('/users', function(req, res) {
 });
 
 // get one user
-router.get('/user', passport.authenticate('jwt', {session: false}), function(req, res) {
-  const { id } = req.body;
+router.get('/user/:id', passport.authenticate('jwt', {session: false}), function(req, res) {
+  const { id } = req.params;
   userHelper.getUserByID(id).then( function (user){
     res.json(user)
   })

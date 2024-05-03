@@ -1,0 +1,413 @@
+{
+	"info": {
+		"_postman_id": "7ef40856-4522-430b-a6dd-ee52f64154ec",
+		"name": "ABC-3",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "745352",
+		"_collection_link": "https://grey-capsule-851285.postman.co/workspace/New-Team-Workspace~888ea448-f754-4185-84a6-843519301acd/collection/745352-7ef40856-4522-430b-a6dd-ee52f64154ec?action=share&source=collection_link&creator=745352"
+	},
+	"item": [
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"acab\",\n    \"password\": \"acab\",\n    \"email\" : \"acab@acab.acab\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/auth/register-admin"
+					},
+					"response": []
+				},
+				{
+					"name": "Read All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "localhost:3000/auth/users"
+					},
+					"response": []
+				},
+				{
+					"name": "Read User By ID",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwiaWF0IjoxNzEyNTIyNDc2fQ.3hqw-YvIR22Lw9WmhGcJVcd7IhgaKpdEkVOQtZHgsE8",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/auth/user/"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwiaWF0IjoxNzEyMzcwNzkzfQ.g3XS57dl6MdyMZ7n1whCzVvZi-pbaArelzDGSMQb8cA",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"acab\",\n    \"password\": \"acab\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/auth/login"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Prison",
+			"item": [
+				{
+					"name": "Create Prison",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"prisonName\": \"Test Prison\",\n    \"address\": {\n        \"street\" : \"123 Fake Street\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/prison/create-prison"
+					},
+					"response": []
+				},
+				{
+					"name": "List All Prisons",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "localhost:3000/prison/prisons"
+					},
+					"response": []
+				},
+				{
+					"name": "Read Prison By Id",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/prison/prison"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Prisoner",
+			"item": [
+				{
+					"name": "Create Prisoner",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"birthName\": \"John Smith\", \n    \"chosenName\": \"Jane Smith\", \n    \"inmateID\": \"1\", \n    \"prison\": 1,\n    \"releaseDate\": \"2029-04-05T23:24:24.819Z\",\n    \"bio\": \"Test bio here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/prisoner/create-prisoner"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Prisoners",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prisoner/prisoners/?prison=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"prisoner",
+								"prisoners",
+								""
+							],
+							"query": [
+								{
+									"key": "prison",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Prison to Prisoner",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"prison\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/prisoner/update-prison"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Prisoner",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"prison\": 2,\n    \"chosenName\": \"Boop\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/prisoner/update-prisoner"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Messaging",
+			"item": [
+				{
+					"name": "Create Chat",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user\": 1,\n    \"prisoner\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/messaging/chat"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Message",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"chat\": 1,\n    \"messageText\": \"Howdy\",\n    \"sender\": \"user\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/messaging/message"
+					},
+					"response": []
+				},
+				{
+					"name": "Read All Chats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "localhost:3000/messaging/chats"
+					},
+					"response": []
+				},
+				{
+					"name": "Read Chats By Prisoner",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"prisoner\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/messaging/chat"
+					},
+					"response": []
+				},
+				{
+					"name": "Read Chats By User",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "localhost:3000/messaging/chat"
+					},
+					"response": []
+				},
+				{
+					"name": "Read All Messages",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "localhost:3000/messaging/messages"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Get Protected",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"const body = [",
+							"    {key: \"name\", value: \"postman\"},",
+							"    {key: \"password\", value: \"postman\"},",
+							"    {key: \"email\", value: \"postman@postman.postman\"}",
+							"    ]",
+							"const body2 = [",
+							"    {key: \"name\", value: \"postman\"},",
+							"    {key: \"password\", value: \"postman\"}",
+							"]",
+							"",
+							"pm.sendRequest({",
+							"    url:\"localhost:3000/auth/register-admin\",",
+							"    method: 'POST',",
+							"    header: {",
+							"        'Accept': 'application/json',",
+							"        'Content-Type': 'application/x-www-form-urlencoded',",
+							"    },",
+							"    body: {",
+							"    mode: 'urlencoded',",
+							"    urlencoded: body",
+							"    },",
+							"}, function(err, res){",
+							"    pm.sendRequest({",
+							"    url:\"localhost:3000/auth/login\",",
+							"    method: 'POST',",
+							"    header: {",
+							"        'Accept': 'application/json',",
+							"        'Content-Type': 'application/x-www-form-urlencoded',",
+							"    },",
+							"    body: {",
+							"    mode: 'urlencoded',",
+							"    urlencoded: body2",
+							"    },",
+							"",
+							"    }, function(err, res){",
+							"        console.log(res.json().token)",
+							"        pm.request",
+							"        pm.request.headers",
+							"        .add({key: \"Authorization\", value: \"Bearer \" + res.json().token})",
+							"    })",
+							"    ",
+							"})",
+							""
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": {
+						"token": ""
+					}
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwiaWF0IjoxNzEyNTIyNDc2fQ.3hqw-YvIR22Lw9WmhGcJVcd7IhgaKpdEkVOQtZHgsE8",
+						"type": "text",
+						"disabled": true
+					}
+				],
+				"url": "localhost:3000/auth/protected"
+			},
+			"response": []
+		}
+	]
+}

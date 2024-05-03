@@ -5,10 +5,12 @@ let ExtractJwt = passportJWT.ExtractJwt;
 let jwtOptions = {};
 jwtOptions.jwtFromRequest = ExtractJwt.fromAuthHeaderAsBearerToken();
 jwtOptions.secretOrKey = 'wowwow';
+const userHelper = require('./routes/user/user.helper')
+
 
 let jwtStrategy = new JwtStrategy(jwtOptions, function(jwt_payload, next) {
   console.log('payload received', jwt_payload);
-  let user = db.getUser({ id: jwt_payload.id });
+  let user = userHelper.getUser({ id: jwt_payload.id });
   if (user) {
     next(null, user);
   } else {

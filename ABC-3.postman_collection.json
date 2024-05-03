@@ -73,7 +73,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"id\": 1\n}",
+							"raw": "",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -195,7 +195,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"id\": 1\n}",
+							"raw": "",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -203,14 +203,15 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/prison/prison",
+							"raw": "localhost:3000/prison/prison/1",
 							"host": [
 								"localhost"
 							],
 							"port": "3000",
 							"path": [
 								"prison",
-								"prison"
+								"prison",
+								"1"
 							]
 						}
 					},
@@ -330,6 +331,14 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Get Prisoner By ID",
+					"request": {
+						"method": "GET",
+						"header": []
+					},
+					"response": []
 				}
 			]
 		},
@@ -421,7 +430,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"prisoner\": 1\n}",
+							"raw": "",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -429,14 +438,21 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/messaging/chat",
+							"raw": "localhost:3000/messaging/chat/?prisoner=1",
 							"host": [
 								"localhost"
 							],
 							"port": "3000",
 							"path": [
 								"messaging",
-								"chat"
+								"chat",
+								""
+							],
+							"query": [
+								{
+									"key": "prisoner",
+									"value": "1"
+								}
 							]
 						}
 					},
@@ -452,7 +468,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"user\": 1\n}",
+							"raw": "",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -460,14 +476,21 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/messaging/chat",
+							"raw": "localhost:3000/messaging/chat/?user=1",
 							"host": [
 								"localhost"
 							],
 							"port": "3000",
 							"path": [
 								"messaging",
-								"chat"
+								"chat",
+								""
+							],
+							"query": [
+								{
+									"key": "user",
+									"value": "1"
+								}
 							]
 						}
 					},

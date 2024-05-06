@@ -8,10 +8,10 @@ const prisonerSchema = {
   chosenName: {
     type: DataTypes.STRING
   },
-  prison: {
+  prison_id: {
     type: DataTypes.INTEGER,
     model: 'prisons',
-    key: 'id'
+    key: 'prison_id'
   },
   inmateID: {
     type: DataTypes.STRING

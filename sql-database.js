@@ -5,7 +5,7 @@ const prisonerSchema = require('./routes/prisoner/prisoner.model');
 const chatSchema = require('./routes/message/chat.model');
 const messageSchema = require('./routes/message/message.model');
 const ruleSchema = require('./routes/rule/rule.model');
-
+const seeds=require('./database/seeds/seeds');
 const Sequelize = require('sequelize');
 
 const sequelize = new Sequelize({
@@ -45,6 +45,8 @@ Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat_key' } );
 
 // Force: True resets database
 // TODO: Make this only force in dev environment
-sequelize.sync({ force:true })
+sequelize.sync({ force: true }).then(() => {
+    return seeds.createSeeds();
+});
 
 module.exports = {  Prison, Prisoner, User, Rule, Message, Chat }

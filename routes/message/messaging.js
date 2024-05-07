@@ -43,13 +43,13 @@ router.get('/chat/:id?/:user?/:prisoner?/:full?', function(req, res) {
   const { id, user, prisoner } = req.query;
   if ( id == null && user == null && prisoner == null) { res.status(401).json({msg: "No id, user, or prisoner provided"}) }
   else if (id != null) {
-  messageHelper.readChatById(id, full).then(chat => res.status(200).json(chat));
+  messageHelper.readChatById(id, fullBool).then(chat => res.status(200).json(chat));
   }
   else if (user != null) {
-    messageHelper.readChatsByUser(user, full).then(chat => res.status(200).json(chat))
+    messageHelper.readChatsByUser(user, fullBool).then(chat => res.status(200).json(chat))
   }
   else if (prisoner != null) { 
-    messageHelper.readChatsByPrisoner(prisoner, full).then(chat => res.status(200).json(chat))
+    messageHelper.readChatsByPrisoner(prisoner, fullBool).then(chat => res.status(200).json(chat))
    }
 });
 

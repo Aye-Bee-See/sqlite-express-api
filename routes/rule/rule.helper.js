@@ -9,7 +9,7 @@ const getAllRules = async function(){
 }
 
 const getRuleByID = async function(id) {
-  return await Prisoner.findOne({
+  return await Rule.findOne({
   where: {id: id},
 });
 };

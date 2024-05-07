@@ -22,7 +22,7 @@ router.get('/', function(req, res) {
 });
 
 // get all admins
-router.get('/users/:full', function(req, res) {
+router.get('/users/:full?', function(req, res) {
   const { full } = req.query;
   const fullBool = (full === 'true');
   userHelper.getAllUsers(fullBool).then(user => res.json(user)); 

@@ -1,5 +1,4 @@
-const User = require('../../sql-database').User
-const Chat = require('../../sql-database').Chat
+const {User, Chat} = require('../../sql-database');
 
 const createUser = async ({ name, password, role, email }) => { 
   return await User.create({ name, password, role, email });

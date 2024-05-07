@@ -1,8 +1,4 @@
-const { prisoner } = require('./chat.model');
-
-const Chat = require('../../sql-database').Chat;
-const Message = require('../../sql-database').Message;
-const User = require('../../sql-database').User;
+const {Chat, Message, User, Prisoner} = require('../../sql-database')
 
 const createChat = async function({ user, prisoner }) {
   return await Chat.create({ user, prisoner});

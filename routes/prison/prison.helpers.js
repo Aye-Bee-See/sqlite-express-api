@@ -1,5 +1,4 @@
-const Prison = require('../../sql-database').Prison;
-const Prisoner = require('../../sql-database').Prisoner;
+const {Prison, Prisoner} = require('../../sql-database');
 
 const createPrison = async ({ prisonName, address }) => {
   return await Prison.create({ prisonName, address })

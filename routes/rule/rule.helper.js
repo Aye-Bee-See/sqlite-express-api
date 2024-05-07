@@ -1,5 +1,4 @@
-const Rule = require('../../sql-database').Rule;
-const Prison = require('../../sql-database').Prison;
+const {Rule, Prison} = require('../../sql-database');
 
 const createRule = async function({ prison, title, description }){
   return await Rule.create({ prison, title, description  })

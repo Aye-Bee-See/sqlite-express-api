@@ -1,7 +1,4 @@
-const { bio } = require('./prisoner.model');
-
-const Prisoner = require('../../sql-database').Prisoner;
-const Prison = require('../../sql-database').Prison;
+const {Prisoner, Prison} = require('../../sql-database');
 
 const createPrisoner = async ({ birthName, chosenName, prison_id, inmateID, releaseDate, bio }) => {
   return await Prisoner.create({ birthName, chosenName, prison_id, inmateID, releaseDate, bio })

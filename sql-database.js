@@ -1,4 +1,3 @@
-// TODO: Split this into multiple files
 // TODO: Make sure there are CRUD functions for all models
 const prisonSchema = require('./routes/prison/prison.model');
 const userSchema = require('./routes/user/user.model');
@@ -22,7 +21,7 @@ sequelize
   .then(() => console.log('Connection to admin-db has been established successfully.'))
   .catch(err => console.error('Unable to connect to the database:', err));
 
-// create models
+// import models
 const User = sequelize.define('user', userSchema);
 const Prison = sequelize.define('prison', prisonSchema)
 const Prisoner = sequelize.define('prisoner', prisonerSchema);
@@ -30,17 +29,19 @@ const Chat = sequelize.define('chat', chatSchema);
 const Message = sequelize.define('message', messageSchema);
 const Rule = sequelize.define('rule', ruleSchema);
 
-Prisoner.belongsTo(Prison, { as: 'prisonDetails', foreignKey: 'id', sourceKey: 'prison' });
-Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'id', targetKey: 'prisoner' } )
+Prisoner.belongsTo(Prison, { as: 'prison', foreignKey: 'prison_id', sourceKey: 'prison' });
+Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner_key' });
 
-Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'id' });
+Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison_id' });
 Prison.hasMany(Rule, { as: 'rules', foreignKey: 'id' });
 
-Message.belongsTo(Chat, { as: 'ownerChat', foreignKey: 'id', sourceKey: 'chat'});
+Message.belongsTo(Chat, { as: 'ownerChat', foreignKey: 'chat_key' });
 
-// Chat.hasMany(Message, { as: 'listMessages', foreignKey: 'chat' });
+User.hasMany(Chat, { as: 'chats', foreignKey: 'user_key' });
+
 Chat.belongsTo(Prisoner, { as: 'prisonerDetails', foreignKey: 'id', sourceKey: 'prisoner' });
 Chat.belongsTo(User, { as: 'userDetails', foreignKey: 'id', sourceKey: 'user' });
+Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat_key' } );
 
 // Force: True resets database
 // TODO: Make this only force in dev environment

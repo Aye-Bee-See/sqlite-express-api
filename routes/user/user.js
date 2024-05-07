@@ -22,16 +22,18 @@ router.get('/', function(req, res) {
 });
 
 // get all admins
-router.get('/users', function(req, res) {
-  userHelper.getAllUsers().then(user => res.json(user)); 
+router.get('/users/:full', function(req, res) {
+  const { full } = req.query;
+  const fullBool = (full === 'true');
+  userHelper.getAllUsers(fullBool).then(user => res.json(user)); 
 });
 
 // get one user
-router.get('/user/:id', passport.authenticate('jwt', {session: false}), function(req, res) {
+router.get('/user/:id/:full?', passport.authenticate('jwt', {session: false}), function(req, res) {
   const { id } = req.params;
-  userHelper.getUserByID(id).then( function (user){
-    res.json(user)
-  })
+  const { full } = req.query;
+  const fullBool = (full === 'true');
+  userHelper.getUserByID(id, fullBool).then(user => res.json(user))
 })
 
 // register admin route

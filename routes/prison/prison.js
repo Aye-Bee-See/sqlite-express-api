@@ -46,8 +46,10 @@ router.get('/', function(req, res) {
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-router.get('/prisons', function(req, res) {
-  prisonHelpers.getAllPrisons().then(prison => res.json(prison)); 
+router.get('/prisons/:full?', function(req, res) {
+  const { full } = req.query;
+  const fullBool = (full === 'true');
+  prisonHelpers.getAllPrisons(fullBool).then(prison => res.json(prison)); 
 });
 
 /**
@@ -58,9 +60,11 @@ router.get('/prisons', function(req, res) {
  * @param {Object} req - Express request object.
  * @param {Object} res - Express response object.
  */
-router.get('/prison/:id', function(req, res) {
+router.get('/prison/:id/:full?', function(req, res) {
   const { id } = req.params;
-  prisonHelpers.getPrisonByID(id).then(prison => res.json(prison));
+  const { full } = req.query;
+  const fullBool = (full === 'true');
+  prisonHelpers.getPrisonByID(id, fullBool).then(prison => res.json(prison));
 });
 
 /**

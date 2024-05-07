@@ -3,27 +3,43 @@ const { bio } = require('./prisoner.model');
 const Prisoner = require('../../sql-database').Prisoner;
 const Prison = require('../../sql-database').Prison;
 
-const createPrisoner = async ({ birthName, chosenName, prison, inmateID, releaseDate, bio }) => {
-  return await Prisoner.create({ birthName, chosenName, prison, inmateID, releaseDate, bio })
+const createPrisoner = async ({ birthName, chosenName, prison_id, inmateID, releaseDate, bio }) => {
+  return await Prisoner.create({ birthName, chosenName, prison_id, inmateID, releaseDate, bio })
 }
 
-const getAllPrisoners = async (includePrison) => {
-  if (includePrison){
+const getAllPrisoners = async (full) => {
+  if (full) {
   return await Prisoner.findAll({
-    include: {
-      model: Prison,
-      as: 'prisonDetails'
-    }
+    include: [
+      {
+        model: Prison,
+        as: 'prison' 
+      }
+      ]
   })}
   else {
     return await Prisoner.findAll()
   };
 };
 
-const getPrisonerByID = async function(id) {
-  return await Prisoner.findOne({
-  where: {id: id},
-});
+const getPrisonerByID = async (id, full) => {
+  if (full) {
+    return await Prisoner.findOne({
+      include: [
+        {
+          model: Prison,
+          as: 'prison'
+        }
+      ],
+      where: {id: id},
+    });
+  }
+  else {
+    return await Prisoner.findOne({
+      where: {id: id},
+    });
+  }
+
 };
 
 const updatePrisoner = async function(newPrisoner) {

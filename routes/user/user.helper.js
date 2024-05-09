@@ -55,7 +55,25 @@ const getUserByID = async function(id, full) {
       where: {id: id},
     });
   }
+};
 
+const getUserByEmail = async function(email, full) {
+  if (full) {
+    return await User.findOne({
+      where: {email: email},
+      include: [
+        {
+          model: Chat,
+          as: 'chats'
+        }
+      ]
+    })
+  }
+  else {
+    return await User.findOne({
+      where: {email: email},
+    });
+  }
 };
 
 module.exports = { createUser, getAllUsers, getUser, getUserByID }

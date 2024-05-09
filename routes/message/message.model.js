@@ -21,6 +21,12 @@ const MessageSchema = {
   },
   sender: {
     type: DataTypes.STRING,
+  },
+  prisoner: {
+    type: DataTypes.INTEGER
+  },
+  user: {
+    type: DataTypes.INTEGER
   }
 }
 

@@ -21,13 +21,13 @@ app.use(passport.initialize());
 passport.use(JwtStrat);
 
 router.get('/', function(req, res) {
-  res.json({ msg: 'Messaging is up!' });
+  res.status(200).json({ msg: 'Messaging is up!' });
 });
 
 router.post('/chat', function(req, res) {
   const {user, prisoner} = req.body;
   messageHelper.createChat({ user, prisoner })
-    .then(chat => {  res.json({chat, msg: "Successfully created chat"})});
+    .then(chat => {  res.status(200).json({chat, msg: "Successfully created chat"})});
 });
 
 router.get('/chats', function(req, res) {
@@ -58,6 +58,7 @@ router.put('/chat', function(req, res) {
   messageHelper.updateChat(chat).then(updatedChat => res.status(200).json({ updatedChat, msg: "Chat successfully updated"}))
 });
 
+// TODO: Delete all messages associated with chat at the same time.
 router.delete('/chat', function(req, res) {
   const { id } = req.body;
   messageHelper.deleteChat(id).then( chat => {
@@ -67,8 +68,14 @@ router.delete('/chat', function(req, res) {
 });
 // TODO: Check if chat between these users already exists
 router.post('/message', function(req, res) {
-  const { chat, messageText, sender  } = req.body;
-  messageHelper.createMessage({ chat, messageText, sender }).then(message => res.status(200).json({ message, msg: "Message created" }));
+  const { chat, messageText, sender, prisoner  } = req.body;
+  messageHelper.readChatById(chat).then(chat => {
+    if (!chat) {
+      messageHelper.createChat({user, prisoner})
+    }
+  }).then(fullChat => {
+    messageHelper.createMessage({ chat, messageText, sender }).then(message => res.status(200).json({ message, msg: "Message created" }));
+  })
 });
 
 router.get('/messages', function(req, res) {

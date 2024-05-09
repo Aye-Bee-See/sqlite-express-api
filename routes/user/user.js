@@ -22,7 +22,7 @@ router.get('/', function(req, res) {
 });
 
 // get all admins
-router.get('/users/:full', function(req, res) {
+router.get('/users/:full?', function(req, res, next) {
   const { full } = req.query;
   const fullBool = (full === 'true');
   userHelper.getAllUsers(fullBool).then(user => res.json(user)); 
@@ -44,9 +44,12 @@ router.post('/register-admin', async function(req, res, next) {
   const password = await bcrypt.hash(req.body.password, 10);
   const { name, email } = req.body;
 
-  userHelper.createUser({ name, password, role, email }).then(user =>
-    res.json({ user, msg: 'account created successfully' })
-  );
+  userHelper.createUser({ name, password, role, email }).then(user => { 
+    res.status(200).json({ user, msg: 'Account created successfully.' });
+}
+).catch(err => {
+  res.status(400).json({msg: err.message});
+});
 });
 
 // login route
@@ -57,9 +60,8 @@ router.post('/login', async function(req, res, next) {
     
     let user = await userHelper.getUser({ name });
     if (!user) {
-      res.status(401).json({ msg: 'No such user found', user });
+      res.status(401).json({ msg: 'No such user or password found.', user });
     }
-
     else {
       const match = await bcrypt.compare(req.body.password, user.password)
       if (match) {
@@ -71,7 +73,7 @@ router.post('/login', async function(req, res, next) {
       let payload = { id: user.id };
       //TODO: Better secret than this, hide it in a .env file
       let token = jwt.sign(payload, 'wowwow');
-      res.json({ msg: 'ok', token: token });
+      res.status(200).json({ msg: 'ok', token: token });
       }
       else {
         res.status(401).json({ msg: 'Password is incorrect' });
@@ -83,7 +85,7 @@ router.post('/login', async function(req, res, next) {
 
 // protected route
 router.get('/protected', passport.authenticate('jwt', { session: false }), function(req, res) {
-  res.json({ msg: 'Congrats! You are seeing this because you are authorized'});
+  res.status(200).json({ msg: 'Congrats! You are seeing this because you are authorized.'});
   });
 
 

@@ -11,7 +11,7 @@ const createUser = async ({ name, password, role, email }) => {
  *  @param {array} userArray  - Array of user params
  */
 const createBulkUsers = async (userArray) => {
-    return await User.bulkCreate(userArray);
+    return await User.bulkCreate(userArray, {individualHooks: true});
 };
 
 /**

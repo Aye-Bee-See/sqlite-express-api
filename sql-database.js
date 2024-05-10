@@ -22,7 +22,12 @@ sequelize
 
 // import models
 const User = sequelize.define('user', userSchema);
-const Prison = sequelize.define('prison', prisonSchema)
+User.addHook("beforeCreate", "HashPass", async (record, options) => {
+    const {hash} = require('bcrypt');
+      const hashedPass = await hash(record.password, 10);
+      record.password =hashedPass;
+});
+const Prison = sequelize.define('prison', prisonSchema);
 const Prisoner = sequelize.define('prisoner', prisonerSchema);
 const Chat = sequelize.define('chat', chatSchema);
 const Message = sequelize.define('message', messageSchema);

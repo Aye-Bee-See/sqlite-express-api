@@ -12,7 +12,6 @@ const userHelper = require('./user.helper')
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
 
 app.use(passport.initialize());
 passport.use(JwtStrat);
@@ -47,8 +46,7 @@ router.get('/user/:id/:full?', passport.authenticate('jwt', {session: false}), f
 // register admin route
 router.post('/register-admin', async function(req, res, next) {
   const role = "Admin"
-  const password = await bcrypt.hash(req.body.password, 10);
-  const { name, email } = req.body;
+  const { name, email, password } = req.body;
 
   userHelper.getUserByNameOrEmail(name, email, false).then(user => {
  

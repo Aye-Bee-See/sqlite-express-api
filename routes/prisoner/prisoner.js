@@ -37,7 +37,7 @@ router.get('/prisoner/:id/:full?', function(req, res) {
   const { id } = req.params;
   const { full } = req.query;
   const fullBool = (full === 'true');
-  prisonerHelper.getPrisonerByID(id, full).then(prisoner => res.json(prisoner))
+  prisonerHelper.getPrisonerByID(id, fullBool).then(prisoner => res.json(prisoner))
 })
 
 router.post('/create-prisoner', function(req, res, next) {

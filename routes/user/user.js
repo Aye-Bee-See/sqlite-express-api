@@ -18,14 +18,17 @@ app.use(passport.initialize());
 passport.use(JwtStrat);
 
 router.get('/', function(req, res) {
-  res.json({ message: 'Auth is up!' });
+  res.status(200).json({ message: 'Auth is up!' });
 });
 
 // get all admins
-router.get('/users/:full', function(req, res) {
+router.get('/users/:full?', function(req, res, next) {
   const { full } = req.query;
   const fullBool = (full === 'true');
-  userHelper.getAllUsers(fullBool).then(user => res.json(user)); 
+  userHelper.getAllUsers(fullBool).then(users => {
+    if (users.length > 0) { res.status(200).json(users) }
+    else { res.status(400).json({ error: "Zero users exist in the database." }) }
+    }); 
 });
 
 // get one user
@@ -33,33 +36,40 @@ router.get('/user/:id/:full?', passport.authenticate('jwt', {session: false}), f
   const { id } = req.params;
   const { full } = req.query;
   const fullBool = (full === 'true');
-  userHelper.getUserByID(id, fullBool).then(user => res.json(user))
+
+  userHelper.getUserByID(id, fullBool).then(user => {
+  if (user) { res.status(200).json(user) }
+  else { res.status(400).json({message: "Error: No such user."}) }
+  }
+  )
 })
 
 // register admin route
-// TODO: Check if name or email already exists
-// TODO: Don't show hashed password in response
 router.post('/register-admin', async function(req, res, next) {
   const role = "Admin"
   const password = await bcrypt.hash(req.body.password, 10);
   const { name, email } = req.body;
 
-  userHelper.createUser({ name, password, role, email }).then(user =>
-    res.json({ user, msg: 'account created successfully' })
-  );
+  userHelper.getUserByNameOrEmail(name, email, false).then(user => {
+ 
+      userHelper.createUser({ name, password, role, email }).then(user => { 
+      res.status(200).json({ name, role, email, message: 'Account created successfully.' });
+  }
+  ).catch(err => {
+    res.status(400).json({message: err.message});
+  }); 
+  })
 });
 
 // login route
-// TODO: Don't reveal whether user or password is incorrect
 router.post('/login', async function(req, res, next) { 
   const { name, password } = req.body;
   if (name && password) {
     
     let user = await userHelper.getUser({ name });
     if (!user) {
-      res.status(401).json({ msg: 'No such user found', user });
+      res.status(401).json({ msg: 'No such user or associated password found.', user });
     }
-
     else {
       const match = await bcrypt.compare(req.body.password, user.password)
       if (match) {
@@ -71,10 +81,10 @@ router.post('/login', async function(req, res, next) {
       let payload = { id: user.id };
       //TODO: Better secret than this, hide it in a .env file
       let token = jwt.sign(payload, 'wowwow');
-      res.json({ msg: 'ok', token: token });
+      res.status(200).json({ message: 'ok', token: token });
       }
       else {
-        res.status(401).json({ msg: 'Password is incorrect' });
+        res.status(400).json({ message: 'No such user or associated password found.' });
       }
     }
 
@@ -83,7 +93,7 @@ router.post('/login', async function(req, res, next) {
 
 // protected route
 router.get('/protected', passport.authenticate('jwt', { session: false }), function(req, res) {
-  res.json({ msg: 'Congrats! You are seeing this because you are authorized'});
+  res.status(200).json({ msg: 'Congrats! You are seeing this because you are authorized.'});
   });
 
 

@@ -4,15 +4,16 @@ const DataTypes = sequelize.DataTypes;
 const userSchema = {
   name: {
     type: DataTypes.STRING,
-    unique: {
-      args: true,
-      msg: 'Username already exists.'
-    },
+    unique: true,
     allowNull: false,
     validate: {
       notNull: {
         msg: "Username cannot be null."
       }
+    },
+    unique: {
+      args: true,
+      msg: "Username already in use."
     }
   },
   password: {

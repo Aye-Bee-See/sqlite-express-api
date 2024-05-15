@@ -1,3 +1,5 @@
+const { name } = require('./user.model');
+
 const User = require('../../sql-database').User
 const Chat = require('../../sql-database').Chat
 
@@ -76,4 +78,42 @@ const getUserByEmail = async function(email, full) {
   }
 };
 
-module.exports = { createUser, getAllUsers, getUser, getUserByID }
+const getUserByName = async (name, full) => {
+  if (full) {
+    return await User.findOne({
+      where: {name: name},
+      include: [
+        {
+          model: Chat,
+          as: 'chats'
+        }
+      ]
+    })
+  }
+  else {
+    return await User.findOne({
+      where: {name: name},
+    });
+  }
+}
+
+const getUserByNameOrEmail = async (name, email, full) => {
+  if (full) {
+    return await User.findOne({
+      where: {name: name, email: email},
+      include: [
+        {
+          model: Chat,
+          as: 'chats'
+        }
+      ]
+    })
+  }
+  else {
+    return await User.findOne({
+      where: {name: name, email: email},
+    });
+  }
+}
+
+module.exports = { createUser, getAllUsers, getUser, getUserByID, getUserByEmail, getUserByName, getUserByNameOrEmail }

@@ -45,19 +45,20 @@ router.get('/user/:id/:full?', passport.authenticate('jwt', {session: false}), f
 })
 
 // register admin route
-// TODO: Check if username or email already exists
-// TODO: Don't show hashed password in response
 router.post('/register-admin', async function(req, res, next) {
   const role = "Admin"
   const password = await bcrypt.hash(req.body.password, 10);
   const { name, email } = req.body;
 
-  userHelper.createUser({ name, password, role, email }).then(user => { 
-    res.status(200).json({ user, message: 'Account created successfully.' });
-}
-).catch(err => {
-  res.status(400).json({message: err.message});
-});
+  userHelper.getUserByNameOrEmail(name, email, false).then(user => {
+ 
+      userHelper.createUser({ name, password, role, email }).then(user => { 
+      res.status(200).json({ name, role, email, message: 'Account created successfully.' });
+  }
+  ).catch(err => {
+    res.status(400).json({message: err.message});
+  }); 
+  })
 });
 
 // login route

@@ -1,10 +1,10 @@
 // TODO: Make sure there are CRUD functions for all models
-const prisonSchema = require('./routes/prison/prison.model');
-const userSchema = require('./routes/user/user.model');
-const prisonerSchema = require('./routes/prisoner/prisoner.model');
-const chatSchema = require('./routes/message/chat.model');
-const messageSchema = require('./routes/message/message.model');
-const ruleSchema = require('./routes/rule/rule.model');
+/*const prisonSchema = require('./models/prison.model');
+const userSchema = require('./models/user.model');
+const prisonerSchema = require('./models/prisoner.model');
+const chatSchema = require('./models/chat.model');
+const messageSchema = require('./models/message.model');
+const ruleSchema = require('./models/rule.model');
 const Sequelize = require('sequelize');
 
 const sequelize = new Sequelize({
@@ -55,3 +55,5 @@ sequelize.sync({ force: true }).then(async() => {
 });
 
 module.exports = {  Prison, Prisoner, User, Rule, Message, Chat };
+ * 
+ */

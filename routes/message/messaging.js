@@ -9,13 +9,13 @@ const bodyParser = require('body-parser');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const messageHelper = require('./message.helper');
+const messageHelper = require('../../database/helpers/message.helper');
 
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const { chat } = require('./message.model');
+const { chat } = require('../../database/models/message.model');
 
 app.use(passport.initialize());
 passport.use(JwtStrat);

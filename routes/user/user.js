@@ -6,9 +6,15 @@ const bodyParser = require('body-parser');
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+let User;
+const userPromise=import('../../database/sql-database.mjs');
+userPromise.then(async(res)=>{
+    User=await res;
+});
 
-const userHelper = require('./user.helper')
-
+const UserHelpers = import('../../database/helpers/user.helper.mjs');
+console.log(UserHelpers);
+const userHelper=User?new UserHelpers(User):null;
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
 const jwt = require('jsonwebtoken');

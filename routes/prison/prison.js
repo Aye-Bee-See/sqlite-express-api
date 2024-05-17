@@ -12,7 +12,7 @@ var router = express.Router();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const prisonHelpers = require('./prison.helpers')
+const prisonHelpers = require('../../database/helpers/prison.helpers');
 
 // Enable authentication
 

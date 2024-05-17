@@ -3,12 +3,12 @@ const bodyParser = require('body-parser');
 
 const app = express();
 var router = express.Router();
-const db = require('../../sql-database')
+const db = import('../../database/sql-database.mjs');
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const prisonerHelper = require('./prisoner.helper');
+const prisonerHelper = require('../../database/helpers/prisoner.helper');
 
 // Enable authentication
 

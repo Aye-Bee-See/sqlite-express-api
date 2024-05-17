@@ -7,7 +7,7 @@ const bodyParser = require('body-parser');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const ruleHelper = require('./rule.helper');
+const ruleHelper = require('../../database/helpers/rule.helper');
 
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');

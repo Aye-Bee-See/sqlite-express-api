@@ -24,6 +24,8 @@ router.get('/', function(req, res) {
   res.status(200).json({ msg: 'Messaging is up!' });
 });
 
+// TODO: Add catches to all routes
+
 // Create
 
 // find or create chat

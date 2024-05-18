@@ -1,11 +1,14 @@
 const { bio } = require('./prisoner.model');
 
-const Prisoner = require('../../sql-database').Prisoner;
-const Prison = require('../../sql-database').Prison;
+const { Prisoner, Prison, Chat } = require('../../sql-database')
+
+// Create
 
 const createPrisoner = async ({ birthName, chosenName, prison_id, inmateID, releaseDate, bio }) => {
-  return await Prisoner.create({ birthName, chosenName, prison_id, inmateID, releaseDate, bio })
+  return await Prisoner.create({ birthName, chosenName, prison_id, inmateID, releaseDate, bio });
 }
+
+// Read
 
 const getAllPrisoners = async (full) => {
   if (full) {
@@ -40,19 +43,42 @@ const getPrisonerByID = async (id, full) => {
       where: {id: id},
     });
   }
-
 };
 
+const getPrisonersByPrison = async (prisonId, full) => {
+  if (full) {
+    return await Prisoner.findAll({
+      include: [
+        {
+          model: Chat,
+          as: "chats"
+        }
+      ],
+      where: {prison_id: prisonId}     
+    })
+  } 
+  else {
+    return await Prisoner.findAll({
+      where: { prison_id: prisonId }
+    })
+  };
+};
+
+// Update
+
 const updatePrisoner = async function(newPrisoner) {
-  return await Prisoner.update({...newPrisoner}, { where: {id: newPrisoner.id}})
-}
+  return await Prisoner.update({...newPrisoner}, { where: {id: newPrisoner.id}});
+};
 
-const addPrisonerToPrison = async function(id, prison) {
-  return await Prisoner.update({
-    prison: prison
-  }, {where: {id: id}}).then(updatedPrisoner => {
-    return updatedPrisoner;
-  })
-}
+// Delete
 
-module.exports = { createPrisoner, getAllPrisoners, getPrisonerByID, updatePrisoner, addPrisonerToPrison }
+const deletePrisoner = async (id) => {
+  return await Prisoner.destroy({
+    where: {id: id}
+  });
+};
+
+module.exports = {  createPrisoner, 
+                    getAllPrisoners, getPrisonerByID, getPrisonersByPrison,
+                    updatePrisoner,
+                    deletePrisoner }

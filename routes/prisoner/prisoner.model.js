@@ -11,7 +11,7 @@ const prisonerSchema = {
   prison_id: {
     type: DataTypes.INTEGER,
     model: 'prisons',
-    key: 'prison_id'
+    key: 'prison_key'
   },
   inmateID: {
     type: DataTypes.STRING

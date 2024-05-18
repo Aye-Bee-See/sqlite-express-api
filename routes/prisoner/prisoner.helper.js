@@ -13,12 +13,13 @@ const getAllPrisoners = async (full) => {
     include: [
       {
         model: Prison,
-        as: 'prison' 
+        as: 'prison_details', 
+        key: 'prison_key'
       }
       ]
   })}
   else {
-    return await Prisoner.findAll()
+    return await Prisoner.findAll();
   };
 };
 

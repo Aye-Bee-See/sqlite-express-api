@@ -41,7 +41,7 @@ router.get('/rule/:id?/:full?', function(req, res){
   const fullBool = (full === 'true');
   ruleHelper.getRuleByID(id, fullBool)
   .then(rule => res.status(200).json(rule))
-  .catch(err => res.status(400).json({msg: "Error getting rule", err}));
+  .catch(err => res.status(400).json({msg: "Error getting rule by ID", err}));
 });
 
 // Update

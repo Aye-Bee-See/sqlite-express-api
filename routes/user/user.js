@@ -13,62 +13,110 @@ const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const e = require('express');
+
+app.use(express.urlencoded({ extended: false }));
 
 app.use(passport.initialize());
 passport.use(JwtStrat);
 
-router.get('/', function(req, res) {
-  res.status(200).json({ message: 'Auth is up!' });
+const stripPassword = function(userList) {
+  return userList.map(function(user) { return { id: user.id, email: user.email, name: user.name, role: user.role } } );
+};
+
+
+// Create
+
+// register admin route (currently default role is admin)
+router.post('/user', async function(req, res, next) {
+  const password = await bcrypt.hash(req.body.password, 10);
+  const { name, email } = req.body;
+  const role = req.body.role.toLowerCase();
+
+  userHelper.getUserByNameOrEmail(name, email, false).then(user => {
+      userHelper.createUser({ name, password, role, email }).then(user => { 
+      const strippedPassword = stripPassword([user])[0];
+      res.status(200).json({ msg: "User successfully created", user: strippedPassword });
+  }).catch(err => { res.status(400).json({message: err.message}); }); 
+  }).catch(err => res.status(400).json({msg: "Error checking if user esists", err}));
 });
 
-// get all admins
+// Read
+
+// get all users
 router.get('/users/:full?', function(req, res, next) {
   const { full } = req.query;
   const fullBool = (full === 'true');
   userHelper.getAllUsers(fullBool).then(users => {
-    if (users.length > 0) { res.status(200).json(users) }
+    const filteredUsers = stripPassword(users);
+    if (users.length > 0) { res.status(200).json(filteredUsers) }
     else { res.status(400).json({ error: "Zero users exist in the database." }) }
-    }); 
+    }).catch(err => { res.status(400).json({msg: "Error retrieving user list", err}) }); 
 });
 
 // get one user
-router.get('/user/:id/:full?', passport.authenticate('jwt', {session: false}), function(req, res) {
-  const { id } = req.params;
-  const { full } = req.query;
+router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
+  const { id, email, name, full } = req.query;
   const fullBool = (full === 'true');
 
-  userHelper.getUserByID(id, fullBool).then(user => {
-  if (user) { res.status(200).json(user) }
-  else { res.status(400).json({message: "Error: No such user."}) }
+  if (id === null && email === null && name === null ) { res.status(200).json({msg: "No ID or email provided"}) }
+  else if (id) {
+    userHelper.getUserByID(id, fullBool).then(user => {
+      const strippedPassword = stripPassword([user])[0];
+      if (user) { res.status(200).json({user: strippedPassword}) }
+      else { res.status(400).json({msg: "Error: No such user ID."}) }
+      }
+      )
+      .catch (err => { res.status(400).json({msg: "Error getting user", err}) })
   }
-  )
-})
-
-// register admin route
-router.post('/register-admin', async function(req, res, next) {
-  const role = "Admin"
-  const password = await bcrypt.hash(req.body.password, 10);
-  const { name, email } = req.body;
-
-  userHelper.getUserByNameOrEmail(name, email, false).then(user => {
- 
-      userHelper.createUser({ name, password, role, email }).then(user => { 
-      res.status(200).json({ name, role, email, message: 'Account created successfully.' });
+  else if (email) {
+    userHelper.getUserByEmail(email, fullBool).then(user => {
+      const strippedPassword = stripPassword([user])[0];
+      if (user) { res.status(200).json({user: strippedPassword}) }
+      else { res.status(400).json({msg: "Error: No such user email."}) };
+    })
+    .catch(err => { res.status(400).json({msg: "Error getting user", err}) })
   }
-  ).catch(err => {
-    res.status(400).json({message: err.message});
-  }); 
-  })
+  else {
+    userHelper.getUserByName(name, fullBool).then(user => {
+      const strippedPassword = stripPassword([user])[0];
+      if (user) { res.status(200).json({user: strippedPassword}) }
+      else { res.status(400).json({msg: "Error: No such user email."}) };
+    })
+  }
 });
+
+// Update
+
+router.put('/user', async function(req, res){
+  const newUser = req.body;
+  userHelper.updateUser(newUser).then(updatedRows => {
+    res.status(200).json({ msg: "Updated user", updatedRows })
+  }).catch(err => {res.status(400).json({ msg: "Error updating user", err })});
+});
+
+// Delete
+
+router.delete('/user', async function(req, res){
+  const { id } = req.body;
+  userHelper.deleteUser(id).then(deletedRows => {
+    res.status(200).json({ msg: "Deleted user", deletedRows});
+  }).catch(err => {res.status(200).json({ msg: "Error deleting user", err })});
+});
+
+// protected route
+router.get('/protected', passport.authenticate('jwt', { session: false }), function(req, res) {
+  res.status(200).json({ msg: 'Congrats! You are seeing this because you are authorized.'});
+  });
 
 // login route
 router.post('/login', async function(req, res, next) { 
   const { name, password } = req.body;
   if (name && password) {
-    
     let user = await userHelper.getUser({ name });
     if (!user) {
-      res.status(401).json({ msg: 'No such user or associated password found.', user });
+      res.status(400).json({ msg: 'No such user or associated password found.', user })
+      .catch(err => {res.status(200).json({msg: "Error loggin in", err})});
     }
     else {
       const match = await bcrypt.compare(req.body.password, user.password)
@@ -87,14 +135,8 @@ router.post('/login', async function(req, res, next) {
         res.status(400).json({ message: 'No such user or associated password found.' });
       }
     }
-
   }
 });
-
-// protected route
-router.get('/protected', passport.authenticate('jwt', { session: false }), function(req, res) {
-  res.status(200).json({ msg: 'Congrats! You are seeing this because you are authorized.'});
-  });
 
 
 module.exports = router;

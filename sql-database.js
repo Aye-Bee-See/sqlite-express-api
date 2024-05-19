@@ -40,7 +40,7 @@ Message.belongsTo(Chat, { as: 'ownerChat', foreignKey: 'chat' });
 User.hasMany(Chat, { as: 'chats', foreignKey: 'user' });
 
 Chat.belongsTo(Prisoner, { as: 'prisonerDetails', foreignKey: 'prisoner' });
-Chat.belongsTo(User, { as: 'userDetails', foreignKey: 'user' });
+Chat.belongsTo(User, { as: 'userDetails', foreignKey: 'user_key' });
 Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat' });
 
 // Force: True resets database

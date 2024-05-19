@@ -1,7 +1,7 @@
 const { name } = require('./user.model');
+const { User, Chat } = require('../../sql-database');
 
-const User = require('../../sql-database').User
-const Chat = require('../../sql-database').Chat
+// Create
 
 const createUser = async ({ name, password, role, email }) => { 
   return await User.create({ name, password, role, email });
@@ -22,6 +22,7 @@ const getAllUsers = async (full) => {
   });
 }
 };
+
 const getUser = async (obj, full) => {
   if (full) {
     return await User.findOne({
@@ -40,6 +41,7 @@ const getUser = async (obj, full) => {
     });
   }
 };
+
 const getUserByID = async function(id, full) {
   if (full) {
     return await User.findOne({
@@ -116,4 +118,20 @@ const getUserByNameOrEmail = async (name, email, full) => {
   }
 }
 
-module.exports = { createUser, getAllUsers, getUser, getUserByID, getUserByEmail, getUserByName, getUserByNameOrEmail }
+// Update
+
+const updateUser = async (newUser) => {
+  return await User.update({...newUser}, {where: {id: newUser.id}} );
+};
+
+// Delete
+
+const deleteUser = async (id) => {
+  return await User.destroy({ where: {id: id} });
+};
+
+module.exports = { createUser, 
+                  getAllUsers, getUser, getUserByID, getUserByEmail, getUserByName, getUserByNameOrEmail,
+                  updateUser,
+                  deleteUser
+                  }

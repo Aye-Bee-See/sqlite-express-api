@@ -26,16 +26,11 @@ let ExtractJwt = passportJWT.ExtractJwt;
 let JwtStrat = require('../../jwt-strategy')
 app.use(passport.initialize());
 
-router.get('/', function(req, res) {
-  res.json({ message: 'Prisons is up!' });
-});
-
 // Create
-router.post('/create-prison', function(req, res, next) {
+router.post('/prison', function(req, res, next) {
   const { prisonName, address } = req.body;
-  prisonHelper.createPrison({ prisonName, address }).then(prison =>
-    res.json({ prison, msg: 'account created successfully' })
-  );
+  prisonHelper.createPrison({ prisonName, address }).then(prison => res.status(200).json({ msg: 'Account created successfully', prison }))
+    .catch(err => res.status(400).json({message: "Error creating prison", err}));
 });
 
 // Read
@@ -43,14 +38,15 @@ router.post('/create-prison', function(req, res, next) {
 router.get('/prisons/:full?', function(req, res) {
   const { full } = req.query;
   const fullBool = (full === 'true');
-  prisonHelper.getAllPrisons(fullBool).then(prison => res.json(prison)); 
+  prisonHelper.getAllPrisons(fullBool).then(prison => res.status(200).json(prison))
+    .catch(err => res.status(400).json({msg: 'Error reading all prisons', err})); 
 });
 
-router.get('/prison/:id/:full?', function(req, res) {
-  const { id } = req.params;
-  const { full } = req.query;
+router.get('/prison/:id?/:full?', function(req, res) {
+  const { id, full } = req.query;
   const fullBool = (full === 'true');
-  prisonHelpers.getPrisonByID(id, fullBool).then(prison => res.json(prison));
+  prisonHelper.getPrisonByID(id, fullBool).then(prison => res.status(200).json(prison))
+  .catch(err => res.status(200).json({msg: 'Error reading on prison by ID', err}));
 });
 
 // Update

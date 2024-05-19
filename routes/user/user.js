@@ -27,7 +27,7 @@ const stripPassword = function(userList) {
 
 // Create
 
-// register admin route (currently default role is admin)
+// register admin route
 router.post('/user', async function(req, res, next) {
   const password = await bcrypt.hash(req.body.password, 10);
   const { name, email } = req.body;
@@ -44,19 +44,26 @@ router.post('/user', async function(req, res, next) {
 // Read
 
 // get all users
-// TODO: get chats if full
-router.get('/users/:full?', function(req, res, next) {
-  const { full } = req.query;
+router.get('/users/:role?/:full?', function(req, res, next) {
+  const { role, full } = req.query;
   const fullBool = (full === 'true');
+
+  if (role) {
+    userHelper.getUsersByRole(role, fullBool).then (users => {
+      const filteredUsers = stripPassword(users);
+      res.status(200).json(filteredUsers);
+    }).catch(err => res.status(400).json({msg: "Error getting users by role", err}));
+  }
+  else {
   userHelper.getAllUsers(fullBool).then(users => {
     const filteredUsers = stripPassword(users);
     if (users.length > 0) { res.status(200).json(filteredUsers) }
-    else { res.status(400).json({ error: "Zero users exist in the database." }) }
+    else { res.status(400).json({ msg: "Zero users exist in the database." }) };
     }).catch(err => { res.status(400).json({msg: "Error retrieving user list", err}) }); 
+  }
 });
 
 // get one user
-// TODO: get chats if full
 router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
   const { id, email, name, full } = req.query;
   const fullBool = (full === 'true');
@@ -88,11 +95,9 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
   }
 });
 
-// TODO: Add route to list users by role
-
 // Update
 
-router.put('/user', async function(req, res){
+router.put('/user', async function(req, res) {
   const newUser = req.body;
   userHelper.updateUser(newUser).then(updatedRows => res.status(200).json({ msg: "Updated user", updatedRows ,newUser })
   ).catch(err => {res.status(400).json({ msg: "Error updating user", err })});
@@ -100,7 +105,7 @@ router.put('/user', async function(req, res){
 
 // Delete
 
-router.delete('/user', async function(req, res){
+router.delete('/user', async function(req, res) {
   const { id } = req.body;
   userHelper.deleteUser(id).then(deletedRows => {
     res.status(200).json({ msg: "Deleted user", deletedRows});
@@ -122,7 +127,7 @@ router.post('/login', async function(req, res, next) {
       .catch(err => {res.status(200).json({msg: "Error loggin in", err})});
     }
     else {
-      const match = await bcrypt.compare(req.body.password, user.password)
+      const match = await bcrypt.compare(req.body.password, user.password);
       if (match) {
       // from now on we’ll identify the user by the id and the id is
       // the only personalized value that goes into our token
@@ -132,13 +137,15 @@ router.post('/login', async function(req, res, next) {
       let payload = { id: user.id };
       //TODO: Better secret than this, hide it in a .env file
       let token = jwt.sign(payload, 'wowwow');
-      res.status(200).json({ message: 'ok', token: token });
+      res.status(200).json({ msg: 'ok', token });
       }
       else {
-        res.status(400).json({ message: 'No such user or associated password found.' });
-      }
-    }
-  }
+        res.status(400).json({ msg: 'No such user or associated password found.' });
+      };
+    };
+  } else {
+    res.status(400).json({msg: 'Call must contain both username and password'});
+  };
 });
 
 module.exports = router;

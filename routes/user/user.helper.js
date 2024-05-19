@@ -1,4 +1,3 @@
-const { name } = require('./user.model');
 const { User, Chat } = require('../../sql-database');
 
 // Create
@@ -15,12 +14,30 @@ const getAllUsers = async (full) => {
           as: "chats"
         }
       ]
-    })
+    });
   }
   else {
-  return await User.findAll({  
-  });
+  return await User.findAll({});
 }
+};
+
+const getUsersByRole = async (role, full) => {
+    if (full) {
+      return await User.findAll({
+        where: {role: role},
+        include: [
+          {
+            model: Chat,
+            as: "chats"
+          }
+        ]
+      });
+    }
+    else {
+      return await User.findAll({
+        where: {role: role}
+      });
+    };
 };
 
 const getUser = async (obj, full) => {
@@ -33,16 +50,16 @@ const getUser = async (obj, full) => {
           as: 'chats'
         }
       ]
-    })
+    });
   }
   else {
     return await User.findOne({
       where: obj,
     });
-  }
+  };
 };
 
-const getUserByID = async function(id, full) {
+const getUserByID = async (id, full) => {
   if (full) {
     return await User.findOne({
       where: {id: id},
@@ -52,16 +69,16 @@ const getUserByID = async function(id, full) {
           as: 'chats'
         }
       ]
-    })
+    });
   }
   else {
     return await User.findOne({
       where: {id: id},
     });
-  }
+  };
 };
 
-const getUserByEmail = async function(email, full) {
+const getUserByEmail = async (email, full) => {
   if (full) {
     return await User.findOne({
       where: {email: email},
@@ -71,13 +88,13 @@ const getUserByEmail = async function(email, full) {
           as: 'chats'
         }
       ]
-    })
+    });
   }
   else {
     return await User.findOne({
       where: {email: email},
     });
-  }
+  };
 };
 
 const getUserByName = async (name, full) => {
@@ -90,13 +107,13 @@ const getUserByName = async (name, full) => {
           as: 'chats'
         }
       ]
-    })
+    });
   }
   else {
     return await User.findOne({
       where: {name: name},
     });
-  }
+  };
 }
 
 const getUserByNameOrEmail = async (name, email, full) => {
@@ -109,19 +126,19 @@ const getUserByNameOrEmail = async (name, email, full) => {
           as: 'chats'
         }
       ]
-    })
+    });
   }
   else {
     return await User.findOne({
       where: {name: name, email: email},
     });
-  }
+  };
 }
 
 // Update
 
 const updateUser = async (newUser) => {
-  return await User.update({...newUser}, {where: {id: newUser.id}} );
+  return await User.update({...newUser}, { where: {id: newUser.id} });
 };
 
 // Delete
@@ -131,7 +148,7 @@ const deleteUser = async (id) => {
 };
 
 module.exports = { createUser, 
-                  getAllUsers, getUser, getUserByID, getUserByEmail, getUserByName, getUserByNameOrEmail,
+                  getAllUsers, getUsersByRole, getUser, getUserByID, getUserByEmail, getUserByName, getUserByNameOrEmail,
                   updateUser,
                   deleteUser
                   }

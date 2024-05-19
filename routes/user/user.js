@@ -69,7 +69,7 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
       else { res.status(400).json({msg: "Error: No such user ID."}) }
       }
       )
-      .catch (err => { res.status(400).json({msg: "Error getting user", err}) })
+      .catch (err => { res.status(400).json({msg: "Error getting user by ID", err}) })
   }
   else if (email) {
     userHelper.getUserByEmail(email, fullBool).then(user => {
@@ -77,24 +77,25 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user email."}) };
     })
-    .catch(err => { res.status(400).json({msg: "Error getting user", err}) })
+    .catch(err => { res.status(400).json({msg: "Error getting user by email", err}) })
   }
   else {
     userHelper.getUserByName(name, fullBool).then(user => {
       const strippedPassword = stripPassword([user])[0];
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user email."}) };
-    })
+    }).catch(err => res.status(200).json({msg: "Error getting user by name", err}))
   }
 });
+
+// TODO: Add route to list users by role
 
 // Update
 
 router.put('/user', async function(req, res){
   const newUser = req.body;
-  userHelper.updateUser(newUser).then(updatedRows => {
-    res.status(200).json({ msg: "Updated user", updatedRows })
-  }).catch(err => {res.status(400).json({ msg: "Error updating user", err })});
+  userHelper.updateUser(newUser).then(updatedRows => res.status(200).json({ msg: "Updated user", updatedRows ,newUser })
+  ).catch(err => {res.status(400).json({ msg: "Error updating user", err })});
 });
 
 // Delete
@@ -139,6 +140,5 @@ router.post('/login', async function(req, res, next) {
     }
   }
 });
-
 
 module.exports = router;

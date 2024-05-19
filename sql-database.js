@@ -33,7 +33,7 @@ Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'id', sourceKey: 
 Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner' });
 
 Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison_id' });
-Prison.hasMany(Rule, { as: 'rules', foreignKey: 'id' });
+Prison.hasMany(Rule, { as: 'rules', foreignKey: 'ruleId' });
 
 Message.belongsTo(Chat, { as: 'ownerChat', foreignKey: 'chat' });
 
@@ -42,6 +42,8 @@ User.hasMany(Chat, { as: 'chats', foreignKey: 'user' });
 Chat.belongsTo(Prisoner, { as: 'prisonerDetails', foreignKey: 'prisoner' });
 Chat.belongsTo(User, { as: 'userDetails', foreignKey: 'user_key' });
 Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat' });
+
+Rule.belongsToMany(Prison, { through: 'RulePassthrough', foreignKey: 'prisonId'});
 
 // Force: True resets database
 // TODO: Make this only force in dev environment

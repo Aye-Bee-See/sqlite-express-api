@@ -46,7 +46,6 @@ router.get('/prisons/:full?', function(req, res) {
   prisonHelper.getAllPrisons(fullBool).then(prison => res.json(prison)); 
 });
 
-
 router.get('/prison/:id/:full?', function(req, res) {
   const { id } = req.params;
   const { full } = req.query;
@@ -60,6 +59,12 @@ router.put('/prison', function(req, res) {
   const prison = req.body;
   prisonHelper.updatePrison(prison).then(updatedPrison => res.status(200).json(updatedPrison))
                                   .catch(err => res.status(400).json({msg: "Error updating prison", err}));
+});
+
+router.put('/rule', function(req, res) {
+  const { rule, prison } = req.body;
+  prisonHelper.addRule(rule, prison).then(result => res.status(200).json({msg: "Rule added to prison", result}))
+                                    .catch(err => res.status(400).json({msg: "Error adding rule to prison", err}));
 });
 
 // Delete

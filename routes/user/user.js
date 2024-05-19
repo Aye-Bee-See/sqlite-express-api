@@ -44,6 +44,7 @@ router.post('/user', async function(req, res, next) {
 // Read
 
 // get all users
+// TODO: get chats if full
 router.get('/users/:full?', function(req, res, next) {
   const { full } = req.query;
   const fullBool = (full === 'true');
@@ -55,6 +56,7 @@ router.get('/users/:full?', function(req, res, next) {
 });
 
 // get one user
+// TODO: get chats if full
 router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
   const { id, email, name, full } = req.query;
   const fullBool = (full === 'true');

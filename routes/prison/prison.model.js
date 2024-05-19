@@ -9,6 +9,6 @@ const prisonModel = {
     type: DataTypes.JSON,
     allowNull: false
   },
-}
+};
 
 module.exports = prisonModel;

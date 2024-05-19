@@ -12,24 +12,21 @@ var router = express.Router();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const prisonHelper = require('./prison.helpers')
+const prisonHelper = require('./prison.helpers');
 
-// Enable authentication
-
+// Authentication imports
 const jwt = require('jsonwebtoken');
-// import passport and passport-jwt modules
 const passport = require('passport');
 const passportJWT = require('passport-jwt');
-// ExtractJwt to help extract the token
 let ExtractJwt = passportJWT.ExtractJwt;
-// JwtStrategy which is the strategy for the authentication
-let JwtStrat = require('../../jwt-strategy')
+let JwtStrat = require('../../jwt-strategy');
 app.use(passport.initialize());
 
 // Create
+
 router.post('/prison', function(req, res, next) {
   const { prisonName, address } = req.body;
-  prisonHelper.createPrison({ prisonName, address }).then(prison => res.status(200).json({ msg: 'Account created successfully', prison }))
+  prisonHelper.createPrison({ prisonName, address }).then(prison => res.status(200).json({ msg: 'Prison created successfully', prison }))
     .catch(err => res.status(400).json({message: "Error creating prison", err}));
 });
 

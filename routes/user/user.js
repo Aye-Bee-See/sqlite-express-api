@@ -124,7 +124,7 @@ router.post('/login', async function(req, res, next) {
     let user = await userHelper.getUser({ name });
     if (!user) {
       res.status(400).json({ msg: 'No such user or associated password found.', user }
-    ).catch(err => {res.status(200).json({msg: "Error loggin in", err})});
+    )
     }
     else {
       const match = await bcrypt.compare(req.body.password, user.password);

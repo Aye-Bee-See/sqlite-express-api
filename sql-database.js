@@ -28,7 +28,7 @@ const Chat = sequelize.define('chat', chatSchema);
 const Message = sequelize.define('message', messageSchema);
 const Rule = sequelize.define('rule', ruleSchema);
 
-Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'id'});
+Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'prison'});
 Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner' });
 
 Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison'});

@@ -1,5 +1,4 @@
 const { Prisoner, Chat, Message, User } = require('../../sql-database');
-const { user } = require('./chat.model');
 
 // Create
 const createChat = async function({ user, prisoner }) {

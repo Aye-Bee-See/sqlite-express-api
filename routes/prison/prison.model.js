@@ -9,6 +9,10 @@ const prisonModel = {
     type: DataTypes.JSON,
     allowNull: false
   },
-}
+  deleted: {
+    type: DataTypes.JSON,
+    allowNull: false
+  }
+};
 
 module.exports = prisonModel;

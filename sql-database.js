@@ -4,7 +4,6 @@ const prisonerSchema = require('./routes/prisoner/prisoner.model');
 const chatSchema = require('./routes/message/chat.model');
 const messageSchema = require('./routes/message/message.model');
 const ruleSchema = require('./routes/rule/rule.model');
-
 const Sequelize = require('sequelize');
 
 const sequelize = new Sequelize({
@@ -22,6 +21,11 @@ sequelize
 
 // import models
 const User = sequelize.define('user', userSchema);
+User.addHook("beforeCreate", "HashPass", async (record, options) => {
+    const {hash} = require('bcrypt');
+      const hashedPass = await hash(record.password, 10);
+      record.password =hashedPass;
+});
 const Prison = sequelize.define('prison', prisonSchema);
 const Prisoner = sequelize.define('prisoner', prisonerSchema);
 const Chat = sequelize.define('chat', chatSchema);
@@ -46,6 +50,9 @@ Rule.belongsToMany(Prison, { through: 'RulePassthrough', foreignKey: 'prisonId'}
 
 // Force: True resets database
 // TODO: Make this only force in dev environment
-sequelize.sync({ force: true });
+sequelize.sync({ force: true }).then(async() => {
+    const seeds =  await import ('./database/seeds/seeds.mjs');
+    return await seeds.createSeeds();
+});
 
-module.exports = {  Prison, Prisoner, User, Rule, Message, Chat }
+module.exports = {  Prison, Prisoner, User, Rule, Message, Chat };

@@ -83,8 +83,8 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
       const strippedPassword = stripPassword([user])[0];
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user email."}) };
-    })
-    .catch(err => { res.status(400).json({msg: "Error getting user by email", err}) })
+    }
+  ).catch(err => { res.status(400).json({msg: "Error getting user by email", err}) })
   }
   else {
     userHelper.getUserByName(name, fullBool).then(user => {
@@ -123,8 +123,8 @@ router.post('/login', async function(req, res, next) {
   if (name && password) {
     let user = await userHelper.getUser({ name });
     if (!user) {
-      res.status(400).json({ msg: 'No such user or associated password found.', user })
-      .catch(err => {res.status(200).json({msg: "Error loggin in", err})});
+      res.status(400).json({ msg: 'No such user or associated password found.', user }
+    ).catch(err => {res.status(200).json({msg: "Error loggin in", err})});
     }
     else {
       const match = await bcrypt.compare(req.body.password, user.password);

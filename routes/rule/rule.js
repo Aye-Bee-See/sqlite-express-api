@@ -50,9 +50,8 @@ router.put('/rule', function(req, res){
   const rule = req.body;
   console.log(rule)
   ruleHelper.updateRule(rule).then(updatedRows => {
-    res.status(200).json({msg: "Rule succeessfully updated", updatedRows, newRule: rule})
-  })
-    .catch(err => res.status(400).json({msg: "Error updating rule", err}))
+    res.status(200).json({msg: "Rule succeessfully updated", updatedRows, newRule: rule})}
+  ).catch(err => res.status(400).json({msg: "Error updating rule", err}))
 });
 
 // Delete

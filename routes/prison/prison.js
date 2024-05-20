@@ -65,8 +65,8 @@ router.put('/rule', function(req, res) {
 router.delete('/prison', function(req, res) {
   const { id } = req.body;
   prisonHelper.deletePrison(id).then(deletedRows => {
-    if (deletedRows < 1) { res.status(400).json({ msg: "No such message" }); }
-    else { res.status(200).json({ msg: "Message successfully deleted" }); }
+    if (deletedRows < 1) { res.status(400).json({ msg: "No such prison" }); }
+    else { res.status(200).json({ msg: "Prison successfully deleted" }); }
   })
   .catch(err => {res.status(400).json({msg: "Error deleting prison", err})});
 });

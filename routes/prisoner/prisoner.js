@@ -42,9 +42,9 @@ router.get('/prisoner/:id/:full?', function(req, res) {
   prisonerHelper.getPrisonerByID(id, fullBool).then(prisoner => res.json(prisoner))
 })
 
-router.post('/create-prisoner', function(req, res, next) {
-  const { birthName, chosenName, prison_id, inmateID, releaseDate, bio } = req.body;
-  prisonerHelper.createPrisoner({ birthName, chosenName, prison_id, inmateID, releaseDate, bio }).then(prisoner =>
+router.post('/prisoner', function(req, res, next) {
+  const { birthName, chosenName, prison, inmateID, releaseDate, bio } = req.body;
+  prisonerHelper.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio }).then(prisoner =>
     res.json({ prisoner, msg: 'prisoner created successfully' })
   ).catch(err => res.status(400).json({ msg: "Error creating prisoner", err }));
 });

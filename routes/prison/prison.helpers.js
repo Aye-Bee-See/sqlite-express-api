@@ -3,7 +3,7 @@ const { Prison, Prisoner, Rule } = require('../../sql-database');
 // Create
 
 const createPrison = async ({ prisonName, address }) => {
-  return await Prison.create({ prisonName, address });
+  return await Prison.create({ prisonName, address, deleted: false });
 };
 
 const getAllPrisons = async (full) => {
@@ -68,17 +68,8 @@ const addRule = async (rule, prison) => {
 
 // Delete
 
-// TODO: deleting prison currently deletes all prisoners attached to this prison, change this
 const deletePrison = async (id) => {
-  return await Prison.findOrCreate({ where: {id: 999}, defaults: {id: 999, prisonName: "Null Prison", address: {street: "This is not a real prison, it is a default in which to stash prisoners not assigned to any prison"}}  })
-  .then(prison => {
-    Prisoner.update({prison_id: 999}, {where: { prison: id }}).then(updatedPrisoners => {
-      Prison.destroy({
-        where: { id: id },
-        force: true
-      });
-    });
-  });
+  Prison.update({deleted: true}, { where: {id: id} })
 };
 
 module.exports = {createPrison, addRule,

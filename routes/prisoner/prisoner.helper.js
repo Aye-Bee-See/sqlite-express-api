@@ -4,8 +4,8 @@ const { Prisoner, Prison, Chat } = require('../../sql-database')
 
 // Create
 
-const createPrisoner = async ({ birthName, chosenName, prison_id, inmateID, releaseDate, bio }) => {
-  return await Prisoner.create({ birthName, chosenName, prison_id, inmateID, releaseDate, bio });
+const createPrisoner = async ({ birthName, chosenName, prison, inmateID, releaseDate, bio }) => {
+  return await Prisoner.create({ birthName, chosenName, prison, inmateID, releaseDate, bio });
 }
 
 // Read
@@ -32,7 +32,6 @@ const getPrisonerByID = async (id, full) => {
       include: [
         {
           model: Prison,
-          as: 'prison'
         }
       ],
       where: {id: id},
@@ -54,12 +53,12 @@ const getPrisonersByPrison = async (prisonId, full) => {
           as: "chats"
         }
       ],
-      where: {prison_id: prisonId}     
+      where: {prison: prisonId}     
     })
   } 
   else {
     return await Prisoner.findAll({
-      where: { prison_id: prisonId }
+      where: { prison: prisonId }
     })
   };
 };

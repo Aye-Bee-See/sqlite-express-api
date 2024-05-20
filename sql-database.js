@@ -23,16 +23,16 @@ sequelize
 
 // import models
 const User = sequelize.define('user', userSchema);
-const Prison = sequelize.define('prison', prisonSchema)
+const Prison = sequelize.define('prison', prisonSchema);
 const Prisoner = sequelize.define('prisoner', prisonerSchema);
 const Chat = sequelize.define('chat', chatSchema);
 const Message = sequelize.define('message', messageSchema);
 const Rule = sequelize.define('rule', ruleSchema);
 
-Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'id', sourceKey: 'prison_key' });
+Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'id', sourceKey: 'prison_key', onDelete: "SET NULL"});
 Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner' });
 
-Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison_id' });
+Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison', onDelete: "SET NULL" });
 Prison.hasMany(Rule, { as: 'rules', foreignKey: 'ruleId' });
 
 Message.belongsTo(Chat, { as: 'ownerChat', foreignKey: 'chat' });
@@ -47,6 +47,6 @@ Rule.belongsToMany(Prison, { through: 'RulePassthrough', foreignKey: 'prisonId'}
 
 // Force: True resets database
 // TODO: Make this only force in dev environment
-sequelize.sync({ force:true })
+sequelize.sync({ force: true });
 
 module.exports = {  Prison, Prisoner, User, Rule, Message, Chat }

@@ -47,4 +47,4 @@ app.use('/prison', prisonRouter);
 app.use('/prisoner', prisonerRouter);
 app.use('/rule', ruleRouter);
 app.use('/messaging', messagingRouter);
-app.use(errorMiddleware)
+app.use(errorMiddleware);

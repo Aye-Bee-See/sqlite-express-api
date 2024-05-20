@@ -33,7 +33,7 @@ router.post('/prisoner', function(req, res, next) {
   const { birthName, chosenName, prison, inmateID, releaseDate, bio } = req.body;
   prisonHelper.getPrisonByID(prison, false).then(prison => {
     if (prison) {
-      prisonerHelper.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio }).then(prisoner =>
+      prisonerHelper.createPrisoner({ birthName, chosenName, prison: prison.id, inmateID, releaseDate, bio }).then(prisoner =>
         res.status(200).json({ prisoner, msg: 'Prisoner created successfully' })
       ).catch(err => res.status(400).json({ msg: "Error creating prisoner", err }));
     }

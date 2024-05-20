@@ -1,4 +1,5 @@
 const { Prisoner, Chat, Message, User } = require('../../sql-database');
+const { user } = require('./chat.model');
 
 // Create
 const createChat = async function({ user, prisoner }) {
@@ -153,9 +154,21 @@ const readMessageById = async function(id) {
   });
 };
 
-const ReadMessagesByChat = async (id) => {
+const readMessagesByChat = async (id) => {
   return await Message.findAll({
     where: {chat: id}
+  });
+};
+
+const readMessagesByPrisoner = async (id) => {
+  return await Message.findAll({
+    where: {prisoner: id}
+  });
+};
+
+const readMessagesByUser = async (id) => {
+  return await Message.findAll({
+    where: {user: id}
   });
 };
 
@@ -170,7 +183,7 @@ const updateChat = async (chat) => {
   const prisoner = chat.prisoner;
   return await Chat.update({...chat}, { where: {id: chat.id}}).then( updatedChat =>
     Message.update({user: user, prisoner: prisoner}, {where: {chat: updatedChat}})
-  );
+  ).catch()
 };
 
 const updateMessage = async (message) => {
@@ -197,7 +210,8 @@ const deleteMessage = async (id) => {
 };
 
 module.exports = {  createChat, createMessage, 
-                    readAllChats, readChatsByUser, readChatsByPrisoner, readChatById, readAllMessages, ReadMessagesByChat, readMessageById, findOrCreateChat, readChatsByUserAndPrisoner,
+                    readAllChats, readChatsByUser, readChatsByPrisoner, readChatById, findOrCreateChat, readChatsByUserAndPrisoner,
+                    readAllMessages, readMessagesByChat, readMessagesByPrisoner, readMessagesByUser, readMessageById, 
                     updateChat, updateMessage,
                     deleteChat,deleteMessage
                   };

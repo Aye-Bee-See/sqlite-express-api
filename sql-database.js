@@ -1,4 +1,3 @@
-// TODO: Make sure there are CRUD functions for all models
 const prisonSchema = require('./routes/prison/prison.model');
 const userSchema = require('./routes/user/user.model');
 const prisonerSchema = require('./routes/prisoner/prisoner.model');

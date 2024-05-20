@@ -1,4 +1,4 @@
-const { bio } = require('../models/prisoner.model');
+const { bio } = require('#schemas/prisoner.schema.js');
 
 const {Prisoner, Prison} = import('../sql-database.mjs');
 

@@ -15,7 +15,7 @@ const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const { chat } = require('../../database/models/message.model');
+const { chat } = require('#schemas/message.schema.js');
 
 app.use(passport.initialize());
 passport.use(JwtStrat);

@@ -1,4 +1,4 @@
-const { prisoner } = require('../models/chat.model');
+const { prisoner } = require('#schemas/chat.schema.js');
 
 const {Chat,Message,User} = import('../sql-database.mjs');
 

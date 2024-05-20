@@ -20,8 +20,10 @@
     "sqlite3": "^5.1.7"
   },    
     "imports": {
-        "#*":"./*",
-        "#db/*": "./database/*"
+        "#/*":["./*","./*.js","./*.mjs"],
+        "#db/*": ["./database/*", "./database/*.js","./database/*.mjs"],
+        "#models/*": ["./database/models/*","./database/models/*.js","./database/models/*.mjs"],
+        "#schemas/*": ["./database/schemas/*","./database/schemas/*.js","./database/schemas/*.mjs"]
     },
   
   "devDependencies": {

@@ -1,6 +1,7 @@
 import {Sequelize, Model} from 'sequelize';
-import Schemas from '#db/models/all.model.mjs';
+import Schemas from '#schemas/all.schema.mjs';
 import Hooks from '#db/hooks/all.hooks.mjs';
+import UserModel from "#models/user.model.mjs";
 //import {createSeeds} from './seeds/all.seeds.mjs';
 
 //const {DB_USER, DB_PASS, DB_NAME} = process.env;
@@ -16,22 +17,13 @@ const config = {
 //console.log("CONF: " + JSON.stringify(config));
 export const sequelize= new Sequelize(config);
 
-export class User extends Model {}
-User.init(
-Schemas.user,
-  {
-    modelName: 'User',
-    hooks: Hooks.user,
-    sequelize
-  },
-); 
-
+export const User = UserModel.init(sequelize, Sequelize);
 export class Chat extends Model {}
 Chat.init(
 Schemas.chat,
   {
     modelName: 'Chat',
-    hooks: Hooks.chat,
+    hooks: Hooks.chat ||null,
     sequelize
   },
 ); 

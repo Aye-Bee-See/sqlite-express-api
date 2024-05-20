@@ -167,7 +167,8 @@ const deleteUser = async (id) => {
   return await User.destroy({ where: {id: id} });
 };
 
-module.exports = { createUser, 
+module.exports = { createUser, createBulkUsers,
+                   countUsers,
                   getAllUsers, getUsersByRole, getUser, getUserByID, getUserByEmail, getUserByName, getUserByNameOrEmail,
                   updateUser,
                   deleteUser

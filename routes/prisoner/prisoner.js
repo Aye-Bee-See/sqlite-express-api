@@ -9,6 +9,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 const prisonerHelper = require('./prisoner.helper');
+const prisonHelper = require('../prison/prison.helpers')
 
 // TODO: Rename these routes to be consistent with other routes
 
@@ -28,6 +29,21 @@ router.get('/', function(req, res) {
   res.json({ message: 'Prisoners is up!' });
 });
 
+router.post('/prisoner', function(req, res, next) {
+  const { birthName, chosenName, prison, inmateID, releaseDate, bio } = req.body;
+  prisonHelper.getPrisonByID(prison, false).then(prison => {
+    if (prison) {
+      prisonerHelper.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio }).then(prisoner =>
+        res.status(200).json({ prisoner, msg: 'Prisoner created successfully' })
+      ).catch(err => res.status(400).json({ msg: "Error creating prisoner", err }));
+    }
+    else {
+      res.status(400).json( { msg: "Error creating prisoner to non-existent prison"} );
+    }
+  })
+
+});
+
 // get all prisons
 router.get('/prisoners/:full?', function(req, res) {
   const { full } = req.query;
@@ -42,26 +58,19 @@ router.get('/prisoner/:id/:full?', function(req, res) {
   prisonerHelper.getPrisonerByID(id, fullBool).then(prisoner => res.json(prisoner))
 })
 
-router.post('/prisoner', function(req, res, next) {
-  const { birthName, chosenName, prison, inmateID, releaseDate, bio } = req.body;
-  prisonerHelper.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio }).then(prisoner =>
-    res.json({ prisoner, msg: 'prisoner created successfully' })
-  ).catch(err => res.status(400).json({ msg: "Error creating prisoner", err }));
-});
-
-router.put('/update-prisoner', function(req, res, next) {
+router.put('/prisoner', function(req, res, next) {
   const prisoner = req.body;
   prisonerHelper.updatePrisoner(prisoner).then(updatedPrisoner => {
-    res.json({ updatedPrisoner, msg: 'prisoner updated successfully'})
-  });
+    res.status(200).json({ updatedPrisoner, msg: 'Prisoner updated successfully'})}
+  ).catch(err => res.status(400).json({msg: "Error updating prisoner", err }))
 });
 
 router.delete('/prisoner', function(req, res, next) {
   const { id } = req.body;
   prisonerHelper.deletePrisoner(id).then(deletedRows => { 
     if (deletedRows < 1) { res.status(400).json({ msg: "No such prisoner" }); }
-    else { res.status(200).json({ msg: "Prisoner successfully deleted" }); }
-   }).catch(err => res.status(400).json({msg: "Error deleting prisoner", err}));
+    else { res.status(200).json({ msg: "Prisoner successfully deleted" }); }}
+  ).catch(err => res.status(400).json({msg: "Error deleting prisoner", err}));
 });
 
 module.exports = router

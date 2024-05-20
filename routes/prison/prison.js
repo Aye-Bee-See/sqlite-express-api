@@ -50,7 +50,7 @@ router.get('/prison/:id?/:full?', function(req, res) {
 // TODO: Update routes should return updated item
 router.put('/prison', function(req, res) {
   const prison = req.body;
-  prisonHelper.updatePrison(prison).then(updatedPrison => res.status(200).json(updatedPrison))
+  prisonHelper.updatePrison(prison).then(updatedRows => res.status(200).json({updatedRows, newPrison: prison}))
     .catch(err => res.status(400).json({msg: "Error updating prison", err}));
 });
 

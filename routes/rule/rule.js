@@ -28,12 +28,21 @@ router.post('/rule', function(req, res) {
 
 // Read
 
-router.get('/rules/:full?', function(req, res) {
-  const { full } = req.query;
-  const fullBool = (full === 'true');
-  ruleHelper.getAllRules(fullBool)
+router.get('/rules/:prison?', function(req, res) {
+  const { prison } = req.query;
+  if (!prison) {
+  ruleHelper.getAllRules()
   .then(rules => res.status(200).json(rules))
-  .catch(err => res.status(400).json({msg: "Error getting rules", err}));
+  .catch(err => res.status(400).json({msg: "Error getting all rules", err}));
+  }
+  else {
+    ruleHelper.getRulesByPrison(prison).then(rules => res.status(200).json(rules))
+      .catch(err => {
+        let sqliteError = ""
+        // if (err.original.errno === 1) { sqliteError =  "That prison doesn't exist."}
+        res.status(400).json({msg: "Error getting rules by prison.", err})}
+      )
+  }
 });
 
 router.get('/rule/:id?/:full?', function(req, res){

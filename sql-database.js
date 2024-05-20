@@ -32,14 +32,14 @@ Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'prison'});
 Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner' });
 
 Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison'});
-Prison.hasMany(Rule, { as: 'rules', foreignKey: 'ruleId' });
+Prison.belongsToMany(Rule, { through: 'RulePassthrough', foreignKey: 'ruleId', sourceKey: 'id' });
 
 Message.belongsTo(Chat, { as: 'ownerChat', foreignKey: 'chat' });
 
 User.hasMany(Chat, { as: 'chats', foreignKey: 'user' });
 
-Chat.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'id' });
-Chat.belongsTo(User, { as: 'user_details', foreignKey: 'id' });
+Chat.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' });
+Chat.belongsTo(User, { as: 'user_details', foreignKey: 'user' });
 Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat' });
 
 Rule.belongsToMany(Prison, { through: 'RulePassthrough', foreignKey: 'prisonId'});

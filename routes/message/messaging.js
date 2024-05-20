@@ -53,12 +53,19 @@ router.post('/message', function(req, res) {
 // Read
 
 // get all chats
-router.get('/chats', function(req, res) {
+router.get('/chats/:full?', function(req, res) {
   const { full } = req.query;
   const fullBool = (full === 'true');
   messageHelper.readAllChats(fullBool).then(chats => res.status(200).json(chats))
   .catch(err => res.status(400).json({msg: "Error getting all chats", err}));
 });
+
+router.get('/messages/:full?', function(req, res) {
+  const { full } = req.query;
+  const fullBool = (full === 'true');
+  messageHelper.readAllMessages(fullBool).then(messages => res.status(200).json(messages))
+    .catch(err => res.status(400).json({msg: "Error getting all messages", err}))
+})
 
 // get chats by user or prisoner or id
 router.get('/chat/:id?/:user?/:prisoner?/:full?', function(req, res) {
@@ -85,9 +92,9 @@ router.get('/chat/:id?/:user?/:prisoner?/:full?', function(req, res) {
    }
 });
 
-router.get('/message/:id?/:chat?/:prisoner?/:user?', function(req, res) {
+router.get('/messages/:id?/:chat?/:prisoner?/:user?', function(req, res) {
   const { id, chat, prisoner, user } = req.query;
-  if ( id == null && user == null && prisoner == null) { res.status(400).json({msg: "No id, user, or prisoner provided"}) }
+  if ( id == null && user == null && prisoner == null && chat == null) { res.status(400).json({msg: "No id, user, or prisoner provided"}) }
   else if (id != null) {
   messageHelper.readMessageById(id).then(chat => res.status(200).json(message))
   .catch(err => res.status(400).json({msg: "Error reading message by id", err}));

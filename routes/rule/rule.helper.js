@@ -18,11 +18,25 @@ const getAllRules = async (full) => {
   else {
     return await Rule.findAll({})
   }
+};
+
+const getRulesByPrison = async (prison) => {
+    return await Rule.findAll({
+      include: [
+        {
+          model: Prison,
+          as: 'prisons',
+          where: {
+            id: prison
+          }
+        },
+      ]
+    });
 }
 
 const getRuleByID = async (id, full) => {
   if (full) {
-    return await Prisoner.findOne({
+    return await Rule.findOne({
       where: {id: id},
       include: [
         {
@@ -48,7 +62,7 @@ const deleteRule = async (id) => {
 };
 
 module.exports = {  createRule, 
-                    getAllRules, getRuleByID,
+                    getAllRules, getRulesByPrison, getRuleByID,
                     updateRule,
                     deleteRule
                      }

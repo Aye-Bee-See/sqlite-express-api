@@ -32,6 +32,7 @@ const getPrisonerByID = async (id, full) => {
       include: [
         {
           model: Prison,
+          as: 'prison_details'
         }
       ],
       where: {id: id},

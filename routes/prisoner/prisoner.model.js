@@ -1,8 +1,6 @@
 const sequelize = require('sequelize');
 const DataTypes = sequelize.DataTypes;
 
-//TODO: validate prison_id to make sure it associates to an existing prison
-
 const prisonerSchema = {
   birthName: {
     type: DataTypes.STRING
@@ -11,7 +9,9 @@ const prisonerSchema = {
     type: DataTypes.STRING
   },
   prison: {
-    type: DataTypes.INTEGER
+    type: DataTypes.INTEGER,
+    model: 'prisons',
+    key: 'prison_key'
   },
   inmateID: {
     type: DataTypes.STRING

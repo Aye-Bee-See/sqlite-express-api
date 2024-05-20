@@ -4,13 +4,12 @@ const DataTypes = sequelize.DataTypes;
 const ChatSchema = {
   user: {
     type: DataTypes.INTEGER,
-    model: "users",
-    key: 'user_key'
+    model: 'users',
+    
   },
   prisoner: {
     type: DataTypes.INTEGER,
     model: 'prisoners',
-    key: 'prisoner_key'
   }
 }
 

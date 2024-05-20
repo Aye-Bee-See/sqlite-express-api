@@ -22,11 +22,11 @@ const readAllChats = async (full) => {
         },
         {
           model: User,
-          as: 'userDetails'
+          as: 'user_details'
         },
         {
           model: Prisoner,
-          as: 'prisonerDetails'
+          as: 'prisoner_details'
         }
       ]
     });
@@ -42,15 +42,16 @@ const readChatsByUser = async (id, full) => {
     include: [
       {
         model: Message,
-        as: 'messages'
+        as: 'messages',
+        key: 'chat_key'
       },
       {
         model: User,
-        as: 'user'
+        as: 'user_details'
       },
       {
         model: Prisoner,
-        as: 'prisoner'
+        as: 'prisoner_details'
       }
     ]
   });
@@ -69,15 +70,16 @@ const readChatsByPrisoner = async (id, full) => {
       include: [
         {
           model: Message,
-          as: 'messages'
+          as: 'messages',
+          key: 'chat_key'
         },
         {
           model: User,
-          as: 'user'
+          as: 'user_details'
         },
         {
           model: Prisoner,
-          as: 'prisoner'
+          as: 'prisoner_details'
         }
       ]
     });
@@ -96,15 +98,16 @@ const readChatsByUserAndPrisoner = async (user, prisoner, full) => {
       include: [
         {
           model: Message,
-          as: 'messages'
+          as: 'messages',
+          key: 'chat_key'
         },
         {
           model: User,
-          as: 'userDetails'
+          as: 'user_details'
         },
         {
           model: Prisoner,
-          as: 'prisonerDetails'
+          as: 'prisoner_details'
         }
       ]
     });

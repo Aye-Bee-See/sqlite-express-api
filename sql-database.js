@@ -38,8 +38,8 @@ Message.belongsTo(Chat, { as: 'ownerChat', foreignKey: 'chat' });
 
 User.hasMany(Chat, { as: 'chats', foreignKey: 'user' });
 
-Chat.belongsTo(Prisoner, { as: 'prisonerDetails', foreignKey: 'prisoner' });
-Chat.belongsTo(User, { as: 'userDetails', foreignKey: 'user_key' });
+Chat.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'id' });
+Chat.belongsTo(User, { as: 'user_details', foreignKey: 'id' });
 Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat' });
 
 Rule.belongsToMany(Prison, { through: 'RulePassthrough', foreignKey: 'prisonId'});

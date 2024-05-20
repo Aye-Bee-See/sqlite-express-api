@@ -3,7 +3,7 @@ const { User, Chat } = require('../../sql-database');
 // Create
 
 const createUser = async ({ name, password, role, email }) => {
-    return await User.create({name, password, role, email});
+    return await User.create({name, password, role, email}, {individualHooks: true});
 };
 
 /**

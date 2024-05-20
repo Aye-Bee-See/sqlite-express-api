@@ -17,7 +17,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"acab\",\n    \"password\": \"acab\",\n    \"email\" : \"acab@acab.acab\"\n}",
+							"raw": "{\n    \"name\": \"acab\",\n    \"password\": \"acab\",\n    \"email\" : \"acab@acab.acab\",\n    \"role\" : \"admin\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -25,14 +25,14 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/auth/register-admin",
+							"raw": "localhost:3000/auth/user",
 							"host": [
 								"localhost"
 							],
 							"port": "3000",
 							"path": [
 								"auth",
-								"register-admin"
+								"user"
 							]
 						}
 					},
@@ -44,7 +44,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/auth/users",
+							"raw": "localhost:3000/auth/users?full",
 							"host": [
 								"localhost"
 							],
@@ -52,6 +52,41 @@
 							"path": [
 								"auth",
 								"users"
+							],
+							"query": [
+								{
+									"key": "full",
+									"value": null
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Users By Role",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/users?role=admin&full=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"users"
+							],
+							"query": [
+								{
+									"key": "role",
+									"value": "admin"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
 							]
 						}
 					},
@@ -81,7 +116,36 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/auth/user/",
+							"raw": "localhost:3000/auth/user?id=1&full=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"user"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read User By Email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/user/?email=acab@acab.acab&full=true",
 							"host": [
 								"localhost"
 							],
@@ -90,6 +154,102 @@
 								"auth",
 								"user",
 								""
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "acab@acab.acab"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read User By Name",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/user/?name=acab&full=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"user",
+								""
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "acab"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"name\": \"acab1\",\n    \"email\" : \"acab1@acab.acab\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/auth/user",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"user"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/auth/user",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"auth",
+								"user"
 							]
 						}
 					},
@@ -153,26 +313,26 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/prison/create-prison",
+							"raw": "localhost:3000/prison/prison",
 							"host": [
 								"localhost"
 							],
 							"port": "3000",
 							"path": [
 								"prison",
-								"create-prison"
+								"prison"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "List All Prisons",
+					"name": "Read All Prisons",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/prison/prisons",
+							"raw": "localhost:3000/prison/prisons?full=true",
 							"host": [
 								"localhost"
 							],
@@ -180,6 +340,12 @@
 							"path": [
 								"prison",
 								"prisons"
+							],
+							"query": [
+								{
+									"key": "full",
+									"value": "true"
+								}
 							]
 						}
 					},
@@ -203,7 +369,7 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/prison/prison/1",
+							"raw": "localhost:3000/prison/prison/?id=1&full=true",
 							"host": [
 								"localhost"
 							],
@@ -211,7 +377,81 @@
 							"path": [
 								"prison",
 								"prison",
-								"1"
+								""
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Prison",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"prisonName\": \"Updated Test Prison\",\n    \"address\": {\n        \"street\" : \"123 Fake Street\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/prison/prison",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"prison",
+								"prison"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Rule To Prison",
+					"request": {
+						"method": "PUT",
+						"header": []
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Prison",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/prison/prison",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"prison",
+								"prison"
 							]
 						}
 					},
@@ -237,26 +477,52 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/prisoner/create-prisoner",
+							"raw": "localhost:3000/prisoner/prisoner",
 							"host": [
 								"localhost"
 							],
 							"port": "3000",
 							"path": [
 								"prisoner",
-								"create-prisoner"
+								"prisoner"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Get All Prisoners",
+					"name": "Read All Prisoners",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/prisoner/prisoners/?prison=true",
+							"raw": "localhost:3000/prisoner/prisoners/?full=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"prisoner",
+								"prisoners",
+								""
+							],
+							"query": [
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Prisoners By Prison",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prisoner/prisoners/?prison=1&full=true",
 							"host": [
 								"localhost"
 							],
@@ -269,6 +535,10 @@
 							"query": [
 								{
 									"key": "prison",
+									"value": "1"
+								},
+								{
+									"key": "full",
 									"value": "true"
 								}
 							]
@@ -277,28 +547,26 @@
 					"response": []
 				},
 				{
-					"name": "Update Prison to Prisoner",
+					"name": "Get Prisoner By ID",
 					"request": {
-						"method": "PUT",
+						"method": "GET",
 						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"id\": 1,\n    \"prison\": 1\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
 						"url": {
-							"raw": "localhost:3000/prisoner/update-prison",
+							"raw": "localhost:3000/prisoner/prisoner/1?full=true",
 							"host": [
 								"localhost"
 							],
 							"port": "3000",
 							"path": [
 								"prisoner",
-								"update-prison"
+								"prisoner",
+								"1"
+							],
+							"query": [
+								{
+									"key": "full",
+									"value": "true"
+								}
 							]
 						}
 					},
@@ -319,24 +587,44 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/prisoner/update-prisoner",
+							"raw": "localhost:3000/prisoner/prisoner",
 							"host": [
 								"localhost"
 							],
 							"port": "3000",
 							"path": [
 								"prisoner",
-								"update-prisoner"
+								"prisoner"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Get Prisoner By ID",
+					"name": "Delete Prisoner",
 					"request": {
-						"method": "GET",
-						"header": []
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/prisoner/prisoner",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"prisoner",
+								"prisoner"
+							]
+						}
 					},
 					"response": []
 				}
@@ -380,7 +668,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"chat\": 1,\n    \"messageText\": \"Howdy\",\n    \"sender\": \"user\"\n}",
+							"raw": "{\n    \"messageText\": \"Howdy\",\n    \"sender\": \"user\",\n    \"prisoner\": 1,\n    \"user\": 1\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -407,7 +695,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/messaging/chats",
+							"raw": "localhost:3000/messaging/chats?full=true",
 							"host": [
 								"localhost"
 							],
@@ -415,6 +703,12 @@
 							"path": [
 								"messaging",
 								"chats"
+							],
+							"query": [
+								{
+									"key": "full",
+									"value": "true"
+								}
 							]
 						}
 					},
@@ -438,7 +732,7 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/messaging/chat/?prisoner=1",
+							"raw": "localhost:3000/messaging/chat/?prisoner=1&full=true",
 							"host": [
 								"localhost"
 							],
@@ -452,6 +746,10 @@
 								{
 									"key": "prisoner",
 									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
 								}
 							]
 						}
@@ -476,7 +774,7 @@
 							}
 						},
 						"url": {
-							"raw": "localhost:3000/messaging/chat/?user=1",
+							"raw": "localhost:3000/messaging/chat/?user=1&full=true",
 							"host": [
 								"localhost"
 							],
@@ -490,6 +788,44 @@
 								{
 									"key": "user",
 									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Chats By User And Prisoner",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/chat/?prisoner=1&user=1&full=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"messaging",
+								"chat",
+								""
+							],
+							"query": [
+								{
+									"key": "prisoner",
+									"value": "1"
+								},
+								{
+									"key": "user",
+									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
 								}
 							]
 						}
@@ -510,6 +846,350 @@
 							"path": [
 								"messaging",
 								"messages"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Messages By Chat",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/messages?chat=1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"messaging",
+								"messages"
+							],
+							"query": [
+								{
+									"key": "chat",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Chat",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"user\": 1,\n    \"prisoner\": 2\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/messaging/chat",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"messaging",
+								"chat"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Message",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"messageText\": \"Howdy-Doo\",\n    \"sender\": \"user\",\n    \"prisoner\": 1,\n    \"user\": 1\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/messaging/message",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"messaging",
+								"message"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Chat",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/messaging/chat/?prisoner=1?user=1",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"messaging",
+								"chat",
+								""
+							],
+							"query": [
+								{
+									"key": "prisoner",
+									"value": "1?user=1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Message",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/messaging/message",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"messaging",
+								"message"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Rule",
+			"item": [
+				{
+					"name": "Create Rule",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"No pictures\",\n    \"description\": \"Letters must be text only, no photographs\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/rule/rule",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"rule",
+								"rule"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Rules",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/rule/rules?full=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"rule",
+								"rules"
+							],
+							"query": [
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Rules By Prison",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/rule/rules?prison=1&full=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"rule",
+								"rules"
+							],
+							"query": [
+								{
+									"key": "prison",
+									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Rule By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/rule/rule?id=1&full=true",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"rule",
+								"rule"
+							],
+							"query": [
+								{
+									"key": "id",
+									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Attach Rule To Prison",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"rule\": 1,\n    \"prison\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/prison/rule",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"prison",
+								"rule"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Rule",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"title\": \"No pictures updated\",\n    \"description\": \"Letters must be text only, no photographs\"\n\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/rule/rule",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"rule",
+								"rule"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Rule",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/rule/rule",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"rule",
+								"rule"
 							]
 						}
 					},
@@ -606,6 +1286,12 @@
 				}
 			},
 			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "jwt",
+			"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhbGljZSIsImhhc2hlZF9wYXNzd29yZCI6eyJ0eXBlIjoiQnVmZmVyIiwiZGF0YSI6WzEzOCw1OCwyMTAsMTk2LDE5MywyMzEsMjA3LDI5LDI1MywxMDgsMjA1LDQwLDExOCwxNzYsMTQyLDE3NCwxNzgsOTgsNiwyNCwxNDUsOTksNDQsMjA0LDE0Miw2MiwxMzAsMjMxLDEzNCwxNjksMzgsNjRdfSwic2FsdCI6eyJ0eXBlIjoiQnVmZmVyIiwiZGF0YSI6Wzc5LDg1LDEzMCwyMTcsMTc3LDEyMywyMjAsMTEsOTAsNjksMTU0LDQ2LDE5OSwxMTgsMTczLDExMV19LCJpYXQiOjE3MTIzNTM3NjB9.7VNIE9Q9boYOtG2K-VNQC3KyK5-Gw9WxmiGq2w2dLd0"
 		}
 	]
 }

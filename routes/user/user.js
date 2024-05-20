@@ -29,8 +29,8 @@ const stripPassword = function(userList) {
 
 // register admin route
 router.post('/user', async function(req, res, next) {
-  const password = await bcrypt.hash(req.body.password, 10);
-  const { name, email } = req.body;
+  // const hashedPass = await bcrypt.hash(req.body.password, 10);
+  const { name, email, password } = req.body;
   const role = req.body.role.toLowerCase();
 
   userHelper.getUserByNameOrEmail(name, email, false).then(user => {
@@ -38,7 +38,7 @@ router.post('/user', async function(req, res, next) {
       const strippedPassword = stripPassword([user])[0];
       res.status(200).json({ msg: "User successfully created", user: strippedPassword });
   }).catch(err => { res.status(400).json({message: err.message}); }); 
-  }).catch(err => res.status(400).json({msg: "Error checking if user esists", err}));
+  }).catch(err => res.status(400).json({msg: "Error checking if user exists", err}));
 });
 
 // Read

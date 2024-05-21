@@ -1,7 +1,7 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.mjs';
 import Hooks from '#hooks/all.hooks.mjs';
-
+import Chat from '#models/chat.model.mjs';
 
 export default class User extends Model {
     static init(sequelize) {

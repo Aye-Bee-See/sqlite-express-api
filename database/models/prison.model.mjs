@@ -1,6 +1,21 @@
-/* 
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/ClientSide/javascript.js to edit this template
- */
+import { Model } from 'sequelize';
+import Schemas from '#schemas/all.schema.mjs';
+import Hooks from '#db/hooks/all.hooks.mjs';
 
 
+export default class Prison extends Model {
+    static init(sequelize) {
+        return super.init(
+                Schemas.prison,
+                {
+                    sequelize,
+                    hooks: Hooks.prison || null,
+                    modelName: 'Prison'
+                }
+        );
+    }
+    static associate(models) {
+        this.hasMany(models.Prisoner, {as: 'prisoners', foreignKey: 'prison_id'});
+        this.hasMany(models.Rule, {as: 'rules', foreignKey: 'id'});
+    }
+}

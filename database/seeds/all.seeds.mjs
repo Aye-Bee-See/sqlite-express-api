@@ -1,4 +1,4 @@
-import {createUserSeed} from  '#db/seeds/userSeed.mjs';
+import {createUserSeed} from  '#db/seeds/user.seed.mjs';
 
 
 export async function createSeeds() {

@@ -1,6 +1,19 @@
-/* 
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/ClientSide/javascript.js to edit this template
- */
+import { Model } from 'sequelize';
+import Schemas from '#schemas/all.schema.mjs';
+import Hooks from '#db/hooks/all.hooks.mjs';
 
+
+export default class Rule extends Model {
+    static init(sequelize) {
+        return super.init(
+                Schemas.rule,
+                {
+                    sequelize,
+                    hooks: Hooks.rule || null,
+                    modelName: 'Rule'
+                }
+        );
+    }
+
+}
 

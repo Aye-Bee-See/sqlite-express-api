@@ -1,6 +1,20 @@
-/* 
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/ClientSide/javascript.js to edit this template
- */
+import { Model } from 'sequelize';
+import Schemas from '#schemas/all.schema.mjs';
+import Hooks from '#db/hooks/all.hooks.mjs';
 
 
+export default class Message extends Model {
+    static init(sequelize) {
+        return super.init(
+                Schemas.message,
+                {
+                    sequelize,
+                    hooks: Hooks.message || null,
+                    modelName: 'Message'
+                }
+        );
+    }
+    static associate(models) {
+        this.belongsTo(models.Chat, {as: 'ownerChat', foreignKey: 'chat_key'});
+    }
+}

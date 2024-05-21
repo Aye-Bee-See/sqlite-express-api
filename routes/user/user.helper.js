@@ -1,6 +1,6 @@
-const {name} = require('./user.model');
+/*const {name} = require('./user.model');
 
-const User = require('../../sql-database').User
+const User =  import ('#models/user.model.mjs');
 const Chat = require('../../sql-database').Chat
 
 const createUser = async ({ name, password, role, email }) => {
@@ -27,7 +27,7 @@ const getAllUsers = async (full) => {
  *  create multiple users
  *  
  *  @param {array} userArray  - Array of user params
- */
+ *
 const createBulkUsers = async (userArray) => {
     return await User.bulkCreate(userArray, {individualHooks: true});
 };
@@ -35,9 +35,10 @@ const createBulkUsers = async (userArray) => {
 /**
  * Get raw user count
  * @returns {int} 
- */
+ *
 const countUsers = async() => {
-    const {count} = await User.findAndCountAll();
+    console.log(User);
+    const {count} = 0//await User.findAndCountAll();
     return count;
 };
 
@@ -130,4 +131,5 @@ const getUserByNameOrEmail = async (name, email, full) => {
     }
 }
 
-module.exports = {createUser, createBulkUsers, countUsers, getAllUsers, getUser, getUserByID, getUserByEmail, getUserByName, getUserByNameOrEmail}
+module.exports = {createUser, createBulkUsers, countUsers, getAllUsers, getUser, getUserByID, getUserByEmail, getUserByName, getUserByNameOrEmail} 
+        */

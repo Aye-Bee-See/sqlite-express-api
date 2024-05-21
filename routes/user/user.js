@@ -7,14 +7,14 @@ const bodyParser = require('body-parser');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 let User;
-const userPromise=import('../../database/sql-database.mjs');
-userPromise.then(async(res)=>{
-    User=await res;
+const DB=import('../../database/sql-database.mjs');
+DB.then(async(res)=>{
+    User=await res.User;
 });
 
-const UserHelpers = import('../../database/helpers/user.helper.mjs');
-console.log(UserHelpers);
-const userHelper=User?new UserHelpers(User):null;
+//const User = import('../../database/models/user.model.mjs');
+console.log(User);
+//const userHelper=User? User(User):null;
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
 const jwt = require('jsonwebtoken');
@@ -30,7 +30,7 @@ router.get('/', function(req, res) {
 router.get('/users/:full?', function(req, res, next) {
   const { full } = req.query;
   const fullBool = (full === 'true');
-  userHelper.getAllUsers(fullBool).then(users => {
+  User.getAllUsers(fullBool).then(users => {
     if (users.length > 0) { res.status(200).json(users) }
     else { res.status(400).json({ error: "Zero users exist in the database." }) }
     }); 
@@ -42,7 +42,7 @@ router.get('/user/:id/:full?', passport.authenticate('jwt', {session: false}), f
   const { full } = req.query;
   const fullBool = (full === 'true');
 
-  userHelper.getUserByID(id, fullBool).then(user => {
+  User.getUserByID(id, fullBool).then(user => {
   if (user) { res.status(200).json(user) }
   else { res.status(400).json({message: "Error: No such user."}) }
   }
@@ -54,9 +54,9 @@ router.post('/register-admin', async function(req, res, next) {
   const role = "Admin"
   const { name, email, password } = req.body;
 
-  userHelper.getUserByNameOrEmail(name, email, false).then(user => {
+  User.getUserByNameOrEmail(name, email, false).then(user => {
  
-      userHelper.createUser({ name, password, role, email }).then(user => { 
+      User.createUser({ name, password, role, email }).then(user => { 
       res.status(200).json({ name, role, email, message: 'Account created successfully.' });
   }
   ).catch(err => {
@@ -67,10 +67,11 @@ router.post('/register-admin', async function(req, res, next) {
 
 // login route
 router.post('/login', async function(req, res, next) { 
+    const bcrypt = require('bcrypt');
   const { name, password } = req.body;
   if (name && password) {
-    
-    let user = await userHelper.getUser({ name });
+    console.log(User);
+    let user = await User.getUser({ name });
     if (!user) {
       res.status(401).json({ msg: 'No such user or associated password found.', user });
     }

@@ -1,4 +1,4 @@
-import chatSchema from '#schemas/chat.schema';
+import chatSchema from '#schemas/chat.schema.js';
 import messageSchema from '#schemas/message.schema.js';
 import prisonSchema from '#schemas/prison.schema.js';
 import prisonerSchema from '#schemas/prisoner.schema.js';

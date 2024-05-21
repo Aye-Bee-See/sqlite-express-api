@@ -18,9 +18,6 @@ const MessageSchema = {
   },
   messageText: {
     type: DataTypes.STRING,
-    validate: {
-      is: ["^[\w.]+$"]
-    }
   },
   sender: {
     type: DataTypes.STRING,
@@ -51,7 +48,18 @@ const MessageSchema = {
 
   }},
   user: {
-    type: DataTypes.INTEGER
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: {
+      isInt: {
+        args: true,
+        msg: "User ID must be in INT format."
+      },
+      notNull: {
+        args: true,
+        msg: "User ID must not be null."
+      }
+    }
   }
 }
 

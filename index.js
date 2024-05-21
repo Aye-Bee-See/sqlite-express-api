@@ -1,7 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
-const passport = require('passport')
+const passport = require('passport');
+const errorMiddleware = require('./middleware/ErrorHandler')
 
 // parse application/json
 app.use(bodyParser.json());
@@ -46,3 +47,4 @@ app.use('/prison', prisonRouter);
 app.use('/prisoner', prisonerRouter);
 app.use('/rule', ruleRouter);
 app.use('/messaging', messagingRouter);
+app.use(errorMiddleware);

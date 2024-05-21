@@ -43,7 +43,14 @@ const userSchema = {
   },
   role: {
     type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      isIn: {
+        args: [['admin', 'user']],
+        msg: "Role must be either admin or user"
+      }
+    }
   }
-}
+};
 
 module.exports = userSchema

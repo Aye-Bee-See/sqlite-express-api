@@ -12,75 +12,62 @@ var router = express.Router();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const prisonHelpers = require('../../database/helpers/prison.helpers');
+const prisonHelper = require('./prison.helpers');
 
-// Enable authentication
-
+// Authentication imports
 const jwt = require('jsonwebtoken');
-// import passport and passport-jwt modules
 const passport = require('passport');
 const passportJWT = require('passport-jwt');
-// ExtractJwt to help extract the token
 let ExtractJwt = passportJWT.ExtractJwt;
-// JwtStrategy which is the strategy for the authentication
-let JwtStrat = require('../../jwt-strategy')
+let JwtStrat = require('../../jwt-strategy');
 app.use(passport.initialize());
 
-/**
- * GET request handler for the root route.
- * @name GET /
- * @function
- * @memberof module:prisonRouter
- * @param {Object} req - Express request object.
- * @param {Object} res - Express response object.
- */
-router.get('/', function(req, res) {
-  res.json({ message: 'Prisons is up!' });
+// Create
+
+router.post('/prison', function(req, res, next) {
+  const { prisonName, address } = req.body;
+  prisonHelper.createPrison({ prisonName, address }).then(prison => res.status(200).json({ msg: 'Prison created successfully', prison }))
+    .catch(err => res.status(400).json({message: "Error creating prison", err}));
 });
 
-/**
- * GET request handler for getting all prisons.
- * @name GET /prisons
- * @function
- * @memberof module:prisonRouter
- * @param {Object} req - Express request object.
- * @param {Object} res - Express response object.
- */
+// Read
+
 router.get('/prisons/:full?', function(req, res) {
   const { full } = req.query;
   const fullBool = (full === 'true');
-  prisonHelpers.getAllPrisons(fullBool).then(prison => res.json(prison)); 
+  prisonHelper.getAllPrisons(fullBool).then(prison => res.status(200).json(prison))
+    .catch(err => res.status(400).json({msg: 'Error reading all prisons', err})); 
 });
 
-/**
- * GET request handler for getting a prison by ID.
- * @name GET /prison
- * @function
- * @memberof module:prisonRouter
- * @param {Object} req - Express request object.
- * @param {Object} res - Express response object.
- */
-router.get('/prison/:id/:full?', function(req, res) {
-  const { id } = req.params;
-  const { full } = req.query;
+router.get('/prison/:id?/:full?', function(req, res) {
+  const { id, full } = req.query;
   const fullBool = (full === 'true');
-  prisonHelpers.getPrisonByID(id, fullBool).then(prison => res.json(prison));
+  prisonHelper.getPrisonByID(id, fullBool).then(prison => res.status(200).json(prison))
+  .catch(err => res.status(200).json({msg: 'Error reading on prison by ID', err}));
 });
 
-/**
- * POST request handler for creating a new prison.
- * @name POST /create-prison
- * @function
- * @memberof module:prisonRouter
- * @param {Object} req - Express request object.
- * @param {Object} res - Express response object.
- * @param {function} next - Express next middleware function.
- */
-router.post('/create-prison', function(req, res, next) {
-  const { prisonName, address } = req.body;
-  prisonHelpers.createPrison({ prisonName, address }).then(prison =>
-    res.json({ prison, msg: 'account created successfully' })
-  );
+// Update
+router.put('/prison', function(req, res) {
+  const prison = req.body;
+  prisonHelper.updatePrison(prison).then(updatedRows => res.status(200).json({updatedRows, newPrison: prison}))
+    .catch(err => res.status(400).json({msg: "Error updating prison", err}));
+});
+
+router.put('/rule', function(req, res) {
+  const { rule, prison } = req.body;
+  prisonHelper.addRule(rule, prison).then(result => res.status(200).json({msg: "Rule added to prison", result}))
+    .catch(err => res.status(400).json({msg: "Error adding rule to prison", err}));
+});
+
+// Delete
+
+router.delete('/prison', function(req, res) {
+  const { id } = req.body;
+  prisonHelper.deletePrison(id).then(deletedRows => {
+    if (deletedRows < 1) { res.status(400).json({ msg: "No such prison" }); }
+    else { res.status(200).json({ msg: "Prison successfully deleted" }); }
+  })
+    .catch(err => {res.status(400).json({msg: "Error deleting prison", err})});
 });
 
 module.exports = router;

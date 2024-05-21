@@ -1,5 +1,3 @@
-// TODO: Handle not found errors
-
 const express = require('express');
 const app = express();
 const router = express.Router();
@@ -24,7 +22,6 @@ router.get('/', function(req, res) {
   res.status(200).json({ msg: 'Messaging is up!' });
 });
 
-// TODO: Add catches to all routes
 
 // Create
 

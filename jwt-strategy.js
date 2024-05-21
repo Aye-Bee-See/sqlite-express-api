@@ -4,7 +4,7 @@ let JwtStrategy = passportJWT.Strategy;
 let ExtractJwt = passportJWT.ExtractJwt;
 let jwtOptions = {};
 jwtOptions.jwtFromRequest = ExtractJwt.fromAuthHeaderAsBearerToken();
-jwtOptions.secretOrKey = 'wowwow';
+jwtOptions.secretOrKey = process.env.JWT_SECRET;
 const userHelper = require('./routes/user/user.helper')
 
 

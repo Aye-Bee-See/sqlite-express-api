@@ -131,11 +131,15 @@ router.post('/login', async function(req, res, next) {
       if (match) {
       // from now on we’ll identify the user by the id and the id is
       // the only personalized value that goes into our token
+      const date = new Date();
+      const now = Date.now();
+      const weekInMilliseconds = 6.048e+8;
+      const expiryDateMs = now + weekInMilliseconds;
 
-      let payload = { id: user.id };
+      let payload = { id: user.id, expiry: expiryDateMs };
       //TODO: Better secret than this, hide it in a .env file
-      let token = jwt.sign(payload, 'wowwow', { expiresIn: '7d' });
-      res.status(200).json({ msg: 'ok', token });
+      let token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1w' });
+      res.status(200).json({ msg: 'ok', token, expires: expiryDateMs});
       }
       else {
         res.status(400).json({ msg: 'No such user or associated password found.' });

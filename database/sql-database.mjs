@@ -1,6 +1,4 @@
 import {Sequelize, Model} from 'sequelize';
-import Schemas from '#schemas/all.schema.mjs';
-import Hooks from '#db/hooks/all.hooks.mjs';
 import * as Models from "#models/all.model.mjs";
 
 import {createSeeds} from './seeds/all.seeds.mjs';

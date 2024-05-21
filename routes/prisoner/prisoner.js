@@ -11,8 +11,6 @@ app.use(bodyParser.urlencoded({ extended: true }));
 const prisonerHelper = require('./prisoner.helper');
 const prisonHelper = require('../prison/prison.helpers')
 
-// TODO: Rename these routes to be consistent with other routes
-
 // Enable authentication
 
 const jwt = require('jsonwebtoken');

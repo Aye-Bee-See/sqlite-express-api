@@ -1,7 +1,8 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.mjs';
 import Hooks from '#hooks/all.hooks.mjs';
-
+import Prisoner from '#models/prisoner.model.mjs';
+import Rule from '#models/rule.model.mjs';
 
 export default class Prison extends Model {
     static init(sequelize) {

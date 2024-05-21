@@ -1,6 +1,8 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.mjs';
 import Hooks from '#hooks/all.hooks.mjs';
+import Chat from '#models/chat.model.mjs';
+import Prison from '#models/prison.model.mjs';
 
 
 export default class Prisoner extends Model {
@@ -15,7 +17,7 @@ export default class Prisoner extends Model {
         );
     }
     static associate(models) {
-        this.belongsTo(models.Prison, {as: 'prison', foreignKey: 'prison_id', sourceKey: 'prison'});
+        this.belongsTo(models.Prison, {as: 'prisons', foreignKey: 'prison_id', sourceKey: 'prison'});
         this.hasMany(models.Chat, {as: 'chats', foreignKey: 'prisoner_key'});
     }
 

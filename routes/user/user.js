@@ -132,11 +132,9 @@ router.post('/login', async function(req, res, next) {
       // from now on we’ll identify the user by the id and the id is
       // the only personalized value that goes into our token
 
-      // TODO: Add expiration to token
-      // https://stackoverflow.com/questions/40187770/passport-jwt-token-expiration
       let payload = { id: user.id };
       //TODO: Better secret than this, hide it in a .env file
-      let token = jwt.sign(payload, 'wowwow');
+      let token = jwt.sign(payload, 'wowwow', { expiresIn: '7d' });
       res.status(200).json({ msg: 'ok', token });
       }
       else {

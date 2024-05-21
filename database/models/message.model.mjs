@@ -15,7 +15,7 @@ export default class Message extends Model {
         );
     }
     static associate(models) {
-        this.belongsTo(models.Chat, {as: 'ownerChat', foreignKey: 'chat_key'});
+        this.belongsTo(models.Chat, { as: 'ownerChat', foreignKey: 'chat' });
     }
 
 //  Create

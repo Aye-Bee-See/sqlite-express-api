@@ -55,10 +55,11 @@ router.get('/users/:role?/:full?', function(req, res, next) {
   const { role, full } = req.query;
   const fullBool = (full === 'true');
 
+  console.log(role);
+  console.log(fullBool);
+
   if (role) {
-
     User.getUsersByRole(role, fullBool).then (users => {
-
       const filteredUsers = stripPassword(users);
       res.status(200).json(filteredUsers);
     }).catch(err => res.status(400).json({msg: "Error getting users by role", err}));
@@ -66,6 +67,7 @@ router.get('/users/:role?/:full?', function(req, res, next) {
   else {
 
   User.getAllUsers(fullBool).then(users => {
+    console.log("Getting all users")
 
     const filteredUsers = stripPassword(users);
     if (users.length > 0) { res.status(200).json(filteredUsers) }

@@ -25,6 +25,7 @@ Prison.associate(Models);
 Message.associate(Models);
 User.associate(Models);
 Chat.associate(Models);
+Rule.associate(Models);
 
 sequelize.sync({force: true}).then(async() => {
     return await createSeeds();

@@ -17,8 +17,9 @@ export default class Prisoner extends Model {
         );
     }
     static associate(models) {
-        this.belongsTo(models.Prison, {as: 'prisons', foreignKey: 'prison_id', sourceKey: 'prison'});
-        this.hasMany(models.Chat, {as: 'chats', foreignKey: 'prisoner_key'});
+        this.belongsTo(models.Prison, { as: 'prisonDetails', foreignKey: 'prison'});
+        this.hasMany(models.Chat, { as: 'chats', foreignKey: 'prisoner' });
+
     }
 
     // Create

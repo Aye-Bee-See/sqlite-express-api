@@ -1,7 +1,8 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.mjs';
 import Hooks from '#hooks/all.hooks.mjs';
-
+import { sequelize } from '../sql-database.mjs';
+import { Chat } from '../sql-database.mjs';
 
 export default class User extends Model {
     static init(sequelize) {
@@ -17,7 +18,7 @@ export default class User extends Model {
     }
 
     static associate(models) {
-        this.hasMany(models.Chat, {as: 'chats', foreignKey: 'user_key'});
+        this.hasMany(models.Chat, { as: 'chats', foreignKey: 'user' });
     }
 
 // Create
@@ -45,15 +46,12 @@ export default class User extends Model {
         return count;
     }
 
-    static async  getAllUsers(full) {
+    static async getAllUsers(full) {
+        console.log(this.associations.chats)
         if (full) {
             return await this.findAll({
-                include: [
-                    {
-                        model: Chat,
-                        as: "chats"
-                    }
-                ]
+                include: [{model: Chat, as: 'chats'}]
+                
             });
         } else {
             return await User.findAll({});
@@ -66,7 +64,7 @@ export default class User extends Model {
                 where: {role: role},
                 include: [
                     {
-                        model: Chat,
+                        model: 'Chat',
                         as: "chats"
                     }
                 ]

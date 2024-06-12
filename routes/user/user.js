@@ -7,7 +7,12 @@ const bodyParser = require('body-parser');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const userHelper = require('./user.helper')
+let User;
+const db = import ("#db/sql-database.mjs").then(async(res)=>{
+    User=await res.User;
+});
+
+
 
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
@@ -33,8 +38,10 @@ router.post('/user', async function(req, res, next) {
   const { name, email, password } = req.body;
   const role = req.body.role.toLowerCase();
 
-  userHelper.getUserByNameOrEmail(name, email, false).then(user => {
-      userHelper.createUser({ name, password, role, email }).then(user => { 
+
+  User.getUserByNameOrEmail(name, email, false).then(user => {
+      User.createUser({ name, password, role, email }).then(user => { 
+
       const strippedPassword = stripPassword([user])[0];
       res.status(200).json({ msg: "User successfully created", user: strippedPassword });
   }).catch(err => { res.status(400).json({message: err.message}); }); 
@@ -48,14 +55,20 @@ router.get('/users/:role?/:full?', function(req, res, next) {
   const { role, full } = req.query;
   const fullBool = (full === 'true');
 
+  console.log(role);
+  console.log(fullBool);
+
   if (role) {
-    userHelper.getUsersByRole(role, fullBool).then (users => {
+    User.getUsersByRole(role, fullBool).then (users => {
       const filteredUsers = stripPassword(users);
       res.status(200).json(filteredUsers);
     }).catch(err => res.status(400).json({msg: "Error getting users by role", err}));
   }
   else {
-  userHelper.getAllUsers(fullBool).then(users => {
+
+  User.getAllUsers(fullBool).then(users => {
+    console.log("Getting all users")
+
     const filteredUsers = stripPassword(users);
     if (users.length > 0) { res.status(200).json(filteredUsers) }
     else { res.status(400).json({ msg: "Zero users exist in the database." }) };
@@ -70,7 +83,9 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
 
   if (id === null && email === null && name === null ) { res.status(200).json({msg: "No ID or email provided"}) }
   else if (id) {
-    userHelper.getUserByID(id, fullBool).then(user => {
+
+    User.getUserByID(id, fullBool).then(user => {
+
       const strippedPassword = stripPassword([user])[0];
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user ID."}) }
@@ -79,7 +94,9 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
       .catch (err => { res.status(400).json({msg: "Error getting user by ID", err}) })
   }
   else if (email) {
-    userHelper.getUserByEmail(email, fullBool).then(user => {
+
+    User.getUserByEmail(email, fullBool).then(user => {
+
       const strippedPassword = stripPassword([user])[0];
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user email."}) };
@@ -87,7 +104,9 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
   ).catch(err => { res.status(400).json({msg: "Error getting user by email", err}) })
   }
   else {
-    userHelper.getUserByName(name, fullBool).then(user => {
+
+    User.getUserByName(name, fullBool).then(user => {
+
       const strippedPassword = stripPassword([user])[0];
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user email."}) };
@@ -99,7 +118,9 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
 
 router.put('/user', async function(req, res) {
   const newUser = req.body;
-  userHelper.updateUser(newUser).then(updatedRows => res.status(200).json({ msg: "Updated user", updatedRows ,newUser })
+  
+  User.updateUser(newUser).then(updatedRows => res.status(200).json({ msg: "Updated user", updatedRows ,newUser })
+          
   ).catch(err => {res.status(400).json({ msg: "Error updating user", err })});
 });
 
@@ -107,8 +128,10 @@ router.put('/user', async function(req, res) {
 
 router.delete('/user', async function(req, res) {
   const { id } = req.body;
-  userHelper.deleteUser(id).then(deletedRows => {
-    res.status(200).json({ msg: "Deleted user", deletedRows});
+  
+  User.deleteUser(id).then(deletedRows => {
+    
+                res.status(200).json({ msg: "Deleted user", deletedRows});
   }).catch(err => {res.status(200).json({ msg: "Error deleting user", err })});
 });
 
@@ -121,7 +144,7 @@ router.get('/protected', passport.authenticate('jwt', { session: false }), funct
 router.post('/login', async function(req, res, next) { 
   const { name, password } = req.body;
   if (name && password) {
-    let user = await userHelper.getUser({ name });
+    let user = await User.getUser({ name });
     if (!user) {
       res.status(400).json({ msg: 'No such user or associated password found.', user }
     )

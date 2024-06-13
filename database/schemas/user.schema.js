@@ -62,7 +62,7 @@ const userSchema = {
   },
     unique: {
       args: true,
-      msg: 'Email address already in use'
+      msg: 'Email address already in use.'
     }
   },
 

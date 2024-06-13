@@ -36,7 +36,7 @@ router.post('/user', async function(req, res, next) {
   const role = req.body.role.toLowerCase();
       User.createUser({ username, password, role, email }).then(user => { 
       const strippedPassword = stripPassword([user])[0];
-      res.status(200).json({ msg: "User successfully created", user: strippedPassword });
+      res.status(200).json({ msg: "User successfully created.", user: strippedPassword });
       }).catch(err => { res.status(400).json({message: err.message}); }); 
 });
 
@@ -54,7 +54,7 @@ router.get('/users/:role?/:full?', function(req, res, next) {
     User.getUsersByRole(role, fullBool).then (users => {
       const filteredUsers = stripPassword(users);
       res.status(200).json(filteredUsers);
-    }).catch(err => res.status(400).json({msg: "Error getting users by role", err}));
+    }).catch(err => res.status(400).json({msg: "Error getting users by role.", err}));
   }
   else {
 
@@ -113,7 +113,7 @@ router.delete('/user', async function(req, res) {
   
   User.deleteUser(id).then(deletedRows => {
     res.status(200).json({ msg: "Deleted user.", deletedRows});
-  }).catch(err => { res.status(400).json({ msg: "Error deleting user", err })});
+  }).catch(err => { res.status(400).json({ msg: "Error deleting user.", err })});
 });
 
 // protected route

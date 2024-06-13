@@ -24,7 +24,7 @@ export default class User extends Model {
 
     static async createUser( { username, password, role, email })  {
         const banned = false;
-        return await this.create({username, password, role, email, banned}, {individualHooks: true});
+        return await this.create({ username, password, role, email, name }, {individualHooks: true});
     } 
 
     /**

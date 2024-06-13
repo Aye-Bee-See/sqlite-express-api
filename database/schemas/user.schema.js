@@ -45,6 +45,10 @@ const userSchema = {
     validate: {
       notNull: {
         msg: "Password cannot be null."
+      },
+      min: {
+        args: [7],
+        msg: "Password must be a minimum of 7 characters."
       }
     }
   },

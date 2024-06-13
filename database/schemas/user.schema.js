@@ -4,7 +4,6 @@ const DataTypes = sequelize.DataTypes;
 const userSchema = {
   name: {
     type: DataTypes.STRING,
-    allowNull: false,
     validate: {
       min: {
         args: [3],
@@ -80,7 +79,7 @@ const userSchema = {
       }
     }
   },
-  
+
   role: {
     type: DataTypes.STRING,
     allowNull: false,

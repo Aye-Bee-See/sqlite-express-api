@@ -12,8 +12,6 @@ const db = import ("#db/sql-database.mjs").then(async(res)=>{
     User=await res.User;
 });
 
-
-
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
 const jwt = require('jsonwebtoken');
@@ -26,7 +24,7 @@ app.use(passport.initialize());
 passport.use(JwtStrat);
 
 const stripPassword = function(userList) {
-  return userList.map(function(user) { return { id: user.id, email: user.email, name: user.name, role: user.role } } );
+  return userList.map(function(user) { return { id: user.id, email: user.email, name: user.name, role: user.role, username: user.username, bio: user.bio } } );
 };
 
 
@@ -34,18 +32,12 @@ const stripPassword = function(userList) {
 
 // register admin route
 router.post('/user', async function(req, res, next) {
-  // const hashedPass = await bcrypt.hash(req.body.password, 10);
-  const { name, email, password } = req.body;
+  const { username, email, password } = req.body;
   const role = req.body.role.toLowerCase();
-
-
-  User.getUserByNameOrEmail(name, email, false).then(user => {
-      User.createUser({ name, password, role, email }).then(user => { 
-
+      User.createUser({ username, password, role, email }).then(user => { 
       const strippedPassword = stripPassword([user])[0];
       res.status(200).json({ msg: "User successfully created", user: strippedPassword });
-  }).catch(err => { res.status(400).json({message: err.message}); }); 
-  }).catch(err => res.status(400).json({msg: "Error checking if user exists", err}));
+      }).catch(err => { res.status(400).json({message: err.message}); }); 
 });
 
 // Read
@@ -67,8 +59,6 @@ router.get('/users/:role?/:full?', function(req, res, next) {
   else {
 
   User.getAllUsers(fullBool).then(users => {
-    console.log("Getting all users")
-
     const filteredUsers = stripPassword(users);
     if (users.length > 0) { res.status(200).json(filteredUsers) }
     else { res.status(400).json({ msg: "Zero users exist in the database." }) };
@@ -77,13 +67,12 @@ router.get('/users/:role?/:full?', function(req, res, next) {
 });
 
 // get one user
-router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
-  const { id, email, name, full } = req.query;
+router.get('/user/:id?/:email?/:username?/:full?', function(req, res) {
+  const { id, email, username, full } = req.query;
   const fullBool = (full === 'true');
 
-  if (id === null && email === null && name === null ) { res.status(200).json({msg: "No ID or email provided"}) }
+  if (id === null && email === null && username === null ) { res.status(200).json({msg: "No ID, username, or email provided."}) }
   else if (id) {
-
     User.getUserByID(id, fullBool).then(user => {
 
       const strippedPassword = stripPassword([user])[0];
@@ -91,26 +80,21 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
       else { res.status(400).json({msg: "Error: No such user ID."}) }
       }
       )
-      .catch (err => { res.status(400).json({msg: "Error getting user by ID", err}) })
-  }
-  else if (email) {
-
+      .catch (err => { res.status(400).json({msg: "Error getting user by ID.", err}) })
+  } else if (email) {
     User.getUserByEmail(email, fullBool).then(user => {
 
       const strippedPassword = stripPassword([user])[0];
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user email."}) };
     }
-  ).catch(err => { res.status(400).json({msg: "Error getting user by email", err}) })
-  }
-  else {
-
-    User.getUserByName(name, fullBool).then(user => {
-
+  ).catch(err => { res.status(400).json({msg: "Error getting user by email.", err}) })
+  } else {
+    User.getUserByName(username, fullBool).then(user => {
       const strippedPassword = stripPassword([user])[0];
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user email."}) };
-    }).catch(err => res.status(200).json({msg: "Error getting user by name", err}))
+    }).catch(err => res.status(200).json({msg: "Error getting user by username.", err}))
   }
 });
 
@@ -118,10 +102,8 @@ router.get('/user/:id?/:email?/:name?/:full?', function(req, res) {
 
 router.put('/user', async function(req, res) {
   const newUser = req.body;
-  
-  User.updateUser(newUser).then(updatedRows => res.status(200).json({ msg: "Updated user", updatedRows ,newUser })
-          
-  ).catch(err => {res.status(400).json({ msg: "Error updating user", err })});
+  User.updateUser(newUser).then(updatedRows => res.status(200).json({ msg: "Updated user.", updatedRows ,newUser })
+  ).catch(err => {res.status(400).json({ msg: "Error updating user.", err })});
 });
 
 // Delete
@@ -131,8 +113,8 @@ router.delete('/user', async function(req, res) {
   
   User.deleteUser(id).then(deletedRows => {
     
-                res.status(200).json({ msg: "Deleted user", deletedRows});
-  }).catch(err => {res.status(200).json({ msg: "Error deleting user", err })});
+                res.status(200).json({ msg: "Deleted user.", deletedRows});
+  }).catch(err => { res.status(400).json({ msg: "Error deleting user", err })});
 });
 
 // protected route
@@ -142,32 +124,37 @@ router.get('/protected', passport.authenticate('jwt', { session: false }), funct
 
 // login route
 router.post('/login', async function(req, res, next) { 
-  const { name, password } = req.body;
-  if (name && password) {
-    let user = await User.getUser({ name });
+  const { username, email, password } = req.body;
+  if (username && password) {
+    let user = await User.getUser({ username });
     if (!user) {
-      res.status(400).json({ msg: 'No such user or associated password found.', user }
-    )
-    }
-    else {
+      res.status(400).json({ msg: 'No such user or associated password found.', user })
+    } else {
       const match = await bcrypt.compare(req.body.password, user.password);
       if (match) {
-      // from now on we’ll identify the user by the id and the id is
-      // the only personalized value that goes into our token
-
-      // TODO: Add expiration to token
-      // https://stackoverflow.com/questions/40187770/passport-jwt-token-expiration
-      let payload = { id: user.id };
-      //TODO: Better secret than this, hide it in a .env file
-      let token = jwt.sign(payload, 'wowwow');
+        let payload = { id: user.id };
+        let token = jwt.sign(payload, 'wowwow');
       res.status(200).json({ msg: 'ok', token });
-      }
-      else {
+      } else {
         res.status(400).json({ msg: 'No such user or associated password found.' });
       };
     };
+  } else if (email && password ) {
+      let user = await User.getUser({ username });
+      if (!user) {
+        res.status(400).json({ msg: 'No such user or associated password found.', user })
+      } else {
+        const match = await bcrypt.compare(req.body.password, user.password);
+        if (match) {
+          let payload = { id: user.id };
+          let token = jwt.sign(payload, 'wowwow');
+          res.status(200).json({ msg: 'ok', token });
+        } else {
+            res.status(400).json({ msg: 'No such user or associated password found.' });
+      };
+    };
   } else {
-    res.status(400).json({msg: 'Call must contain both username and password'});
+      res.status(400).json({msg: 'Call must contain both username and password'});
   };
 });
 

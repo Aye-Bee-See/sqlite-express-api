@@ -22,8 +22,9 @@ export default class User extends Model {
 
 // Create
 
-    static async  createUser( { name, password, role, email })  {
-        return await this.create({name, password, role, email}, {individualHooks: true});
+    static async createUser( { name, password, role, email })  {
+        const banned = false;
+        return await this.create({name, password, role, email, banned}, {individualHooks: true});
     } 
 
     /**
@@ -167,6 +168,11 @@ export default class User extends Model {
     static async updateUser(newUser) {
         return await this.update({...newUser}, {where: {id: newUser.id}});
     }
+
+    static async banUser(userId) {
+        return await this.update({role: "banned"}, {where: {id: userId}})
+    }
+    
 // Delete
 
     static async deleteUser(id) {

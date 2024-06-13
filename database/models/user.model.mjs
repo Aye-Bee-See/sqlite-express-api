@@ -22,9 +22,9 @@ export default class User extends Model {
 
 // Create
 
-    static async createUser( { name, password, role, email })  {
+    static async createUser( { username, password, role, email })  {
         const banned = false;
-        return await this.create({name, password, role, email, banned}, {individualHooks: true});
+        return await this.create({username, password, role, email, banned}, {individualHooks: true});
     } 
 
     /**
@@ -127,10 +127,10 @@ export default class User extends Model {
             });
         }
     }
-    static async getUserByName(name, full) {
+    static async getUserByUsername(username, full) {
         if (full) {
             return await this.findOne({
-                where: {name: name},
+                where: {username: username},
                 include: [
                     {
                         model: Chat,
@@ -140,15 +140,15 @@ export default class User extends Model {
             });
         } else {
             return await this.findOne({
-                where: {name: name},
+                where: {username: username},
             });
         }
     }
 
-    static async getUserByNameOrEmail(name, email, full) {
+    static async getUserByUsernameOrEmail(username, email, full) {
         if (full) {
             return await this.findOne({
-                where: {name: name, email: email},
+                where: {username: username, email: email},
                 include: [
                     {
                         model: Chat,
@@ -158,7 +158,7 @@ export default class User extends Model {
             });
         } else {
             return await this.findOne({
-                where: {name: name, email: email},
+                where: {username: username, email: email},
             });
         }
     }
@@ -172,7 +172,7 @@ export default class User extends Model {
     static async banUser(userId) {
         return await this.update({role: "banned"}, {where: {id: userId}})
     }
-    
+
 // Delete
 
     static async deleteUser(id) {

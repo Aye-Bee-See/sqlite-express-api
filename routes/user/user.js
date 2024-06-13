@@ -62,7 +62,7 @@ router.get('/users/:role?/:full?', function(req, res, next) {
     const filteredUsers = stripPassword(users);
     if (users.length > 0) { res.status(200).json(filteredUsers) }
     else { res.status(400).json({ msg: "Zero users exist in the database." }) };
-    }).catch(err => { res.status(400).json({msg: "Error retrieving user list", err}) }); 
+    }).catch(err => { res.status(400).json({msg: "Error retrieving user list.", err}) }); 
   }
 });
 
@@ -90,7 +90,7 @@ router.get('/user/:id?/:email?/:username?/:full?', function(req, res) {
     }
   ).catch(err => { res.status(400).json({msg: "Error getting user by email.", err}) })
   } else {
-    User.getUserByName(username, fullBool).then(user => {
+    User.getUserByUsername(username, fullBool).then(user => {
       const strippedPassword = stripPassword([user])[0];
       if (user) { res.status(200).json({user: strippedPassword}) }
       else { res.status(400).json({msg: "Error: No such user email."}) };
@@ -112,8 +112,7 @@ router.delete('/user', async function(req, res) {
   const { id } = req.body;
   
   User.deleteUser(id).then(deletedRows => {
-    
-                res.status(200).json({ msg: "Deleted user.", deletedRows});
+    res.status(200).json({ msg: "Deleted user.", deletedRows});
   }).catch(err => { res.status(400).json({ msg: "Error deleting user", err })});
 });
 
@@ -154,7 +153,7 @@ router.post('/login', async function(req, res, next) {
       };
     };
   } else {
-      res.status(400).json({msg: 'Call must contain both username and password'});
+      res.status(400).json({msg: 'Call must contain both username and password.'});
   };
 });
 

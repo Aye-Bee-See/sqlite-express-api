@@ -21,6 +21,13 @@ const prisonerSchema = {
   },
   bio: {
     type: DataTypes.STRING
+  },
+  status: {
+    type: DataTypes.STRING,
+    isIn: {
+      args: [['pending, pretrial', 'incarcerated', 'free']],
+      msg: "Status must be pretrial, incarcerated, or free."
+    }
   }
 }
 

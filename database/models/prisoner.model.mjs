@@ -24,8 +24,8 @@ export default class Prisoner extends Model {
 
     // Create
 
-    static async createPrisoner( { birthName, chosenName, prison, inmateID, releaseDate, bio })  {
-        return await this.create({birthName, chosenName, prison, inmateID, releaseDate, bio});
+    static async createPrisoner( { birthName, chosenName, prison, inmateID, releaseDate, bio, status })  {
+        return await this.create({birthName, chosenName, prison, inmateID, releaseDate, bio, status});
     }
 
 // Read

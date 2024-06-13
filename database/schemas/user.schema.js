@@ -10,7 +10,7 @@ const userSchema = {
         msg: "Username must be 3 characters or more."
       },
       max: {
-        args: [16],
+        args: [32],
         msg: "Username cannot be more than 16 characters."
       }
     },

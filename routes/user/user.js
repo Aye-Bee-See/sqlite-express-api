@@ -32,9 +32,9 @@ const stripPassword = function(userList) {
 
 // register admin route
 router.post('/user', async function(req, res, next) {
-  const { username, email, password } = req.body;
+  const { username, email, password, name } = req.body;
   const role = req.body.role.toLowerCase();
-      User.createUser({ username, password, role, email }).then(user => { 
+      User.createUser({ username, password, role, email, name }).then(user => { 
       const strippedPassword = stripPassword([user])[0];
       res.status(200).json({ msg: "User successfully created.", user: strippedPassword });
       }).catch(err => { res.status(400).json({message: err.message}); }); 

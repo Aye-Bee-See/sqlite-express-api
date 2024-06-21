@@ -49,11 +49,13 @@ router.get('/prisoners/:prison?/:full?', function(req, res) {
   const { full, prison } = req.query;
   const fullBool = (full === 'true');
   if (prison) {
-    Prison.getPrisonersByPrison(prison, fullBool).then(prisoners => res.status(200).json(prisoners))
+    Prisoner.getPrisonersByPrison(prison, fullBool).then(prisoners => res.status(200).json({prisoners}))
       .catch(err => res.status(400).json({msg: "Error getting prisoners by prison.", err}));
   }
-  Prisoner.getAllPrisoners(fullBool).then(prisoners => res.status(200).json(prisoners))
+  else {
+  Prisoner.getAllPrisoners(fullBool).then(prisoners => res.status(200).json({prisoners}))
     .catch(err => res.status(400).json({msg: "Error getting all prisoners.", err})); 
+  }
 });
 
 router.get('/prisoner/:id/:full?', function(req, res) {

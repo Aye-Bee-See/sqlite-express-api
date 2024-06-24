@@ -19,7 +19,16 @@
     "passport-jwt": "^4.0.1",
     "sequelize": "^6.37.2",
     "sqlite3": "^5.1.7"
-  },
+  },    
+    "imports": {
+        "#/*":["./*","./*.js","./*.mjs"],
+        "#db/*": ["./database/*", "./database/*.js","./database/*.mjs"],
+        "#hooks/*" : ["./database/hooks/*","./database/hooks/*.js","./database/hooks/*.mjs"],
+        "#models/*": ["./database/models/*","./database/models/*.js","./database/models/*.mjs"],
+        "#schemas/*": ["./database/schemas/*","./database/schemas/*.js","./database/schemas/*.mjs"],
+        "#seeds/*":["./database/seeds/*","./database/seeds/*.js","./database/seeds/*.mjs"]
+    },
+  
   "devDependencies": {
     "nodemon": "^3.1.0"
   }

@@ -127,10 +127,15 @@ router.post('/login', async function(req, res, next) {
     } else {
       const match = await bcrypt.compare(req.body.password, user.password);
       if (match) {
-        let payload = { id: user.id };
-        let token = jwt.sign(payload, 'wowwow');
-      res.status(200).json({ msg: 'ok', token });
-      } else {
+      const now = Date.now();
+      const weekInMilliseconds = 6.048e+8;
+      const expiryDateMs = now + weekInMilliseconds;
+
+      let payload = { id: user.id, expiry: expiryDateMs };
+      let token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1w' });
+      res.status(200).json({ msg: 'ok', token, expires: expiryDateMs});
+      }
+ else {
         res.status(400).json({ msg: 'No such user or associated password found.' });
       };
     };

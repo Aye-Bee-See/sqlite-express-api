@@ -3,6 +3,8 @@ const bodyParser = require('body-parser');
 const app = express();
 const passport = require('passport');
 const errorMiddleware = require('./middleware/ErrorHandler')
+require('dotenv').config()
+
 
 // parse application/json
 app.use(bodyParser.json());
@@ -12,8 +14,8 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(passport.initialize());
 
 // start the app
-app.listen(3000, function() {
-  console.log('Express is running on port 3000');
+app.listen(process.env.PORT, function() {
+  console.log('Express is running on port: ' + process.env.PORT);
 });
 
 var authRouter = require('./routes/user/user');

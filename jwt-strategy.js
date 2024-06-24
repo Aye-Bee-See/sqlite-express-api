@@ -7,8 +7,9 @@ let JwtStrategy = passportJWT.Strategy;
 let ExtractJwt = passportJWT.ExtractJwt;
 let jwtOptions = {};
 jwtOptions.jwtFromRequest = ExtractJwt.fromAuthHeaderAsBearerToken();
-jwtOptions.secretOrKey = 'wowwow';
 
+jwtOptions.secretOrKey = process.env.JWT_SECRET;
+const userHelper = require('./routes/user/user.helper')
 
 let jwtStrategy = new JwtStrategy(jwtOptions, function(jwt_payload, next) {
   console.log('payload received', jwt_payload);

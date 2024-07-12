@@ -2,160 +2,83 @@ const express = require('express');
 const app = express();
 const router = express.Router();
 
+
+
+let dbgLog;
+import('../../debug/logger.mjs').then((res)=>{
+//   console.log("u6:"); 
+//   console.table(res.default);
+   dbgLog=new res.default;
+   //dbgLog.log("u9:");
+   
+});
+
 const bodyParser = require('body-parser');
 
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-let User;
-const db = import ("#db/sql-database.mjs").then(async(res)=>{
-    User=await res.User;
-});
+app.use(bodyParser.urlencoded({extended: true}));
 
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const e = require('express');
+//console.log("u14: " +dbgLog);
 
-app.use(express.urlencoded({ extended: false }));
+import('#rtControllers/user.controller.mjs').then(async(res) => {
+
+    const usrCtrl = await new res.default;
+//    console.log("\x1b[48;5;49m%s\x1b[0m", "Mint Background");
+dbgLog.output_base_colors();
+  dbgLog.term(usrCtrl);
+  dbgLog.term(usrCtrl.register);
+   // dbgLog.term(1);
+//    dbgLog.term(true);
+//    dbgLog.term([12,23,55,4]);
+//    dbgLog.term({"log":true,"good":"JSON"});
+
+
+
+
+
+const {userEnd} = require('#routes/constants.js');
+const userGet = userEnd.get;
+const userPost = userEnd.post;
+const userPut = userEnd.put;
+const userDel = userEnd.delete;
+
+console.log(userGet);
+
+app.use(express.urlencoded({extended: false}));
 
 app.use(passport.initialize());
 passport.use(JwtStrat);
 
-const stripPassword = function(userList) {
-  return userList.map(function(user) { return { id: user.id, email: user.email, name: user.name, role: user.role, username: user.username, bio: user.bio } } );
-};
 
 
 // Create
-
+//console.log(usrCtrl);
 // register admin route
-router.post('/user', async function(req, res, next) {
-  const { username, email, password, name, bio } = req.body;
-  const role = req.body.role.toLowerCase();
-      User.createUser({ username, password, role, email, name, bio }).then(user => { 
-      const strippedPassword = stripPassword([user])[0];
-      res.status(200).json({ msg: "User successfully created.", user: strippedPassword });
-      }).catch(err => { res.status(400).json({message: err.message}); }); 
-});
+router.post(userPost.registerUser, usrCtrl.register);
 
 // Read
-
+// 
 // get all users
-router.get('/users/:role?/:full?', function(req, res, next) {
-  const { role, full } = req.query;
-  const fullBool = (full === 'true');
-
-  if (role) {
-    User.getUsersByRole(role, fullBool).then (users => {
-      const filteredUsers = stripPassword(users);
-      res.status(200).json(filteredUsers);
-    }).catch(err => res.status(400).json({msg: "Error getting users by role.", err}));
-  } else {
-      User.getAllUsers(fullBool).then(users => {
-        const filteredUsers = stripPassword(users);
-        if (users.length > 0) { res.status(200).json(filteredUsers) }
-        else { res.status(400).json({ msg: "Zero users exist in the database." }) };
-        })
-      .catch(err => { res.status(400).json({msg: "Error retrieving user list.", err}) }); 
-  }
-});
-
+router.get(userGet.getAllUsers, usrCtrl.getAll);
 // get one user
-router.get('/user/:id?/:email?/:username?/:full?', function(req, res) {
-  const { id, email, username, full } = req.query;
-  const fullBool = (full === 'true');
-
-  if (id === null && email === null && username === null ) { res.status(200).json({msg: "No ID, username, or email provided."}) }
-  else if (id) {
-    User.getUserByID(id, fullBool).then(user => {
-
-      const strippedPassword = stripPassword([user])[0];
-      if (user) { res.status(200).json({user: strippedPassword}) }
-      else { res.status(400).json({msg: "Error: No such user ID."}) }
-      }
-      )
-      .catch (err => { res.status(400).json({msg: "Error getting user by ID.", err}) })
-  } else if (email) {
-    User.getUserByEmail(email, fullBool).then(user => {
-
-      const strippedPassword = stripPassword([user])[0];
-      if (user) { res.status(200).json({user: strippedPassword}) }
-      else { res.status(400).json({msg: "Error: No such user email."}) };
-    }
-  ).catch(err => { res.status(400).json({msg: "Error getting user by email.", err}) })
-  } else {
-    User.getUserByUsername(username, fullBool).then(user => {
-      const strippedPassword = stripPassword([user])[0];
-      if (user) { res.status(200).json({user: strippedPassword}) }
-      else { res.status(400).json({msg: "Error: No such user email."}) };
-    }).catch(err => res.status(200).json({msg: "Error getting user by username.", err}))
-  }
-});
+router.get(userGet.getUser, usrCtrl.getOne);
 
 // Update
 
-router.put('/user', async function(req, res) {
-  const newUser = req.body;
-  User.updateUser(newUser).then(updatedRows => res.status(200).json({ msg: "Updated user.", updatedRows ,newUser })
-  ).catch(err => {res.status(400).json({ msg: "Error updating user.", err })});
-});
+router.put(userPut.updateUser, usrCtrl.update);
 
 // Delete
 
-router.delete('/user', async function(req, res) {
-  const { id } = req.body;
-  
-  User.deleteUser(id).then(deletedRows => {
-    res.status(200).json({ msg: "Deleted user.", deletedRows});
-  }).catch(err => { res.status(400).json({ msg: "Error deleting user.", err })});
-});
+router.delete(userDel.deleteUser, usrCtrl.remove);
 
 // protected route
-router.get('/protected', passport.authenticate('jwt', { session: false }), function(req, res) {
-  res.status(200).json({ msg: 'Congrats! You are seeing this because you are authorized.'});
-  });
+router.get(userGet.getProtectedUser, passport.authenticate('jwt', {session: false}), usrCtrl.protect);
 
 // login route
-router.post('/login', async function(req, res, next) { 
-  const { username, email, password } = req.body;
-  if (username && password) {
-    let user = await User.getUser({ username });
-    if (!user) {
-      res.status(400).json({ msg: 'No such user or associated password found.', user })
-    } else {
-      const match = await bcrypt.compare(req.body.password, user.password);
-      if (match) {
-      const now = Date.now();
-      const weekInMilliseconds = 6.048e+8;
-      const expiryDateMs = now + weekInMilliseconds;
+router.post(userPost.loginUser, usrCtrl.login);
 
-      let payload = { id: user.id, expiry: expiryDateMs };
-      let token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1w' });
-      res.status(200).json({ msg: 'ok', token, expires: expiryDateMs});
-      }
- else {
-        res.status(400).json({ msg: 'No such user or associated password found.' });
-      };
-    };
-  } else if (email && password ) {
-      let user = await User.getUser({ username });
-      if (!user) {
-        res.status(400).json({ msg: 'No such user or associated password found.', user })
-      } else {
-        const match = await bcrypt.compare(req.body.password, user.password);
-        if (match) {
-          let payload = { id: user.id };
-          let token = jwt.sign(payload, 'wowwow');
-          res.status(200).json({ msg: 'ok', token });
-        } else {
-            res.status(400).json({ msg: 'No such user or associated password found.' });
-      };
-    };
-  } else {
-      res.status(400).json({msg: 'Call must contain both username and password.'});
-  };
 });
 
 module.exports = router;

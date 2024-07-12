@@ -4,14 +4,6 @@ const router = express.Router();
 
 
 
-let dbgLog;
-import('../../debug/logger.mjs').then((res)=>{
-//   console.log("u6:"); 
-//   console.table(res.default);
-   dbgLog=new res.default;
-   //dbgLog.log("u9:");
-   
-});
 
 const bodyParser = require('body-parser');
 
@@ -20,22 +12,11 @@ app.use(bodyParser.urlencoded({extended: true}));
 
 const passport = require('passport');
 const JwtStrat = require('../../jwt-strategy');
-//console.log("u14: " +dbgLog);
+
 
 import('#rtControllers/user.controller.mjs').then(async(res) => {
 
     const usrCtrl = await new res.default;
-//    console.log("\x1b[48;5;49m%s\x1b[0m", "Mint Background");
-dbgLog.output_base_colors();
-  dbgLog.term(usrCtrl);
-  dbgLog.term(usrCtrl.register);
-   // dbgLog.term(1);
-//    dbgLog.term(true);
-//    dbgLog.term([12,23,55,4]);
-//    dbgLog.term({"log":true,"good":"JSON"});
-
-
-
 
 
 const {userEnd} = require('#routes/constants.js');
@@ -44,7 +25,6 @@ const userPost = userEnd.post;
 const userPut = userEnd.put;
 const userDel = userEnd.delete;
 
-console.log(userGet);
 
 app.use(express.urlencoded({extended: false}));
 
@@ -54,7 +34,7 @@ passport.use(JwtStrat);
 
 
 // Create
-//console.log(usrCtrl);
+
 // register admin route
 router.post(userPost.registerUser, usrCtrl.register);
 

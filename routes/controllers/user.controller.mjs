@@ -1,11 +1,16 @@
-//import {User} from "#db/sql-database.mjs"
+
 import User from "#models/user.model.mjs"
 import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
+import {userMsg} from '#routes/constants.js'
+import {default as Utls} from "#services/Utilities.mjs"
 //import dbgLog from "../../debug/logger.mjs";
 export default class userController {
 
-  // dbg;
+    // dbg;
+
+    #msgObjs;
+
     constructor() {
         /* 
          * If we use class methods as subfunctions (or callbacks)
@@ -13,14 +18,14 @@ export default class userController {
          * other than the instance of our class
          */
         this.register = this.register.bind(this);
-        this.getAll = this.getAll.bind(this);
-        this.getOne = this.getOne.bind(this);
+        this.getList = this.getList.bind(this);
+        this.getUser = this.getUser.bind(this);
         this.protect = this.protect.bind(this);
         this.update = this.update.bind(this);
         this.login = this.login.bind(this);
         this.remove = this.remove.bind(this);
 
-      // this.dbg = new dbgLog;
+        //  this.dbg = new dbgLog;
 
     }
     #stripPassword(userList) {
@@ -30,15 +35,17 @@ export default class userController {
         });
     }
 
-    #handlePass(res, user) {
+    #handlePass(res, user, type) {
 
         if (user) {
             const strippedPassword = this.#stripPassword([user])[0];
-            res.status(200).json({user: strippedPassword})
+            this.#handleSuccess(res, {user: strippedPassword});
         } else {
-            this.#handleErr(res, "nid");
+            const err = new Error();
+            this.#handleErr(res, err, type);
         }
     }
+
     /*
      * Todo:
      * 
@@ -56,51 +63,69 @@ export default class userController {
 
                 let payload = {id: user.id, expiry: expiryDateMs};
                 let token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: '1w'});
-                res.status(200).json({msg: 'ok', token, expires: expiryDateMs});
+                this.#handleSuccess(res, {token, expires: expiryDateMs});
             } else {
-                this.#handleErr(res, "logn")
+                const err = new Error();
+                this.#handleErr(res, err)
             }
         } catch (err) {
-            this.#handleErr(res, "logn", err);
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
         }
     }
 
     #handleUsers(res, users) {
         const filteredUsers = this.#stripPassword(users);
         if (users.length > 0) {
-            res.status(200).json(filteredUsers)
+            this.#handleSuccess(res, filteredUsers);
         } else {
-            this.#handleErr(res, "empty");
+            const err = new Error();
+            this.#handleErr(res, err, "empty");
         }
     }
-    
+
+    #findStack(res) {
+        let stack;
+        res.req.route.stack.forEach((layer) => {
+            const fname = layer.name.substr(6);
+            if (this.hasOwnProperty(fname)) {
+                stack = layer;
+            }
+        });
+        return stack;
+    }
+
+    #handleSuccess(res, msg = null, condition = "par") {
+        const stack = this.#findStack(res);
+        const callerName = stack.name.substr(6);
+        const msgRef = ["getUser", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
+        const {method} = stack;
+        const info = userMsg[method][msgRef].success.condition[condition];
+        const message = msg ? {info: info, message: msg} : {info: info};
+
+        res.status(200).json(message);
+    }
     /**
      * Todo:
      * 
      * Transition to using constants file
      */
-    #handleErr(res, msgType, errMsg = null) {
-        const errors = {
-            nid: "Error: No such user ID.",
-            nusr: "Zero users exist in the database.",
-            id: "Error getting user by ID.",
-            mail: "Error getting user by email.",
-            name: "Error getting user by username.",
-            up: "Error updating user.",
-            del: "Error deleting user.",
-            reg: "Err registering user.",
-            list: "Error retrieving user list.",
-            role: "Error getting users by role.",
-            logn: 'No such user or associated password found.',
-            niue: "No ID, username, or email provided.",
-            empty: "Error retrieving user list."
+    #handleErr(res, errMsg = null, msgType = "par") {
+        const stack = this.#findStack(res);
+        const callerName = stack.name.substr(6);
+        const msgRef = ["getUser", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
+        const {method} = stack;
+        const info = userMsg[method][msgRef].error.condition[msgType];
+        const message = errMsg ? {info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString()} : {info: info};
 
-        };
-        const message = errMsg ? {msg: errors[msgType], errMsg} : {msg: errors[msgType]};
         res.status(400).json(message);
     }
 
-    async getAll(req, res, next) {
+    /***
+     * TODO:  Needs error trapping for no existing chats
+     */
+    async getList(req, res, next) {
+
         const {role, full} = req.query;
         const fullBool = (full === 'true');
         if (role) {
@@ -108,59 +133,68 @@ export default class userController {
                 const users = await User.getUsersByRole(role, fullBool);
                 this.#handleUsers(res, users);
             } catch (err) {
-                this.#handleErr(res, "role", err);
+                err = !(err instanceof Error) ? new Error(err) : err;
+                this.#handleErr(res, err, "role");
             }
         } else {
             try {
                 const users = await User.getAllUsers(fullBool);
                 this.#handleUsers(res, users);
             } catch (err) {
-                this.#handleErr(res, "list", err);
+                err = !(err instanceof Error) ? new Error(err) : err;
+                this.#handleErr(res, err);
             }
         }
     }
 
 // get one user
-    async getOne(req, res) {
+    /**
+     * TODO:  At least get by email should be case insensitive if not everything
+     */
+    async getUser(req, res) {
         const {id, email, username, full} = req.query;
         const fullBool = (full === 'true');
 
-        const type = req.query.id ? "id" : req.query.email ? "mail" : req.query.username ? "name" : "niue";
+        const type = req.query.id ? "id" : req.query.email ? "mail" : req.query.username ? "name" : "empty";
 
         switch (type) {
             case "id":
                 try {
                     const user = await User.getUserByID(id, fullBool);
-                    this.#handlePass(res, user);
+                    this.#handlePass(res, user, type);
                 } catch (err) {
-                    this.#handleErr(res, type, err);
+                    err = !(err instanceof Error) ? new Error(err) : err;
+                    this.#handleErr(res, err, type);
                 }
                 break;
             case "mail":
                 try {
                     const user = await User.getUserByEmail(email, fullBool);
-                    this.#handlePass(res, user);
+                    this.#handlePass(res, user, type);
                 } catch (err) {
-                    this.#handleErr(res, type, err);
+                    err = !(err instanceof Error) ? new Error(err) : err;
+                    this.#handleErr(res, err, type);
                 }
                 break;
             case "name":
                 try {
                     const user = await User.getUserByUsername(username, fullBool);
-                    this.#handlePass(res, user);
+                    this.#handlePass(res, user, type);
                 } catch (err) {
-                    this.#handleErr(res, type, err);
+                    err = !(err instanceof Error) ? new Error(err) : err;
+                    this.#handleErr(res, err, type);
                 }
                 break;
             default:
-                this.#handleErr(res, type);
+                const err = new Error();
+                this.#handleErr(res, err, type);
                 break;
         }
     }
     // protected route
     async protect(req, res)
     {
-        res.status(200).json({msg: 'Congrats! You are seeing this because you are authorized.'});
+        this.#handleSuccess(res);
     }
 
     async register(req, res, next) {
@@ -169,9 +203,10 @@ export default class userController {
         try {
             const user = await User.createUser({username, password, role, email, name, bio});
             const strippedPassword = this.#stripPassword([user])[0];
-            res.status(200).json({msg: "User successfully created.", user: strippedPassword});
+            this.#handleSuccess(res, {user: strippedPassword});
         } catch (err) {
-            this.#handleErr(res, "reg", err);
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
         }
     }
 // Update
@@ -181,9 +216,10 @@ export default class userController {
         const newUser = req.body;
         try {
             const updatedRows = await User.updateUser(newUser);
-            res.status(200).json({msg: "Updated user.", updatedRows, newUser});
+            this.#handleSuccess(res, {updatedRows, newUser});
         } catch (err) {
-            this.#handleErr(res, "up", err)
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
         }
     }
 
@@ -193,9 +229,11 @@ export default class userController {
         const {id} = req.body;
         try {
             const deletedRows = await User.deleteUser(id);
-            res.status(200).json({msg: "Deleted user.", deletedRows});
+            this.#handleSuccess(res, deletedRows);
+
         } catch (err) {
-            this.#handleErr(res, "del", err);
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
         }
     }
 
@@ -207,7 +245,8 @@ export default class userController {
         if ((username || email) && password) {
             this.#handleLogin(res, req.body);
         } else {
-            this.#handleErr(res, "elog")
+            const err = new Error();
+            this.#handleErr(res, err)
         }
 
     }

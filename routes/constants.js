@@ -1,26 +1,48 @@
 const endpoints = {
     user: {
         get: {
-            getAllUsers: '/users/:role?/:full?',
-            getUser: '/user/:id?/:email?/:username?/:full?',
-            getProtectedUser: '/protected',
+            list: '/users/:role?/:full?',
+            user: '/user/:id?/:email?/:username?/:full?',
+            protect: '/protected'
         },
         post: {
-            registerUser: '/user',
-            loginUser: '/login',
+            register: '/user',
+            login: '/login'
         },
         put: {
-            updateUser: '/user',
+            update: '/user'
         },
         delete: {
-            deleteUser: '/user',
-        },
+            delete: '/user'
+        }
 
-    },
+    }
 };
 
 const userEnd = endpoints.user;
 
+
+
+
+    /***
+     *         const errors = {
+            nid: "Error: No such user ID.",
+            nusr: "Zero users exist in the database.",
+            id: "Error getting user by ID.",
+            mail: "Error getting user by email.",
+            name: "Error getting user by username.",
+            up: "Error updating user.",
+            del: "Error deleting user.",
+            reg: "Err registering user.",
+            list: "Error retrieving user list.",
+            role: "Error getting users by role.",
+            logn: 'No such user or associated password found.',
+            niue: "No ID, username, or email provided.",
+            empty: "Error retrieving user list."
+
+        };
+     */
+    
 
 
 /***************************************************************************
@@ -49,7 +71,7 @@ const messages = {
     },
     user: {
         get: {
-            getAllUsers: {
+            list: {
                 success: {
                     condition: {
                         par: null
@@ -59,11 +81,10 @@ const messages = {
                     condition: {
                         par: "Error retrieving user list.",
                         role: "Error getting users by role.",
-                        all: "Error retrieving user list."
                     }
                 }
             },
-            getUser: {
+            user: {
                 success: {
                     condition: {
                         par: null
@@ -72,15 +93,15 @@ const messages = {
                 error: {
                     condition: {
                         par: "Error: No such user ID.",
-                        no_sub: "No ID, username, or email provided.",
+                        empty: "No ID, username, or email provided.",
                         id: "Error getting user by ID.",
                         mail: "Error getting user by email.",
                         name: "Error getting user by username."
                     }
                 }
             },
-            getProtetedUser: {
-                success: {condition: {par: null}},
+            protect: {
+                success: {condition: {par: 'Congrats! You are seeing this because you are authorized.'}},
                 error: {condition: {par: null}}
             }
         },

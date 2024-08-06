@@ -59,6 +59,7 @@ export default class User extends Model {
     }
 
     static async  getUsersByRole(role, full) {
+        
         if (full) {
             return await this.findAll({
                 where: {role: role},

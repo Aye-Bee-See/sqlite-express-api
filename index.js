@@ -2,8 +2,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
 const passport = require('passport');
-const errorMiddleware = require('./middleware/ErrorHandler')
-require('dotenv').config()
+const errorMiddleware = require('./middleware/ErrorHandler');
+require('dotenv').config();
 
 
 // parse application/json
@@ -18,11 +18,11 @@ app.listen(process.env.PORT, function() {
   console.log('Express is running on port: ' + process.env.PORT);
 });
 
-var authRouter = require('./routes/user/user');
-var prisonRouter = require('./routes/prison/prison');
-var prisonerRouter = require('./routes/prisoner/prisoner');
-var ruleRouter = require('./routes/rule/rule');
-var messagingRouter = require('./routes/message/messaging')
+const authRouter = require('./routes/user/user');
+const prisonRouter = require('./routes/prison/prison');
+const prisonerRouter = require('./routes/prisoner/prisoner');
+const ruleRouter = require('./routes/rule/rule');
+const messagingRouter = require('./routes/message/messaging');
 
 // Add headers before the routes are defined
 app.use(function (req, res, next) {
@@ -38,7 +38,7 @@ app.use(function (req, res, next) {
 
   // Set to true if you need the website to include cookies in the requests sent
   // to the API (e.g. in case you use sessions)
-  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Credentials', false);
 
   // Pass to next layer of middleware
   next();

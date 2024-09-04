@@ -17,14 +17,14 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // Enable authentication
 
-const jwt = require('jsonwebtoken');
+//const jwt = require('jsonwebtoken');
 // import passport and passport-jwt modules
 const passport = require('passport');
-const passportJWT = require('passport-jwt');
-// ExtractJwt to help extract the token
-let ExtractJwt = passportJWT.ExtractJwt;
-// JwtStrategy which is the strategy for the authentication
-let JwtStrat = require('../../jwt-strategy')
+//const passportJWT = require('passport-jwt');
+//// ExtractJwt to help extract the token
+//let ExtractJwt = passportJWT.ExtractJwt;
+//// JwtStrategy which is the strategy for the authentication
+//let JwtStrat = require('../../jwt-strategy.cjs')
 app.use(passport.initialize());
 
 router.get('/', function(req, res) {

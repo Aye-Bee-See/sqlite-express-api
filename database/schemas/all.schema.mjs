@@ -1,9 +1,9 @@
-import chatSchema from '#schemas/chat.schema.js';
-import messageSchema from '#schemas/message.schema.js';
-import prisonSchema from '#schemas/prison.schema.js';
-import prisonerSchema from '#schemas/prisoner.schema.js';
-import ruleSchema from '#schemas/rule.schema.js';
-import userSchema from '#schemas/user.schema.js';
+import {ChatSchema as chatSchema} from '#schemas/chat.schema.js';
+import messageSchema from '#schemas/message.schema.cjs';
+import prisonSchema from '#schemas/prison.schema.cjs';
+import prisonerSchema from '#schemas/prisoner.schema.cjs';
+import ruleSchema from '#schemas/rule.schema.cjs';
+import userSchema from '#schemas/user.schema.cjs';
 
 export default class Schemas {
     static chat = chatSchema;

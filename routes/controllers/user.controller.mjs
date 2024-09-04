@@ -4,10 +4,11 @@ import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
 import {userMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.mjs"
-//import dbgLog from "../../debug/logger.mjs";
+//import Logger from "#dbg/Logger";
+    
 export default class userController {
 
-    // dbg;
+   //#loggr;
 
     #msgObjs;
 
@@ -25,7 +26,7 @@ export default class userController {
         this.login = this.login.bind(this);
         this.remove = this.remove.bind(this);
 
-        //  this.dbg = new dbgLog;
+                  //  this.#loggr = new Logger;
 
     }
     #stripPassword(userList) {
@@ -95,14 +96,17 @@ export default class userController {
         return stack;
     }
 
-    #handleSuccess(res, msg = null, condition = "par") {
+    #handleSuccess(res, outObj = {}, condition = "par") {
+        
         const stack = this.#findStack(res);
         const callerName = stack.name.substr(6);
         const msgRef = ["getUser", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
         const {method} = stack;
         const info = userMsg[method][msgRef].success.condition[condition];
-        const message = msg ? {info: info, message: msg} : {info: info};
-
+        const message = {...outObj,info: info};
+       // console.trace(outObj);
+       // this.#loggr.term(outObj);
+        
         res.status(200).json(message);
     }
     /**
@@ -230,7 +234,6 @@ export default class userController {
         try {
             const deletedRows = await User.deleteUser(id);
             this.#handleSuccess(res, deletedRows);
-
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);
@@ -238,18 +241,47 @@ export default class userController {
     }
 
 // login route
-    async login(req, res, next)
+    async login(req,res, next)
     {
-        const {username, email, password} = req.body;
 
-        if ((username || email) && password) {
-            this.#handleLogin(res, req.body);
-        } else {
-            const err = new Error();
-            this.#handleErr(res, err)
-        }
+//        console.group("REQ");
+//        console.log(req);
+//        console.groupEnd();
+        console.group("REQ AUTH");
+        console.log(arguments);
+        console.groupEnd();
+//               console.group("RES");
+//       console.log(res);
+//       console.groupEnd();
+//                console.group("NEXT");
+//        console.log(next);
+//        console.groupEnd();
+//                console.group("USER");
+//        console.log(user);
+//        console.groupEnd();
+
+                   
+        //console.log(arguments);
+
+
+//        const {username, email, password} = req.body;
+//
+//        if ((username || email) && password) {
+//            this.#handleLogin(res, req.body);
+//        } else {
+//            const err = new Error();
+//            this.#handleErr(res, err)
+//        }
+
+if(req.isAuthenticated()){
+ const token=req.authInfo.token;
+ const user=req.user;
+    this.#handleSuccess(res,{user, token});
+}else{
+    this.#handleErr(res)
+}
 
     }
-
+        
 }
 

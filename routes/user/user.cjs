@@ -23,11 +23,15 @@ import('#rtControllers/user.controller.mjs').then(async(res) => {
 
     console.log(authService);
     const JwtStrat=authService.authorize;
-    console.log(JwtStrat);
+
+    const LocStrat=authService.login;
+        console.log(LocStrat);
     const usrCtrl = await new res.default;
+//passport.use('JStrat',JwtStrat);
+passport.use('LStrat', LocStrat);
+const constants= await import('#routes/constants.js');
 
-
-const {userEnd} = require('#routes/constants.js');
+const {userEnd} = constants;
 const userGet = userEnd.get;
 const userPost = userEnd.post;
 const userPut = userEnd.put;
@@ -37,7 +41,7 @@ const userDel = userEnd.delete;
 app.use(express.urlencoded({extended: false}));
 
 app.use(passport.initialize());
-passport.use('name',JwtStrat);
+
 
 
 
@@ -62,10 +66,10 @@ router.put(userPut.update, usrCtrl.update);
 router.delete(userDel.delete, usrCtrl.remove);
 
 // protected route
-router.get(userGet.protect, passport.authenticate('name', {session: false}), usrCtrl.protect);
+router.get(userGet.protect, passport.authenticate('JStrat', {session: false}), usrCtrl.protect);
 
 // login route
-router.post(userPost.login, usrCtrl.login);
+router.post(userPost.login, passport.authenticate('LStrat', {session:false}), usrCtrl.login);
 
 });
 

@@ -111,7 +111,7 @@ const messages = {
                 error: {condition: {par: "Error registering user."}}
             },
             login: {
-                success: {condition: {par: null}},
+                success: {condition: {par: "Login success."}},
                 error: {condition: {par: 'No such user or associated password found.'}}
             }
         },
@@ -137,4 +137,4 @@ const userMsg=messages.user;
  */
 const monster = {...endpoints, ...messages};
 
-module.exports = {endpoints: endpoints, userEnd: userEnd, messages:messages, userMsg:userMsg, monster:monster};
+export {endpoints as endpoints, userEnd as userEnd, messages as messages, userMsg as userMsg, monster as monster};

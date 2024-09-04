@@ -1,7 +1,7 @@
-const sequelize = require('sequelize');
+import sequelize from 'sequelize';
 const DataTypes = sequelize.DataTypes;
 
-const ChatSchema = {
+export const ChatSchema = {
   user: {
     type: DataTypes.INTEGER,
     model: 'users',
@@ -11,6 +11,4 @@ const ChatSchema = {
     type: DataTypes.INTEGER,
     model: 'prisoners',
   }
-}
-
-module.exports = ChatSchema
+};

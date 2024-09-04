@@ -9,16 +9,18 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 let Message;
 let Chat;
+let authService;
 const db = import ("#db/sql-database.mjs").then(async(res)=>{
     Message=await res.Message;
     Chat = await res.Chat;
-});
+    authService= await import("#rtServices/auth.services.mjs").then((module)=>{return module.default;});
+
 
 const passport = require('passport');
-const JwtStrat = require('../../jwt-strategy');
+const JwtStrat = authService.authorize;
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const {ChatSchema} = require('#schemas/chat.schema.js');
+const {ChatSchema} = import('#schemas/chat.schema.js');
 
 app.use(passport.initialize());
 passport.use(JwtStrat);
@@ -155,5 +157,5 @@ router.delete('/message', function(req, res) {
   }
  ).catch(err => res.status(400).status({msg: "Error deleting message", err}));
 });
-
+});
 module.exports = router;

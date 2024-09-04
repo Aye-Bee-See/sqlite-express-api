@@ -1,15 +1,10 @@
-import express from 'express';
-import passport from 'passport';
-import {default as bodyParser} from 'body-parser';
-import {ErrorHandler as errorMiddleware} from './middleware/ErrorHandler.js';
-import {default as authRouter} from '#routes/user/user.cjs'; 
-import {default as prisonRouter} from '#routes/prison/prison.cjs'; 
-import {default as prisonerRouter} from '#routes/prisoner/prisoner.cjs'; 
-import {default as ruleRouter} from '#routes/rule/rule.cjs'; 
-import {default as messagingRouter} from '#routes/message/messaging.cjs';
-import 'dotenv/config';
-
+const express = require('express');
+const bodyParser = require('body-parser');
 const app = express();
+const passport = require('passport');
+const errorMiddleware = require('./middleware/ErrorHandler');
+require('dotenv').config();
+
 
 // parse application/json
 app.use(bodyParser.json());
@@ -23,6 +18,11 @@ app.listen(process.env.PORT, function() {
   console.log('Express is running on port: ' + process.env.PORT);
 });
 
+const authRouter = require('./routes/user/user');
+const prisonRouter = require('./routes/prison/prison');
+const prisonerRouter = require('./routes/prisoner/prisoner');
+const ruleRouter = require('./routes/rule/rule');
+const messagingRouter = require('./routes/message/messaging');
 
 // Add headers before the routes are defined
 app.use(function (req, res, next) {

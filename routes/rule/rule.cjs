@@ -8,12 +8,14 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 let Rule;
+let authService;
 const DB = import ("#db/sql-database.mjs").then(async(res)=>{
     Rule=await res.Rule;
-});
+    authService= await import("#rtServices/auth.services.mjs").then((module)=>{return module.default;});
+
 
 const passport = require('passport');
-const JwtStrat = require('../../jwt-strategy');
+const JwtStrat=authService.authorize;
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 
@@ -23,7 +25,7 @@ passport.use(JwtStrat);
 // Create
 
 router.post('/rule', function(req, res) {
-  const {title, description} = req.body
+  const {title, description} = req.body;
 
   Rule.createRule({ title, description})
     .then(rule => res.status(200).json({msg: "Successfully created rule", rule}) )
@@ -80,5 +82,5 @@ router.delete('/rule', async function(req, res){
     else { res.status(200).json({ msg: "Deleted rule", deletedRows}); };
   }).catch(err => {res.status(200).json({ msg: "Error deleting rule", err })});
 });
-
+});
 module.exports = router

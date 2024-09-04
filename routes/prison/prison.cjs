@@ -19,11 +19,11 @@ const db = import ("#db/sql-database.mjs").then(async(res)=>{
 });
 
 // Authentication imports
-const jwt = require('jsonwebtoken');
+//const jwt = require('jsonwebtoken');
 const passport = require('passport');
-const passportJWT = require('passport-jwt');
-let ExtractJwt = passportJWT.ExtractJwt;
-let JwtStrat = require('../../jwt-strategy');
+//const passportJWT = require('passport-jwt');
+//let ExtractJwt = passportJWT.ExtractJwt;
+//let JwtStrat = require('../../jwt-strategy.cjs');
 app.use(passport.initialize());
 
 // Create

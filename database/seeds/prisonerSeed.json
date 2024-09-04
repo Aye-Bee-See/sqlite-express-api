@@ -1,0 +1,12 @@
+{
+  "seeds": [
+    {
+      "birthName": "John Smith", 
+      "chosenName": "Jane Smith", 
+      "inmateID": "1", 
+      "prison": 1,
+      "releaseDate": "2029-04-05T23:24:24.819Z",
+      "bio": "Test bio here"
+  }
+  ]
+}

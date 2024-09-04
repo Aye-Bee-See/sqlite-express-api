@@ -1,0 +1,8 @@
+{
+  "seeds": [
+    {
+      "user": 1,
+      "prisoner": 1
+  }
+  ]
+}

@@ -1,0 +1,11 @@
+
+{
+  "seeds": [
+    {
+      "prisonName": "Test Prison",
+      "address": {
+          "street" : "123 Fake Street"
+      }
+  }
+  ]
+}

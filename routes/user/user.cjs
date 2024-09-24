@@ -20,12 +20,8 @@ const passport = require('passport');
 
 import('#rtControllers/user.controller.mjs').then(async(res) => {
     let authService= await import("#rtServices/auth.services.mjs").then((module)=>{return module.default;});
-
-    console.log(authService);
     const JwtStrat=authService.authorize;
-
     const LocStrat=authService.login;
-        console.log(LocStrat);
     const usrCtrl = await new res.default;
 //passport.use('JStrat',JwtStrat);
 passport.use('LStrat', LocStrat);

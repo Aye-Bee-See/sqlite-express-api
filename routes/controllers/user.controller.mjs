@@ -238,7 +238,6 @@ export default class userController {
     async login(req, res, next)
     {
 
-
         if (req.isAuthenticated()) {
             const token = req.authInfo.token;
             const user = req.user;

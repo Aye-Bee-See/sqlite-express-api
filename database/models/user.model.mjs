@@ -17,7 +17,7 @@ export default class User extends Model {
     }
 
     static associate(models) {
-        this.hasMany(models.Chat, { as: 'chats', foreignKey: 'user' });
+        this.hasMany(models.Chat, { as: 'chats', foreignKey: 'userId' });
     }
 
 // Create
@@ -33,7 +33,7 @@ export default class User extends Model {
      *  @param {array} userArray  - Array of user params
      */
     static async  createBulkUsers(userArray) {
-        return await this.bulkCreate(userArray, {individualHooks: true});
+        return await this.bulkCreate(userArray, {individualHooks: true, ignoreDuplicates: true});
     }
 
     /**
@@ -166,8 +166,8 @@ export default class User extends Model {
 
 // Update
 
-    static async updateUser(newUser) {
-        return await this.update({...newUser}, {where: {id: newUser.id}});
+    static async updateUser(user) {
+        return await this.update({...user}, {where: {id: user.id}});
     }
 
     static async banUser(userId) {

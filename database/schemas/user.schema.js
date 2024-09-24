@@ -1,5 +1,4 @@
-const sequelize = require('sequelize');
-const DataTypes = sequelize.DataTypes;
+import {DataTypes} from 'sequelize';
 
 const userSchema = {
   name: {
@@ -18,7 +17,6 @@ const userSchema = {
 
   username: {
     type: DataTypes.STRING,
-    unique: true,
     allowNull: false,
     validate: {
       min: {
@@ -96,4 +94,4 @@ const userSchema = {
   }
 };
 
-module.exports = userSchema;
+export default userSchema;

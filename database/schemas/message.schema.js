@@ -1,20 +1,27 @@
-const sequelize = require('sequelize');
-const DataTypes = sequelize.DataTypes;
+import {DataTypes} from 'sequelize';
+import {Chat,Prisoner} from "#models/all.model.mjs";
 
-const MessageSchema = {
+const messageSchema = {
+    id: {
+        allowNull: false,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true,
+        type: DataTypes.UUID,
+      },    
   chat: {
     type: DataTypes.INTEGER,
-    model: 'chats',
-    key: 'chat_key',
+    model: "Chat",
     allowNull: false,
     validate: {
-      notNull: {
-        msg: "Message must belong to chat."
-      },
       isInt: {
+          args: true,
         msg: "Message the chat belongs to must be an Int."
+      },
+      notNull: {
+          args: true,
+        msg: "Message must belong to chat."
       }
-    }
+    } 
   },
   messageText: {
     type: DataTypes.STRING,
@@ -36,6 +43,10 @@ const MessageSchema = {
   prisoner: {
     type: DataTypes.INTEGER,
     allowNull: false,
+//   references: {
+//        model: Prisoner,
+//        key: 'id'
+//    },
     validate: {
       isInt: {
         args: true,
@@ -50,6 +61,10 @@ const MessageSchema = {
   user: {
     type: DataTypes.INTEGER,
     allowNull: false,
+//    references: {
+//        model: User,
+//        key: 'id'
+//    },
     validate: {
       isInt: {
         args: true,
@@ -61,6 +76,6 @@ const MessageSchema = {
       }
     }
   }
-}
+};
 
-module.exports = MessageSchema;
+export default messageSchema;

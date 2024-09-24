@@ -1,5 +1,4 @@
-const sequelize = require('sequelize');
-const DataTypes = sequelize.DataTypes;
+import {DataTypes} from 'sequelize';
 
 const ruleSchema = {
   title: {
@@ -8,6 +7,6 @@ const ruleSchema = {
   description: {
     type: DataTypes.STRING
   }
-}
+};
 
-module.exports = ruleSchema;
+export default ruleSchema;

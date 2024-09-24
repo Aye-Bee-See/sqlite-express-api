@@ -1,5 +1,4 @@
-const sequelize = require('sequelize');
-const DataTypes = sequelize.DataTypes;
+import {DataTypes} from 'sequelize';
 
 const prisonerSchema = {
   birthName: {
@@ -29,6 +28,5 @@ const prisonerSchema = {
       msg: "Status must be pretrial, incarcerated, or free."
     }
   }
-}
-
-module.exports = prisonerSchema;
+};
+export default prisonerSchema;

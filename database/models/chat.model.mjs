@@ -17,15 +17,35 @@ export default class Chat extends Model {
         );
     }
     static associate(models) {
-        this.belongsTo(models.Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' });
-        this.belongsTo(models.User, { as: 'user_details', foreignKey: 'user' });
-        this.hasMany(models.Message, { as: 'messages', foreignKey: 'chat' });
+        this.belongsTo(models.Prisoner, {as: 'prisoner_details', foreignKey: 'prisonerId'});
+        this.belongsTo(models.User, {as: 'user_details', foreignKey: 'userId'});
+        this.hasMany(models.Message, {as: 'messages', foreignKey: 'chatId'});
     }
-    
+
     // Create
     static async createChat( { user, prisoner }) {
         return await this.create({user, prisoner});
     }
+
+    /**
+     *  create multiple chats
+     *  
+     *  @param {array} chatArray  - Array of chat params
+     */
+    static async createBulkChats(chatArray) {
+        return await this.bulkCreate(chatArray, {individualHooks: true, ignoreDuplicates: true});
+    }
+
+    /**
+     * Get raw chat count
+     * @returns {int} 
+     */
+    static async countChats() {
+        const {count} = await this.findAndCountAll();
+
+        return count;
+    }
+
     // Read
 
     static async readAllChats(full) {
@@ -51,8 +71,8 @@ export default class Chat extends Model {
             return await this.findAll({});
         }
     }
-    
-        static async readChatsByUser(id, full) {
+
+    static async readChatsByUser(id, full) {
         if (full) {
             return await this.findAll({
                 where: {user: id},
@@ -78,8 +98,8 @@ export default class Chat extends Model {
             })
         }
     }
-    
-        static async readChatsByPrisoner(id, full) {
+
+    static async readChatsByPrisoner(id, full) {
         if (full) {
             return await this.findAll({
                 where: {prisoner: id},
@@ -105,8 +125,8 @@ export default class Chat extends Model {
             });
         }
     }
-    
-        static async readChatsByUserAndPrisoner(user, prisoner, full) {
+
+    static async readChatsByUserAndPrisoner(user, prisoner, full) {
         if (full) {
             return await this.findOne({
                 where: {user: user, prisoner: prisoner},
@@ -132,8 +152,8 @@ export default class Chat extends Model {
             });
         }
     }
-    
-        static async readChatById(id, full) {
+
+    static async readChatById(id, full) {
         if (full) {
             return await this.findAll({
                 where: {id: id},
@@ -158,12 +178,11 @@ export default class Chat extends Model {
             })
         }
     }
-    
-        static async findOrCreateChat(user, prisoner) {
+
+    static async findOrCreateChat(user, prisoner) {
         return await this.findOrCreate({where: {user: user, prisoner: prisoner}, defaults: {user: user, prisoner: prisoner}, paranoid: false});
     }
-    
-    
+
 // Update
 
     static async updateChat(chat) {

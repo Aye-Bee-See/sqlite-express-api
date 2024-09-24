@@ -17,11 +17,29 @@ export default class Rule extends Model {
     }
 
     static associate(models) {
-        this.belongsToMany(models.Prison, { through: 'RulePassthrough', foreignKey: 'prisonId'});
+        this.belongsToMany(models.Prison, { through: 'RulePassthrough', foreignKey: 'id'});
     }
 
     static async createRule( { prison, title, description })  {
         return await this.create({prison, title, description})
+    }
+    /**
+     *  create multiple rule
+     *  
+     *  @param {array} ruleArray  - Array of rule params
+     */
+    static async createBulkRules(ruleArray) {
+        return await this.bulkCreate(ruleArray, {individualHooks: true, ignoreDuplicates: true});
+    }
+
+    /**
+     * Get raw rule count
+     * @returns {int} 
+     */
+    static async countRules() {
+        const {count} = await this.findAndCountAll();
+
+        return count;
     }
 
     static async getAllRules(full) {
@@ -71,8 +89,8 @@ export default class Rule extends Model {
         }
     }
 
-    static async updateRule(newRule) {
-        return await this.update({...newRule}, {where: {id: newthis.id}});
+    static async updateRule(rule) {
+        return await this.update({...rule}, {where: {id: rule.id}});
     }
 
     static async deleteRule(id) {

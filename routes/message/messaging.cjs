@@ -48,12 +48,10 @@ router.post('/chat', function(req, res) {
 router.post('/message', function(req, res) {
   const { messageText, sender, prisoner, user } = req.body;
 
-  Chat.findOrCreateChat(user, prisoner).then(foundOrCreatedChat => {
-    const chat = foundOrCreatedChat[0].id;
-    Message.createMessage({ chat, messageText, sender, prisoner, user }).then(message => {
+    Message.createMessage({messageText, sender, prisoner, user }).then(message => {
       res.status(200).json({message, msg: "Message successfully created"});
-    }).catch(err => {res.status(400).json(err)});
-  })
+    }).catch(err => {res.status(400).json({err, msg:"Failed to create message"});
+    });
 });
 
 // Read

@@ -2,7 +2,6 @@
 {
     "seeds": [
         {
-            "id":1,
             "username": "admin",
             "password": "abcpassword",
             "role": "admin",

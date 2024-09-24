@@ -3,7 +3,6 @@ import {Strategy as LocalStrategy} from 'passport-local';
 import jwt from 'jsonwebtoken';
 import {User} from "#db/sql-database.mjs";
 import bcrypt from 'bcrypt';
-//import {default as loggr} from "#dbg/Logger";
 
 
 export default class authService {
@@ -23,12 +22,14 @@ export default class authService {
         return {token, expires: expiryDateMs};
     }
 
-    register() {}
+    static async register() {
+        
+    }
+    
+    
+    
     static async #verify(username, password, done) {
         let user;
-        console.group("in #verify");
-        console.log(arguments);
-        console.groupEnd();
 
         try {
             user = await User.getUser({username});

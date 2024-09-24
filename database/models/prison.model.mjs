@@ -17,7 +17,7 @@ export default class Prison extends Model {
     }
     static associate(models) {
         this.hasMany(models.Prisoner, { as: 'prisoners', foreignKey: 'prison'});
-        this.belongsToMany(models.Rule, { through: 'RulePassthrough', foreignKey: 'ruleId', sourceKey: 'id' });
+        this.belongsToMany(models.Rule, { through: 'RulePassthrough', foreignKey: 'prison', sourceKey: 'id' });
     }
 
 // Create
@@ -41,6 +41,25 @@ export default class Prison extends Model {
         } else {
             return await this.findAll();
         }
+    }
+    /**
+     *  create multiple prisons
+     *  
+     *  @param {array} prisonArray  - Array of prison params
+     */
+    static async createBulkPrisons(prisonArray) {
+        return await this.bulkCreate(prisonArray, {individualHooks: true, ignoreDuplicates: true});
+
+    }
+
+    /**
+     * Get raw prison count
+     * @returns {int} 
+     */
+    static async countPrisons() {
+        const {count} = await this.findAndCountAll();
+
+        return count;
     }
 
 // Read

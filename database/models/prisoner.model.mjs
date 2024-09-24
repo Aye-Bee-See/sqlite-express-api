@@ -17,8 +17,8 @@ export default class Prisoner extends Model {
         );
     }
     static associate(models) {
-        this.belongsTo(models.Prison, { as: 'prisonDetails', foreignKey: 'prison'});
-        this.hasMany(models.Chat, { as: 'chats', foreignKey: 'prisoner' });
+        this.belongsTo(models.Prison, { as: 'prison_details', foreignKey: 'prisonId'});
+        this.hasMany(models.Chat, { as: 'chats', foreignKey: 'prisonerId' });
 
     }
 
@@ -26,6 +26,24 @@ export default class Prisoner extends Model {
 
     static async createPrisoner( { birthName, chosenName, prison, inmateID, releaseDate, bio, status })  {
         return await this.create({birthName, chosenName, prison, inmateID, releaseDate, bio, status});
+    }
+    /**
+     *  create multiple prisoners
+     *  
+     *  @param {array} prisonerArray  - Array of prisoner params
+     */
+    static async createBulkPrisoners(prisonerArray) {
+        return await this.bulkCreate(prisonerArray, {individualHooks: true, ignoreDuplicates: true});
+    }
+
+    /**
+     * Get raw prisoner count
+     * @returns {int} 
+     */
+    static async countPrisoners() {
+        const {count} = await this.findAndCountAll();
+
+        return count;
     }
 
 // Read
@@ -84,8 +102,8 @@ export default class Prisoner extends Model {
 
 // Update
 
-    static async updatePrisoner (newPrisoner) {
-        return await this.update({...newPrisoner}, {where: {id: newthis.id}});
+    static async updatePrisoner (prisoner) {
+        return await this.update({...prisoner}, {where: {id: prisoner.id}});
     }
 
 // Delete

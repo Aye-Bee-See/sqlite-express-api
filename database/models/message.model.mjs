@@ -1,7 +1,7 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.mjs';
 import Hooks from '#hooks/all.hooks.mjs';
-
+import Chat from '#models/chat.model.mjs';
 
 export default class Message extends Model {
     static init(sequelize) {
@@ -15,12 +15,34 @@ export default class Message extends Model {
         );
     }
     static associate(models) {
-        this.belongsTo(models.Chat, { as: 'ownerChat', foreignKey: 'chat' });
+        this.belongsTo(models.Chat, {as:'chat_details', foreignKey:'chatId'});
+       // this.belongsTo(models.Prisoner, { through: "Chat", foreignKey: 'prisoner', sourceKey: 'id' });
+       // this.belongsTo(models.User, { through: "Chat", foreignKey: 'user', sourceKey: 'id' });
     }
 
 //  Create
-    static async createMessage(chat, messageText, sender) {
-        return await this.create(chat, messageText, sender);
+    static async createMessage(messageText, sender) {
+        return await this.create(messageText, sender);
+    }
+
+    /**
+     *  create multiple message
+     *  
+     *  @param {array} messageArray  - Array of message params
+     */
+    static async createBulkMessages(messageArray) {
+        
+        return await this.bulkCreate(messageArray, {validate: true, individualHooks: true});
+    }
+
+    /**
+     * Get raw message count
+     * @returns {int} 
+     */
+    static async countMessages() {
+        const {count} = await this.findAndCountAll();
+
+        return count;
     }
 
 // Read

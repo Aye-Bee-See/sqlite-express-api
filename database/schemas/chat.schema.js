@@ -1,14 +1,15 @@
-import sequelize from 'sequelize';
-const DataTypes = sequelize.DataTypes;
+import {DataTypes} from 'sequelize';
 
-export const ChatSchema = {
-  user: {
-    type: DataTypes.INTEGER,
-    model: 'users',
-    
-  },
-  prisoner: {
-    type: DataTypes.INTEGER,
-    model: 'prisoners',
-  }
+const chatSchema = {
+    user: {
+        type: DataTypes.INTEGER,
+        model: 'User',
+
+    },
+    prisoner: {
+        type: DataTypes.INTEGER,
+        model: 'Prisoner',
+    }
 };
+
+export default chatSchema;

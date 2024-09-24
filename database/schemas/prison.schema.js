@@ -1,6 +1,7 @@
-const sequelize = require('sequelize')
-const DataTypes = sequelize.DataTypes
-const prisonModel = {
+import {DataTypes} from 'sequelize';
+
+
+const prisonSchema={
   prisonName: {
     type: DataTypes.STRING,
     allowNull: false
@@ -15,4 +16,4 @@ const prisonModel = {
   }
 };
 
-module.exports = prisonModel;
+export default prisonSchema;

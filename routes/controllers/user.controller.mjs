@@ -3,12 +3,9 @@ import User from "#models/user.model.mjs"
 import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
 import {userMsg} from '#routes/constants.js'
-import {default as Utls} from "#services/Utilities.mjs"
-//import Logger from "#dbg/Logger";
-    
-export default class userController {
+import {default as Utls} from "#services/Utilities.js"
 
-   //#loggr;
+export default class userController {
 
     #msgObjs;
 
@@ -26,7 +23,6 @@ export default class userController {
         this.login = this.login.bind(this);
         this.remove = this.remove.bind(this);
 
-                  //  this.#loggr = new Logger;
 
     }
     #stripPassword(userList) {
@@ -97,16 +93,14 @@ export default class userController {
     }
 
     #handleSuccess(res, outObj = {}, condition = "par") {
-        
+
         const stack = this.#findStack(res);
         const callerName = stack.name.substr(6);
         const msgRef = ["getUser", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
         const {method} = stack;
         const info = userMsg[method][msgRef].success.condition[condition];
-        const message = {...outObj,info: info};
-       // console.trace(outObj);
-       // this.#loggr.term(outObj);
-        
+        const message = {...outObj, info: info};
+
         res.status(200).json(message);
     }
     /**
@@ -241,47 +235,19 @@ export default class userController {
     }
 
 // login route
-    async login(req,res, next)
+    async login(req, res, next)
     {
 
-//        console.group("REQ");
-//        console.log(req);
-//        console.groupEnd();
-        console.group("REQ AUTH");
-        console.log(arguments);
-        console.groupEnd();
-//               console.group("RES");
-//       console.log(res);
-//       console.groupEnd();
-//                console.group("NEXT");
-//        console.log(next);
-//        console.groupEnd();
-//                console.group("USER");
-//        console.log(user);
-//        console.groupEnd();
 
-                   
-        //console.log(arguments);
-
-
-//        const {username, email, password} = req.body;
-//
-//        if ((username || email) && password) {
-//            this.#handleLogin(res, req.body);
-//        } else {
-//            const err = new Error();
-//            this.#handleErr(res, err)
-//        }
-
-if(req.isAuthenticated()){
- const token=req.authInfo.token;
- const user=req.user;
-    this.#handleSuccess(res,{user, token});
-}else{
-    this.#handleErr(res)
-}
+        if (req.isAuthenticated()) {
+            const token = req.authInfo.token;
+            const user = req.user;
+            this.#handleSuccess(res, {user, token});
+        } else {
+            this.#handleErr(res)
+        }
 
     }
-        
+
 }
 

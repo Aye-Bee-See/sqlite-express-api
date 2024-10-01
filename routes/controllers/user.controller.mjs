@@ -25,17 +25,15 @@ export default class userController {
 
 
     }
-    #stripPassword(userList) {
-        return userList.map((user) => {
-            const {id, email, name, role, username, bio} = user;
-            return {id, email, name, role, username, bio};
-        });
+    #stripPassword(userObject) {
+        const {id, email, name, role, username, bio} = userObject;
+        return {id, email, name, role, username, bio};
     }
 
     #handlePass(res, user, type) {
 
         if (user) {
-            const strippedPassword = this.#stripPassword([user])[0];
+            const strippedPassword = this.#stripPassword(user);
             this.#handleSuccess(res, {user: strippedPassword});
         } else {
             const err = new Error();
@@ -71,8 +69,28 @@ export default class userController {
         }
     }
 
+    #stripUsersListPasswords(usersList) {
+        let pwStrippedList = {};
+        Object.entries(usersList).forEach(([key, value]) => {
+            pwStrippedList[key] = this.#stripPassword(value);
+        });
+        return pwStrippedList;
+    }
+
+    #formatUsersList(usersList) {
+        let formattedList = {};
+
+        for (let i = 0; i < usersList.length; i++) {
+            const id = usersList[i].dataValues.id;
+            const userData = usersList[i].dataValues;
+            formattedList[id] = userData;
+        }
+        return formattedList;
+    }
+
     #handleUsers(res, users) {
-        const filteredUsers = this.#stripPassword(users);
+        const formattedList = this.#formatUsersList(users);
+        const filteredUsers = {"users": this.#stripUsersListPasswords(formattedList)};
         if (users.length > 0) {
             this.#handleSuccess(res, filteredUsers);
         } else {
@@ -98,8 +116,9 @@ export default class userController {
         const callerName = stack.name.substr(6);
         const msgRef = ["getUser", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
         const {method} = stack;
-        const info = userMsg[method][msgRef].success.condition[condition];
-        const message = {...outObj, info: info};
+        let message_object = {...outObj};
+        message_object['info'] = userMsg[method][msgRef].success.condition[condition];
+        const message = message_object;
 
         res.status(200).json(message);
     }

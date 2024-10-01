@@ -47,15 +47,17 @@ export default class User extends Model {
     }
 
     static async getAllUsers(full) {
-        console.log(this.associations.chats)
+
+        let usersList;
         if (full) {
-            return await this.findAll({
+            usersList= await this.findAll({
                 include: [{model: Chat, as: 'chats'}]
                 
             });
         } else {
-            return await User.findAll({});
+            usersList= await User.findAll({});
         }
+        return usersList;
     }
 
     static async  getUsersByRole(role, full) {

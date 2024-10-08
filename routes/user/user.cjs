@@ -23,7 +23,7 @@ import('#rtControllers/user.controller.mjs').then(async(res) => {
     const JwtStrat=authService.authorize;
     const LocStrat=authService.login;
     const usrCtrl = await new res.default;
-//passport.use('JStrat',JwtStrat);
+passport.use('JStrat',JwtStrat);
 passport.use('LStrat', LocStrat);
 const constants= await import('#routes/constants.js');
 

@@ -5,7 +5,7 @@ import {ErrorHandler as errorMiddleware} from './middleware/ErrorHandler.js';
 import {default as authRouter} from '#routes/user/user.cjs'; 
 import {default as prisonRouter} from '#routes/prison/prison.cjs'; 
 import {default as prisonerRouter} from '#routes/prisoner/prisoner.cjs'; 
-import {default as ruleRouter} from '#routes/rule/rule.cjs'; 
+import {default as ruleRouter} from '#routes/rule/rule.mjs'; 
 import {default as messagingRouter} from '#routes/message/messaging.cjs';
 import 'dotenv/config';
 

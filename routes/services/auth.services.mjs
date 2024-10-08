@@ -18,7 +18,7 @@ export default class authService {
 
         let payload = {id: user.id, expiry: expiryDateMs};
         let token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: '1w'});
-
+        console.log(token);
         return {token, expires: expiryDateMs};
     }
 

@@ -76,7 +76,9 @@ export default class userController {
         });
         return pwStrippedList;
     }
-
+    /**
+     * TODO: UPDATE loops to handle for non-incrementation or strings
+     */
     #formatUsersList(usersList) {
         let formattedList = {};
 

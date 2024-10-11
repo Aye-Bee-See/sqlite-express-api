@@ -3,11 +3,12 @@ import {Strategy as LocalStrategy} from 'passport-local';
 import jwt from 'jsonwebtoken';
 import {User} from "#db/sql-database.mjs";
 import bcrypt from 'bcrypt';
+import {secretOrKey} from '#constants';
 
 
-export default class authService {
+export default class authService {       
     static #jwtOptions = {
-        secretOrKey: process.env.JWT_SECRET,
+        secretOrKey: secretOrKey,
         jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken()
     };
     
@@ -17,7 +18,7 @@ export default class authService {
         const expiryDateMs = now + weekInMilliseconds;
 
         let payload = {id: user.id, expiry: expiryDateMs};
-        let token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: '1w'});
+        let token = jwt.sign(payload, secretOrKey, {expiresIn: '1w'});
         console.log(token);
         return {token, expires: expiryDateMs};
     }
@@ -51,7 +52,7 @@ export default class authService {
 
     static login = new LocalStrategy({usernameField: 'username', passwordField: 'password'}, authService.#verify);
 
-    static authorize = new JwtStrategy(authService.#jwtOptions, function (jwt_payload, next) {
+    static authorize = new JwtStrategy(authService.#jwtOptions, (jwt_payload, next)=> {
         let user = User.getUser({id: jwt_payload.id});
         if (user) {
             next(null, user);

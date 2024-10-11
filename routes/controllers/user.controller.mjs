@@ -4,10 +4,10 @@ import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
 import {userMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
+import {secretOrKey} from '#constants';
 
 export default class userController {
 
-    #msgObjs;
 
     constructor() {
         /* 
@@ -57,7 +57,7 @@ export default class userController {
                 const expiryDateMs = now + weekInMilliseconds;
 
                 let payload = {id: user.id, expiry: expiryDateMs};
-                let token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: '1w'});
+                let token = jwt.sign(payload, secretOrKey, {expiresIn: '1w'});
                 this.#handleSuccess(res, {token, expires: expiryDateMs});
             } else {
                 const err = new Error();
@@ -165,7 +165,7 @@ export default class userController {
             }
         }
     }
-
+    
 // get one user
     /**
      * TODO:  At least get by email should be case insensitive if not everything

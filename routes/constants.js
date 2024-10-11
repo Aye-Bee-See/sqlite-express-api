@@ -13,36 +13,28 @@ const endpoints = {
             update: '/user'
         },
         delete: {
-            delete: '/user'
+            remove: '/user'
         }
 
+    },
+    rule: {
+        get: {
+            list: '/rules/:prison?/:full?',
+            rule: '/rule/:id?'
+        },
+        post: {
+            create: '/rule'
+        },
+        put: {
+            update: '/rule'
+        },
+        delete: {
+            remove: '/rule'
+        }
     }
 };
 
-const userEnd = endpoints.user;
 
-
-
-
-    /***
-     *         const errors = {
-            nid: "Error: No such user ID.",
-            nusr: "Zero users exist in the database.",
-            id: "Error getting user by ID.",
-            mail: "Error getting user by email.",
-            name: "Error getting user by username.",
-            up: "Error updating user.",
-            del: "Error deleting user.",
-            reg: "Err registering user.",
-            list: "Error retrieving user list.",
-            role: "Error getting users by role.",
-            logn: 'No such user or associated password found.',
-            niue: "No ID, username, or email provided.",
-            empty: "Error retrieving user list."
-
-        };
-     */
-    
 
 
 /***************************************************************************
@@ -107,7 +99,7 @@ const messages = {
         },
         post: {
             register: {
-                success: {condition: {par: "User successfully created."}},
+                success: {condition: {par: "Successfully created user."}},
                 error: {condition: {par: "Error registering user."}}
             },
             login: {
@@ -117,24 +109,72 @@ const messages = {
         },
         put: {
             update: {
-                success: {condition: {par: "Updated user."}},
+                success: {condition: {par: "Successfully updated user."}},
                 error: {condition: {par: "Error updating user."}}
             }
         },
         delete: {
             remove: {
-                success: {condition: {par:  "Deleted user."}},
-                error: {condition: {par: "Error deleting user."}}
+                success: {condition: {par: "Successfully deleted user."}},
+                error: {condition: {
+                        par: "Error deleting user",
+                        absent: "No such user"
+                    }
+                }
+            }
+        }
+    },
+    rule: {
+        get: {
+            list: {
+                success: {condition: {par: null}},
+                error: {condition: {
+                        par: "Error getting rules list",
+                        prison: "Error getting rules by prison"
+                    }
+                }
+            },
+            rule: {
+                success: {condition: {par: null}},
+                error: {condition: {par: "Error getting rule by ID"}}
+            }
+        },
+        post: {
+            create: {
+                success: {condition: {par: "Successfully created rule"}},
+                error: {condition: {par: "Error creating rule"}}
+            }
+        },
+        put: {
+            update: {
+                success: {condition: {par: "Succeessfully updated rule"}},
+                error: {condition: {par: "Error updating rule."}}
+            }
+        },
+        delete: {
+            remove: {
+                success: {condition: {par: "Succeessfully deleted rule"}},
+                error: {condition: {
+                        par: "Error deleting rule",
+                        absent: "No such rule"
+                    }
+                }
             }
         }
     }
 };
 
-const userMsg=messages.user;
+/***********End Points***********/
+const userEnd = endpoints.user;
+const ruleEnd = endpoints.rule;
+
+/***********Messages***********/
+const userMsg = messages.user;
+const ruleMsg = messages.rule;
 
 /**
  * Just everything
  */
 const monster = {...endpoints, ...messages};
 
-export {endpoints as endpoints, userEnd as userEnd, messages as messages, userMsg as userMsg, monster as monster};
+export {endpoints, userEnd, ruleEnd, messages, userMsg, ruleMsg, monster};

@@ -23,7 +23,7 @@ const bcrypt = require('bcrypt');
 const {ChatSchema} = import('#schemas/chat.schema.js');
 
 app.use(passport.initialize());
-passport.use(JwtStrat);
+passport.use('JStrat',JwtStrat);
 
 router.get('/', function(req, res) {
   res.status(200).json({ msg: 'Messaging is up!' });
@@ -33,7 +33,7 @@ router.get('/', function(req, res) {
 // Create
 
 // find or create chat
-router.post('/chat', function(req, res) {
+router.post('/chat', passport.authenticate('JStrat', {session: false}), function(req, res) {
   const {user, prisoner} = req.body;
 
   Chat.findOrCreateChat(user, prisoner)

@@ -34,7 +34,7 @@ export default class userController {
 
         if (user) {
             const strippedPassword = this.#stripPassword(user);
-            this.#handleSuccess(res, {user: strippedPassword});
+            this.#handleSuccess(res, strippedPassword);
         } else {
             const err = new Error();
             this.#handleErr(res, err, type);
@@ -92,7 +92,7 @@ export default class userController {
 
     #handleUsers(res, users) {
         const formattedList = this.#formatUsersList(users);
-        const filteredUsers = {"users": this.#stripUsersListPasswords(formattedList)};
+        const filteredUsers = this.#stripUsersListPasswords(formattedList);
         if (users.length > 0) {
             this.#handleSuccess(res, filteredUsers);
         } else {
@@ -118,9 +118,9 @@ export default class userController {
         const callerName = stack.name.substr(6);
         const msgRef = ["getUser", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
         const {method} = stack;
-        let message_object = {...outObj};
-        message_object['info'] = userMsg[method][msgRef].success.condition[condition];
-        const message = message_object;
+        let message = {};
+        message['data'] = {...outObj};
+        message['info'] = userMsg[method][msgRef].success.condition[condition];
 
         res.status(200).json(message);
     }
@@ -221,8 +221,8 @@ export default class userController {
         const role = req.body.role.toLowerCase();
         try {
             const user = await User.createUser({username, password, role, email, name, bio});
-            const strippedPassword = this.#stripPassword([user])[0];
-            this.#handleSuccess(res, {user: strippedPassword});
+            const strippedPassword = this.#stripPassword(user);
+            this.#handleSuccess(res, strippedPassword);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);

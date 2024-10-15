@@ -52,9 +52,9 @@ export default class ruleController {
         const msgRef = ["getRule", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
         console.log({msgRef});
         const {method} = stack;
-        let message_object = {...outObj};
-        message_object['info'] = ruleMsg[method][msgRef].success.condition[condition];
-        const message = message_object;
+        let message = {};
+        message['data'] = {...outObj};
+        message['info'] = ruleMsg[method][msgRef].success.condition[condition];
 
         res.status(200).json(message);
     }

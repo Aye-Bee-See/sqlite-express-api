@@ -261,7 +261,7 @@ export default class userController {
 
         if (req.isAuthenticated()) {
             const token = req.authInfo.token;
-            const user = req.user;
+            const user = this.#stripPassword(req.user);
             this.#handleSuccess(res, {user, token});
         } else {
             this.#handleErr(res)

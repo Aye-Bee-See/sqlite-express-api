@@ -4,7 +4,7 @@ import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
 import {ruleMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
-import Logger from "#dbg/Logger"
+//import Logger from "#dbg/Logger"
 
 export default class ruleController {
 

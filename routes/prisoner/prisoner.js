@@ -1,7 +1,7 @@
 import express,{Router as router} from 'express';
 import {default as bodyParser} from 'body-parser';
 import {default as passport} from 'passport';
-import {ruleEnd} from '#routes/constants.js';
+import {prisonerEnd} from '#routes/constants.js';
 import {default as prisonerCrtlr} from "#rtControllers/prisoner.controller.js";
 import authService from "#rtServices/auth.services.mjs";
 
@@ -40,21 +40,21 @@ class PrisonerRoutes {
 
 // Create
 
-        this.Router.post(ruleEnd.post.create, this.#Controller.create);
+        this.Router.post(prisonerEnd.post.create, this.#Controller.create);
 
 // Read
 
-        this.Router.get(ruleEnd.get.list, this.#Controller.getList);
+        this.Router.get(prisonerEnd.get.list, this.#Controller.getList);
 
-        this.Router.get(ruleEnd.get.rule, this.#Controller.getRule);
+        this.Router.get(prisonerEnd.get.prisoner, this.#Controller.getPrisoner);
 
 // Update
 
-        this.Router.put(ruleEnd.put.update, this.#Controller.update);
+        this.Router.put(prisonerEnd.put.update, this.#Controller.update);
 
 // Delete
 
-        this.Router.delete(ruleEnd.delete.remove, this.#Controller.remove);
+        this.Router.delete(prisonerEnd.delete.remove, this.#Controller.remove);
     }
 }
 

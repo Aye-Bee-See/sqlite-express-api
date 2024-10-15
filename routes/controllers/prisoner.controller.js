@@ -94,7 +94,7 @@ export default class prisonerController {
     async getListByPrison(req, res) {
         const {prison} = req.query;
         try {
-            const prisoner = await Prisoner.getPrisonersByPrison()(prison);
+            const prisoner = await Prisoner.getPrisonersByPrison(prison);
             this.#handleSuccess(res, prisoner);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -117,9 +117,9 @@ export default class prisonerController {
     }
     // Create
     async create(req, res) {
-        const {title, description} = req.body;
+        const { birthName, chosenName, prison, inmateID, releaseDate, bio, status } = req.body;
         try {
-            const prisoner = await Prisoner.createRule({title, description});
+            const prisoner = await Prisoner.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio, status });
             this.#handleSuccess(res, prisoner);
             // res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
         } catch (err) {
@@ -134,7 +134,7 @@ export default class prisonerController {
     {
         const newPrisoner = req.body;
         try {
-            const updatedRows = await Prisoner.updateRule(newPrisoner);
+            const updatedRows = await Prisoner.updatePrisoner(newPrisoner);
             this.#handleSuccess(res, {updatedRows, newPrisoner});
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

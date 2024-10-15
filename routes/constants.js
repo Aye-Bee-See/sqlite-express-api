@@ -62,6 +62,21 @@ const endpoints = {
         delete: {
             remove: '/prison'
         }
+    },
+        message: {
+        get: {
+            list: '/messages/:id?/:chat?/:prisoner?/:user?',
+            message: '/message/:id?'
+        },
+        post: {
+            create: '/message'
+        },
+        put: {
+            update: '/message'
+        },
+        delete: {
+            remove: '/message'
+        }
     }
 };
 
@@ -271,6 +286,43 @@ const messages = {
                 }
             }
         }
+    },
+        message: {
+        get: {
+            list: {
+                success: {condition: {par: "Successfully retireved message list"}},
+                error: {condition: {
+                        par: "Error getting message list"
+                    }
+                }
+            },
+            prison: {
+                success: {condition: {par: "Success getting message by ID"}},
+                error: {condition: {par: "Error getting message by ID"}}
+            }
+        },
+        post: {
+            create: {
+                success: {condition: {par: "Successfully created message"}},
+                error: {condition: {par: "Error creating message"}}
+            }
+        },
+        put: {
+            update: {
+                success: {condition: {par: "Succeessfully updated message"}},
+                error: {condition: {par: "Error updating message."}}
+            }
+        },
+        delete: {
+            remove: {
+                success: {condition: {par: "Succeessfully deleted message"}},
+                error: {condition: {
+                        par: "Error deleting message",
+                        absent: "No such message"
+                    }
+                }
+            }
+        }
     }
 };
 
@@ -279,16 +331,18 @@ const userEnd = endpoints.user;
 const ruleEnd = endpoints.rule;
 const prisonerEnd = endpoints.prisoner;
 const prisonEnd = endpoints.prison;
+const messageEnd = endpoints.message;
 
 /***********Messages***********/
 const userMsg = messages.user;
 const ruleMsg = messages.rule;
 const prisonerMsg = messages.prisoner;
 const prisonMsg = messages.prison;
+const messageMsg = messages.message;
 
 /**
  * Just everything
  */
 const monster = {...endpoints, ...messages};
 
-export {endpoints, userEnd, ruleEnd, prisonerEnd, prisonEnd, messages, userMsg, ruleMsg, prisonerMsg, prisonMsg, monster};
+export {endpoints, userEnd, ruleEnd, prisonerEnd, prisonEnd, messageEnd, messages, userMsg, ruleMsg, prisonerMsg, prisonMsg, messageMsg, monster};

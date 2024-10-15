@@ -7,7 +7,7 @@ import {default as authRouter} from '#routes/user/user.cjs';
 import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
 import RuleRoutes from '#routes/rule/rule.mjs';
-import {default as messagingRouter} from '#routes/message/messaging.cjs';
+import MessageRoutes from '#routes/message/message.js';
 
 const app = express();
 
@@ -34,7 +34,7 @@ app.use(function (req, res, next) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
 
     // Request headers you wish to allow
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type, authorization');
 
     // Set to true if you need the website to include cookies in the requests sent
     // to the API (e.g. in case you use sessions)
@@ -50,6 +50,6 @@ app.use('/auth', authRouter);
 app.use('/prison', prisonRoutes.Router);
 app.use('/prisoner', PrisonerRoutes.Router);
 app.use('/rule', RuleRoutes.Router);
-app.use('/messaging', messagingRouter);
+app.use('/messaging', MessageRoutes.Router);
 app.use(errorMiddleware);
 

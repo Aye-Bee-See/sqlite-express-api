@@ -80,13 +80,10 @@ export default class ruleController {
     async getList(req, res, next) {
         const {prison} = req.query;
         if (prison) {
-            console.log({prison})
             this.getListByPrison(req, res);
         }
         try {
-            console.log("ALL");
             const rules = await Rule.getAllRules();
-            console.log({rules});
             this.#handleSuccess(res, rules);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

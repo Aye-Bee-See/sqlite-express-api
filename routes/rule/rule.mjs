@@ -40,21 +40,21 @@ class RuleRoutes {
 
 // Create
 
-        this.Router.post(ruleEnd.post.create, passport.authenticate('JStrat', {session: false}), this.#Controller.create);
+        this.Router.post(ruleEnd.post.create, this.#Controller.create);
 
 // Read
 
-        this.Router.get(ruleEnd.get.list, passport.authenticate('JStrat', {session: false}), this.#Controller.getList);
+        this.Router.get(ruleEnd.get.list, this.#Controller.getList);
 
-        this.Router.get(ruleEnd.get.rule, passport.authenticate('JStrat', {session: false}), this.#Controller.getRule);
+        this.Router.get(ruleEnd.get.rule, this.#Controller.getRule);
 
 // Update
 
-        this.Router.put(ruleEnd.put.update, passport.authenticate('JStrat', {session: false}), this.#Controller.update);
+        this.Router.put(ruleEnd.put.update, this.#Controller.update);
 
 // Delete
 
-        this.Router.delete(ruleEnd.delete.remove, passport.authenticate('JStrat', {session: false}), this.#Controller.remove);
+        this.Router.delete(ruleEnd.delete.remove, this.#Controller.remove);
     }
 }
 

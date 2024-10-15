@@ -46,6 +46,22 @@ const endpoints = {
         delete: {
             remove: '/prisoner'
         }
+    },
+    prison: {
+        get: {
+            list: '/prisons/:full?',
+            prison: '/prison/:id?'
+        },
+        post: {
+            create: '/prison'
+        },
+        put: {
+            update: '/prison',
+            rule: '/rule'
+        },
+        delete: {
+            remove: '/prison'
+        }
     }
 };
 
@@ -177,7 +193,7 @@ const messages = {
             }
         }
     },
-        prisoner: {
+    prisoner: {
         get: {
             list: {
                 success: {condition: {par: "Successfully retireved prisoners list"}},
@@ -214,6 +230,47 @@ const messages = {
                 }
             }
         }
+    },
+    prison: {
+        get: {
+            list: {
+                success: {condition: {par: "Successfully retireved prisons list"}},
+                error: {condition: {
+                        par: "Error getting prisons list"
+                    }
+                }
+            },
+            prison: {
+                success: {condition: {par: "Success getting prison by ID"}},
+                error: {condition: {par: "Error getting prison by ID"}}
+            }
+        },
+        post: {
+            create: {
+                success: {condition: {par: "Successfully created prison"}},
+                error: {condition: {par: "Error creating prison"}}
+            }
+        },
+        put: {
+            update: {
+                success: {condition: {par: "Succeessfully updated prison"}},
+                error: {condition: {par: "Error updating prison."}}
+            },
+            rule:{
+                success: {condition: {par: "Succeessfully added rule prison"}},
+                error: {condition: {par: "Error adding rule to prison."}}
+            }
+        },
+        delete: {
+            remove: {
+                success: {condition: {par: "Succeessfully deleted prison"}},
+                error: {condition: {
+                        par: "Error deleting prison",
+                        absent: "No such prison"
+                    }
+                }
+            }
+        }
     }
 };
 
@@ -221,15 +278,17 @@ const messages = {
 const userEnd = endpoints.user;
 const ruleEnd = endpoints.rule;
 const prisonerEnd = endpoints.prisoner;
+const prisonEnd = endpoints.prison;
 
 /***********Messages***********/
 const userMsg = messages.user;
 const ruleMsg = messages.rule;
 const prisonerMsg = messages.prisoner;
+const prisonMsg = messages.prison;
 
 /**
  * Just everything
  */
 const monster = {...endpoints, ...messages};
 
-export {endpoints, userEnd, ruleEnd, prisonerEnd, messages, userMsg, ruleMsg, prisonerMsg, monster};
+export {endpoints, userEnd, ruleEnd, prisonerEnd, prisonEnd, messages, userMsg, ruleMsg, prisonerMsg, prisonMsg, monster};

@@ -127,7 +127,7 @@ const messages = {
     rule: {
         get: {
             list: {
-                success: {condition: {par: null}},
+                success: {condition: {par: "Successfully retireved rule list"}},
                 error: {condition: {
                         par: "Error getting rules list",
                         prison: "Error getting rules by prison"
@@ -135,7 +135,7 @@ const messages = {
                 }
             },
             rule: {
-                success: {condition: {par: null}},
+                success: {condition: {par: "Success getting rule by ID"}},
                 error: {condition: {par: "Error getting rule by ID"}}
             }
         },

@@ -18,6 +18,7 @@ export default class ruleController {
         this.getRule = this.getRule.bind(this);
         this.update = this.update.bind(this);
         this.remove = this.remove.bind(this);
+        this.create = this.create.bind(this);
 
 
     }
@@ -49,6 +50,7 @@ export default class ruleController {
         const stack = this.#findStack(res);
         const callerName = stack.name.substr(6);
         const msgRef = ["getRule", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
+        console.log({msgRef});
         const {method} = stack;
         let message_object = {...outObj};
         message_object['info'] = ruleMsg[method][msgRef].success.condition[condition];
@@ -76,21 +78,33 @@ export default class ruleController {
      * TODO:  Needs error trapping for no existing chats
      */
     async getList(req, res, next) {
-            const {prison} = req.query;
-            if (!prison) {
-                Rule.getAllRules()
-                        .then(rules => res.status(200).json(rules))
-                        .catch(err => res.status(400).json({msg: ruleMsg.get.list.success.condition.par, err}));
-            } else {
+        const {prison} = req.query;
+        if (prison) {
+            console.log({prison})
+            this.getListByPrison(req, res);
+        }
+        try {
+            console.log("ALL");
+            const rules = await Rule.getAllRules();
+            console.log({rules});
+            this.#handleSuccess(res, rules);
+        } catch (err) {
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
+        }
 
-                Rule.getRulesByPrison(prison).then(rules => res.status(200).json(rules))
-                        .catch(err => {
-                            let sqliteError = ""
-                            // if (err.original.errno === 1) { sqliteError =  "That prison doesn't exist."}
-                            res.status(400).json({msg: ruleMsg.get.list.error.condition.par, err})
-                        }
-                        )
-            }
+
+    }
+
+    async getListByPrison(req, res) {
+        const {prison} = req.query;
+        try {
+            const rule = await Rule.getRulesByPrison(prison);
+            this.#handleSuccess(res, rule);
+        } catch (err) {
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
+        }
     }
 
     // get one rule
@@ -100,9 +114,10 @@ export default class ruleController {
         const fullBool = (full === 'true');
         try {
             const rule = await Rule.getRuleByID(id, fullBool);
-            res.status(200).json(rule);
+            this.#handleSuccess(res, rule);
         } catch (err) {
-            res.status(400).json({msg: ruleMsg.get.rule.error.condition.par, err});
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
         }
     }
     // Create
@@ -110,9 +125,11 @@ export default class ruleController {
         const {title, description} = req.body;
         try {
             const rule = await Rule.createRule({title, description});
-            res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
+            this.#handleSuccess(res, rule);
+            // res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
         } catch (err) {
-            res.status(400).json({msg: ruleMsg.post.create.error.condition.par, err});
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
         }
     }
 

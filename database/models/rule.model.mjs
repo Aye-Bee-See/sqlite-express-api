@@ -83,7 +83,7 @@ export default class Rule extends Model {
                 ]
             })
         } else {
-            return await Prisoner.findOne({
+            return await this.findOne({
                 where: {id: id},
             })
         }

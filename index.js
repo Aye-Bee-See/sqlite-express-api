@@ -8,6 +8,7 @@ import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
 import RuleRoutes from '#routes/rule/rule.mjs';
 import MessageRoutes from '#routes/message/message.js';
+import {default as child} from "#routes/controllers/route.controller.js";
 
 const app = express();
 

@@ -44,9 +44,9 @@ class RuleRoutes {
 
 // Read
 
-        this.Router.get(ruleEnd.get.list, this.#Controller.getList);
+        this.Router.get(ruleEnd.get.many, this.#Controller.getMany);
 
-        this.Router.get(ruleEnd.get.rule, this.#Controller.getRule);
+        this.Router.get(ruleEnd.get.one, this.#Controller.getOne);
 
 // Update
 

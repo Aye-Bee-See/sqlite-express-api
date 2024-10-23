@@ -19,8 +19,8 @@ const endpoints = {
     },
     rule: {
         get: {
-            list: '/rules/:prison?/:full?',
-            rule: '/rule/:id?'
+            many: '/rules/:prison?/:full?',
+            one: '/rule/:id?'
         },
         post: {
             create: '/rule'
@@ -172,7 +172,7 @@ const messages = {
     },
     rule: {
         get: {
-            list: {
+            many: {
                 success: {condition: {par: "Successfully retireved rule list"}},
                 error: {condition: {
                         par: "Error getting rules list",
@@ -180,7 +180,7 @@ const messages = {
                     }
                 }
             },
-            rule: {
+            one: {
                 success: {condition: {par: "Success getting rule by ID"}},
                 error: {condition: {par: "Error getting rule by ID"}}
             }

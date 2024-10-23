@@ -4,9 +4,10 @@ import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
 import {ruleMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
+import RouteController from "#rtControllers/route.controller.js";
 //import Logger from "#dbg/Logger"
 
-export default class ruleController {
+export default class ruleController extends RouteController {
 
     constructor() {
         /* 
@@ -14,8 +15,9 @@ export default class ruleController {
          * JS loses where we are and thinks this is is something
          * other than the instance of our class
          */
-        this.getList = this.getList.bind(this);
-        this.getRule = this.getRule.bind(this);
+        super("rule");
+        this.getMany = this.getMany.bind(this);
+        this.getOne = this.getOne.bind(this);
         this.update = this.update.bind(this);
         this.remove = this.remove.bind(this);
         this.create = this.create.bind(this);
@@ -23,40 +25,8 @@ export default class ruleController {
 
     }
 
-    #formatMessagesList(messagesList) {
-        let formattedList = {};
-
-        for (let i = 0; i < messagesList.length; i++) {
-            const id = messagesList[i].dataValues.id;
-            const ruleData = messagesList[i].dataValues;
-            formattedList[id] = ruleData;
-        }
-        return formattedList;
-    }
-
-    #findStack(res) {
-        let stack;
-        res.req.route.stack.forEach((layer) => {
-            const fname = layer.name.substr(6);
-            if (this.hasOwnProperty(fname)) {
-                stack = layer;
-            }
-        });
-        return stack;
-    }
-
     #handleSuccess(res, outObj = {}, condition = "par") {
-
-        const stack = this.#findStack(res);
-        const callerName = stack.name.substr(6);
-        const msgRef = ["getRule", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        console.log({msgRef});
-        const {method} = stack;
-        let message = {};
-        message['data'] = {...outObj};
-        message['info'] = ruleMsg[method][msgRef].success.condition[condition];
-
-        res.status(200).json(message);
+        super.handleSuccess(res, outObj, condition);
     }
     /**
      * Todo:
@@ -64,20 +34,13 @@ export default class ruleController {
      * Transition to using constants file
      */
     #handleErr(res, errMsg = null, msgType = "par") {
-        const stack = this.#findStack(res);
-        const callerName = stack.name.substr(6);
-        const msgRef = ["getRule", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        const {method} = stack;
-        const info = ruleMsg[method][msgRef].error.condition[msgType];
-        const message = errMsg ? {info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString()} : {info: info};
-
-        res.status(400).json(message);
+        super.handleErr(res, errMsg, msgType);
     }
 
     /***
      * TODO:  Needs error trapping for no existing chats
      */
-    async getList(req, res, next) {
+    async getMany(req, res, next) {
         const {prison} = req.query;
         if (prison) {
             this.getListByPrison(req, res);
@@ -106,7 +69,7 @@ export default class ruleController {
 
     // get one rule
 
-    async getRule(req, res) {
+    async getOne(req, res) {
         const {id, full} = req.query;
         const fullBool = (full === 'true');
         try {

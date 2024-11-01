@@ -5,9 +5,10 @@ import bcrypt from "bcrypt";
 import {userMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import {secretOrKey} from '#constants';
+import RouteController from "#rtControllers/route.controller.js";
 
-export default class userController {
 
+export default class UserController extends RouteController {
 
     constructor() {
         /* 
@@ -15,19 +16,24 @@ export default class userController {
          * JS loses where we are and thinks this is is something
          * other than the instance of our class
          */
-        
-        
+
+        super("user");
         this.getMany = this.getMany.bind(this);
         this.getOne = this.getOne.bind(this);
-        this.protect = this.protect.bind(this);
         this.update = this.update.bind(this);
         this.create = this.create.bind(this);
-        this.register=this.create;
-        this.login = this.login.bind(this);
         this.remove = this.remove.bind(this);
 
-
+        this.protect = this.protect.bind(this);
+        this.login = this.login.bind(this);
+        this.register = this.create;
+        this.#handleErr = super.handleErr;
+        this.#handleSuccess = super.handleSuccess;
     }
+
+    #handleSuccess;
+    #handleErr;
+
     #stripPassword(userObject) {
         const {id, email, name, role, username, bio} = userObject;
         return {id, email, name, role, username, bio};
@@ -104,45 +110,6 @@ export default class userController {
         }
     }
 
-    #findStack(res) {
-        let stack;
-        res.req.route.stack.forEach((layer) => {
-            const fname = layer.name.substr(6);
-            if (this.hasOwnProperty(fname)) {
-                stack = layer;
-            }
-        });
-        return stack;
-    }
-
-    #handleSuccess(res, outObj = {}, condition = "par") {
-
-        const stack = this.#findStack(res);
-        const callerName = stack.name.substr(6);
-        const msgRef = ["getUser", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        const {method} = stack;
-        let message = {};
-        message['data'] = {...outObj};
-        message['info'] = userMsg[method][msgRef].success.condition[condition];
-
-        res.status(200).json(message);
-    }
-    /**
-     * Todo:
-     * 
-     * Transition to using constants file
-     */
-    #handleErr(res, errMsg = null, msgType = "par") {
-        const stack = this.#findStack(res);
-        const callerName = stack.name.substr(6);
-        const msgRef = ["getOne", "getMany"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        const {method} = stack;
-        const info = userMsg[method][msgRef].error.condition[msgType];
-        const message = errMsg ? {info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString()} : {info: info};
-
-        res.status(400).json(message);
-    }
-
     /***
      * TODO:  Needs error trapping for no existing chats
      */
@@ -168,7 +135,7 @@ export default class userController {
             }
         }
     }
-    
+
 // get one user
     /**
      * TODO:  At least get by email should be case insensitive if not everything
@@ -219,7 +186,6 @@ export default class userController {
         this.#handleSuccess(res);
     }
 
-    
     async create(req, res, next) {
         const {username, email, password, name, bio} = req.body;
         const role = req.body.role.toLowerCase();

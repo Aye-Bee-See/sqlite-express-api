@@ -15,12 +15,15 @@ export default class UserController extends RouteController {
          * JS loses where we are and thinks this is is something
          * other than the instance of our class
          */
-
-        super("user");
+        
+        
         this.getMany = this.getMany.bind(this);
         this.getOne = this.getOne.bind(this);
+        this.protect = this.protect.bind(this);
         this.update = this.update.bind(this);
         this.create = this.create.bind(this);
+        this.register=this.create;
+        this.login = this.login.bind(this);
         this.remove = this.remove.bind(this);
 
         this.protect = this.protect.bind(this);
@@ -109,9 +112,49 @@ export default class UserController extends RouteController {
         }
     }
 
+    #findStack(res) {
+        let stack;
+        res.req.route.stack.forEach((layer) => {
+            const fname = layer.name.substr(6);
+            if (this.hasOwnProperty(fname)) {
+                stack = layer;
+            }
+        });
+        return stack;
+    }
+
+    #handleSuccess(res, outObj = {}, condition = "par") {
+
+        const stack = this.#findStack(res);
+        const callerName = stack.name.substr(6);
+        const msgRef = ["getUser", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
+        const {method} = stack;
+        let message = {};
+        message['data'] = {...outObj};
+        message['info'] = userMsg[method][msgRef].success.condition[condition];
+
+        res.status(200).json(message);
+    }
+    /**
+     * Todo:
+     * 
+     * Transition to using constants file
+     */
+    #handleErr(res, errMsg = null, msgType = "par") {
+        const stack = this.#findStack(res);
+        const callerName = stack.name.substr(6);
+        const msgRef = ["getOne", "getMany"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
+        const {method} = stack;
+        const info = userMsg[method][msgRef].error.condition[msgType];
+        const message = errMsg ? {info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString()} : {info: info};
+
+        res.status(400).json(message);
+    }
+
     /***
      * TODO:  Needs error trapping for no existing chats
      */
+    async getMany(req, res, next) {
     async getMany(req, res, next) {
 
         const {role, full} = req.query;
@@ -139,6 +182,7 @@ export default class UserController extends RouteController {
     /**
      * TODO:  At least get by email should be case insensitive if not everything
      */
+    async getOne(req, res) {
     async getOne(req, res) {
         const {id, email, username, full} = req.query;
         const fullBool = (full === 'true');
@@ -185,6 +229,7 @@ export default class UserController extends RouteController {
         this.#handleSuccess(res);
     }
 
+    
     async create(req, res, next) {
         const {username, email, password, name, bio} = req.body;
         const role = req.body.role.toLowerCase();

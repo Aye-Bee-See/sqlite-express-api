@@ -9,6 +9,7 @@ import PrisonerRoutes from '#routes/prisoner/prisoner.js';
 import RuleRoutes from '#routes/rule/rule.mjs';
 import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
+import cors from 'cors';
 
 const app = express();
 

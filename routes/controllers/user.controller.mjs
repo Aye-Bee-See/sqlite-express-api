@@ -5,7 +5,7 @@ import {userMsg} from '#routes/constants.js';
 import {default as Utls} from "#services/Utilities.js";
 import {secretOrKey} from '#constants';
 import RouteController from "#rtControllers/route.controller.js";
-import passport from 'passport'; // Add this line
+
 
 export default class UserController extends RouteController {
 
@@ -22,16 +22,6 @@ export default class UserController extends RouteController {
         this.update = this.update.bind(this);
         this.create = this.create.bind(this);
         this.remove = this.remove.bind(this);
-
-        this.protect = this.protect.bind(this);
-        this.login = this.login.bind(this);
-        this.register = this.create;
-        this.#handleErr = super.handleErr;
-        this.#handleSuccess = super.handleSuccess;
-    }
-
-    #handleSuccess;
-    #handleErr;
 
         this.protect = this.protect.bind(this);
         this.login = this.login.bind(this);
@@ -144,7 +134,6 @@ export default class UserController extends RouteController {
             }
         }
     }
-
 
 // get one user
     /**

@@ -7,8 +7,9 @@ import bcrypt from "bcrypt";
 import {prisonMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
+import RouteController from "#rtControllers/route.controller.js";
 
-export default class PrisonController extends RouteController {
+export default class messageController extends RouteController {
 
     constructor() {
         /* 
@@ -19,10 +20,22 @@ export default class PrisonController extends RouteController {
         super('prison');
         this.getMany = this.getMany.bind(this);
         this.getOne = this.getOne.bind(this);
+        super('prison');
+        this.getMany = this.getMany.bind(this);
+        this.getOne = this.getOne.bind(this);
         this.update = this.update.bind(this);
         this.remove = this.remove.bind(this);
         this.create = this.create.bind(this);
 
+        this.#handleErr = super.handleErr;
+        this.#handleSuccess = super.handleSuccess;
+
+    }
+
+    #handleSuccess;
+    #handleErr;
+
+    async getMany(req, res, next) {
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
 
@@ -45,6 +58,7 @@ export default class PrisonController extends RouteController {
 
     // get one prison
 
+    async getOne(req, res) {
     async getOne(req, res) {
         const {id, full} = req.query;
         const fullBool = (full === 'true');

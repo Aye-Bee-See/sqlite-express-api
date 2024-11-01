@@ -123,7 +123,6 @@ export default class UserController extends RouteController {
      * TODO:  Needs error trapping for no existing chats
      */
     async getMany(req, res, next) {
-    async getMany(req, res, next) {
 
         const {role, full} = req.query;
         const fullBool = (full === 'true');
@@ -151,7 +150,6 @@ export default class UserController extends RouteController {
     /**
      * TODO:  At least get by email should be case insensitive if not everything
      */
-    async getOne(req, res) {
     async getOne(req, res) {
         const {id, email, username, full} = req.query;
         const fullBool = (full === 'true');

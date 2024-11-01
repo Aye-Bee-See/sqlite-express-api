@@ -7,7 +7,7 @@ import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
 //import Logger from "#dbg/Logger"
 
-export default class ChatController extends RouteController {
+export default class ruleController extends RouteController {
 
     constructor() {
         /* 

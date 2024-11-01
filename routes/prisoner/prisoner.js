@@ -44,9 +44,9 @@ class PrisonerRoutes {
 
 // Read
 
-        this.Router.get(prisonerEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
+        this.Router.get(prisonerEnd.get.many, this.#Controller.getMany);
 
-        this.Router.get(prisonerEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
+        this.Router.get(prisonerEnd.get.one, this.#Controller.getOne);
 
 // Update
 

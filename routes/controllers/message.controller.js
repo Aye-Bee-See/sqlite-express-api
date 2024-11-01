@@ -5,7 +5,6 @@ import bcrypt from "bcrypt";
 import {messageMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
-import RouteController from "#rtControllers/route.controller.js";
 
 export default class MessageController extends RouteController {
 
@@ -18,22 +17,10 @@ export default class MessageController extends RouteController {
         super('message');
         this.getMany = this.getMany.bind(this);
         this.getOne = this.getOne.bind(this);
-        super('message');
-        this.getMany = this.getMany.bind(this);
-        this.getOne = this.getOne.bind(this);
         this.update = this.update.bind(this);
         this.remove = this.remove.bind(this);
         this.create = this.create.bind(this);
 
-        this.#handleErr = super.handleErr;
-        this.#handleSuccess = super.handleSuccess;
-
-    }
-
-    #handleSuccess;
-    #handleErr;
-
-    async getMany(req, res, next) {
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
 
@@ -102,7 +89,6 @@ export default class MessageController extends RouteController {
         }
     }
     
-    
     async getMessagesByPrisoner(req, res) {
         const {prisoner} = req.query;
         try {
@@ -113,7 +99,6 @@ export default class MessageController extends RouteController {
             this.#handleErr(res, err);
         }
     }
-    
     
     async getMessagesByUser(req, res) {
         const {user} = req.query;
@@ -129,7 +114,6 @@ export default class MessageController extends RouteController {
     // get one message
 
     async getOne(req, res) {
-    async getOne(req, res) {
         const {id, full} = req.query;
         const fullBool = (full === 'true');
         try {
@@ -140,7 +124,6 @@ export default class MessageController extends RouteController {
             this.#handleErr(res, err);
         }
     }
-    
     
     // Create
     async create(req, res) {

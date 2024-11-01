@@ -1,11 +1,11 @@
 import express,{Router as router} from 'express';
 import {default as bodyParser} from 'body-parser';
 import {default as passport} from 'passport';
-import {prisonEnd} from '#routes/constants.js';
-import {default as prisonCrtlr} from "#rtControllers/prison.controller.js";
+import {chatEnd} from '#routes/constants.js';
+import {default as chatCrtlr} from "#rtControllers/chat.controller.js";
 import authService from "#rtServices/auth.services.mjs";
 
-class PrisonRoutes {
+class ChatRoutes {
 
     static Router;
     static #Controller;
@@ -25,7 +25,7 @@ class PrisonRoutes {
        const JwtStrat = authService.authorize;
        passport.use('JStrat', JwtStrat);
        
-       this.#Controller= new prisonCrtlr;
+       this.#Controller= new chatCrtlr;
        this.Router = express.Router();
        
 
@@ -40,25 +40,25 @@ class PrisonRoutes {
 
 // Create
 
-        this.Router.post(prisonEnd.post.create, this.#Controller.create);
+        this.Router.post(chatEnd.post.create, this.#Controller.create);
 
 // Read
 
-        this.Router.get(prisonEnd.get.many, this.#Controller.getMany);
+        this.Router.get(chatEnd.get.many, this.#Controller.getMany);
+        this.Router.get(chatEnd.get.one, this.#Controller.getOne);
 
-        this.Router.get(prisonEnd.get.one, this.#Controller.getOne);
 
 // Update
 
-        this.Router.put(prisonEnd.put.update, this.#Controller.update);
-        // Add Rule
-        this.Router.put(prisonEnd.put.rule, this.#Controller.addRule);
+        this.Router.put(chatEnd.put.update, this.#Controller.update);
+
 
 // Delete
 
-        this.Router.delete(prisonEnd.delete.remove, this.#Controller.remove);
+        this.Router.delete(chatEnd.delete.remove, this.#Controller.remove);
     }
 }
 
 
-export default PrisonRoutes;
+export default ChatRoutes;
+

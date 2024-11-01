@@ -34,8 +34,8 @@ const endpoints = {
     },
     prisoner: {
         get: {
-            list: '/prisoners/:prison?/:full?',
-            prisoner: '/prisoner/:id?'
+            many: '/prisoners/:prison?/:full?',
+            one: '/prisoner/:id?'
         },
         post: {
             create: '/prisoner'
@@ -49,8 +49,8 @@ const endpoints = {
     },
     prison: {
         get: {
-            list: '/prisons/:full?',
-            prison: '/prison/:id?'
+            many: '/prisons/:full?',
+            one: '/prison/:id?'
         },
         post: {
             create: '/prison'
@@ -63,10 +63,10 @@ const endpoints = {
             remove: '/prison'
         }
     },
-        message: {
+    message: {
         get: {
-            list: '/messages/:id?/:chat?/:prisoner?/:user?',
-            message: '/message/:id?'
+            many: '/messages/:id?/:chat?/:prisoner?/:user?',
+            one: '/message/:id?'
         },
         post: {
             create: '/message'
@@ -76,6 +76,21 @@ const endpoints = {
         },
         delete: {
             remove: '/message'
+        }
+    },
+    chat: {
+        get: {
+            many: '/chats/:prisoner?/:user?/:full?',
+            one: '/chat/:id?/:prisoner?/:user?/:full?'
+        },
+        post: {
+            create: '/chat'
+        },
+        put: {
+            update: '/chat'
+        },
+        delete: {
+            remove: '/chat'
         }
     }
 };
@@ -210,7 +225,7 @@ const messages = {
     },
     prisoner: {
         get: {
-            list: {
+            many: {
                 success: {condition: {par: "Successfully retireved prisoners list"}},
                 error: {condition: {
                         par: "Error getting prisoners list",
@@ -218,7 +233,7 @@ const messages = {
                     }
                 }
             },
-            prisoner: {
+            one: {
                 success: {condition: {par: "Success getting prisoner by ID"}},
                 error: {condition: {par: "Error getting prisoner by ID"}}
             }
@@ -248,14 +263,14 @@ const messages = {
     },
     prison: {
         get: {
-            list: {
+            many: {
                 success: {condition: {par: "Successfully retireved prisons list"}},
                 error: {condition: {
                         par: "Error getting prisons list"
                     }
                 }
             },
-            prison: {
+            one: {
                 success: {condition: {par: "Success getting prison by ID"}},
                 error: {condition: {par: "Error getting prison by ID"}}
             }
@@ -271,7 +286,7 @@ const messages = {
                 success: {condition: {par: "Succeessfully updated prison"}},
                 error: {condition: {par: "Error updating prison."}}
             },
-            rule:{
+            rule: {
                 success: {condition: {par: "Succeessfully added rule prison"}},
                 error: {condition: {par: "Error adding rule to prison."}}
             }
@@ -287,16 +302,16 @@ const messages = {
             }
         }
     },
-        message: {
+    message: {
         get: {
-            list: {
+            many: {
                 success: {condition: {par: "Successfully retireved message list"}},
                 error: {condition: {
                         par: "Error getting message list"
                     }
                 }
             },
-            prison: {
+            one: {
                 success: {condition: {par: "Success getting message by ID"}},
                 error: {condition: {par: "Error getting message by ID"}}
             }
@@ -323,26 +338,75 @@ const messages = {
                 }
             }
         }
+    },
+    chat: {
+        get: {
+            many: {
+                success: {condition: {par: "Successfully retireved chats list"}},
+                error: {condition: {
+                        par: "Error getting chats list"
+                    }
+                }
+            },
+            one: {
+                success: {condition: {par: "Success getting chat"}},
+                error: {condition: {
+                        par: "Error getting chat",
+                        param: "Error getting chat:  Required paramater missing. You must provide BOTH {user} and {prisoner}",
+                        empty: "Error getting chat:  Required paramaters missing.   You must provide either {id} or both {user} and {prisoner}"
+                    }}
+            }
+        },
+        post: {
+            create: {
+                success: {condition: {par: "Successfully created chat"}},
+                error: {condition: {par: "Error creating chat"}}
+            }
+        },
+        put: {
+            update: {
+                success: {condition: {par: "Succeessfully updated chat"}},
+                error: {condition: {par: "Error updating chat."}}
+            }
+        },
+        delete: {
+            remove: {
+                success: {condition: {par: "Succeessfully deleted chat"}},
+                error: {condition: {
+                        par: "Error deleting chat",
+                        absent: "No such chat"
+                    }
+                }
+            }
+        }
     }
 };
-
-/***********End Points***********/
-const userEnd = endpoints.user;
-const ruleEnd = endpoints.rule;
-const prisonerEnd = endpoints.prisoner;
-const prisonEnd = endpoints.prison;
-const messageEnd = endpoints.message;
-
-/***********Messages***********/
-const userMsg = messages.user;
-const ruleMsg = messages.rule;
-const prisonerMsg = messages.prisoner;
-const prisonMsg = messages.prison;
-const messageMsg = messages.message;
 
 /**
  * Just everything
  */
 const monster = {...endpoints, ...messages};
 
-export {endpoints, userEnd, ruleEnd, prisonerEnd, prisonEnd, messageEnd, messages, userMsg, ruleMsg, prisonerMsg, prisonMsg, messageMsg, monster};
+export {endpoints, messages, monster};
+
+/***********End Points***********/
+
+export const {
+    user: userMsg,
+    rule: ruleMsg,
+    prisoner: prisonerMsg,
+    prison: prisonMsg,
+    message: messageMsg,
+    chat: chatMsg
+} = messages;
+
+/***********Messages***********/
+
+export const {
+    user: userEnd,
+    rule: ruleEnd,
+    prisoner: prisonerEnd,
+    prison: prisonEnd,
+    message: messageEnd,
+    chat: chatEnd
+} = endpoints;

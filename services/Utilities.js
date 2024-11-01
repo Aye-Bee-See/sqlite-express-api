@@ -12,7 +12,7 @@ export default class Utilities {
 
         return isError || typeof varToTest === 'undefined' || varToTest === undefined;
     }
-    
+
     /**
      * Resolve an array of promises sequentially 
      * @param Array promiseArray an array of promises to be resolved
@@ -43,4 +43,44 @@ export default class Utilities {
             }
         });
     }
+    /**
+     * Basically JSON.stringify but handles cyclical objects
+     * @param {object} obj
+     * 
+     *  @returns {string} A stringified object
+     *    
+     */
+    static objectToStringButSafe(obj) {
+
+        const objectReplacer = async (obj, replacement = 'DEFAULT_REPLACEMENT', seen = new WeakSet()) => {
+
+             return async (key, value) => {
+                const replacementValue = (replacement === 'DEFAULT_REPLACEMENT') ? (key.length > 0) ? 1 : 2 : 0;
+                const replacementString = replacementValue === 0 ? replacement : replacementValue === 1 ? '[' + key + ' is cyclical]' : undefined;
+                let returnableValue;
+                if (typeof value === 'object') {
+                    if (seen.has(value)){
+                        console.log("HAS SEEN");
+                        returnableValue= replacementString;
+                    }
+                    else {
+                        seen.add(value);
+
+                            const returnableObject = objectReplacer(value,replacement, seen);
+
+                        seen.delete(value);
+                        returnableValue= await returnableObject;
+                    }
+                } else {
+                    returnableValue= value;
+                }
+                
+                return returnableValue;
+        }
+
+        }
+        return objectReplacer(obj);
+    }
+
 }
+

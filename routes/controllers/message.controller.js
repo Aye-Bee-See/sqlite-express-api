@@ -4,9 +4,9 @@ import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
 import {messageMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
-//import Logger from "#dbg/Logger"
+import RouteController from "#rtControllers/route.controller.js";
 
-export default class messageController {
+export default class messageController extends RouteController {
 
     constructor() {
         /* 
@@ -14,67 +14,22 @@ export default class messageController {
          * JS loses where we are and thinks this is is something
          * other than the instance of our class
          */
-        this.getList = this.getList.bind(this);
-        this.getMessage = this.getMessage.bind(this);
+        super('message');
+        this.getMany = this.getMany.bind(this);
+        this.getOne = this.getOne.bind(this);
         this.update = this.update.bind(this);
         this.remove = this.remove.bind(this);
         this.create = this.create.bind(this);
 
+        this.#handleErr = super.handleErr;
+        this.#handleSuccess = super.handleSuccess;
 
     }
 
-    #formatMessagesList(messagesList) {
-        let formattedList = {};
+    #handleSuccess;
+    #handleErr;
 
-        for (let i = 0; i < messagesList.length; i++) {
-            const id = messagesList[i].dataValues.id;
-            const messageData = messagesList[i].dataValues;
-            formattedList[id] = messageData;
-        }
-        return formattedList;
-    }
-
-    #findStack(res) {
-        let stack;
-        res.req.route.stack.forEach((layer) => {
-            const fname = layer.name.substr(6);
-            if (this.hasOwnProperty(fname)) {
-                stack = layer;
-            }
-        });
-        return stack;
-    }
-
-    #handleSuccess(res, outObj = {}, condition = "par") {
-
-        const stack = this.#findStack(res);
-        const callerName = stack.name.substr(6);
-        const msgRef = ["getMessage", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        console.log({msgRef});
-        const {method} = stack;
-        let message = {};
-        message['data'] = {...outObj};
-        message['info'] = messageMsg[method][msgRef].success.condition[condition];
-
-        res.status(200).json(message);
-    }
-    /**
-     * Todo:
-     * 
-     * Transition to using constants file
-     */
-    #handleErr(res, errMsg = null, msgType = "par") {
-        const stack = this.#findStack(res);
-        const callerName = stack.name.substr(6);
-        const msgRef = ["getMessage", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        const {method} = stack;
-        const info = messageMsg[method][msgRef].error.condition[msgType];
-        const message = errMsg ? {info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString()} : {info: info};
-
-        res.status(400).json(message);
-    }
-
-    async getList(req, res, next) {
+    async getMany(req, res, next) {
         const {id, chat, prisoner, user} = req.query;
         const opval = id ? 1 : chat ? 2 : prisoner ? 3 : user ? 4 : 0;
         switch (opval) {
@@ -133,6 +88,7 @@ export default class messageController {
             this.#handleErr(res, err);
         }
     }
+    
     async getMessagesByPrisoner(req, res) {
         const {prisoner} = req.query;
         try {
@@ -143,6 +99,7 @@ export default class messageController {
             this.#handleErr(res, err);
         }
     }
+    
     async getMessagesByUser(req, res) {
         const {user} = req.query;
         try {
@@ -156,7 +113,7 @@ export default class messageController {
 
     // get one message
 
-    async getMessage(req, res) {
+    async getOne(req, res) {
         const {id, full} = req.query;
         const fullBool = (full === 'true');
         try {
@@ -167,6 +124,7 @@ export default class messageController {
             this.#handleErr(res, err);
         }
     }
+    
     // Create
     async create(req, res) {
         const {messageText, sender, prisoner, user} = req.body;

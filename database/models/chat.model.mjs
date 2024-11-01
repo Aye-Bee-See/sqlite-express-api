@@ -126,7 +126,7 @@ export default class Chat extends Model {
         }
     }
 
-    static async readChatsByUserAndPrisoner(user, prisoner, full) {
+    static async readChatByUserAndPrisoner(user, prisoner, full) {
         if (full) {
             return await this.findOne({
                 where: {user: user, prisoner: prisoner},

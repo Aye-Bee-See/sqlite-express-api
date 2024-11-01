@@ -44,9 +44,9 @@ class PrisonerRoutes {
 
 // Read
 
-        this.Router.get(prisonerEnd.get.list, this.#Controller.getList);
+        this.Router.get(prisonerEnd.get.many, this.#Controller.getMany);
 
-        this.Router.get(prisonerEnd.get.prisoner, this.#Controller.getPrisoner);
+        this.Router.get(prisonerEnd.get.one, this.#Controller.getOne);
 
 // Update
 

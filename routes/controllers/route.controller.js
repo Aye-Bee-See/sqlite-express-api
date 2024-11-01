@@ -1,5 +1,7 @@
 
 import LoudError from "#services/LoudError.js";
+import Utilities from "#services/Utilities.js";
+
 import {messages as msgConstants} from "#routes/constants.js";
 /**
  * Interface for route controllers
@@ -62,10 +64,9 @@ export default class RouteController {
         const stack = this.#findStack(res);
         const callerName = stack.name.substr(6);
         const msgRef = ["getOne", "getMany"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        console.log({msgRef});
         const {method} = stack;
         let message = {};
-        message['data'] = {...outObj};
+        message['data'] = outObj;
         message['info'] = ctrlMsg[method][msgRef].success.condition[condition];
 
         res.status(200).json(message);

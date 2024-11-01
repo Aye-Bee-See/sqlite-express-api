@@ -5,7 +5,6 @@ import bcrypt from "bcrypt";
 import {ruleMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
-//import Logger from "#dbg/Logger"
 
 export default class ruleController extends RouteController {
 
@@ -22,20 +21,13 @@ export default class ruleController extends RouteController {
         this.remove = this.remove.bind(this);
         this.create = this.create.bind(this);
 
+        this.#handleErr = super.handleErr;
+        this.#handleSuccess = super.handleSuccess;
 
     }
 
-    #handleSuccess(res, outObj = {}, condition = "par") {
-        super.handleSuccess(res, outObj, condition);
-    }
-    /**
-     * Todo:
-     * 
-     * Transition to using constants file
-     */
-    #handleErr(res, errMsg = null, msgType = "par") {
-        super.handleErr(res, errMsg, msgType);
-    }
+    #handleSuccess;
+    #handleErr;
 
     /***
      * TODO:  Needs error trapping for no existing chats
@@ -86,7 +78,6 @@ export default class ruleController extends RouteController {
         try {
             const rule = await Rule.createRule({title, description});
             this.#handleSuccess(res, rule);
-            // res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);

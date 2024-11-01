@@ -5,9 +5,9 @@ import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
 import {prisonerMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
-//import Logger from "#dbg/Logger"
+import RouteController from "#rtControllers/route.controller.js";
 
-export default class prisonerController {
+export default class ruleController extends RouteController {
 
     constructor() {
         /* 
@@ -15,67 +15,22 @@ export default class prisonerController {
          * JS loses where we are and thinks this is is something
          * other than the instance of our class
          */
-        this.getList = this.getList.bind(this);
-        this.getPrisoner = this.getPrisoner.bind(this);
+        super("prisoner");
+        this.getMany = this.getMany.bind(this);
+        this.getOne = this.getOne.bind(this);
         this.update = this.update.bind(this);
         this.remove = this.remove.bind(this);
         this.create = this.create.bind(this);
 
+        this.#handleErr = super.handleErr;
+        this.#handleSuccess = super.handleSuccess;
 
     }
 
-    #formatMessagesList(messagesList) {
-        let formattedList = {};
-
-        for (let i = 0; i < messagesList.length; i++) {
-            const id = messagesList[i].dataValues.id;
-            const prisonerData = messagesList[i].dataValues;
-            formattedList[id] = prisonerData;
-        }
-        return formattedList;
-    }
-
-    #findStack(res) {
-        let stack;
-        res.req.route.stack.forEach((layer) => {
-            const fname = layer.name.substr(6);
-            if (this.hasOwnProperty(fname)) {
-                stack = layer;
-            }
-        });
-        return stack;
-    }
-
-    #handleSuccess(res, outObj = {}, condition = "par") {
-
-        const stack = this.#findStack(res);
-        const callerName = stack.name.substr(6);
-        const msgRef = ["getPrisoner", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        console.log({msgRef});
-        const {method} = stack;
-        let message = {};
-        message['data'] = {...outObj};
-        message['info'] = prisonerMsg[method][msgRef].success.condition[condition];
-
-        res.status(200).json(message);
-    }
-    /**
-     * Todo:
-     * 
-     * Transition to using constants file
-     */
-    #handleErr(res, errMsg = null, msgType = "par") {
-        const stack = this.#findStack(res);
-        const callerName = stack.name.substr(6);
-        const msgRef = ["getPrisoner", "getList"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
-        const {method} = stack;
-        const info = prisonerMsg[method][msgRef].error.condition[msgType];
-        const message = errMsg ? {info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString()} : {info: info};
-
-        res.status(400).json(message);
-    }
-
-    async getList(req, res, next) {
+    #handleSuccess;
+    #handleErr;
+    
+    async getMany(req, res, next) {
         const {prison} = req.query;
         if (prison) {
             this.getListByPrison(req, res);
@@ -104,7 +59,7 @@ export default class prisonerController {
 
     // get one prisoner
 
-    async getPrisoner(req, res) {
+    async getOne(req, res) {
         const {id, full} = req.query;
         const fullBool = (full === 'true');
         try {

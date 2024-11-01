@@ -44,10 +44,8 @@ class MessageRoutes {
 
 // Read
 
-        this.Router.get(messageEnd.get.list, this.#Controller.getList);
-      //  this.Router.get(chatEnd.get.list, this.#Controller.getList);
-
-        this.Router.get(messageEnd.get.message, this.#Controller.getMessage);
+        this.Router.get(messageEnd.get.many, this.#Controller.getMany);
+        this.Router.get(messageEnd.get.one, this.#Controller.getOne);
 
 // Update
 

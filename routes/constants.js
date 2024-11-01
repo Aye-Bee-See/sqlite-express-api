@@ -1,12 +1,12 @@
 const endpoints = {
     user: {
         get: {
-            list: '/users/:role?/:full?',
-            user: '/user/:id?/:email?/:username?/:full?',
+            many: '/users/:role?/:full?',
+            one: '/user/:id?/:email?/:username?/:full?',
             protect: '/protected'
         },
         post: {
-            register: '/user',
+            create: '/user',
             login: '/login'
         },
         put: {
@@ -124,7 +124,7 @@ const messages = {
     },
     user: {
         get: {
-            list: {
+            many: {
                 success: {
                     condition: {
                         par: null
@@ -137,7 +137,7 @@ const messages = {
                     }
                 }
             },
-            user: {
+            one: {
                 success: {
                     condition: {
                         par: null
@@ -159,7 +159,7 @@ const messages = {
             }
         },
         post: {
-            register: {
+            create: {
                 success: {condition: {par: "Successfully created user."}},
                 error: {condition: {par: "Error registering user."}}
             },

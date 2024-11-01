@@ -3,7 +3,7 @@ import passport from 'passport';
 import {default as bodyParser} from 'body-parser';
 import {sysPort} from '#constants';
 import {ErrorHandler as errorMiddleware} from './middleware/ErrorHandler.js';
-import {default as authRouter} from '#routes/user/user.cjs';
+import {default as authRouter} from '#routes/user/user.js';
 import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
 import RuleRoutes from '#routes/rule/rule.mjs';
@@ -47,7 +47,7 @@ app.use(function (req, res, next) {
 
 
 
-app.use('/auth', authRouter);
+app.use('/auth', authRouter.Router);
 app.use('/prison', prisonRoutes.Router);
 app.use('/prisoner', PrisonerRoutes.Router);
 app.use('/rule', RuleRoutes.Router);

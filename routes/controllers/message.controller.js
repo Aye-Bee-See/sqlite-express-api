@@ -6,7 +6,7 @@ import {messageMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
 
-export default class messageController extends RouteController {
+export default class MessageController extends RouteController {
 
     constructor() {
         /* 

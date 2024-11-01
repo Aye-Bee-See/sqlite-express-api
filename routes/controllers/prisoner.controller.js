@@ -7,7 +7,7 @@ import {prisonerMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
 
-export default class ruleController extends RouteController {
+export default class PrisonerController extends RouteController {
 
     constructor() {
         /* 

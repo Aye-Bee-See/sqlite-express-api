@@ -22,8 +22,11 @@ class UserRoutes {
        app.use(bodyParser.urlencoded({extended: true}));
        app.use(passport.initialize());
        
-       const JwtStrat = authService.authorize;
-       passport.use('JStrat', JwtStrat);
+       const UserJWTStrat = authService.authorize;
+       const LoginStrat = authService.login;
+       passport.use('UsrJStrat', UserJWTStrat);
+       passport.use('LStrat', LoginStrat);
+       
        
        this.#Controller= new userCrtlr;
        this.Router = express.Router();
@@ -39,15 +42,18 @@ class UserRoutes {
         // Create
         this.Router.post(userEnd.post.create, this.#Controller.create);
         
+        // Login
+        this.Router.post(userEnd.post.login, passport.authenticate('LStrat',{ session: false }), this.#Controller.login);
+        
         // Read
-        this.Router.get(userEnd.get.many, this.#Controller.getMany);
-        this.Router.get(userEnd.get.one, this.#Controller.getOne);
+        this.Router.get(userEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
+        this.Router.get(userEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
         
         // Update
-        this.Router.put(userEnd.put.update, this.#Controller.update);
+        this.Router.put(userEnd.put.update, passport.authenticate('UsrJStrat', {session: false}), this.#Controller.update);
         
         // Delete
-        this.Router.delete(userEnd.delete.remove, this.#Controller.remove);
+        this.Router.delete(userEnd.delete.remove, passport.authenticate('UsrJStrat', {session: false}), this.#Controller.remove);
     }
 }
 

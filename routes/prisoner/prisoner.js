@@ -23,7 +23,7 @@ class PrisonerRoutes {
        app.use(passport.initialize());
        
        const JwtStrat = authService.authorize;
-       passport.use('JStrat', JwtStrat);
+       passport.use('UsrJStrat', JwtStrat);
        
        this.#Controller= new prisonerCrtlr;
        this.Router = express.Router();
@@ -40,21 +40,21 @@ class PrisonerRoutes {
 
 // Create
 
-        this.Router.post(prisonerEnd.post.create, this.#Controller.create);
+        this.Router.post(prisonerEnd.post.create, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.create);
 
 // Read
 
-        this.Router.get(prisonerEnd.get.many, this.#Controller.getMany);
+        this.Router.get(prisonerEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
 
-        this.Router.get(prisonerEnd.get.one, this.#Controller.getOne);
+        this.Router.get(prisonerEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
 
 // Update
 
-        this.Router.put(prisonerEnd.put.update, this.#Controller.update);
+        this.Router.put(prisonerEnd.put.update, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.update);
 
 // Delete
 
-        this.Router.delete(prisonerEnd.delete.remove, this.#Controller.remove);
+        this.Router.delete(prisonerEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.remove);
     }
 }
 

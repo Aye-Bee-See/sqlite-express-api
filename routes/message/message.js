@@ -23,7 +23,7 @@ class MessageRoutes {
        app.use(passport.initialize());
        
        const JwtStrat = authService.authorize;
-       passport.use('JStrat', JwtStrat);
+       passport.use('UsrJStrat', JwtStrat);
        
        this.#Controller= new messageCrtlr;
        this.Router = express.Router();
@@ -40,21 +40,26 @@ class MessageRoutes {
 
 // Create
 
-        this.Router.post(messageEnd.post.create, this.#Controller.create);
+        this.Router.post(messageEnd.post.create, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.create);
+        
+/********************************************************************************
+ * NOTE:  
+ *      Authorization for edit/read/update may 
+ *      require user specific authority 
+ *      (e.g. userA should not be able to 
+ *      delete, edit or read userB's messages)
+ ********************************************************************************/
 
 // Read
 
-        this.Router.get(messageEnd.get.many, this.#Controller.getMany);
-        this.Router.get(messageEnd.get.one, this.#Controller.getOne);
+        this.Router.get(messageEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
+        this.Router.get(messageEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
 
 // Update
 
-        this.Router.put(messageEnd.put.update, this.#Controller.update);
-
-
+        this.Router.put(messageEnd.put.update, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.update);
 // Delete
-
-        this.Router.delete(messageEnd.delete.remove, this.#Controller.remove);
+        this.Router.delete(messageEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.remove);
     }
 }
 

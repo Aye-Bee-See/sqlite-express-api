@@ -23,7 +23,7 @@ class RuleRoutes {
        app.use(passport.initialize());
        
        const JwtStrat = authService.authorize;
-       passport.use('JStrat', JwtStrat);
+       passport.use('UsrJStrat', JwtStrat);
        
        this.#Controller= new ruleCrtlr;
        this.Router = express.Router();
@@ -40,21 +40,21 @@ class RuleRoutes {
 
 // Create
 
-        this.Router.post(ruleEnd.post.create, this.#Controller.create);
+        this.Router.post(ruleEnd.post.create, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.create);
 
 // Read
 
-        this.Router.get(ruleEnd.get.many, this.#Controller.getMany);
+        this.Router.get(ruleEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
 
-        this.Router.get(ruleEnd.get.one, this.#Controller.getOne);
+        this.Router.get(ruleEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
 
 // Update
 
-        this.Router.put(ruleEnd.put.update, this.#Controller.update);
+        this.Router.put(ruleEnd.put.update, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.update);
 
 // Delete
 
-        this.Router.delete(ruleEnd.delete.remove, this.#Controller.remove);
+        this.Router.delete(ruleEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.remove);
     }
 }
 

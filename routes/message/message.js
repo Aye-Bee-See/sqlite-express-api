@@ -52,8 +52,8 @@ class MessageRoutes {
 
 // Read
 
-        this.Router.get(messageEnd.get.many, this.#Controller.getMany);
-        this.Router.get(messageEnd.get.one, this.#Controller.getOne);
+        this.Router.get(messageEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
+        this.Router.get(messageEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
 
 // Update
 

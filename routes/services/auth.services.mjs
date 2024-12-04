@@ -23,11 +23,17 @@ export default class authService {
         return {token, expires: expiryDateMs};
     }
 
-    static async register() {
-        
+    static async register(req, res) {
+        const { username, password } = req.body;
+        try {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            const newUser = await User.createUser({ username, password: hashedPassword });
+            const token = authService.#createJWT(newUser);
+            res.status(201).json({ user: newUser, token });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
     }
-    
-    
     
     static async #verify(username, password, done) {
         let user;

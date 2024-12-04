@@ -1,22 +1,18 @@
 const express = require('express');
 const app = express();
 const router = express.Router();
-
-
-
+const cors = require('cors');
 
 const bodyParser = require('body-parser');
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
+app.use(cors());
 
 const passport = require('passport');
 //const JwtStrat = require('../../jwt-strategy');
 
-
 //const JwtStrat=authService.authorize;
-
-
 
 import('#rtControllers/user.controller.mjs').then(async(res) => {
     let authService = await import("#rtServices/auth.services.mjs").then((module) => {
@@ -35,38 +31,34 @@ import('#rtControllers/user.controller.mjs').then(async(res) => {
     const userPut = userEnd.put;
     const userDel = userEnd.delete;
 
-
     app.use(express.urlencoded({extended: false}));
 
     app.use(passport.initialize());
 
+    // Create
 
-
-
-// Create
-
-// register admin route
+    // register admin route
     router.post(userPost.register, userCtrlr.register);
 
-// Read
-// 
-// get all users
+    // Read
+    // 
+    // get all users
     router.get(userGet.list, userCtrlr.getList);
-// get one user
+    // get one user
     router.get(userGet.user, userCtrlr.getUser);
 
-// Update
+    // Update
 
     router.put(userPut.update, userCtrlr.update);
 
-// Delete
+    // Delete
 
     router.delete(userDel.remove, userCtrlr.remove);
 
-// protected route
+    // protected route
     router.get(userGet.protect, passport.authenticate('JStrat', {session: false}), userCtrlr.protect);
 
-// login route
+    // login route
     router.post(userPost.login, passport.authenticate('LStrat', {session: false}), userCtrlr.login);
 
 });

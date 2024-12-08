@@ -1,11 +1,11 @@
-import User from "#models/user.model.mjs"
-import {default as jwt} from "jsonwebtoken"
+import User from "#models/user.model.mjs";
+import {default as jwt} from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import {userMsg} from '#routes/constants.js'
-import {default as Utls} from "#services/Utilities.js"
+import {userMsg} from '#routes/constants.js';
+import {default as Utls} from "#services/Utilities.js";
 import {secretOrKey} from '#constants';
 import RouteController from "#rtControllers/route.controller.js";
-
+import passport from 'passport'; // Add this line
 
 export default class UserController extends RouteController {
 

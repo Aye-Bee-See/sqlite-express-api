@@ -5,7 +5,7 @@ import {userMsg} from '#routes/constants.js';
 import {default as Utls} from "#services/Utilities.js";
 import {secretOrKey} from '#constants';
 import RouteController from "#rtControllers/route.controller.js";
-
+import passport from 'passport'; // Add this line
 
 export default class UserController extends RouteController {
 

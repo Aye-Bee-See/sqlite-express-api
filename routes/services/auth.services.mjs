@@ -27,16 +27,17 @@ export default class authService {
         let user;
         
         try {
-            user = await User.getUser({username}) || false;
-            if (user) {
-                const match = await bcrypt.compare(password, user.password) || false;
-                if (match) {
-                    const token = authService.#createJWT(user);
-
-                    return done(null, user, {token: token});
-                }
+            user = await User.getUser({username});
+            if (!user) {
+                return done(null, false, { message: 'No such user' });
             }
-            return done(null, false);
+
+            const match = await bcrypt.compare(password, user.password);
+            if (!match) {
+                return done(null, false, { message: 'Wrong password' });
+            }
+            const token = authService.#createJWT(user);
+            return done(null, user, { token });
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             return done(err);

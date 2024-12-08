@@ -1,4 +1,3 @@
-
 import User from "#models/user.model.mjs"
 import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
@@ -226,17 +225,18 @@ export default class UserController extends RouteController {
     }
 
 // login route
-    async login(req, res, next)
-    {
-
-        if (req.isAuthenticated()) {
+    async login(req, res, next) {
+        passport.authenticate('LStrat', (err, user, info) => {
+            if (err) {
+                return this.#handleErr(res, err);
+            }
+            if (!user) {
+                return res.status(401).json({ error: info.message });
+            }
             const token = req.authInfo.token;
-            const user = this.#stripPassword(req.user);
-            this.#handleSuccess(res, {user, token});
-        } else {
-            this.#handleErr(res)
-        }
-
+            const strippedUser = this.#stripPassword(user);
+            this.#handleSuccess(res, { user: strippedUser, token });
+        })(req, res, next);
     }
 
 }

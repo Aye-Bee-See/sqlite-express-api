@@ -34,15 +34,16 @@ export default class authService {
 
         try {
             user = await User.getUser({username});
+            if (!user) {
+                return done(null, false, { message: 'No such user' });
+            }
 
             const match = await bcrypt.compare(password, user.password);
             if (!match) {
-                return done(null, false);
+                return done(null, false, { message: 'Wrong password' });
             }
             const token = authService.#createJWT(user);
-            //req.body.token = token;
-
-            return done(null, user, {token:token});
+            return done(null, user, { token });
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             return done(err);

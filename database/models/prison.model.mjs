@@ -103,7 +103,9 @@ export default class Prison extends Model {
 
 // Delete
 
-    static async deletePrison(id) {
-        this.update({deleted: true}, {where: {id: id}})
-    }
+static async deletePrison(id) {
+    return await this.destroy({
+        where: {id: id}
+    });
+}
 }

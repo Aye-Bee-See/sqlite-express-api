@@ -4,9 +4,7 @@ import jwt from 'jsonwebtoken';
 import {User} from "#db/sql-database.mjs";
 import bcrypt from 'bcrypt';
 import {secretOrKey} from '#constants';
-
-
-export default class authService {       
+export default class authService {
     static #jwtOptions = {
         secretOrKey: secretOrKey,
         jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken()
@@ -24,26 +22,23 @@ export default class authService {
     }
 
     static async register() {
-        
+
     }
-    
-    
-    
+
     static async #verify(username, password, done) {
         let user;
-
+        
         try {
-            user = await User.getUser({username});
-            if (!user) {
-                return done(null, false, { message: 'No such user' });
-            }
+            user = await User.getUser({username}) || false;
+            if (user) {
+                const match = await bcrypt.compare(password, user.password) || false;
+                if (match) {
+                    const token = authService.#createJWT(user);
 
-            const match = await bcrypt.compare(password, user.password);
-            if (!match) {
-                return done(null, false, { message: 'Wrong password' });
+                    return done(null, user, {token: token});
+                }
             }
-            const token = authService.#createJWT(user);
-            return done(null, user, { token });
+            return done(null, false);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             return done(err);
@@ -52,8 +47,7 @@ export default class authService {
     }
 
     static login = new LocalStrategy({usernameField: 'username', passwordField: 'password'}, authService.#verify);
-
-    static authorize = new JwtStrategy(authService.#jwtOptions, (jwt_payload, next)=> {
+    static authorize = new JwtStrategy(authService.#jwtOptions, (jwt_payload, next) => {
         let user = User.getUser({id: jwt_payload.id});
         if (user) {
             next(null, user);

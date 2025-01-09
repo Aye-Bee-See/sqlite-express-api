@@ -101,7 +101,7 @@ export default class PrisonController extends RouteController {
     {
         const {id} = req.body;
         try {
-            const deletedRows = await Prison.deleteRule(id);
+            const deletedRows = await Prison.deletePrison(id);
             this.#handleSuccess(res, deletedRows);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

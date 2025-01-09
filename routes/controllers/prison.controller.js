@@ -97,11 +97,24 @@ export default class PrisonController extends RouteController {
     }
 
 // Delete
+// async remove(req, res)
+// {
+//     const {id} = req.body;
+//     try {
+//         const deletedRows = await Prisoner.deletePrisoner(id);
+//         this.#handleSuccess(res, deletedRows);
+//     } catch (err) {
+//         err = !(err instanceof Error) ? new Error(err) : err;
+//         this.#handleErr(res, err);
+//     }
+// }
+
+
     async remove(req, res)
     {
         const {id} = req.body;
         try {
-            const deletedRows = await Prison.deleteRule(id);
+            const deletedRows = await Prison.deletePrison(id);
             this.#handleSuccess(res, deletedRows);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

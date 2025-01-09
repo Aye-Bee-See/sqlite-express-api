@@ -5,7 +5,6 @@ import {User} from "#db/sql-database.mjs";
 import bcrypt from 'bcrypt';
 import {secretOrKey} from '#constants';
 export default class authService {
-export default class authService {
     static #jwtOptions = {
         secretOrKey: secretOrKey,
         jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken()
@@ -22,12 +21,11 @@ export default class authService {
 
     static async register() {
 
-
     }
-
 
     static async #verify(username, password, done) {
         let user;
+        
         
         
         try {
@@ -49,7 +47,6 @@ export default class authService {
     }
 
     static login = new LocalStrategy({usernameField: 'username', passwordField: 'password'}, authService.#verify);
-    static authorize = new JwtStrategy(authService.#jwtOptions, (jwt_payload, next) => {
     static authorize = new JwtStrategy(authService.#jwtOptions, (jwt_payload, next) => {
         let user = User.getUser({id: jwt_payload.id});
         if (user) {

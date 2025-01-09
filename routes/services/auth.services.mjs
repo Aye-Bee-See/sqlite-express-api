@@ -9,12 +9,10 @@ export default class authService {
         secretOrKey: secretOrKey,
         jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken()
     };
-    
     static #createJWT(user) {
         const now = Date.now();
         const weekInMilliseconds = 6.048e+8;
         const expiryDateMs = now + weekInMilliseconds;
-
         let payload = {id: user.id, expiry: expiryDateMs};
         let token = jwt.sign(payload, secretOrKey, {expiresIn: '1w'});
         console.log(token);
@@ -55,6 +53,5 @@ export default class authService {
             next(null, false);
         }
     });
-
 }
 

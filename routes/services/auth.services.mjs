@@ -26,8 +26,6 @@ export default class authService {
     static async #verify(username, password, done) {
         let user;
         
-        
-        
         try {
             user = await User.getUser({username}) || false;
             if (user) {

@@ -68,6 +68,10 @@ export default class RouteController {
         let message = {};
         message['data'] = outObj;
         message['info'] = ctrlMsg[method][msgRef].success.condition[condition];
+        message['success']=true;
+        message['status']=200;
+        message['name']= this.controllerName +" "+ msgRef;
+        
 
         res.status(200).json(message);
     }

@@ -1,8 +1,8 @@
 const endpoints = {
     user: {
         get: {
-            many: '/users/:role?/:full?',
-            one: '/user/:id?/:email?/:username?/:full?',
+            many: '/users{/:role}{/:full}',
+            one: '/user{/:id}{/:email}{/:username}{/:full}',
             protect: '/protected'
         },
         post: {
@@ -19,8 +19,8 @@ const endpoints = {
     },
     rule: {
         get: {
-            many: '/rules/:prison?/:full?',
-            one: '/rule/:id?'
+            many: '/rules{/:prison}{/:full}',
+            one: '/rule{/:id}'
         },
         post: {
             create: '/rule'
@@ -34,8 +34,8 @@ const endpoints = {
     },
     prisoner: {
         get: {
-            many: '/prisoners/:prison?/:full?',
-            one: '/prisoner/:id?'
+            many: '/prisoners{/:prison}{/:full}',
+            one: '/prisoner{/:id}'
         },
         post: {
             create: '/prisoner'
@@ -49,8 +49,8 @@ const endpoints = {
     },
     prison: {
         get: {
-            many: '/prisons/:full?',
-            one: '/prison/:id?'
+            many: '/prisons{/:full}',
+            one: '/prison{/:id}'
         },
         post: {
             create: '/prison'
@@ -65,8 +65,8 @@ const endpoints = {
     },
     message: {
         get: {
-            many: '/messages/:id?/:chat?/:prisoner?/:user?',
-            one: '/message/:id?'
+            many: '/messages{/:id}{/:chat}{/:prisoner}{/:user}',
+            one: '/message{/:id}'
         },
         post: {
             create: '/message'
@@ -80,8 +80,8 @@ const endpoints = {
     },
     chat: {
         get: {
-            many: '/chats/:prisoner?/:user?/:full?',
-            one: '/chat/:id?/:prisoner?/:user?/:full?'
+            many: '/chats{/:prisoner}{/:user}{/:full}',
+            one: '/chat{/:id}{/:prisoner}{/:user}{/:full}'
         },
         post: {
             create: '/chat'

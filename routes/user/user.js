@@ -43,7 +43,7 @@ class UserRoutes {
         this.Router.post(userEnd.post.create, this.#Controller.create);
         
         // Login
-        this.Router.post(userEnd.post.login, passport.authenticate('LStrat',{ session: false }), this.#Controller.login);
+        this.Router.post(userEnd.post.login, passport.authenticate('LStrat',{ session: false,  authInfo: true, failWithError: true }), this.#Controller.login);
         
         // Read
         this.Router.get(userEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);

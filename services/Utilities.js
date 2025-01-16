@@ -60,7 +60,6 @@ export default class Utilities {
                 let returnableValue;
                 if (typeof value === 'object') {
                     if (seen.has(value)){
-                        console.log("HAS SEEN");
                         returnableValue= replacementString;
                     }
                     else {

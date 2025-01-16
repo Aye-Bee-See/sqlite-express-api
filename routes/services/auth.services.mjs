@@ -15,7 +15,6 @@ export default class authService {
         const expiryDateMs = now + weekInMilliseconds;
         let payload = {id: user.id, expiry: expiryDateMs};
         let token = jwt.sign(payload, secretOrKey, {expiresIn: '1w'});
-        console.log(token);
         return {token, expires: expiryDateMs};
     }
 
@@ -36,7 +35,7 @@ export default class authService {
                     return done(null, user, {token: token});
                 }
             }
-            return done(null, false);
+         return done(null, false);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             return done(err);

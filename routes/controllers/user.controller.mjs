@@ -5,7 +5,6 @@ import {userMsg} from '#routes/constants.js';
 import {default as Utls} from "#services/Utilities.js";
 import {secretOrKey} from '#constants';
 import RouteController from "#rtControllers/route.controller.js";
-import passport from 'passport'; // Add this line
 
 export default class UserController extends RouteController {
 
@@ -225,18 +224,17 @@ export default class UserController extends RouteController {
     }
 
 // login route
-    async login(req, res, next) {
-        passport.authenticate('LStrat', (err, user, info) => {
-            if (err) {
-                return this.#handleErr(res, err);
-            }
-            if (!user) {
-                return res.status(401).json({ error: info.message });
-            }
+    async login(req, res, next)
+    {
+
+        if (req.isAuthenticated()) {
             const token = req.authInfo.token;
-            const strippedUser = this.#stripPassword(user);
-            this.#handleSuccess(res, { user: strippedUser, token });
-        })(req, res, next);
+            const user = this.#stripPassword(req.user);
+            this.#handleSuccess(res, {user, token});
+        } else {
+            this.#handleErr(res)
+        }
+
     }
 
 }

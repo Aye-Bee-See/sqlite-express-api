@@ -9,6 +9,7 @@ import PrisonerRoutes from '#routes/prisoner/prisoner.js';
 import RuleRoutes from '#routes/rule/rule.mjs';
 import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
+import ErrorService from "#rtServices/error.services.js";
 import cors from 'cors';
 
 const app = express();
@@ -40,5 +41,5 @@ app.use('/rule', RuleRoutes.Router);
 app.use('/messaging', MessageRoutes.Router);
 app.use('/chat', ChatRoutes.Router);
 app.use('/chat', ChatRoutes.Router);
-app.use(errorMiddleware);
+app.use(ErrorService.handler);
 

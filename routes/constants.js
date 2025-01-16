@@ -118,7 +118,18 @@ const messages = {
                 403: "Bad request",
                 404: "Not found",
                 405: "Method not allowed",
-                408: "Request timeout"
+                408: "Request timeout",
+                500: "Internal Server Error",
+                501: "Not Implemented",
+                502: "Bad Gateway",
+                503: "Service Unavailable",
+                504: "Gateway Timeout",
+                505: "HTTP Version Not Supported",
+                506: "Variant Also Negotiates",
+                507: "Insufficient Storage (WebDAV)",
+                508: "Loop Detected (WebDAV)",
+                510: "Not Extended",
+                511: "Network Authentication Required"
             }
         }
     },
@@ -133,7 +144,7 @@ const messages = {
                 error: {
                     condition: {
                         par: "Error retrieving user list.",
-                        role: "Error getting users by role.",
+                        role: "Error getting users by role."
                     }
                 }
             },

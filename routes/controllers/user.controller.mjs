@@ -78,9 +78,9 @@ export default class UserController extends RouteController {
     }
 
     #stripUsersListPasswords(usersList) {
-        let pwStrippedList = {};
+        let pwStrippedList = [];
         Object.entries(usersList).forEach(([key, value]) => {
-            pwStrippedList[key] = this.#stripPassword(value);
+            pwStrippedList.push(this.#stripPassword(value));
         });
         return pwStrippedList;
     }

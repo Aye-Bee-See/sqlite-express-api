@@ -40,22 +40,22 @@ class ChatRoutes {
 
 // Create
 
-        this.Router.post(chatEnd.post.create, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.create);
+        this.Router.post(chatEnd.post.create, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.create);
 
 // Read
 
-        this.Router.get(chatEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
-        this.Router.get(chatEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
+        this.Router.get(chatEnd.get.many, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getMany);
+        this.Router.get(chatEnd.get.one, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getOne);
 
 
 // Update
 
-        this.Router.put(chatEnd.put.update, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.update);
+        this.Router.put(chatEnd.put.update, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.update);
 
 
 // Delete
 
-        this.Router.delete(chatEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.remove);
+        this.Router.delete(chatEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.remove);
     }
 }
 

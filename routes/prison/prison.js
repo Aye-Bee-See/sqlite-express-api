@@ -40,23 +40,23 @@ class PrisonRoutes {
 
 // Create
 
-        this.Router.post(prisonEnd.post.create, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.create);
+        this.Router.post(prisonEnd.post.create, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.create);
 
 // Read
 
-        this.Router.get(prisonEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
+        this.Router.get(prisonEnd.get.many, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getMany);
 
-        this.Router.get(prisonEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
+        this.Router.get(prisonEnd.get.one, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getOne);
 
 // Update
 
-        this.Router.put(prisonEnd.put.update, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.update);
+        this.Router.put(prisonEnd.put.update, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.update);
         // Add Rule
-        this.Router.put(prisonEnd.put.rule, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.addRule);
+        this.Router.put(prisonEnd.put.rule, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.addRule);
 
 // Delete
 
-        this.Router.delete(prisonEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.remove);
+        this.Router.delete(prisonEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.remove);
     }
 }
 

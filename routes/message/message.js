@@ -40,7 +40,7 @@ class MessageRoutes {
 
 // Create
 
-        this.Router.post(messageEnd.post.create, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.create);
+        this.Router.post(messageEnd.post.create, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.create);
         
 /********************************************************************************
  * NOTE:  
@@ -52,14 +52,14 @@ class MessageRoutes {
 
 // Read
 
-        this.Router.get(messageEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
-        this.Router.get(messageEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
+        this.Router.get(messageEnd.get.many, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getMany);
+        this.Router.get(messageEnd.get.one, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getOne);
 
 // Update
 
-        this.Router.put(messageEnd.put.update, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.update);
+        this.Router.put(messageEnd.put.update, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.update);
 // Delete
-        this.Router.delete(messageEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.remove);
+        this.Router.delete(messageEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.remove);
     }
 }
 

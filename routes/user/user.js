@@ -46,14 +46,14 @@ class UserRoutes {
         this.Router.post(userEnd.post.login, passport.authenticate('LStrat',{ session: false,  authInfo: true, failWithError: true }), this.#Controller.login);
         
         // Read
-        this.Router.get(userEnd.get.many, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getMany);
-        this.Router.get(userEnd.get.one, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.getOne);
+        this.Router.get(userEnd.get.many, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getMany);
+        this.Router.get(userEnd.get.one, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getOne);
         
         // Update
-        this.Router.put(userEnd.put.update, passport.authenticate('UsrJStrat', {session: false}), this.#Controller.update);
+        this.Router.put(userEnd.put.update, passport.authenticate('UsrJStrat', {session: false, failWithError: true}), this.#Controller.update);
         
         // Delete
-        this.Router.delete(userEnd.delete.remove, passport.authenticate('UsrJStrat', {session: false}), this.#Controller.remove);
+        this.Router.delete(userEnd.delete.remove, passport.authenticate('UsrJStrat', {session: false, failWithError: true}), this.#Controller.remove);
     }
 }
 

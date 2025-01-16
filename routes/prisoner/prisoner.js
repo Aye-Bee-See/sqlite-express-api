@@ -54,7 +54,7 @@ class PrisonerRoutes {
 
 // Delete
 
-        this.Router.delete(prisonerEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false }), this.#Controller.remove);
+                    this.Router.delete(prisonerEnd.delete.remove, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.remove);
     }
 }
 

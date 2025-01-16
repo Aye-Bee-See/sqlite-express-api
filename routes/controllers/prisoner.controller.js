@@ -35,6 +35,7 @@ export default class PrisonerController extends RouteController {
         if (prison) {
             this.getListByPrison(req, res);
         }
+        else {
         try {
             const rules = await Prisoner.getAllPrisoners();
             this.#handleSuccess(res, rules);
@@ -42,7 +43,7 @@ export default class PrisonerController extends RouteController {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);
         }
-
+    }
 
     }
 

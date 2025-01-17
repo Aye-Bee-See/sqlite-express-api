@@ -63,8 +63,6 @@ export default class MessageController extends RouteController {
                 break;
             }
         }
-
-
     }
 
     async getMessagesById(req, res) {
@@ -163,7 +161,4 @@ export default class MessageController extends RouteController {
             this.#handleErr(res, err);
         }
     }
-
 }
-
-

@@ -7,7 +7,6 @@ import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
 
 export default class MessageController extends RouteController {
-
     constructor() {
         /* 
          * If we use class methods as subfunctions (or callbacks)
@@ -64,8 +63,6 @@ export default class MessageController extends RouteController {
                 break;
             }
         }
-
-
     }
 
     async getMessagesById(req, res) {
@@ -81,7 +78,7 @@ export default class MessageController extends RouteController {
     async getMessagesByChat(req, res) {
         const {chat} = req.query;
         try {
-            const messages = await Message.readMessageByChat(chat);
+            const messages = await Message.readMessagesByChat(chat);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -103,7 +100,7 @@ export default class MessageController extends RouteController {
     async getMessagesByUser(req, res) {
         const {user} = req.query;
         try {
-            const messages = await Message.readMessageByUser(user);
+            const messages = await Message.readMessagesByUser(user);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -164,7 +161,4 @@ export default class MessageController extends RouteController {
             this.#handleErr(res, err);
         }
     }
-
 }
-
-

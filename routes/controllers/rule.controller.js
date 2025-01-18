@@ -28,7 +28,7 @@ export default class ruleController extends RouteController {
 
     #handleSuccess;
     #handleErr;
-
+    #handleLimits;
     /***
      * TODO:  Needs error trapping for no existing chats
      */

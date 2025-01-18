@@ -28,7 +28,8 @@ export default class MessageController extends RouteController {
 
     #handleSuccess;
     #handleErr;
-
+    #handleLimits;
+    
     async getMany(req, res, next) {
         const {id, chat, prisoner, user} = req.query;
         const opval = id ? 1 : chat ? 2 : prisoner ? 3 : user ? 4 : 0;

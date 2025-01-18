@@ -30,7 +30,7 @@ export default class PrisonController extends RouteController {
 
     #handleSuccess;
     #handleErr;
-
+    #handleLimits;
     async getMany(req, res, next) {
         try {
             const rules = await Prison.getAllPrisons();

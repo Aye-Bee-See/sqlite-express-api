@@ -29,6 +29,7 @@ export default class PrisonerController extends RouteController {
 
     #handleSuccess;
     #handleErr;
+    #handleLimits;
     
     async getMany(req, res, next) {
         const {prison} = req.query;

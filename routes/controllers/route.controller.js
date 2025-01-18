@@ -88,6 +88,13 @@ export default class RouteController {
         res.status(400).json(message);
     }
     
+    handleLimits(limit=0, items=[]){
+        const count=items.length;
+      
+    }
+    
+    
+    
     #implementsInterface(childObj, interfaceObj) {
 
     for (const property in interfaceObj) {

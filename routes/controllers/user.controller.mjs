@@ -31,7 +31,8 @@ export default class UserController extends RouteController {
 
     #handleSuccess;
     #handleErr;
-
+    #handleLimits;
+    
     #stripPassword(userObject) {
         const {id, email, name, role, username, bio} = userObject;
         return {id, email, name, role, username, bio};

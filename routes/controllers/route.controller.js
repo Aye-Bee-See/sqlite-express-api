@@ -86,14 +86,7 @@ export default class RouteController {
         const message = errMsg ? {info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString()} : {info: info};
 
         res.status(400).json(message);
-    }
-    
-    handleLimits(limit=0, items=[]){
-        const count=items.length;
-      
-    }
-    
-    
+    }   
     
     #implementsInterface(childObj, interfaceObj) {
 

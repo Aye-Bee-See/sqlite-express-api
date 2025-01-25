@@ -17,15 +17,15 @@ export default class User extends Model {
     }
 
     static associate(models) {
-        this.hasMany(models.Chat, { as: 'chats', foreignKey: 'userId' });
+        this.hasMany(models.Chat, {as: 'chats', foreignKey: 'userId'});
     }
 
 // Create
 
     static async createUser( { username, password, role, email, name, bio })  {
         const banned = false;
-        return await this.create({ username, password, role, email, name, bio }, {individualHooks: true});
-    } 
+        return await this.create({username, password, role, email, name, bio}, {individualHooks: true});
+    }
 
     /**
      *  create multiple users
@@ -46,24 +46,32 @@ export default class User extends Model {
         return count;
     }
 
-    static async getAllUsers(full) {
+    static async getAllUsers(full, limit, offset = 0) {
 
-        let usersList;
+        let filters = {limit, offset};
+        let options;
+
         if (full) {
-            usersList= await this.findAll({
-                include: [{model: Chat, as: 'chats'}]
-                
-            });
-        } else {
-            usersList= await User.findAll({});
+            options = {
+                include: [
+                    {
+                        model: Chat,
+                        as: 'chats'
+                    }
+                ]
+            };
         }
-        return usersList;
+        filters = {...filters, ...options};
+        console.log(filters);
+
+        return await User.findAll(filters);
     }
 
-    static async  getUsersByRole(role, full) {
-        
+    static async  getUsersByRole(role, full, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options;
         if (full) {
-            return await this.findAll({
+            options = {
                 where: {role: role},
                 include: [
                     {
@@ -71,14 +79,16 @@ export default class User extends Model {
                         as: "chats"
                     }
                 ]
-            });
+            }
         } else {
-            return await this.findAll({
+            options = {
                 where: {role: role}
-            });
+            };
         }
+        filters = {...filters, ...options};
+        return await User.findAll(filters);
     }
-
+    
     static async  getUser(obj, full) {
         if (full) {
             return await this.findOne({

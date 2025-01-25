@@ -30,7 +30,7 @@ export default class MessageController extends RouteController {
     #handleLimits;
     
     async getMany(req, res, next) {
-        const {id, chat, prisoner, user} = req.query;
+        const {id, chat, prisoner, user, limit, offset} = req.query;
         const opval = id ? 1 : chat ? 2 : prisoner ? 3 : user ? 4 : 0;
         switch (opval) {
             case 1:
@@ -55,8 +55,8 @@ export default class MessageController extends RouteController {
             }default:
             {
                 try {
-                    const rules = await Message.readAllMessages();
-                    this.#handleSuccess(res, rules);
+                    const messages = await Message.readAllMessages(limit, offset);
+                    this.#handleSuccess(res, messages);
                 } catch (err) {
                     err = !(err instanceof Error) ? new Error(err) : err;
                     this.#handleErr(res, err);
@@ -67,9 +67,9 @@ export default class MessageController extends RouteController {
     }
 
     async getMessagesById(req, res) {
-        const {id} = req.query;
+        const {id, limit, offset} = req.query;
         try {
-            const messages = await Message.readMessageById(id);
+            const messages = await Message.readMessageById(id, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -77,9 +77,9 @@ export default class MessageController extends RouteController {
         }
     }
     async getMessagesByChat(req, res) {
-        const {chat} = req.query;
+        const {chat, limit, offset} = req.query;
         try {
-            const messages = await Message.readMessagesByChat(chat);
+            const messages = await Message.readMessagesByChat(chat, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -88,9 +88,9 @@ export default class MessageController extends RouteController {
     }
     
     async getMessagesByPrisoner(req, res) {
-        const {prisoner} = req.query;
+        const {prisoner, limit, offset} = req.query;
         try {
-            const messages = await Message.readMessagesByPrisoner(prisoner);
+            const messages = await Message.readMessagesByPrisoner(prisoner, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -99,9 +99,9 @@ export default class MessageController extends RouteController {
     }
     
     async getMessagesByUser(req, res) {
-        const {user} = req.query;
+        const {user, limit, offset} = req.query;
         try {
-            const messages = await Message.readMessagesByUser(user);
+            const messages = await Message.readMessagesByUser(user, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

@@ -33,12 +33,12 @@ export default class ruleController extends RouteController {
      * TODO:  Needs error trapping for no existing chats
      */
     async getMany(req, res, next) {
-        const {prison} = req.query;
+        const {prison, limit, offset} = req.query;
         if (prison) {
             this.getListByPrison(req, res);
         }
         try {
-            const rules = await Rule.getAllRules();
+            const rules = await Rule.getAllRules(limit, offset);
             this.#handleSuccess(res, rules);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -49,9 +49,9 @@ export default class ruleController extends RouteController {
     }
 
     async getListByPrison(req, res) {
-        const {prison} = req.query;
+        const {prison, limit, offset} = req.query;
         try {
-            const rule = await Rule.getRulesByPrison(prison);
+            const rule = await Rule.getRulesByPrison(prison, limit, offset);
             this.#handleSuccess(res, rule);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

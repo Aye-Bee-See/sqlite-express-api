@@ -49,7 +49,7 @@ export default class ChatController extends RouteController {
 
     #handleGetMany(req) {
 
-        const {prisoner, user, full: fullString} = req.query;
+        const {prisoner, user, full: fullString, limit, offset} = req.query;
         const full = (fullString === 'true');
         let retvals;
         const ctype = !Utls.isUndefined(user) ?
@@ -61,19 +61,19 @@ export default class ChatController extends RouteController {
         switch (ctype) {
             case 1:
                 retvals = {
-                    chatfunc: Chat.readChatsByUser(user, full),
+                    chatfunc: Chat.readChatsByUser(user, full, limit, offset),
                     condition: 'par'
                 }
                 break;
             case 2:
                 retvals = {
-                    chatfunc: Chat.readChatsByPrisoner(prisoner, full),
+                    chatfunc: Chat.readChatsByPrisoner(prisoner, full, limit, offset),
                     condition: 'par'
                 }
                 break;
             default:
                 retvals = {
-                    chatfunc: Chat.readAllChats(full),
+                    chatfunc: Chat.readAllChats(full, limit, offset),
                     condition: 'par'
                 }
                 break;

@@ -32,9 +32,10 @@ export default class PrisonController extends RouteController {
     #handleErr;
     #handleLimits;
     async getMany(req, res, next) {
+          const {limit, offset} = req.query;
         try {
-            const rules = await Prison.getAllPrisons();
-            this.#handleSuccess(res, rules);
+            const prisons = await Prison.getAllPrisons(limit, offset);
+            this.#handleSuccess(res, prisons);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);

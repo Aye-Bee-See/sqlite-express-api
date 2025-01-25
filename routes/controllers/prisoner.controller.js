@@ -32,13 +32,13 @@ export default class PrisonerController extends RouteController {
     #handleLimits;
     
     async getMany(req, res, next) {
-        const {prison} = req.query;
+        const {prison, limit, offset} = req.query;
         if (prison) {
             this.getListByPrison(req, res);
         }
         else {
         try {
-            const rules = await Prisoner.getAllPrisoners();
+            const rules = await Prisoner.getAllPrisoners(limit, offset);
             this.#handleSuccess(res, rules);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -49,9 +49,9 @@ export default class PrisonerController extends RouteController {
     }
 
     async getListByPrison(req, res) {
-        const {prison} = req.query;
+        const {prison, limit, offset} = req.query;
         try {
-            const prisoner = await Prisoner.getPrisonersByPrison(prison);
+            const prisoner = await Prisoner.getPrisonersByPrison(prison, limit, offset);
             this.#handleSuccess(res, prisoner);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

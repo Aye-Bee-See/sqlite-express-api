@@ -46,32 +46,45 @@ export default class Message extends Model {
     }
 
 // Read
-    static async readAllMessages() {
-        return await this.findAll();
+    static async readAllMessages(limit, offset = 0) {
+        let filters = {limit, offset};
+        return await Message.findAll(filters);
     }
 
-    static async readMessageById(id) {
-        return await this.findAll({
+    static async readMessageById(id, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options={
             where: {id: id}
-        });
+          };
+        filters = {...filters, ...options};
+        return await Message.findAll(filters);
     }
 
-    static async readMessagesByChat(id) {
-        return await this.findAll({
+    static async readMessagesByChat(id, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options={
             where: {chat: id}
-        });
+        };
+        filters = {...filters, ...options};
+        return await Message.findAll(filters);
     }
 
-    static async readMessagesByPrisoner(id) {
-        return await this.findAll({
+    static async readMessagesByPrisoner(id, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options={
             where: {prisoner: id}
-        });
+        };
+        filters = {...filters, ...options};
+        return await Message.findAll(filters);
     }
 
-    static async readMessagesByUser(id) {
-        return await this.findAll({
+    static async readMessagesByUser(id, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options={
             where: {user: id}
-        });
+        };
+        filters = {...filters, ...options};
+        return await Message.findAll(filters);
     }
 
 

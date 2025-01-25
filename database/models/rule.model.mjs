@@ -17,7 +17,7 @@ export default class Rule extends Model {
     }
 
     static associate(models) {
-        this.belongsToMany(models.Prison, { through: 'RulePassthrough', foreignKey: 'id'});
+        this.belongsToMany(models.Prison, {through: 'RulePassthrough', foreignKey: 'id'});
     }
 
     static async createRule( { prison, title, description })  {
@@ -42,23 +42,27 @@ export default class Rule extends Model {
         return count;
     }
 
-    static async getAllRules(full) {
+    static async getAllRules(full, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options;
         if (full) {
-            return await this.findAll({
+            options = {
                 include: [
                     {
                         model: Prison,
                         as: 'prisons'
                     }
                 ]
-            })
-        } else {
-            return await this.findAll({})
+            };
         }
+        filters = {...filters, ...options};
+        return await Rule.findAll(filters);
+
     }
 
-    static async getRulesByPrison(prison) {
-        return await this.findAll({
+    static async getRulesByPrison(prison, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options = {
             include: [
                 {
                     model: Prison,
@@ -68,7 +72,9 @@ export default class Rule extends Model {
                     }
                 },
             ]
-        });
+        };
+        filters = {...filters, ...options};
+        return await Rule.findAll(filters);
     }
 
     static async getRuleByID(id, full) {

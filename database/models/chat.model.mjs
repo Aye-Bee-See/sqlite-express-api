@@ -48,9 +48,11 @@ export default class Chat extends Model {
 
     // Read
 
-    static async readAllChats(full) {
+    static async readAllChats(full, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options;
         if (full) {
-            return await this.findAll({
+            options = {
                 include: [
                     {
                         model: Message,
@@ -66,10 +68,10 @@ export default class Chat extends Model {
                         as: 'prisoner_details'
                     }
                 ]
-            });
-        } else {
-            return await this.findAll({});
+            };
         }
+        filters = {...filters, ...options};
+        return await Chat.findAll(filters);
     }
 
     static async readChatsByUser(id, full) {
@@ -79,7 +81,7 @@ export default class Chat extends Model {
             throw new Error('User does not exist');
         }
         if (full) {
-            return await this.findAll({
+            options = {
                 where: {user: id},
                 include: [
                     {
@@ -96,12 +98,10 @@ export default class Chat extends Model {
                         as: 'prisoner_details'
                     }
                 ]
-            });
-        } else {
-            return await this.findAll({
-                where: {user: id}
-            })
+            };
         }
+        filters = {...filters, ...options};
+        return await Chat.findAll(filters);
     }
 
     static async readChatsByPrisoner(id, full) {
@@ -110,7 +110,7 @@ export default class Chat extends Model {
             throw new Error('Prisoner does not exist');
         }
         if (full) {
-            return await this.findAll({
+            options = {
                 where: {prisoner: id},
                 include: [
                     {
@@ -127,12 +127,10 @@ export default class Chat extends Model {
                         as: 'prisoner_details'
                     }
                 ]
-            });
-        } else {
-            return await this.findAll({
-                where: {prisoner: id}
-            });
+            };
         }
+        filters = {...filters, ...options};
+        return await Chat.findAll(filters);
     }
 
     static async readChatByUserAndPrisoner(user, prisoner, full) {

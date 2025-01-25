@@ -25,9 +25,11 @@ export default class Prison extends Model {
         return await this.create({prisonName, address, deleted: false});
     }
 
-    static async getAllPrisons(full) {
+    static async getAllPrisons(full, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options;
         if (full) {
-            return await this.findAll({
+            options={
                 include: [{
                         model: Prisoner,
                         as: "prisoners"
@@ -37,10 +39,10 @@ export default class Prison extends Model {
                         as: 'rules'
                     }
                 ]
-            });
-        } else {
-            return await this.findAll();
-        }
+            }
+        }  filters = {...filters, ...options};
+            return await Prison.findAll(filters);
+        
     }
     /**
      *  create multiple prisons

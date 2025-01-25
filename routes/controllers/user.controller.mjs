@@ -120,11 +120,12 @@ export default class UserController extends RouteController {
      */
     async getMany(req, res, next) {
 
-        const {role, full} = req.query;
+        const {role, full, limit, offset} = req.query;
         const fullBool = (full === 'true');
+        
         if (role) {
             try {
-                const users = await User.getUsersByRole(role, fullBool);
+                const users = await User.getUsersByRole(role, fullBool, limit, offset);
                 this.#handleUsers(res, users);
             } catch (err) {
                 err = !(err instanceof Error) ? new Error(err) : err;
@@ -132,7 +133,7 @@ export default class UserController extends RouteController {
             }
         } else {
             try {
-                const users = await User.getAllUsers(fullBool);
+                const users = await User.getAllUsers(fullBool, limit, offset);
                 this.#handleUsers(res, users);
             } catch (err) {
                 err = !(err instanceof Error) ? new Error(err) : err;

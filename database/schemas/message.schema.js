@@ -2,12 +2,6 @@ import {DataTypes} from 'sequelize';
 import {Chat,Prisoner} from "#models/all.model.mjs";
 
 const messageSchema = {
-    id: {
-        allowNull: false,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true,
-        type: DataTypes.UUID,
-      },    
   chat: {
     type: DataTypes.INTEGER,
     model: "Chat",

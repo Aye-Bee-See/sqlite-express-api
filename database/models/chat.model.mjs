@@ -186,11 +186,7 @@ export default class Chat extends Model {
 // Update
 
     static async updateChat(chat) {
-        const user = chat.user;
-        const prisoner = chat.prisoner;
-        return await this.update({...chat}, {where: {id: chat.id}}).then(updatedChat =>
-            this.update({user: user, prisoner: prisoner}, {where: {chat: updatedChat}})
-        ).catch()
+        return await this.update(chat, { where: { id: chat.id } });
     }
 // Delete
 

@@ -87,7 +87,7 @@ const userSchema = {
     allowNull: false,
     validate: {
       isIn: {
-        args: [['admin', 'user', 'banned']],
+        args: [['admin', 'user', 'chapter', 'banned']],
         msg: "Role must be either admin, user, or banned."
       }
     }

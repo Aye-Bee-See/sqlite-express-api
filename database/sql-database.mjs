@@ -19,6 +19,7 @@ export const Prison = Models.Prison.init(sequelize, Sequelize);
 export const Prisoner = Models.Prisoner.init(sequelize, Sequelize);
 export const Rule = Models.Rule.init(sequelize, Sequelize);
 export const User = Models.User.init(sequelize, Sequelize);
+export const Chapter = Models.Chapter.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -26,6 +27,7 @@ Message.associate(Models);
 User.associate(Models);
 Chat.associate(Models);
 Rule.associate(Models);
+Chapter.associate(Models);
 
 sequelize.sync({force: true}).then(async() => {
     return await createSeeds();

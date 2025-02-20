@@ -4,6 +4,7 @@ import Prison from '#models/prison.model.mjs';
 import Prisoner from '#models/prisoner.model.mjs';
 import Rule from '#models/rule.model.mjs';
 import User from "#models/user.model.mjs";
+import Chapter from "#models/chapter.model.mjs"
 
 
 /********************************************
@@ -53,5 +54,5 @@ Child.belongsToMany(
 )
 */
 
-export {Chat, Message, Prison, Prisoner, Rule, User};
+export {Chat, Chapter, Message, Prison, Prisoner, Rule, User};
 

@@ -4,6 +4,7 @@ import {createPrisonerSeed} from  '#db/seeds/prisoner.seed.mjs';
 import {createRuleSeed} from  '#db/seeds/rule.seed.mjs';
 import {createChatSeed} from  '#db/seeds/chat.seed.mjs';
 import {createMessageSeed} from  '#db/seeds/message.seed.mjs';
+import { createChapterSeed } from '#db/seeds/chapter.seed.mjs';
 import Utilities from '#services/Utilities.js';
 
 /*
@@ -26,7 +27,8 @@ export async function createSeeds() {
         createPrisonerSeed,
         createRuleSeed,
         createChatSeed,
-        createMessageSeed
+        createMessageSeed,
+        createChapterSeed
     ];
 
     const seedsData = await Utilities.resolveSequential(seeds);

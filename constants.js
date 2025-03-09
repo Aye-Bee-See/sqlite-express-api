@@ -15,9 +15,11 @@ const userEnd = {
     post: {
         register: '/register',
         login: '/login',
+        uploadAvi: '/uploadAvi' // Add this line
     },
     put: {
         update: '/update',
+        uploadAvi: '/uploadAvi' // Add this line if PUT is also used
     },
     delete: {
         remove: '/remove'

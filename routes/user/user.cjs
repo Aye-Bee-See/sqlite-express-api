@@ -27,6 +27,8 @@ import('#rtControllers/user.controller.mjs').then(async(res) => {
     const userPut = userEnd.put;
     const userDel = userEnd.delete;
 
+    const upload = multer({ dest: 'uploads/' });
+
     app.use(express.urlencoded({extended: false}));
     app.use(passport.initialize());
 

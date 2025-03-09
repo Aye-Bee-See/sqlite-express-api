@@ -5,6 +5,24 @@ import {userMsg} from '#routes/constants.js';
 import {default as Utls} from "#services/Utilities.js";
 import {secretOrKey} from '#constants';
 import RouteController from "#rtControllers/route.controller.js";
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadPath = 'uploads/';
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+        cb(null, `${Date.now()}-${file.originalname}`);
+    }
+});
+
+const upload = multer({ storage: storage });
 
 export default class UserController extends RouteController {
 
@@ -21,6 +39,7 @@ export default class UserController extends RouteController {
         this.update = this.update.bind(this);
         this.create = this.create.bind(this);
         this.remove = this.remove.bind(this);
+        this.uploadAvi = this.uploadAvi.bind(this);
 
         this.protect = this.protect.bind(this);
         this.login = this.login.bind(this);
@@ -33,8 +52,8 @@ export default class UserController extends RouteController {
     #handleErr;
 
     #stripPassword(userObject) {
-        const {id, email, name, role, username, bio} = userObject;
-        return {id, email, name, role, username, bio};
+        const {id, email, name, role, username, bio, avatar} = userObject;
+        return {id, email, name, role, username, bio, avatar};
     }
 
     #handlePass(res, user, type) {
@@ -208,6 +227,29 @@ export default class UserController extends RouteController {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);
         }
+    }
+
+    async uploadAvi(req, res) {
+        upload.single('avatar')(req, res, async (err) => {
+            if (err) {
+                return this.#handleErr(res, err);
+            }
+            const { id } = req.body;
+            const avatarPath = req.file.path;
+
+            try {
+                const user = await User.getUserByID(id, false);
+                if (!user) {
+                    throw new Error('User not found');
+                }
+                user.avatar = avatarPath;
+                await user.save();
+                this.#handleSuccess(res, { avatar: avatarPath });
+            } catch (err) {
+                err = !(err instanceof Error) ? new Error(err) : err;
+                this.#handleErr(res, err);
+            }
+        });
     }
 
 // Delete

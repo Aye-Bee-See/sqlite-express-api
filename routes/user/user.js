@@ -41,6 +41,9 @@ class UserRoutes {
     static #router(){
         // Create
         this.Router.post(userEnd.post.create, this.#Controller.create);
+
+        // Upload Avi
+        this.Router.post(userEnd.post.uploadAvi, this.#Controller.uploadAvi);
         
         // Login
         this.Router.post(userEnd.post.login, passport.authenticate('LStrat',{ session: false,  authInfo: true, failWithError: true }), this.#Controller.login);

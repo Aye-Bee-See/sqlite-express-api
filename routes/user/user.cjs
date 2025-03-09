@@ -2,21 +2,13 @@ const express = require('express');
 const app = express();
 const router = express.Router();
 
-
-
-
 const bodyParser = require('body-parser');
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
 
 const passport = require('passport');
-//const JwtStrat = require('../../jwt-strategy');
-
-
-//const JwtStrat=authService.authorize;
-
-
+import multer from 'multer';
 
 import('#rtControllers/user.controller.mjs').then(async(res) => {
     let authService = await import("#rtServices/auth.services.mjs").then((module) => {
@@ -35,38 +27,34 @@ import('#rtControllers/user.controller.mjs').then(async(res) => {
     const userPut = userEnd.put;
     const userDel = userEnd.delete;
 
+    const upload = multer({ dest: 'uploads/' });
 
     app.use(express.urlencoded({extended: false}));
-
     app.use(passport.initialize());
 
-
-
-
-// Create
-
-// register admin route
+    // Create
+    // register admin route
     router.post(userPost.register, userCtrlr.register);
 
-// Read
-// 
-// get all users
+    // Upload avatar route
+    router.post(userPost.uploadAvi, upload.single('avatar'), userCtrlr.uploadAvi);
+
+    // Read
+    // get all users
     router.get(userGet.list, userCtrlr.getList);
-// get one user
+    // get one user
     router.get(userGet.user, userCtrlr.getUser);
 
-// Update
-
+    // Update
     router.put(userPut.update, userCtrlr.update);
 
-// Delete
-
+    // Delete
     router.delete(userDel.remove, userCtrlr.remove);
 
-// protected route
+    // protected route
     router.get(userGet.protect, passport.authenticate('JStrat', {session: false}), userCtrlr.protect);
 
-// login route
+    // login route
     router.post(userPost.login, passport.authenticate('LStrat', {session: false}), userCtrlr.login);
 
 });

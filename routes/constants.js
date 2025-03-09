@@ -7,7 +7,8 @@ const endpoints = {
         },
         post: {
             create: '/user',
-            login: '/login'
+            login: '/login',
+            uploadAvi: '/uploadAvi'
         },
         put: {
             update: '/user'
@@ -15,7 +16,6 @@ const endpoints = {
         delete: {
             remove: '/user'
         }
-
     },
     rule: {
         get: {
@@ -110,9 +110,6 @@ const endpoints = {
     }
 };
 
-
-
-
 /***************************************************************************
  **                               Note:                                   **
  **  Currently making placeholders for endpoints and/or conditions that   **
@@ -192,6 +189,10 @@ const messages = {
             login: {
                 success: {condition: {par: "Login success."}},
                 error: {condition: {par: 'No such user or associated password found.'}}
+            },
+            uploadAvi: {
+                success: {condition: {par: "Successfully uploaded avatar"}},
+                error: {condition: {par: "Unable to successfully upload avatar"}}
             }
         },
         put: {

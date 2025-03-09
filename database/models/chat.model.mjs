@@ -73,6 +73,11 @@ export default class Chat extends Model {
     }
 
     static async readChatsByUser(id, full) {
+        const userExists = await User.findByPk(id);
+        console.log(userExists);
+        if (!userExists) {
+            throw new Error('User does not exist');
+        }
         if (full) {
             return await this.findAll({
                 where: {user: id},
@@ -100,6 +105,10 @@ export default class Chat extends Model {
     }
 
     static async readChatsByPrisoner(id, full) {
+        const prisonerExists = await Prisoner.findByPk(id);
+        if (!prisonerExists) {
+            throw new Error('Prisoner does not exist');
+        }
         if (full) {
             return await this.findAll({
                 where: {prisoner: id},

@@ -113,8 +113,13 @@ export default class UserController extends RouteController {
      * TODO:  Needs error trapping for no existing chats
      */
     async getMany(req, res, next) {
-
-        const {role, full, limit, offset} = req.query;
+               
+        const { role, full, page, page_size} = req.query;
+        const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        
+        //const {role, full, limit, offset} = req.query;
         const fullBool = (full === 'true');
         
         if (role) {

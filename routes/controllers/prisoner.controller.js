@@ -33,13 +33,20 @@ export default class PrisonerController extends RouteController {
     #handleLimits;
     
     async getMany(req, res, next) {
-        const {prison, limit, offset} = req.query;
+        
+        const { prison, full, page, page_size} = req.query;
+        const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        const fullBool = (full === 'true');
+          
+        //const {prison, limit, offset} = req.query;
         if (prison) {
             this.getListByPrison(req, res);
         }
         else {
         try {
-            const rules = await Prisoner.getAllPrisoners(limit, offset);
+            const rules = await Prisoner.getAllPrisoners(fullBool, limit, offset);
             this.#handleSuccess(res, rules);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -50,9 +57,14 @@ export default class PrisonerController extends RouteController {
     }
 
     async getListByPrison(req, res) {
-        const {prison, limit, offset} = req.query;
+        
+        const {prison, full, page, page_size} = req.query;
+        const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        const fullBool = (full === 'true');
         try {
-            const prisoner = await Prisoner.getPrisonersByPrison(prison, limit, offset);
+            const prisoner = await Prisoner.getPrisonersByPrison(fullBool, prison, limit, offset);
             this.#handleSuccess(res, prisoner);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

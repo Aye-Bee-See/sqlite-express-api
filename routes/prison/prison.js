@@ -11,10 +11,10 @@ class PrisonRoutes {
     static #Controller;
 
     /************************************************************
-     *                                                          *
-     *                  STATIC INIT BLOCK                       *
-     *                                                          *
-     *   Initialize all necessary parts of the class            *
+     *                                                                                                                    *
+     *                  STATIC INIT BLOCK                                                                  *
+     *                                                                                                                    *
+     *   Initialize all necessary parts of the class                                              *
      ************************************************************/
     static {
        const app=express();

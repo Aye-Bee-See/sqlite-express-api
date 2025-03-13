@@ -42,7 +42,7 @@ export default class Rule extends Model {
         return count;
     }
 
-    static async getAllRules(full, limit, offset = 0) {
+    static async getAllRules(limit, offset = 0, full = false) {
         let filters = {limit, offset};
         let options;
         if (full) {

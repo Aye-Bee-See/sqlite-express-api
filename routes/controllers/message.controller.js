@@ -31,7 +31,14 @@ export default class MessageController extends RouteController {
     #handleLimits;
     
     async getMany(req, res, next) {
-        const {id, chat, prisoner, user, limit, offset} = req.query;
+        
+        const {full, page, page_size} = req.query;
+        const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        const fullBool = (full === 'true');
+        
+        //const {id, chat, prisoner, user, limit, offset} = req.query;
         const opval = id ? 1 : chat ? 2 : prisoner ? 3 : user ? 4 : 0;
         switch (opval) {
             case 1:
@@ -56,7 +63,7 @@ export default class MessageController extends RouteController {
             }default:
             {
                 try {
-                    const messages = await Message.readAllMessages(limit, offset);
+                    const messages = await Message.readAllMessages(fullBool, limit, offset);
                     this.#handleSuccess(res, messages);
                 } catch (err) {
                     err = !(err instanceof Error) ? new Error(err) : err;
@@ -68,9 +75,15 @@ export default class MessageController extends RouteController {
     }
 
     async getMessagesById(req, res) {
-        const {id, limit, offset} = req.query;
+        
+        const {id, full, page, page_size} = req.query;
+        const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        const fullBool = (full === 'true');
+        
         try {
-            const messages = await Message.readMessageById(id, limit, offset);
+            const messages = await Message.readMessageById(id,fullBool, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -78,9 +91,13 @@ export default class MessageController extends RouteController {
         }
     }
     async getMessagesByChat(req, res) {
-        const {chat, limit, offset} = req.query;
+        const {chat, full, page, page_size} = req.query;
+        const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        const fullBool = (full === 'true');
         try {
-            const messages = await Message.readMessagesByChat(chat, limit, offset);
+            const messages = await Message.readMessagesByChat(chat,fullBool, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -89,9 +106,15 @@ export default class MessageController extends RouteController {
     }
     
     async getMessagesByPrisoner(req, res) {
-        const {prisoner, limit, offset} = req.query;
+        
+        const {prisoner,full, page, page_size} = req.query;
+        const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        const fullBool = (full === 'true');
+        
         try {
-            const messages = await Message.readMessagesByPrisoner(prisoner, limit, offset);
+            const messages = await Message.readMessagesByPrisoner(prisoner,fullBool ,limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -100,9 +123,14 @@ export default class MessageController extends RouteController {
     }
     
     async getMessagesByUser(req, res) {
-        const {user, limit, offset} = req.query;
+        const {user, full, page, page_size} = req.query;
+        const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        const fullBool = (full === 'true');
+        
         try {
-            const messages = await Message.readMessagesByUser(user, limit, offset);
+            const messages = await Message.readMessagesByUser(user, fullBool, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

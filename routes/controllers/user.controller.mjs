@@ -11,6 +11,7 @@ import path from 'path';
 import bodyParser from 'body-parser';
 
 // TODO: Change file name to include user id or name or something
+// TODO: Limit file size/ratio?
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         const uploadPath = 'uploads/avatars/users';

@@ -10,9 +10,10 @@ import fs from 'fs';
 import path from 'path';
 import bodyParser from 'body-parser';
 
+// TODO: Change file name to include user id or name or something
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const uploadPath = 'uploads/';
+        const uploadPath = 'uploads/avatars/users';
         if (!fs.existsSync(uploadPath)) {
             fs.mkdirSync(uploadPath, { recursive: true });
         }
@@ -208,9 +209,6 @@ export default class UserController extends RouteController {
         upload.single('avatar')(req, res, async (err) => {
             const {username, email, password, name, bio, role} = req.body;
             const avatar = req.file ? req.file.path : null;
-            console.log("here")
-            console.log(req.get('content-type'))
-            console.log(req.body);
             try {
                 const user = await User.createUser({username, password, role, email, name, bio, avatar});
                 const strippedPassword = this.#stripPassword(user);
@@ -222,30 +220,7 @@ export default class UserController extends RouteController {
         })
     }
 
-    /* 
-        async uploadAvi(req, res) {
-        upload.single('avatar')(req, res, async (err) => {
-            if (err) {
-                return this.#handleErr(res, err);
-            }
-            const { id } = req.body;
-            const avatarPath = req.file.path;
-
-            try {
-                const user = await User.getUserByID(id, false);
-                if (!user) {
-                    throw new Error('User not found');
-                }
-                user.avatar = avatarPath;
-                await user.save();
-                this.#handleSuccess(res, { avatar: avatarPath });
-            } catch (err) {
-                err = !(err instanceof Error) ? new Error(err) : err;
-                this.#handleErr(res, err);
-            }
-        });
-    }
-    */
+    // TODO are we using both create and register functions?  What's the difference?
 
     async register(req, res, next) {
         const {username, email, password, name, bio, role} = req.body;

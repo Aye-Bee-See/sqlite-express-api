@@ -4,6 +4,7 @@ import {default as passport} from 'passport';
 import {userEnd} from '#routes/constants.js';
 import {default as userCrtlr} from "#rtControllers/user.controller.mjs";
 import authService from "#rtServices/auth.services.mjs";
+import multer from 'multer';
 
 class UserRoutes {
 
@@ -30,7 +31,7 @@ class UserRoutes {
        this.#Controller= new userCrtlr;
        this.Router = express.Router();
        
-       this.#router();
+       this.#router(upload);
    }
     /***
      * 

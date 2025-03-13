@@ -34,7 +34,7 @@ import('#rtControllers/user.controller.mjs').then(async(res) => {
 
     // Create
     // register admin route
-    router.post(userPost.register, userCtrlr.register);
+    router.post(userPost.register, upload.single('avatar'), userCtrlr.register);
 
     // Upload avatar route
     router.post(userPost.uploadAvi, userCtrlr.uploadAvi);

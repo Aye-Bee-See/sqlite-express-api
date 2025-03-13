@@ -27,17 +27,17 @@ import('#rtControllers/user.controller.mjs').then(async(res) => {
     const userPut = userEnd.put;
     const userDel = userEnd.delete;
 
-    const upload = multer({ dest: 'uploads/' });
+    // const upload = multer({ dest: 'uploads/' });
 
     app.use(express.urlencoded({extended: false}));
     app.use(passport.initialize());
 
     // Create
     // register admin route
-    router.post(userPost.register, upload.single('avatar'), userCtrlr.register);
+    router.post(userPost.register, userCtrlr.register);
 
     // Upload avatar route
-    router.post(userPost.uploadAvi, upload.single('avatar'), userCtrlr.uploadAvi);
+    router.post(userPost.uploadAvi, userCtrlr.uploadAvi);
 
     // Read
     // get all users

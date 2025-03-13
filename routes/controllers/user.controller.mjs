@@ -8,6 +8,7 @@ import RouteController from "#rtControllers/route.controller.js";
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import bodyParser from 'body-parser';
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -40,10 +41,10 @@ export default class UserController extends RouteController {
         this.create = this.create.bind(this);
         this.remove = this.remove.bind(this);
         this.uploadAvi = this.uploadAvi.bind(this);
+        this.register = this.register.bind(this);
 
         this.protect = this.protect.bind(this);
         this.login = this.login.bind(this);
-        this.register = this.create;
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
     }
@@ -204,10 +205,54 @@ export default class UserController extends RouteController {
     }
 
     async create(req, res, next) {
-        const {username, email, password, name, bio} = req.body;
-        const role = req.body.role.toLowerCase();
+        upload.single('avatar')(req, res, async (err) => {
+            const {username, email, password, name, bio, role} = req.body;
+            const avatar = req.file ? req.file.path : null;
+            console.log("here")
+            console.log(req.get('content-type'))
+            console.log(req.body);
+            try {
+                const user = await User.createUser({username, password, role, email, name, bio, avatar});
+                const strippedPassword = this.#stripPassword(user);
+                this.#handleSuccess(res, strippedPassword);
+            } catch (err) {
+                err = !(err instanceof Error) ? new Error(err) : err;
+                this.#handleErr(res, err);
+            }
+        })
+    }
+
+    /* 
+        async uploadAvi(req, res) {
+        upload.single('avatar')(req, res, async (err) => {
+            if (err) {
+                return this.#handleErr(res, err);
+            }
+            const { id } = req.body;
+            const avatarPath = req.file.path;
+
+            try {
+                const user = await User.getUserByID(id, false);
+                if (!user) {
+                    throw new Error('User not found');
+                }
+                user.avatar = avatarPath;
+                await user.save();
+                this.#handleSuccess(res, { avatar: avatarPath });
+            } catch (err) {
+                err = !(err instanceof Error) ? new Error(err) : err;
+                this.#handleErr(res, err);
+            }
+        });
+    }
+    */
+
+    async register(req, res, next) {
+        const {username, email, password, name, bio, role} = req.body;
+        const avatar = req.file ? req.file.path : null;
+        console.log(req.body);
         try {
-            const user = await User.createUser({username, password, role, email, name, bio});
+            const user = await User.createUser({username, password, role, email, name, bio, avatar});
             const strippedPassword = this.#stripPassword(user);
             this.#handleSuccess(res, strippedPassword);
         } catch (err) {
@@ -215,6 +260,7 @@ export default class UserController extends RouteController {
             this.#handleErr(res, err);
         }
     }
+
 // Update
 
     async update(req, res)

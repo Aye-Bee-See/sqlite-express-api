@@ -4,6 +4,7 @@ import {default as passport} from 'passport';
 import {userEnd} from '#routes/constants.js';
 import {default as userCrtlr} from "#rtControllers/user.controller.mjs";
 import authService from "#rtServices/auth.services.mjs";
+import multer from 'multer';
 
 class UserRoutes {
 
@@ -27,20 +28,37 @@ class UserRoutes {
        passport.use('UsrJStrat', UserJWTStrat);
        passport.use('LStrat', LoginStrat);
        
-       
+       const storage = multer.diskStorage({
+           destination: function (req, file, cb) {
+               const uploadPath = 'uploads/';
+               if (!fs.existsSync(uploadPath)) {
+                   fs.mkdirSync(uploadPath, { recursive: true });
+               }
+               cb(null, uploadPath);
+           },
+           filename: function (req, file, cb) {
+               cb(null, `${Date.now()}-${file.originalname}`);
+           }
+       });
+
+       const upload = multer({ storage: storage });
+
        this.#Controller= new userCrtlr;
        this.Router = express.Router();
        
-       this.#router();
+       this.#router(upload);
    }
     /***
      * 
      *   Handle router params
      * 
      ***/
-    static #router(){
+    static #router(upload){
         // Create
         this.Router.post(userEnd.post.create, this.#Controller.create);
+
+        // Register
+        this.Router.post(userEnd.post.register, this.#Controller.register);
 
         // Upload Avi
         this.Router.post(userEnd.post.uploadAvi, this.#Controller.uploadAvi);

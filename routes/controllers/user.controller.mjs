@@ -208,7 +208,8 @@ export default class UserController extends RouteController {
 
     async create(req, res, next) {
         upload.single('avatar')(req, res, async (err) => {
-            const {username, email, password, name, bio, role} = req.body;
+            const {username, email, password, name, bio} = req.body;
+            const role = req.body.role.toLowerCase();
             const avatar = req.file ? req.file.path : null;
             try {
                 const user = await User.createUser({username, password, role, email, name, bio, avatar});

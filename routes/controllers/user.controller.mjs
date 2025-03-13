@@ -43,7 +43,7 @@ export default class UserController extends RouteController {
         this.create = this.create.bind(this);
         this.remove = this.remove.bind(this);
         this.uploadAvi = this.uploadAvi.bind(this);
-        this.register = this.register.bind(this);
+        this.register = this.create;
 
         this.protect = this.protect.bind(this);
         this.login = this.login.bind(this);
@@ -220,22 +220,6 @@ export default class UserController extends RouteController {
                 this.#handleErr(res, err);
             }
         })
-    }
-
-    // TODO are we using both create and register functions?  What's the difference?
-
-    async register(req, res, next) {
-        const {username, email, password, name, bio, role} = req.body;
-        const avatar = req.file ? req.file.path : null;
-        console.log(req.body);
-        try {
-            const user = await User.createUser({username, password, role, email, name, bio, avatar});
-            const strippedPassword = this.#stripPassword(user);
-            this.#handleSuccess(res, strippedPassword);
-        } catch (err) {
-            err = !(err instanceof Error) ? new Error(err) : err;
-            this.#handleErr(res, err);
-        }
     }
 
 // Update

@@ -5,27 +5,10 @@ import {userMsg} from '#routes/constants.js';
 import {default as Utls} from "#services/Utilities.js";
 import {secretOrKey} from '#constants';
 import RouteController from "#rtControllers/route.controller.js";
-import multer from 'multer';
+import { getMulterUpload } from "#services/multerService.js";
 import fs from 'fs';
 import path from 'path';
 import bodyParser from 'body-parser';
-
-// TODO: Change file name to include user id or name or something
-// TODO: Limit file size/ratio?
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const uploadPath = 'uploads/avatars/users';
-        if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true });
-        }
-        cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-        cb(null, `${Date.now()}-${file.originalname}`);
-    }
-});
-
-const upload = multer({ storage: storage });
 
 export default class UserController extends RouteController {
 
@@ -207,7 +190,11 @@ export default class UserController extends RouteController {
     }
 
     async create(req, res, next) {
-        upload.single('avatar')(req, res, async (err) => {
+        const upload = getMulterUpload('uploads/avatars/users', 'username').single('avatar');
+        upload(req, res, async (err) => {
+            if (err) {
+                return this.#handleErr(res, err);
+            }
             const {username, email, password, name, bio} = req.body;
             const role = req.body.role.toLowerCase();
             const avatar = req.file ? req.file.path : null;
@@ -219,7 +206,7 @@ export default class UserController extends RouteController {
                 err = !(err instanceof Error) ? new Error(err) : err;
                 this.#handleErr(res, err);
             }
-        })
+        });
     }
 
 // Update
@@ -237,7 +224,7 @@ export default class UserController extends RouteController {
     }
 
     async uploadAvi(req, res) {
-        upload.single('avatar')(req, res, async (err) => {
+        getMulterUpload('uploads/avatars/users').single('avatar')(req, res, async (err) => {
             if (err) {
                 return this.#handleErr(res, err);
             }

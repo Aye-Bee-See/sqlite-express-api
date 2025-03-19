@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 import {prisonerMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
-
+import { getMulterUpload } from '#services/multerService.js';
 export default class PrisonerController extends RouteController {
 
     constructor() {
@@ -73,15 +73,21 @@ export default class PrisonerController extends RouteController {
     }
     // Create
     async create(req, res) {
-        const { birthName, chosenName, prison, inmateID, releaseDate, bio, status } = req.body;
-        try {
-            const prisoner = await Prisoner.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio, status });
-            this.#handleSuccess(res, prisoner);
-            // res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
-        } catch (err) {
-            err = !(err instanceof Error) ? new Error(err) : err;
-            this.#handleErr(res, err);
-        }
+        const upload = getMulterUpload('uploads/avatars/prisoners', 'inmateID').single('avatar');
+        upload(req, res, async (err) => {
+            if (err) {
+                return this.#handleErr(res, err)
+            }
+            const { birthName, chosenName, prison, inmateID, releaseDate, bio, status } = req.body;
+            const avatar = req.file ? req.file.path : null;
+            try {
+                const prisoner = await Prisoner.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio, status, avatar });
+                this.#handleSuccess(res, prisoner);
+            } catch (err) {
+                err = !(err instanceof Error) ? new Error(err) : err;
+                this.#handleErr(res, err);
+            }
+        })
     }
 
     // Update

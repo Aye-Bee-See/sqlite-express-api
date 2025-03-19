@@ -5,7 +5,7 @@ import {userMsg} from '#routes/constants.js';
 import {default as Utls} from "#services/Utilities.js";
 import {secretOrKey} from '#constants';
 import RouteController from "#rtControllers/route.controller.js";
-import { getMulterUpload } from "#services/multerService.js";
+import { getMulterUpload, renameFile } from "#services/multerService.js";
 import fs from 'fs';
 import path from 'path';
 import bodyParser from 'body-parser';
@@ -190,16 +190,22 @@ export default class UserController extends RouteController {
     }
 
     async create(req, res, next) {
-        const upload = getMulterUpload('uploads/avatars/users', 'username').single('avatar');
+        const upload = getMulterUpload('uploads/avatars/users').single('avatar');
         upload(req, res, async (err) => {
             if (err) {
                 return this.#handleErr(res, err);
             }
-            const {username, email, password, name, bio} = req.body;
+            const { username, email, password, name, bio } = req.body;
             const role = req.body.role.toLowerCase();
-            const avatar = req.file ? req.file.path : null;
+            const tempAvatarPath = req.file ? req.file.path : null;
             try {
-                const user = await User.createUser({username, password, role, email, name, bio, avatar});
+                const user = await User.createUser({ username, password, role, email, name, bio, avatar: null });
+                if (tempAvatarPath) {
+                    const newAvatarPath = path.join('uploads/avatars/users', `${user.id}-${path.basename(tempAvatarPath)}`);
+                    renameFile(tempAvatarPath, newAvatarPath);
+                    user.avatar = newAvatarPath;
+                    await user.save();
+                }
                 const strippedPassword = this.#stripPassword(user);
                 this.#handleSuccess(res, strippedPassword);
             } catch (err) {

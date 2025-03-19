@@ -1,12 +1,12 @@
-
-
 import Prisoner from "#models/prisoner.model.mjs"
 import {default as jwt} from "jsonwebtoken"
 import bcrypt from "bcrypt";
 import {prisonerMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
-import { getMulterUpload } from '#services/multerService.js';
+import { getMulterUpload, renameFile } from '#services/multerService.js';
+import path from 'path';
+
 export default class PrisonerController extends RouteController {
 
     constructor() {
@@ -79,9 +79,15 @@ export default class PrisonerController extends RouteController {
                 return this.#handleErr(res, err)
             }
             const { birthName, chosenName, prison, inmateID, releaseDate, bio, status } = req.body;
-            const avatar = req.file ? req.file.path : null;
+            const tempAvatarPath = req.file ? req.file.path : null;
             try {
-                const prisoner = await Prisoner.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio, status, avatar });
+                const prisoner = await Prisoner.createPrisoner({ birthName, chosenName, prison, inmateID, releaseDate, bio, status, avatar: null });
+                if (tempAvatarPath) {
+                    const newAvatarPath = path.join('uploads/avatars/prisoners', `${prisoner.id}-${path.basename(tempAvatarPath)}`);
+                    renameFile(tempAvatarPath, newAvatarPath);
+                    prisoner.avatar = newAvatarPath;
+                    await prisoner.save();
+                }
                 this.#handleSuccess(res, prisoner);
             } catch (err) {
                 err = !(err instanceof Error) ? new Error(err) : err;

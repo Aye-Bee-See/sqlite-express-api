@@ -6,7 +6,7 @@ const messageSchema = {
         allowNull: false,
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
-        type: DataTypes.UUID,
+        type: DataTypes.UUID
       },    
   chat: {
     type: DataTypes.INTEGER,
@@ -24,7 +24,7 @@ const messageSchema = {
     } 
   },
   messageText: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING
   },
   sender: {
     type: DataTypes.STRING,

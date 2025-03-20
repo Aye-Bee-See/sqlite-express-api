@@ -25,7 +25,7 @@ export default class ruleController extends RouteController {
 
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
-
+        this.#handleLimits = super.handleLimits;
     }
 
     #handleSuccess;
@@ -38,9 +38,7 @@ export default class ruleController extends RouteController {
 
         const {full, page, page_size} = req.query;
         const prison = Utilities.isUndefined(req.query.prison) ? false : req.query.prison;
-        const limit = page_size || 10;
-        const list_start = (page - 1) || 0;
-        const offset = list_start * limit;
+        const {limit, offset} = this.#handleLimits(page, page_size);
         const fullBool = (full === 'true') || false;
 
         //const prisonId=( && prison >0) || false;

@@ -27,12 +27,13 @@ export default class UserController extends RouteController {
         this.register = this.create;
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
+        this.#handleLimits = super.handleLimits;
     }
 
     #handleSuccess;
     #handleErr;
     #handleLimits;
-    
+
     #stripPassword(userObject) {
         const {id, email, name, role, username, bio} = userObject;
         return {id, email, name, role, username, bio};
@@ -113,15 +114,13 @@ export default class UserController extends RouteController {
      * TODO:  Needs error trapping for no existing chats
      */
     async getMany(req, res, next) {
-               
-        const { role, full, page, page_size} = req.query;
-        const limit = page_size  || 10;
-        const list_start=(page -1) || 0;
-        const offset = list_start  * limit;
-        
+
+        const {role, full, page, page_size} = req.query;
+        const {limit, offset} = this.#handleLimits(page, page_size);
+
         //const {role, full, limit, offset} = req.query;
         const fullBool = (full === 'true');
-        
+
         if (role) {
             try {
                 const users = await User.getUsersByRole(role, fullBool, limit, offset);

@@ -36,7 +36,12 @@ export default class RouteController {
        this.#implementsInterface(this, RouteControllerInterface);
        
 }
-    
+    handleLimits(page, page_size){
+                const limit = page_size  || 10;
+        const list_start=(page -1) || 0;
+        const offset = list_start  * limit;
+        return {limit, offset};
+    }
         #formatMessagesList(messagesList) {
         let formattedList = {};
 

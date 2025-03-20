@@ -11,7 +11,8 @@ const endpoints = {
             uploadAvi: '/uploadAvi'
         },
         put: {
-            update: '/user'
+            update: '/user',
+            uploadAvi: '/uploadAvi'
         },
         delete: {
             remove: '/user'

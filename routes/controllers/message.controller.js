@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import {messageMsg} from '#routes/constants.js'
 import {default as Utls} from "#services/Utilities.js"
 import RouteController from "#rtControllers/route.controller.js";
+import { getMulterUpload, renameFile } from "#services/multerService.js";
 
 export default class MessageController extends RouteController {
     constructor() {
@@ -124,15 +125,26 @@ export default class MessageController extends RouteController {
     
     // Create
     async create(req, res) {
-        const {messageText, sender, prisoner, user} = req.body;
+        const upload = getMulterUpload('uploads/messages').single('image');
+        const tempAvatarPath = req.file ? req.file.path : null;
+
+        upload(req, res, async (err) => {
         try {
-            const message = await Message.createMessage({messageText, sender, prisoner, user});
+            const {messageText, sender, prisoner, user} = req.body;
+            console.log(sender);
+            const message = await Message.createMessage({messageText, sender, prisoner, user, image: null});
+                if (tempAvatarPath) {
+                    const newAvatarPath = path.join('uploads/messages', `${user.id}-${path.basename(tempAvatarPath)}`);
+                    renameFile(tempAvatarPath, newAvatarPath);
+                    user.avatar = newAvatarPath;
+                    await user.save();
+                            }
             this.#handleSuccess(res, message);
-            // res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);
         }
+    });
     }
 
     // Update

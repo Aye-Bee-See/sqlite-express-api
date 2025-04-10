@@ -75,6 +75,14 @@ export default class Chat extends Model {
     }
 
     static async readChatsByUser(id, full, limit, offset = 0) {
+        /* 
+         * TODO:
+         * const userExists = await User.findByPk(id);
+        console.log(userExists);
+        if (!userExists) {
+            throw new Error('User does not exist');
+        }
+         * */
         let filters = {limit, offset};
         let options = {
             where: {user: id}
@@ -104,6 +112,13 @@ export default class Chat extends Model {
     }
 
     static async readChatsByPrisoner(id, full, limit, offset = 0) {
+        /*
+         * TODO:
+         *         const prisonerExists = await Prisoner.findByPk(id);
+        if (!prisonerExists) {
+            throw new Error('Prisoner does not exist');
+        }
+         */
         let filters = {limit, offset};
         let options = {
             where: {prisoner: id}

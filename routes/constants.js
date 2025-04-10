@@ -63,6 +63,21 @@ const endpoints = {
             remove: '/prison'
         }
     },
+    chapter: {
+        get: {
+            many: '/chapters',
+            one: '/chapter{/:id}'    
+        },
+        post: {
+            create: '/chapter'
+        },
+        put: {
+            update: '/chapter'
+        },
+        delete: {
+            remove: '/chapter'
+        }
+    },
     message: {
         get: {
             many: '/messages{/:id}{/:chat}{/:prisoner}{/:user}{/:page}{/:page_size}',
@@ -390,6 +405,46 @@ const messages = {
                 }
             }
         }
+    },
+    chapter: {
+        get: {
+            many: {
+                success: {condition: {par: "Successfully retireved chapter list"}},
+                error: {condition: {
+                        par: "Error getting chapter list"
+                    }
+                }
+            },
+            one: {
+                success: {condition: {par: "Success getting chapter"}},
+                error: {condition: {
+                        par: "Error getting chapter",
+                        empty: "Error getting chapter:  Required paramaters missing.   You must provide {id}"
+                    }}
+            }
+        },
+        post: {
+            create: {
+                success: {condition: {par: "Successfully created chapter"}},
+                error: {condition: {par: "Error creating chapter"}}
+            }
+        },
+        put: {
+            update: {
+                success: {condition: {par: "Succeessfully updated chapter"}},
+                error: {condition: {par: "Error updating chapter."}}
+            }
+        },
+        delete: {
+            remove: {
+                success: {condition: {par: "Succeessfully deleted chapter"}},
+                error: {condition: {
+                        par: "Error deleting chapter",
+                        absent: "No such chapter"
+                    }
+                }
+            }
+        }
     }
 };
 
@@ -408,7 +463,8 @@ export const {
     prisoner: prisonerMsg,
     prison: prisonMsg,
     message: messageMsg,
-    chat: chatMsg
+    chat: chatMsg,
+    chapter: chapterMsg
 } = messages;
 
 /***********Messages***********/
@@ -419,5 +475,6 @@ export const {
     prisoner: prisonerEnd,
     prison: prisonEnd,
     message: messageEnd,
-    chat: chatEnd
+    chat: chatEnd,
+    chapter: chapterEnd,
 } = endpoints;

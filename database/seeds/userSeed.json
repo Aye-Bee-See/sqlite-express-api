@@ -1,191 +1,250 @@
-
 {
-    "seeds": [
-        {
-            "username": "admin",
-            "password": "abcpassword",
-            "role": "admin",
-            "email": "admin@localhost"
-        },
-        {
-            "username": "01",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "01@localhost"
-        },
-        {
-            "username": "02",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "02@localhost"
-        },
-        {
-            "username": "03",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "03@localhost"
-        },
-        {
-            "username": "04",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "04@localhost"
-        },
-        {
-            "username": "05",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "05@localhost"
-        },
-        {
-            "username": "06",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "06@localhost"
-        },
-        {
-            "username": "07",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "07@localhost"
-        },
-        {
-            "username": "08",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "08@localhost"
-        },
-        {
-            "username": "09",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "09@localhost"
-        },
-        {
-            "username": "10",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "10@localhost"
-        },
-        {
-            "username": "11",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "11@localhost"
-        },
-        {
-            "username": "12",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "12@localhost"
-        },
-        {
-            "username": "13",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "13@localhost"
-        },
-        {
-            "username": "14",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "14@localhost"
-        },
-        {
-            "username": "15",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "15@localhost"
-        },
-        {
-            "username": "16",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "16@localhost"
-        },
-        {
-            "username": "17",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "17@localhost"
-        },
-        {
-            "username": "18",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "18@localhost"
-        },
-        {
-            "username": "19",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "19@localhost"
-        },
-        {
-            "username": "20",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "20@localhost"
-        },
-        {
-            "username": "21",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "21@localhost"
-        },
-        {
-            "username": "22",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "22@localhost"
-        },
-        {
-            "username": "23",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "23@localhost"
-        },
-        {
-            "username": "24",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "24@localhost"
-        },
-        {
-            "username": "25",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "25@localhost"
-        },
-        {
-            "username": "26",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "26@localhost"
-        },
-        {
-            "username": "27",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "27@localhost"
-        },
-        {
-            "username": "28",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "28@localhost"
-        },
-        {
-            "username": "29",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "29@localhost"
-        },
-        {
-            "username": "30",
-            "password": "abcpassword",
-            "role": "user",
-            "email": "30@localhost"
-        }
-    ]
+  "seeds": [
+    {
+      "username": "admin",
+      "password": "abcpassword",
+      "role": "admin",
+      "email": "admin@localhost"
+    },
+    {
+      "username": "user1",
+      "password": "password1",
+      "role": "user",
+      "email": "user1@example.com"
+    },
+    {
+      "username": "user2",
+      "password": "password2",
+      "role": "user",
+      "email": "user2@example.com"
+    },
+    {
+      "username": "user3",
+      "password": "password3",
+      "role": "user",
+      "email": "user3@example.com"
+    },
+    {
+      "username": "user4",
+      "password": "password4",
+      "role": "user",
+      "email": "user4@example.com"
+    },
+    {
+      "username": "user5",
+      "password": "password5",
+      "role": "user",
+      "email": "user5@example.com"
+    },
+    {
+      "username": "user6",
+      "password": "password6",
+      "role": "user",
+      "email": "user6@example.com"
+    },
+    {
+      "username": "user7",
+      "password": "password7",
+      "role": "user",
+      "email": "user7@example.com"
+    },
+    {
+      "username": "user8",
+      "password": "password8",
+      "role": "user",
+      "email": "user8@example.com"
+    },
+    {
+      "username": "user9",
+      "password": "password9",
+      "role": "user",
+      "email": "user9@example.com"
+    },
+    {
+      "username": "user10",
+      "password": "password10",
+      "role": "user",
+      "email": "user10@example.com"
+    },
+    {
+      "username": "user11",
+      "password": "password11",
+      "role": "user",
+      "email": "user11@example.com"
+    },
+    {
+      "username": "user12",
+      "password": "password12",
+      "role": "user",
+      "email": "user12@example.com"
+    },
+    {
+      "username": "user13",
+      "password": "password13",
+      "role": "user",
+      "email": "user13@example.com"
+    },
+    {
+      "username": "user14",
+      "password": "password14",
+      "role": "user",
+      "email": "user14@example.com"
+    },
+    {
+      "username": "user15",
+      "password": "password15",
+      "role": "user",
+      "email": "user15@example.com"
+    },
+    {
+      "username": "user16",
+      "password": "password16",
+      "role": "user",
+      "email": "user16@example.com"
+    },
+    {
+      "username": "user17",
+      "password": "password17",
+      "role": "user",
+      "email": "user17@example.com"
+    },
+    {
+      "username": "user18",
+      "password": "password18",
+      "role": "user",
+      "email": "user18@example.com"
+    },
+    {
+      "username": "user19",
+      "password": "password19",
+      "role": "user",
+      "email": "user19@example.com"
+    },
+    {
+      "username": "user20",
+      "password": "password20",
+      "role": "user",
+      "email": "user20@example.com"
+    },
+    {
+      "username": "user21",
+      "password": "password21",
+      "role": "user",
+      "email": "user21@example.com"
+    },
+    {
+      "username": "user22",
+      "password": "password22",
+      "role": "user",
+      "email": "user22@example.com"
+    },
+    {
+      "username": "user23",
+      "password": "password23",
+      "role": "user",
+      "email": "user23@example.com"
+    },
+    {
+      "username": "user24",
+      "password": "password24",
+      "role": "user",
+      "email": "user24@example.com"
+    },
+    {
+      "username": "user25",
+      "password": "password25",
+      "role": "user",
+      "email": "user25@example.com"
+    },
+    {
+      "username": "user26",
+      "password": "password26",
+      "role": "user",
+      "email": "user26@example.com"
+    },
+    {
+      "username": "user27",
+      "password": "password27",
+      "role": "user",
+      "email": "user27@example.com"
+    },
+    {
+      "username": "user28",
+      "password": "password28",
+      "role": "user",
+      "email": "user28@example.com"
+    },
+    {
+      "username": "user29",
+      "password": "password29",
+      "role": "user",
+      "email": "user29@example.com"
+    },
+    {
+      "username": "user30",
+      "password": "password30",
+      "role": "user",
+      "email": "user30@example.com"
+    },
+    {
+      "username": "user31",
+      "password": "password31",
+      "role": "user",
+      "email": "user31@example.com"
+    },
+    {
+      "username": "user32",
+      "password": "password32",
+      "role": "user",
+      "email": "user32@example.com"
+    },
+    {
+      "username": "user33",
+      "password": "password33",
+      "role": "user",
+      "email": "user33@example.com"
+    },
+    {
+      "username": "user34",
+      "password": "password34",
+      "role": "user",
+      "email": "user34@example.com"
+    },
+    {
+      "username": "user35",
+      "password": "password35",
+      "role": "user",
+      "email": "user35@example.com"
+    },
+    {
+      "username": "user36",
+      "password": "password36",
+      "role": "user",
+      "email": "user36@example.com"
+    },
+    {
+      "username": "user37",
+      "password": "password37",
+      "role": "user",
+      "email": "user37@example.com"
+    },
+    {
+      "username": "user38",
+      "password": "password38",
+      "role": "user",
+      "email": "user38@example.com"
+    },
+    {
+      "username": "user39",
+      "password": "password39",
+      "role": "user",
+      "email": "user39@example.com"
+    },
+    {
+      "username": "user40",
+      "password": "password40",
+      "role": "user",
+      "email": "user40@example.com"
+    }
+  ]
 }

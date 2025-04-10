@@ -188,7 +188,7 @@ export default class MessageController extends RouteController {
     {
         const {id} = req.body;
         try {
-            const deletedRows = await Message.deleteRule(id);
+            const deletedRows = await Message.deleteMessage(id);
             this.#handleSuccess(res, deletedRows);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

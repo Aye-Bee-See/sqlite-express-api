@@ -125,7 +125,9 @@ router.get('/messages/:id?/:chat?/:prisoner?/:user?', function(req, res) {
 router.put('/chat', function(req, res) {
   const chat = req.body;
 
-  Chat.updateChat(chat).then(updatedChat => res.status(200).json({ updatedChat, msg: "Chat successfully updated"}))
+  Chat.updateChat(chat)
+    .then(updatedChat => res.status(200).json({ updatedChat, msg: "Chat successfully updated" }))
+    .catch(err => res.status(400).json({ msg: "Error updating chat", err }));
 });
 
 router.put('/message', function(req, res) {

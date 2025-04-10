@@ -9,6 +9,12 @@ const chatSchema = {
     prisoner: {
         type: DataTypes.INTEGER,
         model: 'Prisoner',
+    },
+    // Add the id field to the schema
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
     }
 };
 

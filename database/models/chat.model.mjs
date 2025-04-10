@@ -4,6 +4,7 @@ import Hooks from '#hooks/all.hooks.mjs';
 import Message from '#models/message.model.mjs';
 import Prisoner from '#models/prisoner.model.mjs';
 import User from '#models/user.model.mjs';
+import modelsService from "#models/models.service.js";
 
 export default class Chat extends Model {
     static init(sequelize) {

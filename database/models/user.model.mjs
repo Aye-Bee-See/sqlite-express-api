@@ -68,6 +68,10 @@ export default class User extends Model {
     }
 
     static async  getUsersByRole(role, full, limit, offset = 0) {
+        const exists = await modelsService.modelInstanceExists('Role', role);
+        if (exists instanceof Error) {
+            throw  exists;
+        }
         let filters = {limit, offset};
         let options;
         if (full) {
@@ -88,7 +92,7 @@ export default class User extends Model {
         filters = {...filters, ...options};
         return await User.findAll(filters);
     }
-    
+
     static async  getUser(obj, full) {
         if (full) {
             return await this.findOne({

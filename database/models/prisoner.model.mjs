@@ -3,7 +3,7 @@ import Schemas from '#schemas/all.schema.mjs';
 import Hooks from '#hooks/all.hooks.mjs';
 import Chat from '#models/chat.model.mjs';
 import Prison from '#models/prison.model.mjs';
-
+import modelsService from "#models/models.service.js";
 
 export default class Prisoner extends Model {
     static init(sequelize) {
@@ -85,6 +85,10 @@ export default class Prisoner extends Model {
     }
 
     static async getPrisonersByPrison(prisonId, full, limit, offset = 0) {
+        const exists = await modelsService.modelInstanceExists('Prison', prisonId);
+        if (exists instanceof Error) {
+            throw  exists;
+        }
         let filters = {limit, offset};
         let options = {
             where: {prison: prisonId}

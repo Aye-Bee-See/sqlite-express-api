@@ -61,6 +61,10 @@ export default class Rule extends Model {
     }
 
     static async getRulesByPrison(prison, limit, offset = 0) {
+        const exists = await modelsService.modelInstanceExists('Prison', prison);
+        if (exists instanceof Error) {
+            throw  exists;
+        }
         let filters = {limit, offset};
         let options = {
             include: [

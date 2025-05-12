@@ -43,5 +43,6 @@ app.use('/messaging', MessageRoutes.Router);
 app.use('/chat', ChatRoutes.Router);
 app.use('/chat', ChatRoutes.Router);
 app.use('/chapter', ChapterRoutes.Router);
+app.use('/uploads', express.static('uploads'));
 app.use(ErrorService.handler);
 

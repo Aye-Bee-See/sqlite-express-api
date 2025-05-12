@@ -66,13 +66,14 @@ export default class RouteController {
         const msgRef = ["getOne", "getMany"].includes(callerName) ? callerName.toLowerCase().substring(3) : callerName;
         const {method} = stack;
         let message = {};
+        
         message['data'] = outObj;
         message['info'] = ctrlMsg[method][msgRef].success.condition[condition];
         message['success']=true;
         message['status']=200;
         message['name']= this.controllerName +" "+ msgRef;
         
-
+        res.setHeader('Content-Type', 'multipart/form-data');
         res.status(200).json(message);
     }
 

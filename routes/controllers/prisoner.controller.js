@@ -21,6 +21,7 @@ export default class PrisonerController extends RouteController {
         this.update = this.update.bind(this);
         this.remove = this.remove.bind(this);
         this.create = this.create.bind(this);
+        this.getAvatar = this.getAvatar.bind(this);
 
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
@@ -71,6 +72,21 @@ export default class PrisonerController extends RouteController {
             this.#handleErr(res, err);
         }
     }
+
+    async getAvatar(req, res) {
+        const { id } = req.query;
+        try {
+            const prisoner = await Prisoner.getPrisonerByID(id, false);
+            if (!prisoner || !prisoner.avatar) {
+                throw new Error('Avatar not found');
+            }
+            res.sendFile(prisoner.avatar, { root: '.' });
+        } catch (err) {
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
+        }
+    }
+
     // Create
     async create(req, res) {
         const upload = getMulterUpload('uploads/avatars/prisoners', 'inmateID').single('avatar');

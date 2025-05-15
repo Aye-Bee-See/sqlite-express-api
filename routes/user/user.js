@@ -53,7 +53,8 @@ class UserRoutes {
         // Read
         this.Router.get(userEnd.get.many, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getMany);
         this.Router.get(userEnd.get.one, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getOne);
-        
+        // Get User Avatar
+        this.Router.get(userEnd.get.avatar, this.#Controller.getAvatar);        
         // Update
         this.Router.put(userEnd.put.update, passport.authenticate('UsrJStrat', {session: false, failWithError: true}), this.#Controller.update);
         

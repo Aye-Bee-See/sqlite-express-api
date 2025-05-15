@@ -48,6 +48,9 @@ class PrisonerRoutes {
 
         this.Router.get(prisonerEnd.get.one, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.getOne);
 
+        // Get Prisoner Avatar
+        this.Router.get(prisonerEnd.get.avatar, this.#Controller.getAvatar);
+
 // Update
 
         this.Router.put(prisonerEnd.put.update, passport.authenticate('UsrJStrat', { session: false, failWithError: true }), this.#Controller.update);

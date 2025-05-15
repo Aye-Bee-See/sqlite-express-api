@@ -16,7 +16,8 @@ const endpoints = {
         },
         delete: {
             remove: '/user'
-        }
+        },
+        avatar: '/avatar'
     },
     rule: {
         get: {
@@ -46,7 +47,8 @@ const endpoints = {
         },
         delete: {
             remove: '/prisoner'
-        }
+        },
+        avatar: '/avatar'
     },
     prison: {
         get: {
@@ -287,7 +289,8 @@ const messages = {
                     }
                 }
             }
-        }
+        },
+        avatar: '/avatar'
     },
     prison: {
         get: {
@@ -312,7 +315,7 @@ const messages = {
         put: {
             update: {
                 success: {condition: {par: "Succeessfully updated prison"}},
-                error: {condition: {par: "Error updating prison."}}
+                error: {condition: {par: "Error updating prison."}},
             },
             rule: {
                 success: {condition: {par: "Succeessfully added rule prison"}},

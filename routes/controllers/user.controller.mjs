@@ -30,6 +30,7 @@ export default class UserController extends RouteController {
 
         this.protect = this.protect.bind(this);
         this.login = this.login.bind(this);
+        this.getAvatar = this.getAvatar.bind(this);
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
     }
@@ -250,6 +251,20 @@ export default class UserController extends RouteController {
                 this.#handleErr(res, err);
             }
         });
+    }
+
+    async getAvatar(req, res) {
+        const { id } = req.query;
+        try {
+            const user = await User.getUserByID(id, false);
+            if (!user || !user.avatar) {
+                throw new Error('Avatar not found');
+            }
+            res.sendFile(user.avatar, { root: '.' });
+        } catch (err) {
+            err = !(err instanceof Error) ? new Error(err) : err;
+            this.#handleErr(res, err);
+        }
     }
 
 // Delete

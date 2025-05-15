@@ -18,7 +18,7 @@ const messageSchema = {
     } 
   },
   messageText: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING
   },
   sender: {
     type: DataTypes.STRING,

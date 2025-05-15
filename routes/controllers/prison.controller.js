@@ -25,16 +25,22 @@ export default class PrisonController extends RouteController {
 
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
-
+        this.#handleLimits = super.handleLimits;
     }
 
     #handleSuccess;
     #handleErr;
-
+    #handleLimits;
     async getMany(req, res, next) {
+
+        const {prison, full, page, page_size} = req.query;
+        const {limit, offset} = this.#handleLimits(page, page_size);
+        const fullBool = (full === 'true');
+
+        // const {limit, offset} = req.query;
         try {
-            const rules = await Prison.getAllPrisons();
-            this.#handleSuccess(res, rules);
+            const prisons = await Prison.getAllPrisons(fullBool, limit, offset);
+            this.#handleSuccess(res, prisons);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);
@@ -58,9 +64,9 @@ export default class PrisonController extends RouteController {
     }
     // Create
     async create(req, res) {
-        const { prisonName, address } = req.body;
+        const {prisonName, address} = req.body;
         try {
-            const prison = await Prison.createPrison({ prisonName, address });
+            const prison = await Prison.createPrison({prisonName, address});
             this.#handleSuccess(res, prison);
             // res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
         } catch (err) {
@@ -82,13 +88,14 @@ export default class PrisonController extends RouteController {
             this.#handleErr(res, err);
         }
     }
-    
+
     async addRule(req, res)
     {
-        const { rule, prison } = req.body;
-        
+        const {rule, prison} = req.body;
+
         try {
-            const updatedRows = await Prison.addRule(rule, prison);;
+            const updatedRows = await Prison.addRule(rule, prison);
+            ;
             this.#handleSuccess(res, {updatedRows, rule, prison});
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;

@@ -4,6 +4,7 @@ import Hooks from '#hooks/all.hooks.mjs';
 import Message from '#models/message.model.mjs';
 import Prisoner from '#models/prisoner.model.mjs';
 import User from '#models/user.model.mjs';
+import modelsService from "#models/models.service.js";
 
 export default class Chat extends Model {
     static init(sequelize) {
@@ -48,9 +49,11 @@ export default class Chat extends Model {
 
     // Read
 
-    static async readAllChats(full) {
+    static async readAllChats(full, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options;
         if (full) {
-            return await this.findAll({
+            options = {
                 include: [
                     {
                         model: Message,
@@ -66,20 +69,33 @@ export default class Chat extends Model {
                         as: 'prisoner_details'
                     }
                 ]
-            });
-        } else {
-            return await this.findAll({});
+            };
         }
+        filters = {...filters, ...options};
+        return await Chat.findAll(filters);
     }
 
-    static async readChatsByUser(id, full) {
-        const userExists = await User.findByPk(id);
-        console.log(userExists);
-        if (!userExists) {
-            throw new Error('User does not exist');
+    static async readChatsByUser(id, full, limit, offset = 0) {
+        /* 
+         * TODO:
+         *
+         const userExists = await User.findByPk(id);
+         console.log(userExists);
+         if (!userExists) {
+         throw new Error('User does not exist');
+         } */
+
+
+        const exists = await modelsService.modelInstanceExists('User', id);
+        if (exists instanceof Error) {
+            throw  exists;
         }
+        let filters = {limit, offset};
+        let options = {
+            where: {user: id}
+        };
         if (full) {
-            return await this.findAll({
+            options = {
                 where: {user: id},
                 include: [
                     {
@@ -96,21 +112,30 @@ export default class Chat extends Model {
                         as: 'prisoner_details'
                     }
                 ]
-            });
-        } else {
-            return await this.findAll({
-                where: {user: id}
-            })
+            };
         }
+        filters = {...filters, ...options};
+        return await Chat.findAll(filters);
     }
 
-    static async readChatsByPrisoner(id, full) {
-        const prisonerExists = await Prisoner.findByPk(id);
-        if (!prisonerExists) {
-            throw new Error('Prisoner does not exist');
+    static async readChatsByPrisoner(id, full, limit, offset = 0) {
+        /*
+         * TODO:
+         *         const prisonerExists = await Prisoner.findByPk(id);
+         if (!prisonerExists) {
+         throw new Error('Prisoner does not exist');
+         }
+         */
+        const exists = await modelsService.modelInstanceExists('Prisoner', id);
+        if (exists instanceof Error) {
+            throw  exists;
         }
+        let filters = {limit, offset};
+        let options = {
+            where: {prisoner: id}
+        };
         if (full) {
-            return await this.findAll({
+            options = {
                 where: {prisoner: id},
                 include: [
                     {
@@ -127,12 +152,10 @@ export default class Chat extends Model {
                         as: 'prisoner_details'
                     }
                 ]
-            });
-        } else {
-            return await this.findAll({
-                where: {prisoner: id}
-            });
+            };
         }
+        filters = {...filters, ...options};
+        return await Chat.findAll(filters);
     }
 
     static async readChatByUserAndPrisoner(user, prisoner, full) {
@@ -195,7 +218,11 @@ export default class Chat extends Model {
 // Update
 
     static async updateChat(chat) {
-        return await this.update(chat, { where: { id: chat.id } });
+        const user = chat.user;
+        const prisoner = chat.prisoner;
+        return await this.update({...chat}, {where: {id: chat.id}}).then(updatedChat =>
+            this.update({user: user, prisoner: prisoner}, {where: {chat: updatedChat}})
+        ).catch()
     }
 // Delete
 

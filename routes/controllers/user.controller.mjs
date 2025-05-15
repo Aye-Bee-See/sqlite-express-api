@@ -27,10 +27,12 @@ export default class UserController extends RouteController {
         this.register = this.create;
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
+        this.#handleLimits = super.handleLimits;
     }
 
     #handleSuccess;
     #handleErr;
+    #handleLimits;
 
     #stripPassword(userObject) {
         const {id, email, name, role, username, bio} = userObject;
@@ -113,11 +115,15 @@ export default class UserController extends RouteController {
      */
     async getMany(req, res, next) {
 
-        const {role, full} = req.query;
+        const {role, full, page, page_size} = req.query;
+        const {limit, offset} = this.#handleLimits(page, page_size);
+
+        //const {role, full, limit, offset} = req.query;
         const fullBool = (full === 'true');
+
         if (role) {
             try {
-                const users = await User.getUsersByRole(role, fullBool);
+                const users = await User.getUsersByRole(role, fullBool, limit, offset);
                 this.#handleUsers(res, users);
             } catch (err) {
                 err = !(err instanceof Error) ? new Error(err) : err;
@@ -125,7 +131,7 @@ export default class UserController extends RouteController {
             }
         } else {
             try {
-                const users = await User.getAllUsers(fullBool);
+                const users = await User.getAllUsers(fullBool, limit, offset);
                 this.#handleUsers(res, users);
             } catch (err) {
                 err = !(err instanceof Error) ? new Error(err) : err;

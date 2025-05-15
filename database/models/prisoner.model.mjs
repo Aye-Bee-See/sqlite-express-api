@@ -3,7 +3,7 @@ import Schemas from '#schemas/all.schema.mjs';
 import Hooks from '#hooks/all.hooks.mjs';
 import Chat from '#models/chat.model.mjs';
 import Prison from '#models/prison.model.mjs';
-
+import modelsService from "#models/models.service.js";
 
 export default class Prisoner extends Model {
     static init(sequelize) {
@@ -17,8 +17,8 @@ export default class Prisoner extends Model {
         );
     }
     static associate(models) {
-        this.belongsTo(models.Prison, { as: 'prison_details', foreignKey: 'prisonId'});
-        this.hasMany(models.Chat, { as: 'chats', foreignKey: 'prisonerId' });
+        this.belongsTo(models.Prison, {as: 'prison_details', foreignKey: 'prisonId'});
+        this.hasMany(models.Chat, {as: 'chats', foreignKey: 'prisonerId'});
 
     }
 
@@ -48,9 +48,11 @@ export default class Prisoner extends Model {
 
 // Read
 
-    static async getAllPrisoners(full) {
+    static async getAllPrisoners(full, limit, offset = 0) {
+        let filters = {limit, offset};
+        let options;
         if (full) {
-            return await this.findAll({
+            options = {
                 include: [
                     {
                         model: Prison,
@@ -58,10 +60,10 @@ export default class Prisoner extends Model {
                         key: 'prison_key'
                     }
                 ]
-            })
-        } else {
-            return await this.findAll();
+            }
         }
+        filters = {...filters, ...options};
+        return await Prisoner.findAll(filters);
     }
 
     static async getPrisonerByID(id, full) {
@@ -82,9 +84,17 @@ export default class Prisoner extends Model {
         }
     }
 
-    static async getPrisonersByPrison(prisonId, full) {
+    static async getPrisonersByPrison(prisonId, full, limit, offset = 0) {
+        const exists = await modelsService.modelInstanceExists('Prison', prisonId);
+        if (exists instanceof Error) {
+            throw  exists;
+        }
+        let filters = {limit, offset};
+        let options = {
+            where: {prison: prisonId}
+        };
         if (full) {
-            return await this.findAll({
+            options = {
                 include: [
                     {
                         model: Chat,
@@ -92,17 +102,16 @@ export default class Prisoner extends Model {
                     }
                 ],
                 where: {prison: prisonId}
-            })
-        } else {
-            return await this.findAll({
-                where: {prison: prisonId}
-            })
+            };
         }
+        filters = {...filters, ...options};
+        return await Prisoner.findAll(filters);
+
     }
 
 // Update
 
-    static async updatePrisoner (prisoner) {
+    static async updatePrisoner(prisoner) {
         return await this.update({...prisoner}, {where: {id: prisoner.id}});
     }
 

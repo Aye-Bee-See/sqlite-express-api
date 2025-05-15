@@ -22,14 +22,23 @@ export default class MessageController extends RouteController {
 
         this.#handleErr = super.handleErr;
         this.#handleSuccess = super.handleSuccess;
+        this.#handleLimits=super.handleLimits;
 
     }
 
     #handleSuccess;
     #handleErr;
+    #handleLimits;
 
     async getMany(req, res, next) {
-        const {id, chat, prisoner, user} = req.query;
+
+        const {id, chat, prisoner, user, full, page, page_size} = req.query;
+
+        const {limit, offset} = this.#handleLimits(page, page_size);
+        const fullBool = (full === 'true');
+
+        //const {id, chat, prisoner, user} = req.query;
+
         const opval = id ? 1 : chat ? 2 : prisoner ? 3 : user ? 4 : 0;
         switch (opval) {
             case 1:
@@ -51,11 +60,15 @@ export default class MessageController extends RouteController {
             {
                 this.getMessagesByUser(req, res);
                 break;
-            }default:
+            }
+            default:
             {
                 try {
-                    const rules = await Message.readAllMessages();
-                    this.#handleSuccess(res, rules);
+                    const messages = await Message.readAllMessages(limit, offset);
+                    console.group("***************messages**********************");
+                    console.log(messages);
+                    console.groupEnd();
+                    this.#handleSuccess(res, messages);
                 } catch (err) {
                     err = !(err instanceof Error) ? new Error(err) : err;
                     this.#handleErr(res, err);
@@ -66,9 +79,15 @@ export default class MessageController extends RouteController {
     }
 
     async getMessagesById(req, res) {
-        const {id} = req.query;
+
+        const {id, full, page, page_size} = req.query;
+        const limit = page_size || 10;
+        const list_start = (page - 1) || 0;
+        const offset = list_start * limit;
+        const fullBool = (full === 'true');
+
         try {
-            const messages = await Message.readMessageById(id);
+            const messages = await Message.readMessageById(id, fullBool, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -76,31 +95,46 @@ export default class MessageController extends RouteController {
         }
     }
     async getMessagesByChat(req, res) {
-        const {chat} = req.query;
+        const {chat, full, page, page_size} = req.query;
+        const limit = page_size || 10;
+        const list_start = (page - 1) || 0;
+        const offset = list_start * limit;
+        const fullBool = (full === 'true');
         try {
-            const messages = await Message.readMessagesByChat(chat);
+            const messages = await Message.readMessagesByChat(chat, fullBool, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);
         }
     }
-    
+
     async getMessagesByPrisoner(req, res) {
-        const {prisoner} = req.query;
+
+        const {prisoner, full, page, page_size} = req.query;
+        const limit = page_size || 10;
+        const list_start = (page - 1) || 0;
+        const offset = list_start * limit;
+        const fullBool = (full === 'true');
+
         try {
-            const messages = await Message.readMessagesByPrisoner(prisoner);
+            const messages = await Message.readMessagesByPrisoner(prisoner, fullBool, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
             this.#handleErr(res, err);
         }
     }
-    
+
     async getMessagesByUser(req, res) {
-        const {user} = req.query;
+        const {user, full, page, page_size} = req.query;
+        const limit = page_size || 10;
+        const list_start = (page - 1) || 0;
+        const offset = list_start * limit;
+        const fullBool = (full === 'true');
+
         try {
-            const messages = await Message.readMessagesByUser(user);
+            const messages = await Message.readMessagesByUser(user, fullBool, limit, offset);
             this.#handleSuccess(res, messages);
         } catch (err) {
             err = !(err instanceof Error) ? new Error(err) : err;
@@ -121,7 +155,7 @@ export default class MessageController extends RouteController {
             this.#handleErr(res, err);
         }
     }
-    
+
     // Create
     async create(req, res) {
         const {messageText, sender, prisoner, user} = req.body;

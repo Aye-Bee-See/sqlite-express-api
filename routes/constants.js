@@ -1,7 +1,7 @@
 const endpoints = {
     user: {
         get: {
-            many: '/users{/:role}{/:full}',
+            many: '/users{/:role}{/:full}{/:page}{/:page_size}',
             one: '/user{/:id}{/:email}{/:username}{/:full}',
             protect: '/protected'
         },
@@ -19,7 +19,7 @@ const endpoints = {
     },
     rule: {
         get: {
-            many: '/rules{/:prison}{/:full}',
+            many: '/rules{/:prison}{/:full}{/:page}{/:page_size}',
             one: '/rule{/:id}'
         },
         post: {
@@ -34,7 +34,7 @@ const endpoints = {
     },
     prisoner: {
         get: {
-            many: '/prisoners{/:prison}{/:full}',
+            many: '/prisoners{/:prison}{/:full}{/:page}{/:page_size}',
             one: '/prisoner{/:id}'
         },
         post: {
@@ -49,7 +49,7 @@ const endpoints = {
     },
     prison: {
         get: {
-            many: '/prisons{/:full}',
+            many: '/prisons{/:full}{/:page}{/:page_size}',
             one: '/prison{/:id}'
         },
         post: {
@@ -80,7 +80,7 @@ const endpoints = {
     },
     message: {
         get: {
-            many: '/messages{/:id}{/:chat}{/:prisoner}{/:user}',
+            many: '/messages{/:id}{/:chat}{/:prisoner}{/:user}{/:page}{/:page_size}',
             one: '/message{/:id}'
         },
         post: {
@@ -95,7 +95,7 @@ const endpoints = {
     },
     chat: {
         get: {
-            many: '/chats{/:prisoner}{/:user}{/:full}',
+            many: '/chats{/:prisoner}{/:user}{/:full}{/:page}{/:page_size}',
             one: '/chat{/:id}{/:prisoner}{/:user}{/:full}'
         },
         post: {

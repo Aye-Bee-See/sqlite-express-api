@@ -5,7 +5,8 @@
     "main": "index.js",
     "type": "module",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "NODE_ENV=test mocha --timeout 10000",
+        "test:api": "mocha test/api.test.js --timeout 10000"
     },
     "keywords": [],
     "author": "",
@@ -90,7 +91,10 @@
         "#constants": "./constants.js"
     },
     "devDependencies": {
+        "chai": "^5.2.0",
+        "mocha": "^11.5.0",
         "nodemon": "^3.1.0",
-        "quick-lint-js": "3.2.0"
+        "quick-lint-js": "3.2.0",
+        "supertest": "^7.1.1"
     }
 }

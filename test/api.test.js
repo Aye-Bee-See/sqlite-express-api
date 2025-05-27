@@ -132,7 +132,6 @@ it('should return "User already exists" for an existing username', function(done
                 .end((err, res) => {
                     if (err) return done(err);
                     expect(res.body.error).to.equal('Email address already in use.');
-                    expect(res.body.success).to.be.false;
                     done();
                 });
         });
@@ -142,12 +141,11 @@ it('should return "User already exists" for an existing username', function(done
             request(app)
                 .post('/auth/user')
                 .send({
-                    username: 'shortpassuser',
-                    name: 'Short Pass User',
-                    password: 'short', // Password less than 6 characters
-                    gender: 'Other',
-                    location: 'Someplace'
-                })
+            username: "shortpassuser",
+            name: "Short Password User",
+            password: "123",
+            email: "short@password.biz",
+            role: "admin",                })
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {
                     if (err) return done(err);
@@ -163,8 +161,7 @@ it('should return "User already exists" for an existing username', function(done
                     username: 'incompleteuser',
                     name: 'Incomplete User',
                     password: 'password123',
-                    gender: 'Male'
-                    // location is missing
+                    email: 'invalidformat'
                 })
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {

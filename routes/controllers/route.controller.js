@@ -1,4 +1,3 @@
-
 import LoudError from "#services/LoudError.js";
 import Utilities from "#services/Utilities.js";
 
@@ -82,6 +81,11 @@ export default class RouteController {
     }
 
     handleErr(res, errMsg = null, msgType = "par") {
+        // Handle Sequelize validation errors globally
+        if (errMsg && errMsg.name === 'SequelizeValidationError' && errMsg.errors) {
+            const messages = errMsg.errors.map(e => e.message);
+            return res.status(400).json({ success: false, errors: messages });
+        }
         const ctrlMsg=msgConstants[this.controllerName];
         const stack = this.#findStack(res);
         const callerName = stack.name.substr(6);

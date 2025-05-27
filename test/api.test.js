@@ -149,7 +149,8 @@ it('should return "User already exists" for an existing username', function(done
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {
                     if (err) return done(err);
-                    expect(res.text).to.equal('Password is too short'); // Check the response message
+                    expect(res.body.success).to.equal(false); // Check the response message
+                    expect(res.body.errors[0]).to.equal('Password must be a minimum of 7 characters.')
                     done();
                 });
         });
@@ -158,15 +159,16 @@ it('should return "User already exists" for an existing username', function(done
             request(app)
                 .post('/auth/user')
                 .send({
-                    username: 'incompleteuser',
-                    name: 'Incomplete User',
-                    password: 'password123',
-                    email: 'invalidformat'
+                    username: "noEmailUser",
+                    name: "Test User One",
+                    password: "abcdefghijklmnopqrstuv",
+                    role: "admin"
                 })
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {
                     if (err) return done(err);
-                    expect(res.text).to.equal('Missing required fields'); // Check the response message
+                    expect(res.body.success).to.equal(false); // Check the response message
+                    expect(res.body.errors[0]).to.equal('Email cannot be null.')
                     done();
                 });
         });
@@ -180,11 +182,11 @@ it('should return "User already exists" for an existing username', function(done
                 .post('/auth/user')
                 .send({
                     username: 'loginuser',
+                    email: 'loginuser@login.biz',
                     name: 'Login User',
                     password: 'loginpass',
-                    gender: 'Male',
-                    location: 'Login City'
-                })
+                    role: 'admin'
+                    })
                 .expect(200)
                 .end(done);
         });
@@ -199,7 +201,7 @@ it('should return "User already exists" for an existing username', function(done
                 .expect(200) // Expect a 200 OK status code
                 .end((err, res) => {
                     if (err) return done(err);
-                    expect(res.text).to.equal('Login success!'); // Check the response message
+                    expect(res.body.success).to.equal(true); // Check the response message
                     done();
                 });
         });
@@ -258,10 +260,9 @@ it('should return "User already exists" for an existing username', function(done
                 .post('/auth/user')
                 .send({
                     username: 'changepassuser',
+                    email: 'changepass@passchange.biz',
                     name: 'Change Pass User',
                     password: 'oldpassword',
-                    gender: 'Female',
-                    location: 'Change City'
                 })
                 .expect(200)
                 .end(done);
@@ -272,8 +273,7 @@ it('should return "User already exists" for an existing username', function(done
                 .put('/auth/user')
                 .send({
                     username: 'changepassuser',
-                    oldPassword: 'oldpassword',
-                    newPassword: 'newsecurepassword'
+                    password: 'newsecurepassword'
                 })
                 .expect(200) // Expect a 200 OK status code
                 .end((err, res) => {

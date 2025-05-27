@@ -44,8 +44,8 @@ const userSchema = {
       notNull: {
         msg: "Password cannot be null."
       },
-      min: {
-        args: [7],
+      len: {
+        args: [7, 255],
         msg: "Password must be a minimum of 7 characters."
       }
     }

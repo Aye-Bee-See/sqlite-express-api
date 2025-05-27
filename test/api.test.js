@@ -146,6 +146,11 @@ it('should return "User already exists" for an existing username', function(done
             password: "123",
             email: "short@password.biz",
             role: "admin",                })
+            username: "shortpassuser",
+            name: "Short Password User",
+            password: "123",
+            email: "short@password.biz",
+            role: "admin",                })
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {
                     if (err) return done(err);

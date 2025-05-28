@@ -5,7 +5,7 @@
     "main": "index.js",
     "type": "module",
     "scripts": {
-        "test": "NODE_ENV=test mocha --timeout 10000",
+        "test": "NODE_ENV=test mocha --timeout 10000 | grep -v 'Executing ' | tee testresults.txt",
         "test:api": "mocha test/api.test.js --timeout 10000"
     },
     "keywords": [],

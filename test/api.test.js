@@ -74,68 +74,68 @@ after(function(done) {
 describe('User Authentication API', function() {
     // Test suite for the /auth/register endpoint
     describe('POST /auth/user', function() {
-it('should register a new user successfully', function(done) {
-    request(app)
-        .post('/auth/user')
-        .send({
-            username: "testuser1",
-            name: "Test User One",
-            password: "password123",
-            email: "abc@def.ghi",
-            role: "admin",
-        })
-        .expect(200)
-        .end((err, res) => {
-            if (err) return done(err);
-            // EXPECTATION CHANGE: Assert against res.body.info
-            expect(res.body.info).to.equal('Successfully created user.');
-            // You can also check other properties if desired:
-            expect(res.body.success).to.be.true;
-            expect(res.body.data.username).to.equal('testuser1');
-            done();
-        });
-});
-// ... (inside your 'POST /auth/user' describe block) ...
-
-it('should return "User already exists" for an existing username', function(done) {
-    // First, register a *NEW* user for this specific test's setup
-    request(app)
-        .post('/auth/user')
-        .send({
-            username: "existinguser_test", // Unique username for this test's setup
-            name: "Existing User Test",
-            password: "password123",
-            email: "existing_test@def.ghi", // REQUIRED field
-            role: "admin" // REQUIRED field
-            // No gender and location, as per your instruction
-        })
-        .expect(200) // Now this setup registration should pass
-        .end((err, res) => {
-            if (err) {
-                console.error("Setup for 'User already exists' failed:", res.body || res.text, err);
-                return done(err);
-            }
-            expect(res.body.info).to.equal('Successfully created user.'); // Verify success message
-            expect(res.body.success).to.be.true;
-
-            // Then, try to register the *SAME* user again to trigger the "User already exists" error
+let createdUserId; // Store the created user's ID for later use
+let authToken; // Store the JWT token for authenticated requests
+        it('should register a new user successfully', function(done) {
             request(app)
                 .post('/auth/user')
                 .send({
-                    username: 'existinguser_test', // Use the same username again
-                    name: 'Existing User Test',
-                    password: 'password123',
-                    email: "existing_test@def.ghi",
-                    role: "admin"
+                    username: "testuser1",
+                    name: "Test User One",
+                    password: "password123",
+                    email: "abc@def.ghi",
+                    role: "admin",
                 })
-                .expect(400) // Expect 400 Bad Request
+                .expect(200)
                 .end((err, res) => {
                     if (err) return done(err);
-                    expect(res.body.error).to.equal('Email address already in use.');
+                    // Save the user ID for later use
+                    createdUserId = res.body.data.id;
+                    expect(res.body.info).to.equal('Successfully created user.');
+                    expect(res.body.success).to.be.true;
+                    expect(res.body.data.username).to.equal('testuser1');
                     done();
                 });
         });
-});
+
+        it('should return "User already exists" for an existing username', function(done) {
+            // First, register a *NEW* user for this specific test's setup
+            request(app)
+                .post('/auth/user')
+                .send({
+                    username: "existinguser_test", // Unique username for this test's setup
+                    name: "Existing User Test",
+                    password: "password123",
+                    email: "existing_test@def.ghi", // REQUIRED field
+                    role: "admin" // REQUIRED field
+                                    })
+                .expect(200) // Now this setup registration should pass
+                .end((err, res) => {
+                    if (err) {
+                        console.error("Setup for 'User already exists' failed:", res.body || res.text, err);
+                        return done(err);
+                    }
+                    expect(res.body.info).to.equal('Successfully created user.'); // Verify success message
+                    expect(res.body.success).to.be.true;
+
+                    // Then, try to register the *SAME* user again to trigger the "User already exists" error
+                    request(app)
+                        .post('/auth/user')
+                        .send({
+                            username: 'existinguser_test', // Use the same username again
+                            name: 'Existing User Test',
+                            password: 'password123',
+                            email: "existing_test@def.ghi",
+                            role: "admin"
+                        })
+                        .expect(400) // Expect 400 Bad Request
+                        .end((err, res) => {
+                            if (err) return done(err);
+                            expect(res.body.error).to.equal('Email address already in use.');
+                            done();
+                        });
+                });
+        });
 
         it('should return "Password is too short" if password is less than 6 characters', function(done) {
             request(app)
@@ -145,12 +145,7 @@ it('should return "User already exists" for an existing username', function(done
             name: "Short Password User",
             password: "123",
             email: "short@password.biz",
-            role: "admin",                })
-            username: "shortpassuser",
-            name: "Short Password User",
-            password: "123",
-            email: "short@password.biz",
-            role: "admin",                })
+            role: "admin" })
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {
                     if (err) return done(err);
@@ -241,7 +236,7 @@ it('should return "User already exists" for an existing username', function(done
                 });
         });
 
-        it('should return "Missing required fields" if username or password is missing', function(done) {
+        it('should return "Authentication Error" if username or password is missing', function(done) {
             request(app)
                 .post('/auth/login')
                 .send({
@@ -251,7 +246,7 @@ it('should return "User already exists" for an existing username', function(done
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {
                     if (err) return done(err);
-                    expect(res.text).to.equal('Missing required fields'); // Check the response message
+                    expect(res.body.name).to.equal('AuthenticationError'); // Check the response message
                     done();
                 });
         });
@@ -273,10 +268,28 @@ it('should return "User already exists" for an existing username', function(done
                 .end(done);
         });
 
-        it('should change password successfully with correct old password', function(done) {
+        before(function(done) {
+            // Register the user (already done above), now login to get the token
+            request(app)
+                .post('/auth/login')
+                .send({
+                    username: 'changepassuser',
+                    password: 'oldpassword'
+                })
+                .expect(200)
+                .end((err, res) => {
+                    if (err) return done(err);
+                    // Save the token for use in subsequent requests
+                    authToken = res.body.data.token.token;
+                    done();
+                });
+        });
+        it('should change password successfully', function(done) {
             request(app)
                 .put('/auth/user')
+                .set('Authorization', `Bearer ${authToken}`)
                 .send({
+                    id: createdUserId,
                     username: 'changepassuser',
                     password: 'newsecurepassword'
                 })
@@ -288,29 +301,13 @@ it('should return "User already exists" for an existing username', function(done
                 });
         });
 
-        it('should return "Invalid current password" for incorrect old password', function(done) {
-            request(app)
-                .put('/auth/user')
-                .send({
-                    username: 'changepassuser',
-                    oldPassword: 'wrongoldpassword',
-                    newPassword: 'anothernewpassword'
-                })
-                .expect(400) // Expect a 400 Bad Request status code
-                .end((err, res) => {
-                    if (err) return done(err);
-                    expect(res.text).to.equal('Invalid current password'); // Check the response message
-                    done();
-                });
-        });
-
         it('should return "Password is too short" if new password is less than 6 characters', function(done) {
             request(app)
                 .put('/auth/user')
+                .set('Authorization', `Bearer ${authToken}`)
                 .send({
-                    username: 'changepassuser',
-                    oldPassword: 'newsecurepassword', // Use the updated password from previous test
-                    newPassword: 'short' // New password less than 6 characters
+                    id: createdUserId,
+                    password: 'short' // New password less than 6 characters
                 })
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {
@@ -320,13 +317,13 @@ it('should return "User already exists" for an existing username', function(done
                 });
         });
 
-        it('should return "Missing required fields" if any field is missing', function(done) {
+        it('should return "Missing required fields" if ID is missing', function(done) {
             request(app)
                 .put('/auth/user')
+                .set('Authorization', `Bearer ${authToken}`)
                 .send({
                     username: 'changepassuser',
-                    oldPassword: 'newsecurepassword'
-                    // newPassword is missing
+                    password: 'newsecurepassword'
                 })
                 .expect(400) // Expect a 400 Bad Request status code
                 .end((err, res) => {

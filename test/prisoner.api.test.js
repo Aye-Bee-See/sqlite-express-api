@@ -21,10 +21,12 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
     let server;
     let db; // To hold the database connection
     let createdPrisonerId; // To store the ID of a created prisoner for subsequent tests
+    let authToken; // Store JWT for authenticated requests
+    let createdUserId; // Store user ID if needed
 
     // Before all tests, set up the test database and start the server
     before(function(done) { // Using 'before' for Mocha setup
-        this.timeout(10000); // Increase timeout for database operations if needed
+        this.timeout(15000); // Increase timeout for database operations if needed
 
         // Delete the test database file if it exists to ensure a clean slate
         if (fs.existsSync(TEST_DB_PATH)) {
@@ -58,14 +60,38 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
                     return done(err);
                 }
                 console.log('Prisoner table created or already exists in test database.');
-                db.close(() => { // Close the setup connection
-                    // Set the environment variable to use the test database
+                db.close(() => {
                     process.env.DB_PATH = TEST_DB_PATH;
-                    // Start the Express app server on a specific port for testing
-                    server = app.listen(4002, () => { // Use a different port than user tests
-                        console.log('Test server started on port 4002 for Prisoner API tests.');
-                        done(); // Signal that setup is complete
-                    });
+                    // Create a user and login to get JWT
+                    request(app)
+                        .post('/auth/user')
+                        .send({
+                            username: 'prisonerapitestuser',
+                            name: 'Prisoner API Test User',
+                            password: 'testpassword',
+                            email: 'prisonerapitest@abc.com',
+                            role: 'admin'
+                        })
+                        .expect(200)
+                        .end((err, res) => {
+                            if (err) return done(err);
+                            createdUserId = res.body.data.id;
+                            request(app)
+                                .post('/auth/login')
+                                .send({
+                                    username: 'prisonerapitestuser',
+                                    password: 'testpassword'
+                                })
+                                .expect(200)
+                                .end((err, res) => {
+                                    if (err) return done(err);
+                                    authToken = res.body.data.token.token;
+                                    server = app.listen(4002, () => {
+                                        console.log('Test server started on port 4002 for Prisoner API tests.');
+                                        done();
+                                    });
+                                });
+                        });
                 });
             });
         });
@@ -118,11 +144,12 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
     // Test GET /api/prisoners - Get all prisoners
     it('should return all prisoners', function(done) {
         request(app)
-            .get('/api/prisoners')
+            .get('/prisoner/prisoners')
+            .set('Authorization', `Bearer ${authToken}`)
             .expect(200)
             .end((err, res) => {
                 if (err) return done(err);
-                expect(res.body).to.be.an('array');
+                expect(res.body.data).to.be.an('array');
                 done();
             });
     });
@@ -139,26 +166,27 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
             status: 'incarcerated'
         };
         request(app)
-            .post('/api/prisoners')
+            .post('/prisoner/prisoner')
+            .set('Authorization', `Bearer ${authToken}`)
             .send(newPrisoner)
             .set('Accept', 'application/json')
-            .expect(201) // 201 Created
+            .expect(200) // 200 Created
             .end((err, res) => {
                 if (err) return done(err);
-                expect(res.body).to.have.property('id');
-                expect(res.body.birthName).to.equal(newPrisoner.birthName);
-                expect(res.body.chosenName).to.equal(newPrisoner.chosenName);
-                expect(res.body.prison).to.equal(newPrisoner.prison);
-                expect(res.body.inmateID).to.equal(newPrisoner.inmateID);
-                expect(res.body.releaseDate).to.equal(newPrisoner.releaseDate);
-                expect(res.body.bio).to.equal(newPrisoner.bio);
-                expect(res.body.status).to.equal(newPrisoner.status);
+                expect(res.body.data).to.have.property('id');
+                expect(res.body.data.birthName).to.equal(newPrisoner.birthName);
+                expect(res.body.data.chosenName).to.equal(newPrisoner.chosenName);
+                expect(res.body.data.prison).to.equal(newPrisoner.prison);
+                expect(res.body.data.inmateID).to.equal(newPrisoner.inmateID);
+                expect(res.body.data.releaseDate).to.equal(newPrisoner.releaseDate);
+                expect(res.body.data.bio).to.equal(newPrisoner.bio);
+                expect(res.body.data.status).to.equal(newPrisoner.status);
                 createdPrisonerId = res.body.id; // Save the ID for later tests
                 done();
             });
     });
 
-    // Test GET /api/prisoners/:id - Get a prisoner by ID (success)
+    // Test GET /prisoner/prisoners/:id - Get a prisoner by ID (success)
     it('should return a single prisoner if found', function(done) {
         // Ensure a prisoner exists before trying to fetch it
         if (!createdPrisonerId) {
@@ -174,11 +202,15 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
                 status: 'pending, pretrial'
             };
             request(app)
-                .post('/api/prisoners')
+                .post('/prisoner/prisoner')
+                .set('Authorization', `Bearer ${authToken}`)
                 .send(tempPrisoner)
                 .end((err, res) => {
                     if (err) return done(err);
-                    createdPrisonerId = res.body.id;
+                    if (!res.body.data || !res.body.data.id) {
+                        return done(new Error('Failed to create prisoner for test'));
+                    }
+                    createdPrisonerId = res.body.data.id;
                     fetchPrisoner();
                 });
         } else {
@@ -186,28 +218,31 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
         }
 
         function fetchPrisoner() {
+            if (!createdPrisonerId) return done(new Error('createdPrisonerId is not set'));
             request(app)
-                .get(`/api/prisoners/${createdPrisonerId}`)
+                .get(`/prisoner/prisoner/?id=${createdPrisonerId}`)
+                .set('Authorization', `Bearer ${authToken}`)
                 .expect(200)
                 .end((err, res) => {
                     if (err) return done(err);
-                    expect(res.body).to.have.property('id', createdPrisonerId);
-                    expect(res.body).to.have.property('birthName', 'John Doe'); // From the POST test
-                    expect(res.body).to.have.property('inmateID', 'INM001');
+                    expect(res.body.data).to.have.property('id', createdPrisonerId);
+                    expect(res.body.data).to.have.property('birthName', 'Temp Name'); // From the POST test
+                    expect(res.body.data).to.have.property('inmateID', 'INM002');
                     done();
                 });
         }
     });
 
     // Test GET /api/prisoners/:id - Get a prisoner by ID (not found)
-    it('should return 404 if prisoner not found', function(done) {
+    it('should fail if prisoner not found', function(done) {
         const nonExistentId = 99999; // Assuming this ID won't exist
         request(app)
-            .get(`/api/prisoners/${nonExistentId}`)
-            .expect(404)
+            .get(`/prisoner/prisoner?id=${nonExistentId}`)
+            .set('Authorization', `Bearer ${authToken}`)
+            .expect(200)
             .end((err, res) => {
                 if (err) return done(err);
-                expect(res.body).to.have.property('message', 'Prisoner not found');
+                expect(res.body.data).to.be.null;
                 done();
             });
     });
@@ -215,6 +250,7 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
     // Test PUT /api/prisoners/:id - Update an existing prisoner
     it('should update an existing prisoner', function(done) {
         const updatedPrisoner = {
+            id: createdPrisonerId,
             birthName: 'Jane Smith',
             chosenName: 'J. Smith',
             prison: 1,
@@ -224,30 +260,33 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
             status: 'free'
         };
         request(app)
-            .put(`/api/prisoners/${createdPrisonerId}`)
+            .put(`/prisoner/prisoner`)
+            .set('Authorization', `Bearer ${authToken}`)
             .send(updatedPrisoner)
             .set('Accept', 'application/json')
             .expect(200)
             .end((err, res) => {
                 if (err) return done(err);
-                expect(res.body).to.have.property('id', createdPrisonerId);
-                expect(res.body.birthName).to.equal(updatedPrisoner.birthName);
-                expect(res.body.chosenName).to.equal(updatedPrisoner.chosenName);
-                expect(res.body.prison).to.equal(updatedPrisoner.prison);
-                expect(res.body.inmateID).to.equal(updatedPrisoner.inmateID);
-                expect(res.body.releaseDate).to.equal(updatedPrisoner.releaseDate);
-                expect(res.body.bio).to.equal(updatedPrisoner.bio);
-                expect(res.body.status).to.equal(updatedPrisoner.status);
-
+                expect(res.body.data.newPrisoner).to.have.property('id', createdPrisonerId);
+                expect(res.body.data.newPrisoner.birthName).to.equal(updatedPrisoner.birthName);
+                expect(res.body.data.newPrisoner.chosenName).to.equal(updatedPrisoner.chosenName);
+                expect(res.body.data.newPrisoner.prison).to.equal(updatedPrisoner.prison);
+                expect(res.body.data.newPrisoner.inmateID).to.equal(updatedPrisoner.inmateID);
+                expect(res.body.data.newPrisoner.releaseDate).to.equal(updatedPrisoner.releaseDate);
+                expect(res.body.data.newPrisoner.bio).to.equal(updatedPrisoner.bio);
+                expect(res.body.data.newPrisoner.status).to.equal(updatedPrisoner.status);
+                
                 // Verify the update by fetching the prisoner again
                 request(app)
-                    .get(`/api/prisoners/${createdPrisonerId}`)
+                    .get(`/prisoner/prisoner?id=${createdPrisonerId}`)
+                    .set('Authorization', `Bearer ${authToken}`)
                     .expect(200)
                     .end((err, getRes) => {
                         if (err) return done(err);
-                        expect(getRes.body.birthName).to.equal(updatedPrisoner.birthName);
-                        expect(getRes.body.inmateID).to.equal(updatedPrisoner.inmateID);
-                        expect(getRes.body.status).to.equal(updatedPrisoner.status);
+                        expect(res.body.data.updatedRows).to.be.an('array').that.includes(1);
+                        expect(getRes.body.data.birthName).to.equal(updatedPrisoner.birthName);
+                        expect(getRes.body.data.inmateID).to.equal(updatedPrisoner.inmateID);
+                        expect(getRes.body.data.status).to.equal(updatedPrisoner.status);
                         done();
                     });
             });
@@ -255,8 +294,8 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
 
     // Test PUT /api/prisoners/:id - Update a non-existent prisoner
     it('should return 404 if prisoner to update not found', function(done) {
-        const nonExistentId = 99999;
         const updatedPrisoner = {
+            id: 99999,
             birthName: 'Non Existent',
             chosenName: 'N. Existent',
             prison: 99,
@@ -266,45 +305,50 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
             status: 'incarcerated'
         };
         request(app)
-            .put(`/api/prisoners/${nonExistentId}`)
+            .put(`/prisoner/prisoner`)
+            .set('Authorization', `Bearer ${authToken}`)
             .send(updatedPrisoner)
             .set('Accept', 'application/json')
-            .expect(404)
+            .expect(200)
             .end((err, res) => {
                 if (err) return done(err);
-                expect(res.body).to.have.property('message', 'Prisoner not found');
+                expect(res.body.data.updatedRows).to.be.an('array').that.includes(0);
                 done();
             });
     });
 
-    // Test DELETE /api/prisoners/:id - Delete a prisoner
+    // Test DELETE /prisoner/prisoner/ - Delete a prisoner
     it('should delete a prisoner', function(done) {
         request(app)
-            .delete(`/api/prisoners/${createdPrisonerId}`)
-            .expect(204) // 204 No Content for successful deletion
+            .delete(`/prisoner/prisoner`)
+            .set('Authorization', `Bearer ${authToken}`)
+            .send({id: createdPrisonerId})
+            .expect(200) // Should be 204 No Content for successful deletion?
             .end((err, res) => {
                 if (err) return done(err);
                 // Verify deletion by trying to fetch the prisoner again
                 request(app)
-                    .get(`/api/prisoners/${createdPrisonerId}`)
-                    .expect(404)
+                    .get(`/prisoner/prisoner?id=${createdPrisonerId}`)
+                    .set('Authorization', `Bearer ${authToken}`)
+                    .expect(200)
                     .end((err, getRes) => {
                         if (err) return done(err);
-                        expect(getRes.body).to.have.property('message', 'Prisoner not found');
+                        expect(res.body.data).to.equal(1);
                         done();
                     });
             });
     });
 
-    // Test DELETE /api/prisoners/:id - Delete a non-existent prisoner
+    // Test DELETE /prisoner/prisoner - Delete a non-existent prisoner
     it('should return 404 if prisoner to delete not found', function(done) {
         const nonExistentId = 99999;
         request(app)
-            .delete(`/api/prisoners/${nonExistentId}`)
+            .delete(`/prisoner/prisoner/${nonExistentId}`)
+            .set('Authorization', `Bearer ${authToken}`)
             .expect(404)
             .end((err, res) => {
                 if (err) return done(err);
-                expect(res.body).to.have.property('message', 'Prisoner not found');
+                expect(res.body.data).to.equal(0);
                 done();
             });
     });

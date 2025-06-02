@@ -72,10 +72,11 @@ after(function(done) {
 
 // Describe block for the API tests
 describe('User Authentication API', function() {
+    let createdUserId; // Store the created user's ID for later use
+    let authToken; // Store the JWT token for authenticated requests
+    
     // Test suite for the /auth/register endpoint
     describe('POST /auth/user', function() {
-let createdUserId; // Store the created user's ID for later use
-let authToken; // Store the JWT token for authenticated requests
         it('should register a new user successfully', function(done) {
             request(app)
                 .post('/auth/user')
@@ -262,6 +263,7 @@ let authToken; // Store the JWT token for authenticated requests
                     username: 'changepassuser',
                     email: 'changepass@passchange.biz',
                     name: 'Change Pass User',
+                    role: 'admin',
                     password: 'oldpassword',
                 })
                 .expect(200)

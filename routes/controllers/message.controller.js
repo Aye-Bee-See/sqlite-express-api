@@ -65,9 +65,6 @@ export default class MessageController extends RouteController {
             {
                 try {
                     const messages = await Message.readAllMessages(limit, offset);
-                    console.group("***************messages**********************");
-                    console.log(messages);
-                    console.groupEnd();
                     this.#handleSuccess(res, messages);
                 } catch (err) {
                     err = !(err instanceof Error) ? new Error(err) : err;

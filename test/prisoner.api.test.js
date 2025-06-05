@@ -283,7 +283,7 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
                     .expect(200)
                     .end((err, getRes) => {
                         if (err) return done(err);
-                        expect(res.body.data.updatedRows).to.be.an('array').that.includes(1);
+                        expect(res.body.data.updatedRows).to.equal(1); //Should return 1 updated row, currently returns 1 in an array
                         expect(getRes.body.data.birthName).to.equal(updatedPrisoner.birthName);
                         expect(getRes.body.data.inmateID).to.equal(updatedPrisoner.inmateID);
                         expect(getRes.body.data.status).to.equal(updatedPrisoner.status);
@@ -309,7 +309,7 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
             .set('Authorization', `Bearer ${authToken}`)
             .send(updatedPrisoner)
             .set('Accept', 'application/json')
-            .expect(200)
+            .expect(404) // Should return 404 Not Found
             .end((err, res) => {
                 if (err) return done(err);
                 expect(res.body.data.updatedRows).to.be.an('array').that.includes(0);
@@ -323,7 +323,7 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
             .delete(`/prisoner/prisoner`)
             .set('Authorization', `Bearer ${authToken}`)
             .send({id: createdPrisonerId})
-            .expect(200) // Should be 204 No Content for successful deletion?
+            .expect(200)
             .end((err, res) => {
                 if (err) return done(err);
                 // Verify deletion by trying to fetch the prisoner again
@@ -333,7 +333,7 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
                     .expect(200)
                     .end((err, getRes) => {
                         if (err) return done(err);
-                        expect(res.body.data).to.equal(1);
+                        expect(res.body.deletedRows).to.equal(1);  // Should return 1 deleted row, currently returns 1 in an array
                         done();
                     });
             });
@@ -345,7 +345,7 @@ describe('Prisoners API', function() { // Using 'function' for Mocha context
         request(app)
             .delete(`/prisoner/prisoner/${nonExistentId}`)
             .set('Authorization', `Bearer ${authToken}`)
-            .expect(404)
+            .expect(404) // Should return 404 Not Found
             .end((err, res) => {
                 if (err) return done(err);
                 expect(res.body.data).to.equal(0);

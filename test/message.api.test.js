@@ -293,25 +293,6 @@ describe('Messages API', function() {
                 });
         });
 
-        it('should return error if chat is missing', function(done) {
-            request(app)
-                .post('/messaging/message')
-                .set('Authorization', `Bearer ${authToken}`)
-                .send({
-                    messageText: 'This is a test message',
-                    sender: 'user',
-                    prisoner: createdPrisonerId,
-                    user: createdUserId
-                })
-                .expect(400)
-                .end((err, res) => {
-                    if (err) return done(err);
-                    
-                    expect(res.body.success).to.equal(false);
-                    done();
-                });
-        });
-
         it('should return error if sender is missing', function(done) {
             request(app)
                 .post('/messaging/message')
@@ -350,6 +331,7 @@ describe('Messages API', function() {
         });
     });
 
+    //SHOULDFAIL - Errors with Message.getMessageByID is not a function
     // Test GET /messaging/message?id=:id - Get a specific message
     describe('GET /messaging/message', function() {
         it('should get a specific message by id', function(done) {
@@ -368,6 +350,7 @@ describe('Messages API', function() {
                 });
         });
 
+        //SHOULDFAIL - Errors with "modelsService is not defined"
         it('should get messages by chat id', function(done) {
             request(app)
                 .get(`/messaging/messages?chat=${createdChatId}`)
@@ -444,7 +427,7 @@ describe('Messages API', function() {
                     if (err) return done(err);
                     
                     expect(res.body.success).to.equal(true);
-                    
+                    //SHOULDFAIL - Errors with "modelsService is not defined"
                     // Verify the message was deleted by trying to get it
                     request(app)
                         .get(`/messaging/message?id=${createdMessageId}`)

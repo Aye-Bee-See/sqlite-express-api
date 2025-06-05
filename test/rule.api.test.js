@@ -232,7 +232,7 @@ describe('Rules API', function() {
     });
 
     // Test GET /rule/rules?prison=:prisonId - Get rules by prison
-    describe('GET /rule/rules?prison=:prisonId', function() {
+    describe('GET /rule/rules?prison=:prisonId', function() { //If you capitalize the p in prison= this passes
         let ruleForPrisonId;
         before(function(done) {
             // Create a specific rule associated with the test prison

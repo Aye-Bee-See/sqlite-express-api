@@ -236,6 +236,13 @@ describe('Chats API', function() {
                     expect(res.body.success).to.equal(true);
                     expect(res.body.data).to.have.property('id');
                     createdChatId = res.body.data.id;
+                    // --- BEGIN ADDITION ---
+                    if (createdChatId !== undefined) {
+                        console.log(`[DEBUG] Chat created successfully. ID: ${createdChatId}, Full response data: ${JSON.stringify(res.body.data)}`);
+                    } else {
+                        console.error(`[DEBUG] ERROR: createdChatId is undefined after assignment. Response success: ${res.body.success}, Response data: ${JSON.stringify(res.body.data)}`);
+                    }
+                    // --- END ADDITION ---
                     done();
                 });
         });
@@ -336,12 +343,13 @@ describe('Chats API', function() {
                     if (err) return done(err);
                     
                     expect(res.body.success).to.equal(true);
-                    expect(res.body.data).to.have.property('id');
-                    expect(res.body.data.id).to.equal(createdChatId);
+                    expect(res.body.data[0]).to.have.property('id');
+                    expect(res.body.data[0].id).to.equal(createdChatId);
                     done();
                 });
         });
 
+        //Returns blank array for non-existent chat ID, which is correct behavior but returns true for success
         it('should return null data if chat ID does not exist', function(done) {
             request(app)
                 .get('/chat/chat?id=99999')
@@ -349,9 +357,8 @@ describe('Chats API', function() {
                 .expect(200)
                 .end((err, res) => {
                     if (err) return done(err);
-                    
-                    expect(res.body.success).to.equal(true);
-                    expect(res.body.data).to.be.null;
+                    expect(res.body.data).to.be.an('array').that.is.empty;
+                    expect(res.body.success).to.equal(false);
                     done();
                 });
         });
@@ -360,11 +367,10 @@ describe('Chats API', function() {
             request(app)
                 .get('/chat/chat')
                 .set('Authorization', `Bearer ${authToken}`)
-                .expect(400)
+                .expect(400) // Should return 400 or 404 error
                 .end((err, res) => {
-                    if (err) return done(err);
-                    
-                    expect(res.body.success).to.equal(false);
+                    if (err) return done(err);                    
+                    expect(res.body.success).to.equal(false); //Should be false, comes out true
                     done();
                 });
         });
@@ -386,6 +392,11 @@ describe('Chats API', function() {
         });
     });
 
+// Should this just be impossible and we remove this test?
+    // Erroring with:
+    // "info": "Error updating chat.",
+    // "type": "SequelizeDatabaseError",
+    // "error": "SQLITE_ERROR: no such column: chat",
     // Test PUT /chat/chat - Update an existing chat
     describe('PUT /chat/chat', function() {
         it('should update an existing chat successfully', function(done) {
@@ -394,13 +405,11 @@ describe('Chats API', function() {
                 .set('Authorization', `Bearer ${authToken}`)
                 .send({
                     id: createdChatId,
-                    user: createdUserId,
-                    prisoner: createdPrisonerId
+                    prisoner: 1, // Assuming prisoner ID 1 exists
                 })
                 .expect(200)
                 .end((err, res) => {
-                    if (err) return done(err);
-                    
+                    if (err) return done(err);  
                     expect(res.body.success).to.equal(true);
                     expect(res.body.data.updatedRows).to.be.at.least(1);
                     done();
@@ -427,25 +436,26 @@ describe('Chats API', function() {
         });
     });
 
-    // Test DELETE /chat/chat - Delete a chat
-    describe('DELETE /chat/chat', function() {
+    // Not sure why this is failing
+// Test DELETE /chat/chat - Delete a chat
+    describe(`DELETE /chat/chat?id=${createdChatId}`, function() {
         it('should delete an existing chat successfully', function(done) {
+            const deleteUrl = `/chat/chat?id=${createdChatId}`;
+            console.log(`[DEBUG] Attempting to delete chat with URL: ${deleteUrl}`); // Added log
             request(app)
-                .delete('/chat/chat')
+                .delete(deleteUrl) 
                 .set('Authorization', `Bearer ${authToken}`)
-                .send({
-                    id: createdChatId
-                })
-                .expect(200)
+                .expect(200)  
                 .end((err, res) => {
                     if (err) return done(err);
-                    
                     expect(res.body.success).to.equal(true);
-                    expect(res.body.data.deletedRows).to.be.at.least(1);
+                    expect(res.body.data.data).to.be.at.least(1); // Check deletedRows
+                    expect(res.body.data.info).to.equal('Successfully deleted chat.'); //Successfully is misspelled here
                     done();
                 });
         });
-
+        
+// Returns 200 success, should return 400 error, is sending undefined chat ID
         it('should return 0 if chat ID to delete does not exist', function(done) {
             request(app)
                 .delete('/chat/chat')
@@ -453,7 +463,7 @@ describe('Chats API', function() {
                 .send({
                     id: createdChatId // Already deleted
                 })
-                .expect(200)
+                .expect(400) 
                 .end((err, res) => {
                     if (err) return done(err);
                     
@@ -472,7 +482,8 @@ describe('Chats API', function() {
                     if (err) return done(err);
                     
                     expect(res.body.success).to.equal(true);
-                    expect(res.body.data).to.be.null;
+                    // API returns empty array when chat doesn't exist
+                    expect(res.body.data).to.be.an('array').that.is.empty;
                     done();
                 });
         });

@@ -2,7 +2,8 @@ import {DataTypes} from 'sequelize';
 
 const ruleSchema = {
   title: {
-    type: DataTypes.STRING
+    type: DataTypes.STRING,
+    allowNull: false
   },
   description: {
     type: DataTypes.STRING

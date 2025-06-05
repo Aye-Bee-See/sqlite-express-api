@@ -31,10 +31,12 @@ app.use(bodyParser.urlencoded({extended: true}));
 app.use(passport.initialize());
 
 // start the app
+if (process.env.NODE_ENV !== 'test') {
+
 app.listen(sysPort, function () {
     console.log('Express is running on port: ' + sysPort);
 });
-
+}
 app.use('/auth', authRouter.Router);
 app.use('/prison', prisonRoutes.Router);
 app.use('/prisoner', PrisonerRoutes.Router);
@@ -45,3 +47,4 @@ app.use('/chat', ChatRoutes.Router);
 app.use('/chapter', ChapterRoutes.Router);
 app.use(ErrorService.handler);
 
+export default app

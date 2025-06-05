@@ -2,15 +2,15 @@
 import {readFileSync as read} from 'node:fs';
 import {join, dirname, normalize} from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Prisoners from '#models/prisoner.model.mjs';
+import Message from '#models/message.model.js';
 
 const filename = fileURLToPath(import.meta.url);
 
-export async function createPrisonerSeed() {
-    const count =  await Prisoners.countPrisoners();
+export async function createMessageSeed() {
+    const count =  await Message.countMessages();
     if (count === 0) {
-        const seedPath = normalize(join(dirname(filename), "prisonerSeed.json"));
+        const seedPath = normalize(join(dirname(filename), "messageSeed.json"));
         const {seeds} = JSON.parse(read(seedPath, {encoding: 'utf8', flag: 'r'}));
-        return await Prisoners.createBulkPrisoners(seeds);
+        return Message.createBulkMessages(seeds);
     }
 };

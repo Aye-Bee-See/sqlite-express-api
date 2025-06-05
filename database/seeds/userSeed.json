@@ -1,11 +1,10 @@
-
 {
-    "seeds": [
-        {
-            "username": "admin",
-            "password": "abcpassword",
-            "role": "admin",
-            "email": "admin@localhost"
-        }
-    ]
+	"seeds": [
+		{
+			"username": "admin",
+			"password": "abcpassword",
+			"role": "admin",
+			"email": "admin@localhost"
+		}
+	]
 }

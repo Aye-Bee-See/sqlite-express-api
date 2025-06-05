@@ -1,7 +1,7 @@
-import {Sequelize, Model} from 'sequelize';
-import * as Models from "#models/all.model.mjs";
+import {Sequelize } from 'sequelize';
+import * as Models from "#models/all.model.js";
 
-import {createSeeds} from './seeds/all.seeds.mjs';
+import {createSeeds} from './seeds/all.seeds.js';
 
 const config = {
     database: 'users_db',

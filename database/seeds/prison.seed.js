@@ -2,7 +2,7 @@
 import {readFileSync as read} from 'node:fs';
 import {join, dirname, normalize} from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Prison from '#models/prison.model.mjs';
+import Prison from '#models/prison.model.js';
 
 const filename = fileURLToPath(import.meta.url);
 

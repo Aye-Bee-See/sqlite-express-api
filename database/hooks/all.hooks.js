@@ -1,4 +1,4 @@
-import userHooks from '#hooks/user.hooks.mjs';
+import userHooks from '#hooks/user.hooks.js';
 import messageHooks from '#hooks/message.hooks.js';
 
 export default class Hooks{

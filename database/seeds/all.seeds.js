@@ -1,9 +1,9 @@
-import {createUserSeed} from  '#db/seeds/user.seed.mjs';
-import {createPrisonSeed} from  '#db/seeds/prison.seed.mjs';
-import {createPrisonerSeed} from  '#db/seeds/prisoner.seed.mjs';
-import {createRuleSeed} from  '#db/seeds/rule.seed.mjs';
-import {createChatSeed} from  '#db/seeds/chat.seed.mjs';
-import {createMessageSeed} from  '#db/seeds/message.seed.mjs';
+import {createUserSeed} from  '#db/seeds/user.seed.js';
+import {createPrisonSeed} from  '#db/seeds/prison.seed.js';
+import {createPrisonerSeed} from  '#db/seeds/prisoner.seed.js';
+import {createRuleSeed} from  '#db/seeds/rule.seed.js';
+import {createChatSeed} from  '#db/seeds/chat.seed.js';
+import {createMessageSeed} from  '#db/seeds/message.seed.js';
 import Utilities from '#services/Utilities.js';
 
 /*

@@ -1,11 +1,11 @@
 import express from 'express';
 import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
-import { prisonEnd } from '#routes/constants.js';
-import { default as prisonCrtlr } from '#rtControllers/prison.controller.js';
+import { ruleEnd } from '#routes/constants.js';
+import { default as ruleCrtlr } from '#rtControllers/rule.controller.js';
 import authService from '#rtServices/auth.services.js';
 
-class PrisonRoutes {
+class RuleRoutes {
 	static Router;
 	static #Controller;
 
@@ -24,7 +24,7 @@ class PrisonRoutes {
 		const JwtStrat = authService.authorize;
 		passport.use('UsrJStrat', JwtStrat);
 
-		this.#Controller = new prisonCrtlr();
+		this.#Controller = new ruleCrtlr();
 		this.Router = express.Router();
 
 		this.#router();
@@ -38,7 +38,7 @@ class PrisonRoutes {
 		// Create
 
 		this.Router.post(
-			prisonEnd.post.create,
+			ruleEnd.post.create,
 			passport.authenticate('UsrJStrat', {
 				session: false,
 				failWithError: true
@@ -49,7 +49,7 @@ class PrisonRoutes {
 		// Read
 
 		this.Router.get(
-			prisonEnd.get.many,
+			ruleEnd.get.many,
 			passport.authenticate('UsrJStrat', {
 				session: false,
 				failWithError: true
@@ -58,7 +58,7 @@ class PrisonRoutes {
 		);
 
 		this.Router.get(
-			prisonEnd.get.one,
+			ruleEnd.get.one,
 			passport.authenticate('UsrJStrat', {
 				session: false,
 				failWithError: true
@@ -69,27 +69,18 @@ class PrisonRoutes {
 		// Update
 
 		this.Router.put(
-			prisonEnd.put.update,
+			ruleEnd.put.update,
 			passport.authenticate('UsrJStrat', {
 				session: false,
 				failWithError: true
 			}),
 			this.#Controller.update
 		);
-		// Add Rule
-		this.Router.put(
-			prisonEnd.put.rule,
-			passport.authenticate('UsrJStrat', {
-				session: false,
-				failWithError: true
-			}),
-			this.#Controller.addRule
-		);
 
 		// Delete
 
 		this.Router.delete(
-			prisonEnd.delete.remove,
+			ruleEnd.delete.remove,
 			passport.authenticate('UsrJStrat', {
 				session: false,
 				failWithError: true
@@ -99,4 +90,4 @@ class PrisonRoutes {
 	}
 }
 
-export default PrisonRoutes;
+export default RuleRoutes;

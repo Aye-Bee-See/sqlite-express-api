@@ -1,12 +1,11 @@
-
 {
-  "seeds": [
-    {
-      "prisonName": "Test Prison",
-      "address": {
-          "street" : "123 Fake Street"
-      },
-      "deleted": false
-  }
-  ]
+	"seeds": [
+		{
+			"prisonName": "Test Prison",
+			"address": {
+				"street": "123 Fake Street"
+			},
+			"deleted": false
+		}
+	]
 }

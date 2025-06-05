@@ -1,8 +1,8 @@
 import { Model } from 'sequelize';
-import Schemas from '#schemas/all.schema.mjs';
-import Hooks from '#hooks/all.hooks.mjs';
-import Chat from '#models/chat.model.mjs';
-import Prison from '#models/prison.model.mjs';
+import Schemas from '#schemas/all.schema.js';
+import Hooks from '#hooks/all.hooks.js';
+import Chat from '#models/chat.model.js';
+import Prison from '#models/prison.model.js';
 
 
 export default class Prisoner extends Model {

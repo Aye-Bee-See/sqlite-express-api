@@ -1,96 +1,119 @@
 {
-    "name": "abc-4",
-    "version": "1.0.0",
-    "description": "",
-    "main": "index.js",
-    "type": "module",
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
-    "dependencies": {
-        "bcrypt": "^5.1.1",
-        "body-parser": "^1.20.2",
-        "cors": "^2.8.5",
-        "dotenv": "^16.4.5",
-        "express": "^5.0.1",
-        "jsonwebtoken": "^9.0.2",
-        "passport": "^0.7.0",
-        "passport-jwt": "^4.0.1",
-        "passport-local": "^1.0.0",
-        "sequelize": "^6.37.2",
-        "sqlite3": "^5.1.7"
-    },
-    "imports": {
-        "#/*": [
-            "./*",
-            "./*.js",
-            "./*.mjs",
-            "./*.cjs"
-        ],
-        "#db/*": [
-            "./database/*",
-            "./database/*.js",
-            "./database/*.mjs",
-            "./database/*.cjs"
-        ],
-        "#hooks/*": [
-            "./database/hooks/*",
-            "./database/hooks/*.js",
-            "./database/hooks/*.mjs",
-            "./database/hooks/*.cjs"
-        ],
-        "#models/*": [
-            "./database/models/*",
-            "./database/models/*.js",
-            "./database/models/*.mjs",
-            "./database/models/*.cjs"
-        ],
-        "#schemas/*": [
-            "./database/schemas/*",
-            "./database/schemas/*.js",
-            "./database/schemas/*.mjs",
-            "./database/schemas/*.cjs"
-        ],
-        "#seeds/*": [
-            "./database/seeds/*",
-            "./database/seeds/*.js",
-            "./database/seeds/*.mjs",
-            "./database/seeds/*.cjs"
-        ],
-        "#routes/*": [
-            "./routes/*",
-            "./routes/*.js",
-            "./routes/*.mjs",
-            "./routes/*.cjs"
-        ],
-        "#rtControllers/*": [
-            "./routes/controllers/*",
-            "./routes/controllers/*.js",
-            "./routes/controllers/*.mjs",
-            "./routes/controllers/*.cjs"
-        ],
-        "#rtServices/*": [
-            "./routes/services/*",
-            "./routes/services/*.js",
-            "./routes/services/*.mjs",
-            "./routes/services/*.cjs"
-        ],
-        "#services/*": [
-            "./services/*",
-            "./service/*.js",
-            "./services/*.mjs",
-            "./services/*.cjs"
-        ],
-        "#dbg/*": [
-            "./debug/*.mjs"
-        ],
-        "#constants": "./constants.js"
-    },
-    "devDependencies": {
-        "nodemon": "^3.1.0",
-        "quick-lint-js": "3.2.0"
-    }
+	"name": "abc-4",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"type": "module",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"lint": "eslint .",
+		"format": "prettier --write \"**/*.+(js|jsx|json|yml|yaml|css|md|vue)\""
+	},
+	"husky": {
+		"hooks": {
+			"pre-commit": "npm run lint && npm run format"
+		}
+	},
+	"lint-staged": {
+		"*.+(js|jsx)": "eslint --fix",
+		"*.+(json|css|md)": "prettier --write"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"bcrypt": "^5.1.1",
+		"body-parser": "^1.20.2",
+		"cors": "^2.8.5",
+		"dotenv": "^16.4.5",
+		"express": "^5.0.1",
+		"jsonwebtoken": "^9.0.2",
+		"passport": "^0.7.0",
+		"passport-jwt": "^4.0.1",
+		"passport-local": "^1.0.0",
+		"sequelize": "^6.37.2",
+		"sqlite3": "^5.1.7"
+	},
+	"imports": {
+		"#/*": [
+			"./*",
+			"./*.js",
+			"./*.mjs",
+			"./*.cjs"
+		],
+		"#db/*": [
+			"./database/*",
+			"./database/*.js",
+			"./database/*.mjs",
+			"./database/*.cjs"
+		],
+		"#hooks/*": [
+			"./database/hooks/*",
+			"./database/hooks/*.js",
+			"./database/hooks/*.mjs",
+			"./database/hooks/*.cjs"
+		],
+		"#models/*": [
+			"./database/models/*",
+			"./database/models/*.js",
+			"./database/models/*.mjs",
+			"./database/models/*.cjs"
+		],
+		"#schemas/*": [
+			"./database/schemas/*",
+			"./database/schemas/*.js",
+			"./database/schemas/*.mjs",
+			"./database/schemas/*.cjs"
+		],
+		"#seeds/*": [
+			"./database/seeds/*",
+			"./database/seeds/*.js",
+			"./database/seeds/*.mjs",
+			"./database/seeds/*.cjs"
+		],
+		"#routes/*": [
+			"./routes/*",
+			"./routes/*.js",
+			"./routes/*.mjs",
+			"./routes/*.cjs"
+		],
+		"#rtControllers/*": [
+			"./routes/controllers/*",
+			"./routes/controllers/*.js",
+			"./routes/controllers/*.mjs",
+			"./routes/controllers/*.cjs"
+		],
+		"#rtServices/*": [
+			"./routes/services/*",
+			"./routes/services/*.js",
+			"./routes/services/*.mjs",
+			"./routes/services/*.cjs"
+		],
+		"#services/*": [
+			"./services/*",
+			"./service/*.js",
+			"./services/*.mjs",
+			"./services/*.cjs"
+		],
+		"#dbg/*": [
+			"./debug/*.mjs"
+		],
+		"#constants": "./constants.js"
+	},
+	"devDependencies": {
+		"@eslint/compat": "^1.2.9",
+		"@eslint/css": "^0.8.1",
+		"@eslint/js": "^9.28.0",
+		"@eslint/json": "^0.12.0",
+		"@eslint/markdown": "^6.4.0",
+		"eslint": "^9.28.0",
+		"eslint-config-prettier": "^10.1.5",
+		"eslint-plugin-prettier": "^5.4.1",
+		"globals": "^16.2.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.1.0",
+		"nodemon": "^3.1.0",
+		"prettier": "^3.5.3",
+		"quick-lint-js": "3.2.0"
+	}
 }

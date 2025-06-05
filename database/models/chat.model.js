@@ -1,9 +1,9 @@
 import { Model } from 'sequelize';
-import Schemas from '#schemas/all.schema.mjs';
-import Hooks from '#hooks/all.hooks.mjs';
-import Message from '#models/message.model.mjs';
-import Prisoner from '#models/prisoner.model.mjs';
-import User from '#models/user.model.mjs';
+import Schemas from '#schemas/all.schema.js';
+import Hooks from '#hooks/all.hooks.js';
+import Message from '#models/message.model.js';
+import Prisoner from '#models/prisoner.model.js';
+import User from '#models/user.model.js';
 
 export default class Chat extends Model {
     static init(sequelize) {

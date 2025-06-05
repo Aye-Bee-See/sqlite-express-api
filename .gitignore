@@ -2,3 +2,5 @@
 database.sqlite
 jwt
 .env
+debug/*
+ABC/*

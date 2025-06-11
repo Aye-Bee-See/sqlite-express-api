@@ -2,14 +2,13 @@ import express from 'express';
 import passport from 'passport';
 import { default as bodyParser } from 'body-parser';
 import { sysPort } from '#constants';
-import { ErrorHandler as errorMiddleware } from './middleware/ErrorHandler.js';
 import { default as authRouter } from '#routes/user/user.js';
 import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
-import RuleRoutes from '#routes/rule/rule.mjs';
+import RuleRoutes from '#routes/rule/rule.js';
 import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
-import ChapterRoutes from '#routes/chapter/chapter.mjs';
+import ChapterRoutes from '#routes/chapter/chapter.js';
 import ErrorService from '#rtServices/error.services.js';
 import cors from 'cors';
 

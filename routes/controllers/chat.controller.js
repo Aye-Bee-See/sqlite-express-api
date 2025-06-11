@@ -1,4 +1,4 @@
-import Chat from '#models/chat.model.mjs';
+import Chat from '#models/chat.model.js';
 import { default as jwt } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { chatMsg } from '#routes/constants.js';
@@ -38,8 +38,8 @@ export default class ChatController extends RouteController {
 			const chats = await chatfunc;
 			this.#handleSuccess(res, chats);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err, condition);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar, condition);
 		}
 	}
 
@@ -88,8 +88,8 @@ export default class ChatController extends RouteController {
 			const chat = await chatfunc;
 			this.#handleSuccess(res, chat);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err, condition);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar, condition);
 		}
 	}
 
@@ -138,8 +138,8 @@ export default class ChatController extends RouteController {
 			const chat = await Chat.createChat({ user, prisoner });
 			this.#handleSuccess(res, chat);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -151,8 +151,8 @@ export default class ChatController extends RouteController {
 			const updatedRows = await Chat.updateChat(newChat);
 			this.#handleSuccess(res, { updatedRows, newChat });
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -163,8 +163,8 @@ export default class ChatController extends RouteController {
 			const deletedRows = await Chat.deleteChat(id);
 			this.#handleSuccess(res, deletedRows);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 }

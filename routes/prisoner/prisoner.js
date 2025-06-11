@@ -3,7 +3,7 @@ import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { prisonerEnd } from '#routes/constants.js';
 import { default as prisonerCrtlr } from '#rtControllers/prisoner.controller.js';
-import authService from '#rtServices/auth.services.mjs';
+import authService from '#rtServices/auth.services.js';
 
 class PrisonerRoutes {
 	static Router;

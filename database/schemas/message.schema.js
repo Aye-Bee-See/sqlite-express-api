@@ -1,5 +1,4 @@
 import { DataTypes } from 'sequelize';
-import { Chat, Prisoner } from '#models/all.model.mjs';
 
 const messageSchema = {
 	chat: {

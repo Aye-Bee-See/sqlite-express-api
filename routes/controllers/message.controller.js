@@ -1,4 +1,4 @@
-import Message from '#models/message.model.mjs';
+import Message from '#models/message.model.js';
 import { default as jwt } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { messageMsg } from '#routes/constants.js';

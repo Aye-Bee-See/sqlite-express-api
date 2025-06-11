@@ -1,11 +1,11 @@
 import express, { Router as router } from 'express';
 import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
-import { chatEnd } from '#routes/constants.js';
-import { default as chatCrtlr } from '#rtControllers/chat.controller.js';
+import { chapterEnd } from '#routes/constants.js';
+import * as chapterCtrlr from '#rtControllers/chapter.controller.js';
 import authService from '#rtServices/auth.services.js';
 
-class ChatRoutes {
+class ChapterRoutes {
 	static Router;
 	static #Controller;
 
@@ -21,24 +21,19 @@ class ChatRoutes {
 		app.use(bodyParser.urlencoded({ extended: true }));
 		app.use(passport.initialize());
 
-		const UserJWTStrat = authService.authorize;
-		passport.use('UsrJStrat', UserJWTStrat);
+		const JwtStrat = authService.authorize;
+		passport.use('UsrJStrat', JwtStrat);
 
-		this.#Controller = new chatCrtlr();
+		this.#Controller = new chapterCtrlr.default();
 		this.Router = express.Router();
 
 		this.#router();
 	}
-	/***
-	 *
-	 *   Handle router params
-	 *
-	 ***/
 	static #router() {
 		// Create
 
 		this.Router.post(
-			chatEnd.post.create,
+			chapterEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.create
 		);
@@ -46,12 +41,13 @@ class ChatRoutes {
 		// Read
 
 		this.Router.get(
-			chatEnd.get.many,
+			chapterEnd.get.many,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.getMany
 		);
+
 		this.Router.get(
-			chatEnd.get.one,
+			chapterEnd.get.one,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.getOne
 		);
@@ -59,7 +55,7 @@ class ChatRoutes {
 		// Update
 
 		this.Router.put(
-			chatEnd.put.update,
+			chapterEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.update
 		);
@@ -67,11 +63,11 @@ class ChatRoutes {
 		// Delete
 
 		this.Router.delete(
-			chatEnd.delete.remove,
+			chapterEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.remove
 		);
 	}
 }
 
-export default ChatRoutes;
+export default ChapterRoutes;

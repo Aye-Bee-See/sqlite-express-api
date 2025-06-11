@@ -3,7 +3,7 @@ import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { messageEnd } from '#routes/constants.js';
 import { default as messageCrtlr } from '#rtControllers/message.controller.js';
-import authService from '#rtServices/auth.services.mjs';
+import authService from '#rtServices/auth.services.js';
 
 class MessageRoutes {
 	static Router;

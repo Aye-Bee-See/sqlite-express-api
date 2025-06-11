@@ -2,8 +2,8 @@ import express, { Router as router } from 'express';
 import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { userEnd } from '#routes/constants.js';
-import { default as userCrtlr } from '#rtControllers/user.controller.mjs';
-import authService from '#rtServices/auth.services.mjs';
+import { default as userCrtlr } from '#rtControllers/user.controller.js';
+import authService from '#rtServices/auth.services.js';
 
 class UserRoutes {
 	static Router;

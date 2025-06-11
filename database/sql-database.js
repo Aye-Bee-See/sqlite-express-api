@@ -1,14 +1,14 @@
-import {Sequelize, Model} from 'sequelize';
-import * as Models from "#models/all.model.mjs";
+import { Sequelize, Model } from 'sequelize';
+import * as Models from '#models/all.model.js';
 
-import {createSeeds} from './seeds/all.seeds.mjs';
+import { createSeeds } from './seeds/all.seeds.js';
 
 const config = {
-    database: 'users_db',
-    username: 'root',
-    password: '',
-    dialect: 'sqlite',
-    storage: 'database.sqlite'
+	database: 'users_db',
+	username: 'root',
+	password: '',
+	dialect: 'sqlite',
+	storage: 'database.sqlite'
 };
 
 export const sequelize = new Sequelize(config);
@@ -29,6 +29,6 @@ Chat.associate(Models);
 Rule.associate(Models);
 Chapter.associate(Models);
 
-sequelize.sync({force: true}).then(async() => {
-    return await createSeeds();
+sequelize.sync({ force: true }).then(async () => {
+	return await createSeeds();
 });

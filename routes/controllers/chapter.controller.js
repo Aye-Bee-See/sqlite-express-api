@@ -1,5 +1,5 @@
 import RouteController from '#rtControllers/route.controller.js';
-import Chapter from '#models/chapter.model.mjs';
+import Chapter from '#models/chapter.model.js';
 
 export default class chapterController extends RouteController {
 	constructor() {
@@ -27,10 +27,10 @@ export default class chapterController extends RouteController {
 		try {
 			const chapter = await Chapter.createChapter({ name, location });
 			this.#handleSuccess(res, chapter);
-		} catch {
+		} catch (err) {
 			//TODO: this is used multiple times, can it be extracted?
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -40,8 +40,8 @@ export default class chapterController extends RouteController {
 			const chapter = await Chapter.getChapterByID(id);
 			this.#handleSuccess(res, chapter);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -50,8 +50,8 @@ export default class chapterController extends RouteController {
 			const chapters = await Chapter.getAllChapters();
 			this.#handleSuccess(res, chapters);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -61,8 +61,8 @@ export default class chapterController extends RouteController {
 			const updatedRows = await Chapter.updateChapter(newChapter);
 			this.#handleSuccess(res, { updatedRows, newChapter });
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -72,8 +72,8 @@ export default class chapterController extends RouteController {
 			const deletedRows = await Chapter.deleteChapter(id);
 			this.#handleSuccess(res, deletedRows);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 }

@@ -1,4 +1,4 @@
-import Rule from '#models/rule.model.mjs';
+import Rule from '#models/rule.model.js';
 import { default as jwt } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { ruleMsg } from '#routes/constants.js';

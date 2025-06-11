@@ -1,11 +1,11 @@
 import express, { Router as router } from 'express';
 import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
-import { chatEnd } from '#routes/constants.js';
-import { default as chatCrtlr } from '#rtControllers/chat.controller.js';
+import { ruleEnd } from '#routes/constants.js';
+import { default as ruleCrtlr } from '#rtControllers/rule.controller.js';
 import authService from '#rtServices/auth.services.js';
 
-class ChatRoutes {
+class RuleRoutes {
 	static Router;
 	static #Controller;
 
@@ -21,10 +21,10 @@ class ChatRoutes {
 		app.use(bodyParser.urlencoded({ extended: true }));
 		app.use(passport.initialize());
 
-		const UserJWTStrat = authService.authorize;
-		passport.use('UsrJStrat', UserJWTStrat);
+		const JwtStrat = authService.authorize;
+		passport.use('UsrJStrat', JwtStrat);
 
-		this.#Controller = new chatCrtlr();
+		this.#Controller = new ruleCrtlr();
 		this.Router = express.Router();
 
 		this.#router();
@@ -38,7 +38,7 @@ class ChatRoutes {
 		// Create
 
 		this.Router.post(
-			chatEnd.post.create,
+			ruleEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.create
 		);
@@ -46,12 +46,13 @@ class ChatRoutes {
 		// Read
 
 		this.Router.get(
-			chatEnd.get.many,
+			ruleEnd.get.many,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.getMany
 		);
+
 		this.Router.get(
-			chatEnd.get.one,
+			ruleEnd.get.one,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.getOne
 		);
@@ -59,7 +60,7 @@ class ChatRoutes {
 		// Update
 
 		this.Router.put(
-			chatEnd.put.update,
+			ruleEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.update
 		);
@@ -67,11 +68,11 @@ class ChatRoutes {
 		// Delete
 
 		this.Router.delete(
-			chatEnd.delete.remove,
+			ruleEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.remove
 		);
 	}
 }
 
-export default ChatRoutes;
+export default RuleRoutes;

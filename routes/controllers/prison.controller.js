@@ -1,4 +1,4 @@
-import Prison from '#models/prison.model.mjs';
+import Prison from '#models/prison.model.js';
 import { default as jwt } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { prisonMsg } from '#routes/constants.js';

@@ -1,180 +1,180 @@
 {
-  "seeds": [
-    {
-      "title": "No pictures",
-      "description": "Letters must be text only, no photographs"
-    },
-    {
-      "title": "No contraband",
-      "description": "No illegal items allowed"
-    },
-    {
-      "title": "Visiting hours",
-      "description": "Visits are allowed only during visiting hours"
-    },
-    {
-      "title": "No loud noises",
-      "description": "Keep noise levels down at all times"
-    },
-    {
-      "title": "No smoking",
-      "description": "Smoking is prohibited"
-    },
-    {
-      "title": "No pets",
-      "description": "Pets are not allowed"
-    },
-    {
-      "title": "No alcohol",
-      "description": "Alcohol is not allowed"
-    },
-    {
-      "title": "No drugs",
-      "description": "Drugs are not allowed"
-    },
-    {
-      "title": "No weapons",
-      "description": "Weapons are not allowed"
-    },
-    {
-      "title": "No gambling",
-      "description": "Gambling is not allowed"
-    },
-    {
-      "title": "No fighting",
-      "description": "Fighting is not allowed"
-    },
-    {
-      "title": "No littering",
-      "description": "Littering is not allowed"
-    },
-    {
-      "title": "No graffiti",
-      "description": "Graffiti is not allowed"
-    },
-    {
-      "title": "No loitering",
-      "description": "Loitering is not allowed"
-    },
-    {
-      "title": "No trespassing",
-      "description": "Trespassing is not allowed"
-    },
-    {
-      "title": "No solicitation",
-      "description": "Solicitation is not allowed"
-    },
-    {
-      "title": "No harassment",
-      "description": "Harassment is not allowed"
-    },
-    {
-      "title": "No discrimination",
-      "description": "Discrimination is not allowed"
-    },
-    {
-      "title": "No bullying",
-      "description": "Bullying is not allowed"
-    },
-    {
-      "title": "No vandalism",
-      "description": "Vandalism is not allowed"
-    },
-    {
-      "title": "No spitting",
-      "description": "Spitting is not allowed"
-    },
-    {
-      "title": "No profanity",
-      "description": "Profanity is not allowed"
-    },
-    {
-      "title": "No nudity",
-      "description": "Nudity is not allowed"
-    },
-    {
-      "title": "No public displays of affection",
-      "description": "Public displays of affection are not allowed"
-    },
-    {
-      "title": "No running",
-      "description": "Running is not allowed"
-    },
-    {
-      "title": "No skateboarding",
-      "description": "Skateboarding is not allowed"
-    },
-    {
-      "title": "No rollerblading",
-      "description": "Rollerblading is not allowed"
-    },
-    {
-      "title": "No bicycling",
-      "description": "Bicycling is not allowed"
-    },
-    {
-      "title": "No scooters",
-      "description": "Scooters are not allowed"
-    },
-    {
-      "title": "No hoverboards",
-      "description": "Hoverboards are not allowed"
-    },
-    {
-      "title": "No drones",
-      "description": "Drones are not allowed"
-    },
-    {
-      "title": "No fireworks",
-      "description": "Fireworks are not allowed"
-    },
-    {
-      "title": "No camping",
-      "description": "Camping is not allowed"
-    },
-    {
-      "title": "No fishing",
-      "description": "Fishing is not allowed"
-    },
-    {
-      "title": "No hunting",
-      "description": "Hunting is not allowed"
-    },
-    {
-      "title": "No swimming",
-      "description": "Swimming is not allowed"
-    },
-    {
-      "title": "No diving",
-      "description": "Diving is not allowed"
-    },
-    {
-      "title": "No climbing",
-      "description": "Climbing is not allowed"
-    },
-    {
-      "title": "No picnicking",
-      "description": "Picnicking is not allowed"
-    },
-    {
-      "title": "No loud music",
-      "description": "Playing loud music is not allowed"
-    },
-    {
-      "title": "No flash photography",
-      "description": "Flash photography is not allowed"
-    },
-    {
-      "title": "No unauthorized entry",
-      "description": "Unauthorized entry is not allowed"
-    },
-    {
-      "title": "No tampering with equipment",
-      "description": "Tampering with equipment is not allowed"
-    },
-    {
-      "title": "No misuse of resources",
-      "description": "Misuse of resources is not allowed"
-    }
-  ]
+	"seeds": [
+		{
+			"title": "No pictures",
+			"description": "Letters must be text only, no photographs"
+		},
+		{
+			"title": "No contraband",
+			"description": "No illegal items allowed"
+		},
+		{
+			"title": "Visiting hours",
+			"description": "Visits are allowed only during visiting hours"
+		},
+		{
+			"title": "No loud noises",
+			"description": "Keep noise levels down at all times"
+		},
+		{
+			"title": "No smoking",
+			"description": "Smoking is prohibited"
+		},
+		{
+			"title": "No pets",
+			"description": "Pets are not allowed"
+		},
+		{
+			"title": "No alcohol",
+			"description": "Alcohol is not allowed"
+		},
+		{
+			"title": "No drugs",
+			"description": "Drugs are not allowed"
+		},
+		{
+			"title": "No weapons",
+			"description": "Weapons are not allowed"
+		},
+		{
+			"title": "No gambling",
+			"description": "Gambling is not allowed"
+		},
+		{
+			"title": "No fighting",
+			"description": "Fighting is not allowed"
+		},
+		{
+			"title": "No littering",
+			"description": "Littering is not allowed"
+		},
+		{
+			"title": "No graffiti",
+			"description": "Graffiti is not allowed"
+		},
+		{
+			"title": "No loitering",
+			"description": "Loitering is not allowed"
+		},
+		{
+			"title": "No trespassing",
+			"description": "Trespassing is not allowed"
+		},
+		{
+			"title": "No solicitation",
+			"description": "Solicitation is not allowed"
+		},
+		{
+			"title": "No harassment",
+			"description": "Harassment is not allowed"
+		},
+		{
+			"title": "No discrimination",
+			"description": "Discrimination is not allowed"
+		},
+		{
+			"title": "No bullying",
+			"description": "Bullying is not allowed"
+		},
+		{
+			"title": "No vandalism",
+			"description": "Vandalism is not allowed"
+		},
+		{
+			"title": "No spitting",
+			"description": "Spitting is not allowed"
+		},
+		{
+			"title": "No profanity",
+			"description": "Profanity is not allowed"
+		},
+		{
+			"title": "No nudity",
+			"description": "Nudity is not allowed"
+		},
+		{
+			"title": "No public displays of affection",
+			"description": "Public displays of affection are not allowed"
+		},
+		{
+			"title": "No running",
+			"description": "Running is not allowed"
+		},
+		{
+			"title": "No skateboarding",
+			"description": "Skateboarding is not allowed"
+		},
+		{
+			"title": "No rollerblading",
+			"description": "Rollerblading is not allowed"
+		},
+		{
+			"title": "No bicycling",
+			"description": "Bicycling is not allowed"
+		},
+		{
+			"title": "No scooters",
+			"description": "Scooters are not allowed"
+		},
+		{
+			"title": "No hoverboards",
+			"description": "Hoverboards are not allowed"
+		},
+		{
+			"title": "No drones",
+			"description": "Drones are not allowed"
+		},
+		{
+			"title": "No fireworks",
+			"description": "Fireworks are not allowed"
+		},
+		{
+			"title": "No camping",
+			"description": "Camping is not allowed"
+		},
+		{
+			"title": "No fishing",
+			"description": "Fishing is not allowed"
+		},
+		{
+			"title": "No hunting",
+			"description": "Hunting is not allowed"
+		},
+		{
+			"title": "No swimming",
+			"description": "Swimming is not allowed"
+		},
+		{
+			"title": "No diving",
+			"description": "Diving is not allowed"
+		},
+		{
+			"title": "No climbing",
+			"description": "Climbing is not allowed"
+		},
+		{
+			"title": "No picnicking",
+			"description": "Picnicking is not allowed"
+		},
+		{
+			"title": "No loud music",
+			"description": "Playing loud music is not allowed"
+		},
+		{
+			"title": "No flash photography",
+			"description": "Flash photography is not allowed"
+		},
+		{
+			"title": "No unauthorized entry",
+			"description": "Unauthorized entry is not allowed"
+		},
+		{
+			"title": "No tampering with equipment",
+			"description": "Tampering with equipment is not allowed"
+		},
+		{
+			"title": "No misuse of resources",
+			"description": "Misuse of resources is not allowed"
+		}
+	]
 }

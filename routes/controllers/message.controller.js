@@ -1,8 +1,7 @@
 import Message from '#models/message.model.js';
-import { default as jwt } from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
-import { messageMsg } from '#routes/constants.js';
-import { default as Utls } from '#services/Utilities.js';
+//import { default as jwt } from 'jsonwebtoken';
+//import bcrypt from 'bcrypt';
+//import { messageMsg } from '#routes/constants.js';
 import RouteController from '#rtControllers/route.controller.js';
 
 export default class MessageController extends RouteController {
@@ -28,11 +27,10 @@ export default class MessageController extends RouteController {
 	#handleErr;
 	#handleLimits;
 
-	async getMany(req, res, next) {
-		const { id, chat, prisoner, user, full, page, page_size } = req.query;
+	async getMany(req, res) {
+		const { id, chat, prisoner, user, page, page_size } = req.query;
 
 		const { limit, offset } = this.#handleLimits(page, page_size);
-		const fullBool = full === 'true';
 
 		//const {id, chat, prisoner, user} = req.query;
 
@@ -62,8 +60,8 @@ export default class MessageController extends RouteController {
 					console.groupEnd();
 					this.#handleSuccess(res, messages);
 				} catch (err) {
-					err = !(err instanceof Error) ? new Error(err) : err;
-					this.#handleErr(res, err);
+					const errorVar = !(err instanceof Error) ? new Error(err) : err;
+					this.#handleErr(res, errorVar);
 				}
 				break;
 			}
@@ -81,8 +79,8 @@ export default class MessageController extends RouteController {
 			const messages = await Message.readMessageById(id, fullBool, limit, offset);
 			this.#handleSuccess(res, messages);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 	async getMessagesByChat(req, res) {
@@ -95,8 +93,8 @@ export default class MessageController extends RouteController {
 			const messages = await Message.readMessagesByChat(chat, fullBool, limit, offset);
 			this.#handleSuccess(res, messages);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -111,8 +109,8 @@ export default class MessageController extends RouteController {
 			const messages = await Message.readMessagesByPrisoner(prisoner, fullBool, limit, offset);
 			this.#handleSuccess(res, messages);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -127,8 +125,8 @@ export default class MessageController extends RouteController {
 			const messages = await Message.readMessagesByUser(user, fullBool, limit, offset);
 			this.#handleSuccess(res, messages);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -141,8 +139,8 @@ export default class MessageController extends RouteController {
 			const message = await Message.getMessageByID(id, fullBool);
 			this.#handleSuccess(res, message);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -154,8 +152,8 @@ export default class MessageController extends RouteController {
 			this.#handleSuccess(res, message);
 			// res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -167,8 +165,8 @@ export default class MessageController extends RouteController {
 			const updatedRows = await Message.updateMessage(newMessage);
 			this.#handleSuccess(res, { updatedRows, newMessage });
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -179,8 +177,8 @@ export default class MessageController extends RouteController {
 			const deletedRows = await Message.deleteMessage(id);
 			this.#handleSuccess(res, deletedRows);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 }

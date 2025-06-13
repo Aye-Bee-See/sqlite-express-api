@@ -1,7 +1,7 @@
 import User from '#models/user.model.js';
-import { default as jwt } from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
-import { secretOrKey } from '#constants';
+//import { default as jwt } from 'jsonwebtoken';
+//import bcrypt from 'bcrypt';
+//import { secretOrKey } from '#constants';
 import RouteController from '#rtControllers/route.controller.js';
 
 export default class UserController extends RouteController {
@@ -45,38 +45,9 @@ export default class UserController extends RouteController {
 		}
 	}
 
-	/*
-	 * Todo:
-	 *
-	 * Needs to handle for email login
-	 */
-	async #handleLogin(res, userProps) {
-		const { username, email, password } = userProps;
-		let errorVar;
-		try {
-			const user = await User.getUser({ username });
-			const match = await bcrypt.compare(password, user.password);
-			if (match) {
-				const now = Date.now();
-				const weekInMilliseconds = 6.048e8;
-				const expiryDateMs = now + weekInMilliseconds;
-
-				let payload = { id: user.id, expiry: expiryDateMs };
-				let token = jwt.sign(payload, secretOrKey, { expiresIn: '1w' });
-				this.#handleSuccess(res, { token, expires: expiryDateMs });
-			} else {
-				errorVar = new Error();
-				this.#handleErr(res, errorVar);
-			}
-		} catch (err) {
-			errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
-		}
-	}
-
 	#stripUsersListPasswords(usersList) {
 		let pwStrippedList = [];
-		Object.entries(usersList).forEach(([key, value]) => {
+		Object.entries(usersList).forEach((value) => {
 			pwStrippedList.push(this.#stripPassword(value));
 		});
 		return pwStrippedList;
@@ -109,7 +80,7 @@ export default class UserController extends RouteController {
 	/***
 	 * TODO:  Needs error trapping for no existing chats
 	 */
-	async getMany(req, res, next) {
+	async getMany(req, res) {
 		let errorVar;
 		const { role, full, page, page_size } = req.query;
 		const { limit, offset } = this.#handleLimits(page, page_size);
@@ -182,13 +153,13 @@ export default class UserController extends RouteController {
 				}
 				break;
 			default:
-				const err = new Error();
+				errorVar = new Error();
 				this.#handleErr(res, errorVar, type);
 				break;
 		}
 	}
 
-	async create(req, res, next) {
+	async create(req, res) {
 		const { username, email, password, name, bio } = req.body;
 		const role = req.body.role.toLowerCase();
 		try {
@@ -226,7 +197,7 @@ export default class UserController extends RouteController {
 	}
 
 	// login route
-	async login(req, res, next) {
+	async login(req, res) {
 		if (req.isAuthenticated()) {
 			const token = req.authInfo.token;
 			const user = this.#stripPassword(req.user);

@@ -45,7 +45,7 @@ export default class chapterController extends RouteController {
 		}
 	}
 
-	async getMany(req, res, next) {
+	async getMany(req, res) {
 		try {
 			const chapters = await Chapter.getAllChapters();
 			this.#handleSuccess(res, chapters);

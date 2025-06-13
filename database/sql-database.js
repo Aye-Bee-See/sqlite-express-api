@@ -1,4 +1,4 @@
-import { Sequelize, Model } from 'sequelize';
+import { Sequelize } from 'sequelize';
 import * as Models from '#models/all.model.js';
 
 import { createSeeds } from './seeds/all.seeds.js';

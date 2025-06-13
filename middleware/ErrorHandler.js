@@ -1,4 +1,4 @@
-export const ErrorHandler = (err, req, res, next) => {
+export const ErrorHandler = (err, req, res) => {
 	console.log('Custom error middleware');
 	const errStatus = err.statusCode || 500;
 	const errMsg = err.message || 'Something went wrong';

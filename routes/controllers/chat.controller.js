@@ -1,7 +1,7 @@
 import Chat from '#models/chat.model.js';
-import { default as jwt } from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
-import { chatMsg } from '#routes/constants.js';
+//import { default as jwt } from 'jsonwebtoken';
+//import bcrypt from 'bcrypt';
+//import { chatMsg } from '#routes/constants.js';
 import { default as Utls } from '#services/Utilities.js';
 import RouteController from '#rtControllers/route.controller.js';
 //import Logger from "#dbg/Logger"
@@ -31,7 +31,7 @@ export default class ChatController extends RouteController {
 	/***
 	 * TODO:  Needs error trapping for no existing chats
 	 */
-	async getMany(req, res, next) {
+	async getMany(req, res) {
 		const { chatfunc, condition } = this.#handleGetMany(req);
 
 		try {

@@ -1,4 +1,4 @@
-import express, { Router as router } from 'express';
+import express from 'express';
 import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { messageEnd } from '#routes/constants.js';

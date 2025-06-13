@@ -1,8 +1,8 @@
 import Prisoner from '#models/prisoner.model.js';
-import { default as jwt } from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
-import { prisonerMsg } from '#routes/constants.js';
-import { default as Utls } from '#services/Utilities.js';
+//import { default as jwt } from 'jsonwebtoken';
+//import bcrypt from 'bcrypt';
+//import { prisonerMsg } from '#routes/constants.js';
+//import { default as Utls } from '#services/Utilities.js';
 import RouteController from '#rtControllers/route.controller.js';
 
 export default class PrisonerController extends RouteController {
@@ -28,7 +28,7 @@ export default class PrisonerController extends RouteController {
 	#handleErr;
 	#handleLimits;
 
-	async getMany(req, res, next) {
+	async getMany(req, res) {
 		const { prison, full, page, page_size } = req.query;
 		const { limit, offset } = this.#handleLimits(page, page_size);
 		const fullBool = full === 'true';
@@ -41,8 +41,8 @@ export default class PrisonerController extends RouteController {
 				const rules = await Prisoner.getAllPrisoners(fullBool, limit, offset);
 				this.#handleSuccess(res, rules);
 			} catch (err) {
-				err = !(err instanceof Error) ? new Error(err) : err;
-				this.#handleErr(res, err);
+				const errorVar = !(err instanceof Error) ? new Error(err) : err;
+				this.#handleErr(res, errorVar);
 			}
 		}
 	}
@@ -57,8 +57,8 @@ export default class PrisonerController extends RouteController {
 			const prisoner = await Prisoner.getPrisonersByPrison(fullBool, prison, limit, offset);
 			this.#handleSuccess(res, prisoner);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -71,8 +71,8 @@ export default class PrisonerController extends RouteController {
 			const prisoner = await Prisoner.getPrisonerByID(id, fullBool);
 			this.#handleSuccess(res, prisoner);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 	// Create
@@ -91,8 +91,8 @@ export default class PrisonerController extends RouteController {
 			this.#handleSuccess(res, prisoner);
 			// res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -104,8 +104,8 @@ export default class PrisonerController extends RouteController {
 			const updatedRows = await Prisoner.updatePrisoner(newPrisoner);
 			this.#handleSuccess(res, { updatedRows, newPrisoner });
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 
@@ -116,8 +116,8 @@ export default class PrisonerController extends RouteController {
 			const deletedRows = await Prisoner.deletePrisoner(id);
 			this.#handleSuccess(res, deletedRows);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, err);
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 }

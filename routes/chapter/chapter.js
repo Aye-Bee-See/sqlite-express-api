@@ -1,4 +1,4 @@
-import express, { Router as router } from 'express';
+import express from 'express';
 import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { chapterEnd } from '#routes/constants.js';
@@ -10,7 +10,7 @@ class ChapterRoutes {
 	static #Controller;
 
 	/************************************************************
-	 *                                                          *
+	 *                                                                                                                    *
 	 *                  STATIC INIT BLOCK                       *
 	 *                                                          *
 	 *   Initialize all necessary parts of the class            *

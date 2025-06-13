@@ -2,7 +2,7 @@ import express, { Router as router } from 'express';
 import * as bodyParser from 'body-parser';
 import * as passport from 'passport';
 
-import authService from '#rtServices/auth.services.js';
+//import authService from '#rtServices/auth.services.js';
 
 const app = express();
 

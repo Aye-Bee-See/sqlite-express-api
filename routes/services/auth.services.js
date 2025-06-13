@@ -35,8 +35,8 @@ export default class authService {
 			}
 			return done(null, false);
 		} catch (err) {
-			err = !(err instanceof Error) ? new Error(err) : err;
-			return done(err);
+			const errVar = !(err instanceof Error) ? new Error(err) : err;
+			return done(errVar);
 		}
 	}
 

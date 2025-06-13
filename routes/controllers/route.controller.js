@@ -1,5 +1,5 @@
 import LoudError from '#services/LoudError.js';
-import Utilities from '#services/Utilities.js';
+//import Utilities from '#services/Utilities.js';
 
 import { messages as msgConstants } from '#routes/constants.js';
 /**
@@ -39,7 +39,7 @@ export default class RouteController {
 		const offset = list_start * limit;
 		return { limit, offset };
 	}
-	#formatMessagesList(messagesList) {
+	/*	#formatMessagesList(messagesList) {
 		let formattedList = {};
 
 		for (let i = 0; i < messagesList.length; i++) {
@@ -49,12 +49,12 @@ export default class RouteController {
 		}
 		return formattedList;
 	}
-
+*/
 	#findStack(res) {
 		let stack;
 		res.req.route.stack.forEach((layer) => {
 			const fname = layer.name.substr(6);
-			if (this.hasOwnProperty(fname)) {
+			if (this.hasOwn(fname)) {
 				stack = layer;
 			}
 		});

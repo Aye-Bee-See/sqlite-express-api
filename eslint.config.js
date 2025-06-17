@@ -5,6 +5,7 @@ import markdown from '@eslint/markdown';
 import css from '@eslint/css';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import jsdoc from 'eslint-plugin-jsdoc';
 import { includeIgnoreFile } from '@eslint/compat';
 import { fileURLToPath } from 'node:url';
 
@@ -48,6 +49,10 @@ export default defineConfig([
 		plugins: { css },
 		language: 'css/css',
 		extends: ['css/recommended']
+	},
+	{
+		files: ['**/*.js'],
+		plugins: { jsdoc }
 	},
 	{
 		files: ['**/*.{js,json,md}'],

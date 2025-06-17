@@ -10,6 +10,7 @@ import { includeIgnoreFile } from '@eslint/compat';
 import { fileURLToPath } from 'node:url';
 
 const gitignorePath = fileURLToPath(new URL('.gitignore', import.meta.url));
+const esLintJSDocRecommended = esLintJSDoc.configs.recommended;
 export default defineConfig([
 	includeIgnoreFile(gitignorePath),
 	globalIgnores(['package*json']),
@@ -52,8 +53,8 @@ export default defineConfig([
 	},
 	{
 		files: ['**/*.js'],
-		plugins: { jsdoc: esLintJSDoc }
-		//extends: ["plugin:jsdoc/recommended"]
+		plugins: { esLintJSDocRecommended }
+		//extends: [jsdoc.configs.recommended]
 	},
 	{
 		files: ['**/*.{js,json,md}'],

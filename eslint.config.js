@@ -52,7 +52,8 @@ export default defineConfig([
 	},
 	{
 		files: ['**/*.js'],
-		plugins: { jsdoc }
+		plugins: { jsdoc: jsdoc }
+		//    extends: ['plugin: jsdoc/recommended']
 	},
 	{
 		files: ['**/*.{js,json,md}'],

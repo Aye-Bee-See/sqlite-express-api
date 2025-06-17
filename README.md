@@ -1,6 +1,7 @@
 # Aye Bee See
 
 ## Routes
+
 Message
 Prison
 Prisoner
@@ -8,6 +9,7 @@ Rule
 User
 
 ### User Model
+
 localhost:3000/auth
 
 Create:
@@ -15,7 +17,7 @@ POST /register-admin - Registers a user with a role of Admin
 
 Read:
 GET /users - Read all users
-GET /user - Read individual user by ID.  ID should be in request body as "id".
+GET /user - Read individual user by ID. ID should be in request body as "id".
 
 Login:
 POST /login - Logs in as user
@@ -23,9 +25,6 @@ body variables:
 "name", "password"
 
 ### Prison Model
-
-
-
 
 Variables:
 id - Int - Auto-created - Autoincrementing
@@ -36,13 +35,14 @@ email - String
 createdAt - Date - Automatically set
 updatedAt - Date - Automatically set
 
-
 ## TODOS
 
 ### Breaking
+
 Currently a prison can only have one prisoner
 
 ### Non-breaking
+
 When creating server create admin user
 Make IDs UUID instead of incrementing variables
 Don't show hashed password in response to create user

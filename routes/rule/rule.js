@@ -1,11 +1,11 @@
 import express from 'express';
 import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
-import { messageEnd } from '#routes/constants.js';
-import { default as messageCrtlr } from '#rtControllers/message.controller.js';
+import { ruleEnd } from '#routes/constants.js';
+import { default as ruleCrtlr } from '#rtControllers/rule.controller.js';
 import authService from '#rtServices/auth.services.js';
 
-class MessageRoutes {
+class RuleRoutes {
 	static Router;
 	static #Controller;
 
@@ -24,7 +24,7 @@ class MessageRoutes {
 		const JwtStrat = authService.authorize;
 		passport.use('UsrJStrat', JwtStrat);
 
-		this.#Controller = new messageCrtlr();
+		this.#Controller = new ruleCrtlr();
 		this.Router = express.Router();
 
 		this.#router();
@@ -38,28 +38,21 @@ class MessageRoutes {
 		// Create
 
 		this.Router.post(
-			messageEnd.post.create,
+			ruleEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.create
 		);
 
-		/********************************************************************************
-		 * NOTE:
-		 *      Authorization for edit/read/update may
-		 *      require user specific authority
-		 *      (e.g. userA should not be able to
-		 *      delete, edit or read userB's messages)
-		 ********************************************************************************/
-
 		// Read
 
 		this.Router.get(
-			messageEnd.get.many,
+			ruleEnd.get.many,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.getMany
 		);
+
 		this.Router.get(
-			messageEnd.get.one,
+			ruleEnd.get.one,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.getOne
 		);
@@ -67,17 +60,19 @@ class MessageRoutes {
 		// Update
 
 		this.Router.put(
-			messageEnd.put.update,
+			ruleEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.update
 		);
+
 		// Delete
+
 		this.Router.delete(
-			messageEnd.delete.remove,
+			ruleEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.remove
 		);
 	}
 }
 
-export default MessageRoutes;
+export default RuleRoutes;

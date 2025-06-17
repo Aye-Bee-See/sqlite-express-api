@@ -1,16 +1,16 @@
 import express from 'express';
 import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
-import { messageEnd } from '#routes/constants.js';
-import { default as messageCrtlr } from '#rtControllers/message.controller.js';
+import { chapterEnd } from '#routes/constants.js';
+import * as chapterCtrlr from '#rtControllers/chapter.controller.js';
 import authService from '#rtServices/auth.services.js';
 
-class MessageRoutes {
+class ChapterRoutes {
 	static Router;
 	static #Controller;
 
 	/************************************************************
-	 *                                                          *
+	 *                                                                                                                    *
 	 *                  STATIC INIT BLOCK                       *
 	 *                                                          *
 	 *   Initialize all necessary parts of the class            *
@@ -24,42 +24,30 @@ class MessageRoutes {
 		const JwtStrat = authService.authorize;
 		passport.use('UsrJStrat', JwtStrat);
 
-		this.#Controller = new messageCrtlr();
+		this.#Controller = new chapterCtrlr.default();
 		this.Router = express.Router();
 
 		this.#router();
 	}
-	/***
-	 *
-	 *   Handle router params
-	 *
-	 ***/
 	static #router() {
 		// Create
 
 		this.Router.post(
-			messageEnd.post.create,
+			chapterEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.create
 		);
 
-		/********************************************************************************
-		 * NOTE:
-		 *      Authorization for edit/read/update may
-		 *      require user specific authority
-		 *      (e.g. userA should not be able to
-		 *      delete, edit or read userB's messages)
-		 ********************************************************************************/
-
 		// Read
 
 		this.Router.get(
-			messageEnd.get.many,
+			chapterEnd.get.many,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.getMany
 		);
+
 		this.Router.get(
-			messageEnd.get.one,
+			chapterEnd.get.one,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.getOne
 		);
@@ -67,17 +55,19 @@ class MessageRoutes {
 		// Update
 
 		this.Router.put(
-			messageEnd.put.update,
+			chapterEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.update
 		);
+
 		// Delete
+
 		this.Router.delete(
-			messageEnd.delete.remove,
+			chapterEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.remove
 		);
 	}
 }
 
-export default MessageRoutes;
+export default ChapterRoutes;

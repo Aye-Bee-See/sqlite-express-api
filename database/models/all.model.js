@@ -1,11 +1,10 @@
-import Chat from '#models/chat.model.mjs';
-import Message from '#models/message.model.mjs';
-import Prison from '#models/prison.model.mjs';
-import Prisoner from '#models/prisoner.model.mjs';
-import Rule from '#models/rule.model.mjs';
-import User from "#models/user.model.mjs";
-import Chapter from "#models/chapter.model.mjs"
-
+import Chat from '#models/chat.model.js';
+import Message from '#models/message.model.js';
+import Prison from '#models/prison.model.js';
+import Prisoner from '#models/prisoner.model.js';
+import Rule from '#models/rule.model.js';
+import User from '#models/user.model.js';
+import Chapter from '#models/chapter.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -54,5 +53,4 @@ Child.belongsToMany(
 )
 */
 
-export {Chat, Chapter, Message, Prison, Prisoner, Rule, User};
-
+export { Chat, Chapter, Message, Prison, Prisoner, Rule, User };

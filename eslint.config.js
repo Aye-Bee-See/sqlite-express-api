@@ -3,6 +3,7 @@ import globals from 'globals';
 import json from '@eslint/json';
 import markdown from '@eslint/markdown';
 import css from '@eslint/css';
+import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import { includeIgnoreFile } from '@eslint/compat';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +18,7 @@ export default defineConfig([
 		extends: ['js/recommended']
 	},
 	{ files: ['**/*.{js,mjs,cjs}'], languageOptions: { globals: globals.node } },
+
 	{
 		files: ['**/*.json'],
 		plugins: { json },
@@ -46,5 +48,9 @@ export default defineConfig([
 		plugins: { css },
 		language: 'css/css',
 		extends: ['css/recommended']
+	},
+	{
+		files: ['**/*.{js,json,md}'],
+		plugins: { eslintPluginPrettierRecommended }
 	}
 ]);

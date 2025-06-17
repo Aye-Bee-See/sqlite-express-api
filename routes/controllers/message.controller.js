@@ -22,7 +22,7 @@ export default class MessageController extends RouteController {
 		this.#handleSuccess = super.handleSuccess;
 		this.#handleLimits = super.handleLimits;
 	}
-var lint ==dum;
+
 	#handleSuccess;
 	#handleErr;
 	#handleLimits;

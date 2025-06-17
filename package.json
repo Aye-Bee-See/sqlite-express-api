@@ -5,18 +5,20 @@
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1",
-		"lint": "eslint .",
-		"format": "prettier --write \"**/*.+(js|jsx|json|yml|yaml|css|md|vue)\""
+		"test": "echo \"echo the test\"",
+		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
+		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",
+		"pre-commit": "lint-staged",
+		"prepare": "husky install"
 	},
 	"husky": {
 		"hooks": {
-			"pre-commit": "npm run lint && npm run format"
+			"pre-commit": "lint-staged"
 		}
 	},
 	"lint-staged": {
-		"*.+(js|jsx)": "eslint --fix",
-		"*.+(json|css|md)": "prettier --write"
+		"**/*.+(js|mjs)": "eslint --fix",
+		"**/*.+(js|mjs|json|css|md)": "prettier --write"
 	},
 	"keywords": [],
 	"author": "",
@@ -106,14 +108,14 @@
 		"@eslint/js": "^9.28.0",
 		"@eslint/json": "^0.12.0",
 		"@eslint/markdown": "^6.4.0",
-		"eslint": "^9.28.0",
+		"eslint": "^9.29.0",
 		"eslint-config-prettier": "^10.1.5",
 		"eslint-plugin-prettier": "^5.4.1",
 		"globals": "^16.2.0",
-		"husky": "^9.1.7",
-		"lint-staged": "^16.1.0",
+		"husky": "^8.0.0",
+		"lint-staged": "^16.1.1",
 		"nodemon": "^3.1.0",
-		"prettier": "^3.5.3",
+		"prettier": "3.5.3",
 		"quick-lint-js": "3.2.0"
 	}
 }

@@ -54,7 +54,7 @@ export default class RouteController {
 		let stack;
 		res.req.route.stack.forEach((layer) => {
 			const fname = layer.name.substr(6);
-			if (this.hasOwn(fname)) {
+			if (Object.hasOwn(this, 'fname')) {
 				stack = layer;
 			}
 		});

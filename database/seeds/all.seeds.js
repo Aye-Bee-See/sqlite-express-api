@@ -29,10 +29,12 @@ export async function createSeeds() {
 	];
 
 	const seedsData = await Utilities.resolveSequential(seeds);
-	console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * * * * * * * * * * * * ');
-	console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * Seed Data * * * * * * ');
-	console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * * * * * * * * * * * * ');
-	console.group('\x1b[48;5;49;38;5;33;1m%s\x1b[0m', '       In file all.seeds.js       ');
+	if (!process.env.SUPPRESS_SEED_LOGS) {
+		console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * * * * * * * * * * * * ');
+		console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * Seed Data * * * * * * ');
+		console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * * * * * * * * * * * * ');
+		console.group('\x1b[48;5;49;38;5;33;1m%s\x1b[0m', '       In file all.seeds.js       ');
+	}
 	for (let i = 0; i < seedsData.length; i++) {
 		//get all keys
 		let seedsDataKeys = Object.keys(seedsData[i][0]);
@@ -43,8 +45,12 @@ export async function createSeeds() {
 		seedsDataKeys.forEach((keyThatIsNotDataValues) => {
 			delete seedsData[i][0][keyThatIsNotDataValues];
 		});
-		console.log('%O', seedsData[i][0]);
+		if (!process.env.SUPPRESS_SEED_LOGS) {
+			console.log('%O', seedsData[i][0]);
+		}
 	}
-	console.groupEnd();
-	console.log('\x1b[48;5;49;38;5;33;1m%s\x1b[0m', '           End Seed Data           ');
+	if (!process.env.SUPPRESS_SEED_LOGS) {
+		console.groupEnd();
+		console.log('\x1b[48;5;49;38;5;33;1m%s\x1b[0m', '           End Seed Data           ');
+	}
 }

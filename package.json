@@ -5,7 +5,11 @@
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
-		"test": "echo \"echo the test\"",
+		"test": "NODE_ENV=test SUPPRESS_SEED_LOGS=1 mocha --timeout 10000 | grep -v 'Executing ' | tee testresults.txt",
+		"test:api": "mocha test/api.test.js --timeout 10000",
+		"test:markdown": "NODE_ENV=test SUPPRESS_SEED_LOGS=1 mocha --timeout 10000 --reporter spec | node format-test-results.js",
+		"test:enhanced": "NODE_ENV=test SUPPRESS_SEED_LOGS=1 mocha --timeout 10000 --reporter spec | node enhanced-formatter.js",
+		"test:report": "npm run test:enhanced && node html-preview.js && echo 'Test reports generated: testresults.md and testresults.html'",
 		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
 		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",
 		"pre-commit": "lint-staged",

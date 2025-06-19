@@ -5,7 +5,11 @@
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
-		"test": "echo \"echo the test\"",
+		"test": "NODE_ENV=test SUPPRESS_SEED_LOGS=1 mocha --timeout 10000 | grep -v 'Executing ' | tee testresults.txt",
+		"test:api": "mocha test/api.test.js --timeout 10000",
+		"test:markdown": "NODE_ENV=test SUPPRESS_SEED_LOGS=1 mocha --timeout 10000 --reporter spec | node format-test-results.js",
+		"test:enhanced": "NODE_ENV=test SUPPRESS_SEED_LOGS=1 mocha --timeout 10000 --reporter spec | node enhanced-formatter.js",
+		"test:report": "npm run test:enhanced && node html-preview.js && echo 'Test reports generated: testresults.md and testresults.html'",
 		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
 		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",
 		"pre-commit": "lint-staged",
@@ -108,14 +112,17 @@
 		"@eslint/js": "^9.28.0",
 		"@eslint/json": "^0.12.0",
 		"@eslint/markdown": "^6.4.0",
+		"chai": "^5.2.0",
 		"eslint": "^9.29.0",
 		"eslint-config-prettier": "^10.1.5",
 		"eslint-plugin-prettier": "^5.4.1",
 		"globals": "^16.2.0",
 		"husky": "^8.0.0",
 		"lint-staged": "^16.1.1",
+		"mocha": "^11.6.0",
 		"nodemon": "^3.1.0",
 		"prettier": "3.5.3",
-		"quick-lint-js": "3.2.0"
+		"quick-lint-js": "3.2.0",
+		"supertest": "^7.1.1"
 	}
 }

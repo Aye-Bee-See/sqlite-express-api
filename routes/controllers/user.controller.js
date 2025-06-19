@@ -31,7 +31,18 @@ export default class UserController extends RouteController {
 	#handleLimits;
 
 	#stripPassword(userObject) {
-		const { id, email, name, role, username, bio } = userObject;
+		// Handle Sequelize model instances which have data in dataValues
+		if (!userObject) {
+			throw new Error('Cannot strip password from null/undefined user object');
+		}
+
+		const userData = userObject.dataValues || userObject;
+
+		if (!userData) {
+			throw new Error('User data is null/undefined after fallback');
+		}
+
+		const { id, email, name, role, username, bio } = userData;
 		return { id, email, name, role, username, bio };
 	}
 
@@ -160,10 +171,15 @@ export default class UserController extends RouteController {
 	}
 
 	async create(req, res) {
-		const { username, email, password, name, bio } = req.body;
-		const role = req.body.role.toLowerCase();
+		const { username, email, password, name, bio, role } = req.body;
+
+		if (!role) {
+			return this.#handleErr(res, new Error('Role is required for user creation'));
+		}
+		const roleLower = role.toLowerCase();
+
 		try {
-			const user = await User.createUser({ username, password, role, email, name, bio });
+			const user = await User.createUser({ username, password, role: roleLower, email, name, bio });
 			const strippedPassword = this.#stripPassword(user);
 			this.#handleSuccess(res, strippedPassword);
 		} catch (err) {

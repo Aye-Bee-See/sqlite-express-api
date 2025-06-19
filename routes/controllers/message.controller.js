@@ -55,9 +55,11 @@ export default class MessageController extends RouteController {
 			default: {
 				try {
 					const messages = await Message.readAllMessages(limit, offset);
-					console.group('***************messages**********************');
-					console.log(messages);
-					console.groupEnd();
+					if (!process.env.SUPPRESS_SEED_LOGS) {
+						console.group('***************messages**********************');
+						console.log(messages);
+						console.groupEnd();
+					}
 					this.#handleSuccess(res, messages);
 				} catch (err) {
 					const errorVar = !(err instanceof Error) ? new Error(err) : err;

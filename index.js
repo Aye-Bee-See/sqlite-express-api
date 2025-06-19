@@ -45,3 +45,5 @@ app.use('/chat', ChatRoutes.Router);
 app.use('/chat', ChatRoutes.Router);
 app.use('/chapter', ChapterRoutes.Router);
 app.use(ErrorService.handler);
+
+export default app;

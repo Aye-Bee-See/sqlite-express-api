@@ -39,36 +39,72 @@ export default class RouteController {
 		const offset = list_start * limit;
 		return { limit, offset };
 	}
-	/*	#formatMessagesList(messagesList) {
-		let formattedList = {};
 
-		for (let i = 0; i < messagesList.length; i++) {
-			const id = messagesList[i].dataValues.id;
-			const ruleData = messagesList[i].dataValues;
-			formattedList[id] = ruleData;
-		}
-		return formattedList;
-	}
-*/
 	#findStack(res) {
-		let stack;
-		res.req.route.stack.forEach((layer) => {
-			const fname = layer.name.substr(6);
-			if (Object.hasOwn(this, 'fname')) {
-				stack = layer;
+		try {
+			if (
+				res &&
+				res.req &&
+				res.req.route &&
+				res.req.route.stack &&
+				Array.isArray(res.req.route.stack)
+			) {
+				for (const layer of res.req.route.stack) {
+					if (layer && layer.name && typeof layer.name === 'string') {
+						return {
+							name: layer.name,
+							method: res.req.method ? res.req.method.toLowerCase() : 'post'
+						};
+					}
+				}
 			}
-		});
-		return stack;
+		} catch (error) {
+			console.error('Error in findStack:', error);
+		}
+
+		// Fallback - return a default stack based on the request method
+		return {
+			name: 'bound create', // Default name that works with substr(6)
+			method: res && res.req && res.req.method ? res.req.method.toLowerCase() : 'post'
+		};
 	}
 
 	handleSuccess(res, outObj = {}, condition = 'par') {
 		const ctrlMsg = msgConstants[this.controllerName];
 		const stack = this.#findStack(res);
+
+		if (!stack || !stack.name || typeof stack.name !== 'string' || stack.name.length <= 6) {
+			let message = {};
+			message['data'] = outObj;
+			message['info'] = 'Operation completed successfully';
+			message['success'] = true;
+			message['status'] = 200;
+			res.status(200).json(message);
+			return;
+		}
+
 		const callerName = stack.name.substr(6);
 		const msgRef = ['getOne', 'getMany'].includes(callerName)
 			? callerName.toLowerCase().substring(3)
 			: callerName;
 		const { method } = stack;
+
+		if (
+			!ctrlMsg ||
+			!ctrlMsg[method] ||
+			!ctrlMsg[method][msgRef] ||
+			!ctrlMsg[method][msgRef].success ||
+			!ctrlMsg[method][msgRef].success.condition
+		) {
+			let message = {};
+			message['data'] = outObj;
+			message['info'] = 'Operation completed successfully';
+			message['success'] = true;
+			message['status'] = 200;
+			res.status(200).json(message);
+			return;
+		}
+
 		let message = {};
 		message['data'] = outObj;
 		message['info'] = ctrlMsg[method][msgRef].success.condition[condition];
@@ -87,14 +123,53 @@ export default class RouteController {
 		}
 		const ctrlMsg = msgConstants[this.controllerName];
 		const stack = this.#findStack(res);
+
+		if (!stack || !stack.name || typeof stack.name !== 'string' || stack.name.length <= 6) {
+			// Fallback error response
+			const message = errMsg
+				? {
+						info: 'An error occurred',
+						type: errMsg.name,
+						error: errMsg.message,
+						stack: errMsg.stack ? errMsg.stack.toString() : ''
+					}
+				: { info: 'An error occurred', success: false };
+			return res.status(400).json(message);
+		}
+
 		const callerName = stack.name.substr(6);
 		const msgRef = ['getOne', 'getMany'].includes(callerName)
 			? callerName.toLowerCase().substring(3)
 			: callerName;
 		const { method } = stack;
+
+		// Add safety checks for message constants
+		if (
+			!ctrlMsg ||
+			!ctrlMsg[method] ||
+			!ctrlMsg[method][msgRef] ||
+			!ctrlMsg[method][msgRef].error ||
+			!ctrlMsg[method][msgRef].error.condition
+		) {
+			const message = errMsg
+				? {
+						info: 'An error occurred',
+						type: errMsg.name,
+						error: errMsg.message,
+						stack: errMsg.stack ? errMsg.stack.toString() : ''
+					}
+				: { info: 'An error occurred', success: false };
+			return res.status(400).json(message);
+		}
+
 		const info = ctrlMsg[method][msgRef].error.condition[msgType];
 		const message = errMsg
-			? { info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString() }
+			? {
+					info: info,
+					type: errMsg.name,
+					error: errMsg.message,
+					stack: errMsg.stack ? errMsg.stack.toString() : ''
+				}
 			: { info: info };
 
 		res.status(400).json(message);

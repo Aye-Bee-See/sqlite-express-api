@@ -18,6 +18,7 @@ export default class PrisonerController extends RouteController {
 		this.update = this.update.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
+		this.uploadAvi = this.uploadAvi.bind(this);
 
 		this.#handleErr = super.handleErr;
 		this.#handleSuccess = super.handleSuccess;
@@ -78,6 +79,7 @@ export default class PrisonerController extends RouteController {
 	// Create
 	async create(req, res) {
 		const { birthName, chosenName, prison, inmateID, releaseDate, bio, status } = req.body;
+		const avatar = req.file ? `/${req.file.path}` : null;
 		try {
 			const prisoner = await Prisoner.createPrisoner({
 				birthName,
@@ -86,10 +88,29 @@ export default class PrisonerController extends RouteController {
 				inmateID,
 				releaseDate,
 				bio,
-				status
+				status,
+				avatar
 			});
 			this.#handleSuccess(res, prisoner);
 			// res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	async uploadAvi(req, res) {
+		const { id } = req.query;
+		const file = req.file;
+		try {
+			if (!file) {
+				throw new Error('you must provide a file');
+			}
+			const updatedPrisoner = await Prisoner.update(
+				{ avatar: `/${file.path}` },
+				{ where: { id: id }, returning: true }
+			);
+			this.#handleSuccess(res, updatedPrisoner[1][0]);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

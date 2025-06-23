@@ -27,6 +27,9 @@ const prisonerSchema = {
 			args: [['pending, pretrial', 'incarcerated', 'free']],
 			msg: 'Status must be pretrial, incarcerated, or free.'
 		}
+	},
+	avatar: {
+		type: DataTypes.STRING
 	}
 };
 export default prisonerSchema;

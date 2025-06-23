@@ -27,9 +27,19 @@ export default class Prisoner extends Model {
 		inmateID,
 		releaseDate,
 		bio,
-		status
+		status,
+		avatar
 	}) {
-		return await this.create({ birthName, chosenName, prison, inmateID, releaseDate, bio, status });
+		return await this.create({
+			birthName,
+			chosenName,
+			prison,
+			inmateID,
+			releaseDate,
+			bio,
+			status,
+			avatar
+		});
 	}
 	/**
 	 *  create multiple prisoners

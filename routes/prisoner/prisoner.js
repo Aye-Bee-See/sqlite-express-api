@@ -4,6 +4,19 @@ import { default as passport } from 'passport';
 import { prisonerEnd } from '#routes/constants.js';
 import { default as prisonerCrtlr } from '#rtControllers/prisoner.controller.js';
 import authService from '#rtServices/auth.services.js';
+import multer from 'multer';
+import path from 'path';
+
+const storage = multer.diskStorage({
+	destination: (req, file, cb) => {
+		cb(null, 'uploads/avatars/prisoners/');
+	},
+	filename: (req, file, cb) => {
+		cb(null, Date.now() + path.extname(file.originalname));
+	}
+});
+
+const upload = multer({ storage: storage });
 
 class PrisonerRoutes {
 	static Router;
@@ -40,7 +53,15 @@ class PrisonerRoutes {
 		this.Router.post(
 			prisonerEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			upload.single('avatar'),
 			this.#Controller.create
+		);
+
+		this.Router.post(
+			prisonerEnd.post.uploadAvi,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			upload.single('avatar'),
+			this.#Controller.uploadAvi
 		);
 
 		// Read

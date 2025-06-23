@@ -18,6 +18,7 @@ export default class UserController extends RouteController {
 		this.update = this.update.bind(this);
 		this.create = this.create.bind(this);
 		this.remove = this.remove.bind(this);
+		this.uploadAvi = this.uploadAvi.bind(this);
 
 		this.login = this.login.bind(this);
 		this.register = this.create;
@@ -31,7 +32,6 @@ export default class UserController extends RouteController {
 	#handleLimits;
 
 	#stripPassword(userObject) {
-		// Handle Sequelize model instances which have data in dataValues
 		if (!userObject) {
 			throw new Error('Cannot strip password from null/undefined user object');
 		}
@@ -42,8 +42,8 @@ export default class UserController extends RouteController {
 			throw new Error('User data is null/undefined after fallback');
 		}
 
-		const { id, email, name, role, username, bio } = userData;
-		return { id, email, name, role, username, bio };
+		const { id, email, name, role, username, bio, avatar } = userData;
+		return { id, email, name, role, username, bio, avatar };
 	}
 
 	#handlePass(res, user, type) {
@@ -58,8 +58,8 @@ export default class UserController extends RouteController {
 
 	#stripUsersListPasswords(usersList) {
 		let pwStrippedList = [];
-		Object.entries(usersList).forEach((value) => {
-			pwStrippedList.push(this.#stripPassword(value));
+		Object.entries(usersList).forEach(([id, userData]) => {
+			pwStrippedList.push(this.#stripPassword(userData));
 		});
 		return pwStrippedList;
 	}
@@ -170,8 +170,9 @@ export default class UserController extends RouteController {
 		}
 	}
 
+	// Create
 	async create(req, res) {
-		const { username, email, password, name, bio, role } = req.body;
+		const { username, email, password, name, bio, role, avatar } = req.body;
 
 		if (!role) {
 			return this.#handleErr(res, new Error('Role is required for user creation'));
@@ -179,9 +180,63 @@ export default class UserController extends RouteController {
 		const roleLower = role.toLowerCase();
 
 		try {
-			const user = await User.createUser({ username, password, role: roleLower, email, name, bio });
+			const userData = { username, password, role: roleLower, email, name, bio };
+
+			// Include avatar if provided via file upload
+			if (req.file) {
+				// Store as URL path (e.g., /uploads/avatars/users/filename.jpg)
+				userData.avatar = `/${req.file.path}`;
+			} else if (avatar) {
+				// Include avatar if provided as text field (file path)
+				userData.avatar = avatar;
+			}
+
+			const user = await User.createUser(userData);
 			const strippedPassword = this.#stripPassword(user);
 			this.#handleSuccess(res, strippedPassword);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	// Upload Avatar
+	async uploadAvi(req, res) {
+		try {
+			if (!req.file) {
+				return this.#handleErr(res, new Error('No file uploaded'));
+			}
+
+			const { userId } = req.body;
+			if (!userId) {
+				return this.#handleErr(res, new Error('User ID is required'));
+			}
+
+			// Store the URL path in the database (e.g., /uploads/avatars/users/filename.jpg)
+			const avatarPath = `/${req.file.path}`;
+
+			// Update user record with avatar path
+			await User.updateUser({
+				id: userId,
+				avatar: avatarPath
+			});
+
+			// Get the updated user to return in response
+			const updatedUser = await User.getUserByID(userId, false);
+			const userResponse = this.#stripPassword(updatedUser);
+
+			this.#handleSuccess(res, {
+				message: 'Avatar uploaded successfully',
+				user: userResponse,
+				avatar: {
+					filename: req.file.filename,
+					originalName: req.file.originalname,
+					path: avatarPath,
+					url: avatarPath, // Same as path now since it's the URL
+					size: req.file.size,
+					mimetype: req.file.mimetype
+				}
+			});
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

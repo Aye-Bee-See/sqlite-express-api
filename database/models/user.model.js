@@ -20,12 +20,16 @@ export default class User extends Model {
 
 	// Create
 
-	static async createUser({ username, password, role, email, name, bio }) {
+	static async createUser({ username, password, role, email, name, bio, avatar }) {
 		//   const banned = false;
-		return await this.create(
-			{ username, password, role, email, name, bio },
-			{ individualHooks: true }
-		);
+		const userData = { username, password, role, email, name, bio };
+
+		// Include avatar if provided
+		if (avatar) {
+			userData.avatar = avatar;
+		}
+
+		return await this.create(userData, { individualHooks: true });
 	}
 
 	/**

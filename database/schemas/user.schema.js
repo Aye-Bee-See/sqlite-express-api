@@ -91,6 +91,9 @@ const userSchema = {
 				msg: 'Role must be either admin, user, or banned.'
 			}
 		}
+	},
+	avatar: {
+		type: DataTypes.STRING
 	}
 };
 

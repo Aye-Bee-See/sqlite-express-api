@@ -1,244 +1,340 @@
 {
 	"seeds": [
 		{
-			"messageText": "Hello",
+			"messageText": "Hello! I hope you're doing well. I wanted to reach out and see how you've been adjusting.",
 			"sender": "user",
-			"prisoner": 1,
-			"user": 1
+			"chat": 1,
+			"user": 1,
+			"prisoner": 1
 		},
 		{
-			"messageText": "Hi there",
-			"sender": "user",
-			"prisoner": 2,
-			"user": 2
+			"messageText": "Hi there, thank you for reaching out. It's been challenging but I'm taking it one day at a time.",
+			"sender": "prisoner",
+			"chat": 1,
+			"user": 1,
+			"prisoner": 1
 		},
 		{
-			"messageText": "Good morning",
+			"messageText": "I understand it must be difficult. Is there anything specific you'd like to talk about?",
 			"sender": "user",
-			"prisoner": 3,
-			"user": 3
+			"chat": 1,
+			"user": 1,
+			"prisoner": 1
 		},
 		{
-			"messageText": "Good evening",
-			"sender": "user",
-			"prisoner": 4,
-			"user": 4
+			"messageText": "I've been trying to focus on reading and learning new skills. It helps keep my mind occupied.",
+			"sender": "prisoner",
+			"chat": 1,
+			"user": 1,
+			"prisoner": 1
 		},
 		{
-			"messageText": "How are you?",
+			"messageText": "Good morning! How was your week?",
 			"sender": "user",
-			"prisoner": 5,
-			"user": 5
+			"chat": 4,
+			"user": 2,
+			"prisoner": 1
 		},
 		{
-			"messageText": "What's up?",
-			"sender": "user",
-			"prisoner": 6,
-			"user": 6
+			"messageText": "Morning! It was okay, had some good conversations with other inmates about starting a book club.",
+			"sender": "prisoner",
+			"chat": 4,
+			"user": 2,
+			"prisoner": 1
 		},
 		{
-			"messageText": "Howdy",
+			"messageText": "Hi! I saw your profile and thought we might have some things in common. How are you today?",
 			"sender": "user",
-			"prisoner": 7,
-			"user": 7
+			"chat": 6,
+			"user": 3,
+			"prisoner": 2
 		},
 		{
-			"messageText": "Greetings",
-			"sender": "user",
-			"prisoner": 8,
-			"user": 8
+			"messageText": "Hello! I'm doing well, thank you for reaching out. What made you think we have things in common?",
+			"sender": "prisoner",
+			"chat": 6,
+			"user": 3,
+			"prisoner": 2
 		},
 		{
-			"messageText": "Hey",
+			"messageText": "I noticed you mentioned interest in art. I'm actually an art teacher on the outside.",
 			"sender": "user",
-			"prisoner": 9,
-			"user": 9
+			"chat": 6,
+			"user": 3,
+			"prisoner": 2
 		},
 		{
-			"messageText": "Hi",
-			"sender": "user",
-			"prisoner": 10,
-			"user": 10
+			"messageText": "That's amazing! I've been working on some drawings here. Art has become my escape.",
+			"sender": "prisoner",
+			"chat": 6,
+			"user": 3,
+			"prisoner": 2
 		},
 		{
-			"messageText": "Good afternoon",
+			"messageText": "Hey there! I hope you're having a good day. I wanted to check in and see how you're doing.",
 			"sender": "user",
-			"prisoner": 11,
-			"user": 11
+			"chat": 8,
+			"user": 4,
+			"prisoner": 3
 		},
 		{
-			"messageText": "Good night",
-			"sender": "user",
-			"prisoner": 12,
-			"user": 12
+			"messageText": "Thank you for checking in! Today was actually a good day. I got to work in the garden.",
+			"sender": "prisoner",
+			"chat": 8,
+			"user": 4,
+			"prisoner": 3
 		},
 		{
-			"messageText": "How's it going?",
+			"messageText": "Good evening! I hope you're settling in well. How has your experience been so far?",
 			"sender": "user",
-			"prisoner": 13,
-			"user": 13
+			"chat": 10,
+			"user": 5,
+			"prisoner": 4
 		},
 		{
-			"messageText": "What's new?",
-			"sender": "user",
-			"prisoner": 14,
-			"user": 14
+			"messageText": "Evening! It's been tough, but I'm trying to stay positive and focus on making positive changes.",
+			"sender": "prisoner",
+			"chat": 10,
+			"user": 5,
+			"prisoner": 4
 		},
 		{
-			"messageText": "Long time no see",
+			"messageText": "Hello! I wanted to reach out and see if you'd like to chat. How are you doing today?",
 			"sender": "user",
-			"prisoner": 15,
-			"user": 15
+			"chat": 12,
+			"user": 6,
+			"prisoner": 5
 		},
 		{
-			"messageText": "Nice to meet you",
-			"sender": "user",
-			"prisoner": 16,
-			"user": 16
+			"messageText": "Hi! I'm doing okay, thank you for reaching out. It means a lot to have someone to talk to.",
+			"sender": "prisoner",
+			"chat": 12,
+			"user": 6,
+			"prisoner": 5
 		},
 		{
-			"messageText": "How have you been?",
+			"messageText": "Hi there! I hope you're having a peaceful day. What's been on your mind lately?",
 			"sender": "user",
-			"prisoner": 17,
-			"user": 17
+			"chat": 14,
+			"user": 7,
+			"prisoner": 6
 		},
 		{
-			"messageText": "What's going on?",
-			"sender": "user",
-			"prisoner": 18,
-			"user": 18
+			"messageText": "Hello! I've been thinking a lot about my family and how I can rebuild those relationships when I get out.",
+			"sender": "prisoner",
+			"chat": 14,
+			"user": 7,
+			"prisoner": 6
 		},
 		{
-			"messageText": "How's everything?",
+			"messageText": "Good morning! I hope you slept well. What are your plans for today?",
 			"sender": "user",
-			"prisoner": 19,
-			"user": 19
+			"chat": 16,
+			"user": 8,
+			"prisoner": 7
 		},
 		{
-			"messageText": "How's life?",
-			"sender": "user",
-			"prisoner": 20,
-			"user": 20
+			"messageText": "Good morning! I have a job training session today. I'm learning carpentry skills.",
+			"sender": "prisoner",
+			"chat": 16,
+			"user": 8,
+			"prisoner": 7
 		},
 		{
-			"messageText": "How's your day?",
+			"messageText": "Hi! I wanted to check in and see how you're doing. How has your week been?",
 			"sender": "user",
-			"prisoner": 21,
-			"user": 21
+			"chat": 18,
+			"user": 9,
+			"prisoner": 8
 		},
 		{
-			"messageText": "How's your week?",
-			"sender": "user",
-			"prisoner": 22,
-			"user": 22
+			"messageText": "Hi there! This week was challenging but I'm learning to cope better with the stress.",
+			"sender": "prisoner",
+			"chat": 18,
+			"user": 9,
+			"prisoner": 8
 		},
 		{
-			"messageText": "How's your weekend?",
+			"messageText": "Hello! I hope you're doing well today. I was wondering if you'd like to share what you're grateful for?",
 			"sender": "user",
-			"prisoner": 23,
-			"user": 23
+			"chat": 20,
+			"user": 10,
+			"prisoner": 9
 		},
 		{
-			"messageText": "How's your family?",
-			"sender": "user",
-			"prisoner": 24,
-			"user": 24
+			"messageText": "That's a beautiful question! I'm grateful for my health, the opportunity to learn, and kind people like you.",
+			"sender": "prisoner",
+			"chat": 20,
+			"user": 10,
+			"prisoner": 9
 		},
 		{
-			"messageText": "How's work?",
+			"messageText": "Good afternoon! I hope you're having a productive day. What's been going well for you lately?",
 			"sender": "user",
-			"prisoner": 25,
-			"user": 25
+			"chat": 22,
+			"user": 11,
+			"prisoner": 1
 		},
 		{
-			"messageText": "How's school?",
-			"sender": "user",
-			"prisoner": 26,
-			"user": 26
+			"messageText": "Afternoon! I've been making good progress in my GED classes. Math was always hard for me but I'm getting better.",
+			"sender": "prisoner",
+			"chat": 22,
+			"user": 11,
+			"prisoner": 1
 		},
 		{
-			"messageText": "How's your health?",
+			"messageText": "Hi! I wanted to reach out and see how you're adjusting to everything. How are you feeling today?",
 			"sender": "user",
-			"prisoner": 27,
-			"user": 27
+			"chat": 23,
+			"user": 12,
+			"prisoner": 2
 		},
 		{
-			"messageText": "How's your day going?",
-			"sender": "user",
-			"prisoner": 28,
-			"user": 28
+			"messageText": "Thank you for asking! Today was better than yesterday. I'm slowly finding my routine here.",
+			"sender": "prisoner",
+			"chat": 23,
+			"user": 12,
+			"prisoner": 2
 		},
 		{
-			"messageText": "How's your week going?",
+			"messageText": "Evening! I hope you had a good day. I was thinking about our last conversation about music.",
 			"sender": "user",
-			"prisoner": 29,
-			"user": 29
+			"chat": 24,
+			"user": 13,
+			"prisoner": 3
 		},
 		{
-			"messageText": "How's your weekend going?",
-			"sender": "user",
-			"prisoner": 30,
-			"user": 30
+			"messageText": "Evening! Yes, music has been a huge comfort. I've been writing some lyrics actually.",
+			"sender": "prisoner",
+			"chat": 24,
+			"user": 13,
+			"prisoner": 3
 		},
 		{
-			"messageText": "How's your family doing?",
+			"messageText": "Hello! I hope you're doing well. I wanted to check if you've been able to pursue any hobbies or interests?",
 			"sender": "user",
-			"prisoner": 31,
-			"user": 31
+			"chat": 25,
+			"user": 14,
+			"prisoner": 4
 		},
 		{
-			"messageText": "How's work going?",
-			"sender": "user",
-			"prisoner": 32,
-			"user": 32
+			"messageText": "Hi! I've been learning to play chess. It's helping me think more strategically about life decisions.",
+			"sender": "prisoner",
+			"chat": 25,
+			"user": 14,
+			"prisoner": 4
 		},
 		{
-			"messageText": "How's school going?",
+			"messageText": "Good morning! How are you feeling about your progress and personal growth?",
 			"sender": "user",
-			"prisoner": 33,
-			"user": 33
+			"chat": 26,
+			"user": 15,
+			"prisoner": 16
 		},
 		{
-			"messageText": "How's your health doing?",
-			"sender": "user",
-			"prisoner": 34,
-			"user": 34
+			"messageText": "Morning! I feel like I'm finally understanding myself better. Therapy has been really enlightening.",
+			"sender": "prisoner",
+			"chat": 26,
+			"user": 15,
+			"prisoner": 16
 		},
 		{
-			"messageText": "How's everything going?",
+			"messageText": "Hi there! I hope you're having a peaceful day. What's been bringing you joy lately?",
 			"sender": "user",
-			"prisoner": 35,
-			"user": 35
+			"chat": 27,
+			"user": 16,
+			"prisoner": 17
 		},
 		{
-			"messageText": "How's life going?",
-			"sender": "user",
-			"prisoner": 36,
-			"user": 36
+			"messageText": "Hello! Small things bring me joy - a good book, a letter from my sister, or helping a fellow inmate.",
+			"sender": "prisoner",
+			"chat": 27,
+			"user": 16,
+			"prisoner": 17
 		},
 		{
-			"messageText": "How's your day been?",
+			"messageText": "Good evening! I wanted to see how you're doing and if there's anything you'd like to talk about.",
 			"sender": "user",
-			"prisoner": 37,
-			"user": 37
+			"chat": 28,
+			"user": 17,
+			"prisoner": 18
 		},
 		{
-			"messageText": "How's your week been?",
-			"sender": "user",
-			"prisoner": 38,
-			"user": 38
+			"messageText": "Evening! I've been reflecting on forgiveness - both forgiving myself and asking for forgiveness from others.",
+			"sender": "prisoner",
+			"chat": 28,
+			"user": 17,
+			"prisoner": 18
 		},
 		{
-			"messageText": "How's your weekend been?",
+			"messageText": "Hello! I hope you're having a good week. What's been challenging for you lately?",
 			"sender": "user",
-			"prisoner": 39,
-			"user": 39
+			"chat": 29,
+			"user": 18,
+			"prisoner": 19
 		},
 		{
-			"messageText": "How's your family been?",
+			"messageText": "The hardest part is being away from my children. But I'm using this time to become a better parent for them.",
+			"sender": "prisoner",
+			"chat": 29,
+			"user": 18,
+			"prisoner": 19
+		},
+		{
+			"messageText": "Hi! I wanted to check in and see how you're managing everything. How are you today?",
 			"sender": "user",
-			"prisoner": 40,
-			"user": 40
+			"chat": 30,
+			"user": 19,
+			"prisoner": 20
+		},
+		{
+			"messageText": "Thank you for checking in! I'm focused on my sobriety and taking the recovery program seriously.",
+			"sender": "prisoner",
+			"chat": 30,
+			"user": 19,
+			"prisoner": 20
+		},
+		{
+			"messageText": "Good morning! I hope today brings you peace and purpose. What are you looking forward to?",
+			"sender": "user",
+			"chat": 31,
+			"user": 20,
+			"prisoner": 21
+		},
+		{
+			"messageText": "Good morning! I'm looking forward to my family visit next week. It's been months since I've seen them.",
+			"sender": "prisoner",
+			"chat": 31,
+			"user": 20,
+			"prisoner": 21
+		},
+		{
+			"messageText": "Administrative check-in: How are the programs working for you?",
+			"sender": "user",
+			"chat": 2,
+			"user": 1,
+			"prisoner": 5
+		},
+		{
+			"messageText": "The programs are really helpful. The anger management course has been particularly valuable.",
+			"sender": "prisoner",
+			"chat": 2,
+			"user": 1,
+			"prisoner": 5
+		},
+		{
+			"messageText": "I hope you're doing well. I wanted to follow up on our conversation about education goals.",
+			"sender": "user",
+			"chat": 3,
+			"user": 1,
+			"prisoner": 10
+		},
+		{
+			"messageText": "Thank you for following up! I've enrolled in the computer skills program and I'm excited to start.",
+			"sender": "prisoner",
+			"chat": 3,
+			"user": 1,
+			"prisoner": 10
 		}
 	]
 }

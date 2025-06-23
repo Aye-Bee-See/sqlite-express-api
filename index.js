@@ -34,19 +34,19 @@ app.use('/uploads', express.static('uploads'));
 
 app.use(passport.initialize());
 
-// start the app
-app.listen(sysPort, function () {
-	console.log('Express is running on port: ' + sysPort);
-});
-
+// Mount routes before starting the server
 app.use('/auth', authRouter.Router);
 app.use('/prison', prisonRoutes.Router);
 app.use('/prisoner', PrisonerRoutes.Router);
 app.use('/rule', RuleRoutes.Router);
 app.use('/messaging', MessageRoutes.Router);
 app.use('/chat', ChatRoutes.Router);
-app.use('/chat', ChatRoutes.Router);
 app.use('/chapter', ChapterRoutes.Router);
 app.use(ErrorService.handler);
+
+// start the app
+app.listen(sysPort, function () {
+	console.log('Express is running on port: ' + sysPort);
+});
 
 export default app;

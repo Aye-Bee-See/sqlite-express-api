@@ -35,6 +35,16 @@ class MessageRoutes {
 	 *
 	 ***/
 	static #router() {
+		// Debug middleware to log all incoming requests
+		this.Router.use((req, res, next) => {
+			console.log(`=== MESSAGE ROUTE DEBUG ===`);
+			console.log(`${req.method} ${req.path}`);
+			console.log('Headers:', req.headers);
+			console.log('Body:', req.body);
+			console.log('==========================');
+			next();
+		});
+
 		// Create
 
 		this.Router.post(

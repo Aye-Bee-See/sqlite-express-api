@@ -7,7 +7,8 @@ const endpoints = {
 		},
 		post: {
 			create: '/user',
-			login: '/login'
+			login: '/login',
+			uploadAvi: '/uploadavi'
 		},
 		put: {
 			update: '/user'

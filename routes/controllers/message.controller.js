@@ -148,11 +148,17 @@ export default class MessageController extends RouteController {
 
 	// Create
 	async create(req, res) {
+		console.log('=== MESSAGE CREATE DEBUG ===');
+		console.log('Headers:', req.headers);
+		console.log('Body:', req.body);
+		console.log('User from auth:', req.user);
+		console.log('Content-Type:', req.get('Content-Type'));
+		console.log('=============================');
+
 		const { messageText, sender, prisoner, user } = req.body;
 		try {
 			const message = await Message.createMessage({ messageText, sender, prisoner, user });
 			this.#handleSuccess(res, message);
-			// res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

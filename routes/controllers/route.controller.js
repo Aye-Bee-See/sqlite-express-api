@@ -73,6 +73,14 @@ export default class RouteController {
 		const ctrlMsg = msgConstants[this.controllerName];
 		const stack = this.#findStack(res);
 
+		// Debug logging
+		console.log('handleSuccess debug:', {
+			controllerName: this.controllerName,
+			hasCtrlMsg: !!ctrlMsg,
+			stack: stack,
+			method: stack?.method
+		});
+
 		if (!stack || !stack.name || typeof stack.name !== 'string' || stack.name.length <= 6) {
 			let message = {};
 			message['data'] = outObj;
@@ -88,6 +96,14 @@ export default class RouteController {
 			? callerName.toLowerCase().substring(3)
 			: callerName;
 		const { method } = stack;
+
+		console.log('handleSuccess message lookup:', {
+			callerName,
+			msgRef,
+			method,
+			hasMethodInCtrlMsg: !!(ctrlMsg && ctrlMsg[method]),
+			hasMsgRefInMethod: !!(ctrlMsg && ctrlMsg[method] && ctrlMsg[method][msgRef])
+		});
 
 		if (
 			!ctrlMsg ||

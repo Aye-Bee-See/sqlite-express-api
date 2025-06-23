@@ -15,7 +15,7 @@ export default class User extends Model {
 	}
 
 	static associate(models) {
-		this.hasMany(models.Chat, { as: 'chats', foreignKey: 'userId' });
+		this.hasMany(models.Chat, { as: 'chats', foreignKey: 'user' });
 	}
 
 	// Create

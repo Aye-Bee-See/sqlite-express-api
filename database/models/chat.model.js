@@ -15,9 +15,9 @@ export default class Chat extends Model {
 		});
 	}
 	static associate(models) {
-		this.belongsTo(models.Prisoner, { as: 'prisoner_details', foreignKey: 'prisonerId' });
-		this.belongsTo(models.User, { as: 'user_details', foreignKey: 'userId' });
-		this.hasMany(models.Message, { as: 'messages', foreignKey: 'chatId' });
+		this.belongsTo(models.Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' });
+		this.belongsTo(models.User, { as: 'user_details', foreignKey: 'user' });
+		this.hasMany(models.Message, { as: 'messages', foreignKey: 'chat' });
 	}
 
 	// Create

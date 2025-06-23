@@ -2,9 +2,9 @@ import { createUserSeed } from '#db/seeds/user.seed.js';
 import { createPrisonSeed } from '#db/seeds/prison.seed.js';
 import { createPrisonerSeed } from '#db/seeds/prisoner.seed.js';
 import { createRuleSeed } from '#db/seeds/rule.seed.js';
+import { createChapterSeed } from '#db/seeds/chapter.seed.js';
 import { createChatSeed } from '#db/seeds/chat.seed.js';
 import { createMessageSeed } from '#db/seeds/message.seed.js';
-import { createChapterSeed } from '#db/seeds/chapter.seed.js';
 import Utilities from '#services/Utilities.js';
 
 /*
@@ -13,8 +13,9 @@ import Utilities from '#services/Utilities.js';
  Prison
  Prisoner (Requires Prison)
  Rules (Requires Prison)
- Chat (Requires Prisoner and User)
- Message (Requires Chat)
+ Chapter
+ Chat (Requires User and Prisoner)
+ Message (Requires Chat, User, and Prisoner)
  */
 
 export async function createSeeds() {
@@ -23,9 +24,9 @@ export async function createSeeds() {
 		createPrisonSeed,
 		createPrisonerSeed,
 		createRuleSeed,
+		createChapterSeed,
 		createChatSeed,
-		createMessageSeed,
-		createChapterSeed
+		createMessageSeed
 	];
 
 	const seedsData = await Utilities.resolveSequential(seeds);

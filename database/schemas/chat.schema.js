@@ -4,12 +4,18 @@ const chatSchema = {
 	user: {
 		type: DataTypes.INTEGER,
 		allowNull: false,
-		model: 'User'
+		references: {
+			model: 'User',
+			key: 'id'
+		}
 	},
 	prisoner: {
 		type: DataTypes.INTEGER,
 		allowNull: false,
-		model: 'Prisoner'
+		references: {
+			model: 'Prisoners',
+			key: 'id'
+		}
 	},
 	// Add the id field to the schema
 	id: {

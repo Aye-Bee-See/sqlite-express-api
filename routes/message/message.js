@@ -4,6 +4,8 @@ import { default as passport } from 'passport';
 import { messageEnd } from '#routes/constants.js';
 import { default as messageCrtlr } from '#rtControllers/message.controller.js';
 import authService from '#rtServices/auth.services.js';
+import multer from 'multer';
+import fs from 'fs';
 
 class MessageRoutes {
 	static Router;
@@ -24,17 +26,32 @@ class MessageRoutes {
 		const JwtStrat = authService.authorize;
 		passport.use('UsrJStrat', JwtStrat);
 
+		const storage = multer.diskStorage({
+			destination: function (req, file, cb) {
+				const uploadPath = 'uploads/messages/';
+				if (!fs.existsSync(uploadPath)) {
+					fs.mkdirSync(uploadPath, { recursive: true });
+				}
+				cb(null, uploadPath);
+			},
+			filename: function (req, file, cb) {
+				cb(null, `${Date.now()}-${file.originalname}`);
+			}
+		});
+
+		const upload = multer({ storage: storage });
+
 		this.#Controller = new messageCrtlr();
 		this.Router = express.Router();
 
-		this.#router();
+		this.#router(upload);
 	}
 	/***
 	 *
 	 *   Handle router params
 	 *
 	 ***/
-	static #router() {
+	static #router(upload) {
 		// Debug middleware to log all incoming requests
 		this.Router.use((req, res, next) => {
 			console.log(`=== MESSAGE ROUTE DEBUG ===`);
@@ -49,6 +66,7 @@ class MessageRoutes {
 
 		this.Router.post(
 			messageEnd.post.create,
+			upload.single('image'),
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.create
 		);

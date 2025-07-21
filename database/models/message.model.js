@@ -19,14 +19,14 @@ export default class Message extends Model {
 	}
 
 	//  Create
-	static async createMessage({ messageText, sender, user, prisoner }) {
+	static async createMessage({ messageText, sender, user, prisoner, image }) {
 		console.log(
 			`Message Text: ${messageText}, Sender: ${sender}, User: ${user}, Prisoner: ${prisoner}`
 		);
 		const [chat] = await Chat.findOrCreate({
 			where: { user, prisoner }
 		});
-		return await this.create({ messageText, sender, chat: chat.id, user, prisoner });
+		return await this.create({ messageText, sender, chat: chat.id, user, prisoner, image });
 	}
 
 	/**
@@ -63,7 +63,7 @@ export default class Message extends Model {
 		return await Message.findAll(filters);
 	}
 
-	static async readMessagesByChat(id, full, limit, offset = 0) {
+	static async readMessagesByChat(id, full, full, limit, offset = 0) {
 		const exists = await modelsService.modelInstanceExists('Chat', id);
 		if (exists instanceof Error) {
 			throw exists;
@@ -72,7 +72,7 @@ export default class Message extends Model {
 		let options = {
 			where: { chat: id }
 		};
-		
+
 		if (full) {
 			options = {
 				where: { chat: id },
@@ -84,7 +84,6 @@ export default class Message extends Model {
 				]
 			};
 		}
-		
 		filters = { ...filters, ...options };
 		return await Message.findAll(filters);
 	}

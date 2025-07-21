@@ -68,6 +68,9 @@ const messageSchema = {
 				msg: 'User ID must not be null.'
 			}
 		}
+	},
+	image: {
+		type: DataTypes.STRING
 	}
 };
 

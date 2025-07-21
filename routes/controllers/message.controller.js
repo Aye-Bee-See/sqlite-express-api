@@ -155,9 +155,16 @@ export default class MessageController extends RouteController {
 		console.log('Content-Type:', req.get('Content-Type'));
 		console.log('=============================');
 
-		const { messageText, sender, prisoner, user } = req.body;
+		let { messageText, sender, prisoner, user, image } = req.body;
+		if (req.file) {
+			// Store as URL path
+			image = `/${req.file.path}`;
+		} else if (image) {
+			// Include image if provided as text field (file path)
+			image = image;
+		}
 		try {
-			const message = await Message.createMessage({ messageText, sender, prisoner, user });
+			const message = await Message.createMessage({ messageText, sender, prisoner, user, image });
 			this.#handleSuccess(res, message);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;

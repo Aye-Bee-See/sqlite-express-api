@@ -1,4 +1,5 @@
 import { messages as msgConstants } from '#routes/constants.js';
+import ValidationError from '#services/ValidationError.js';
 
 export default class ErrorService {
 	static handler;
@@ -13,6 +14,10 @@ export default class ErrorService {
 	}
 	static #errorHandler(err, req, res, next) {
 		if (err) {
+			const validationMessages = ValidationError.messagesFrom(err);
+			if (validationMessages) {
+				return res.status(400).json({ success: false, errors: validationMessages });
+			}
 			let { status, message, name } = err;
 			const success = false;
 			status = status || 400;

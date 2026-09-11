@@ -21,9 +21,11 @@ const prisonerSchema = {
 	},
 	status: {
 		type: DataTypes.STRING,
-		isIn: {
-			args: [['pending, pretrial', 'incarcerated', 'free']],
-			msg: 'Status must be pretrial, incarcerated, or free.'
+		validate: {
+			isIn: {
+				args: [['pretrial', 'incarcerated', 'free']],
+				msg: 'Status must be pretrial, incarcerated, or free.'
+			}
 		}
 	}
 };

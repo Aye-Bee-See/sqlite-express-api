@@ -2,6 +2,7 @@ import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import modelsService from '#models/models.service.js';
+import Chat from '#models/chat.model.js';
 
 export default class Message extends Model {
 	static init(sequelize) {
@@ -123,8 +124,28 @@ export default class Message extends Model {
 
 	// Update
 
+	/**
+	 * Update a message by id. If the user or prisoner changes, the message is
+	 * moved to the chat for the resulting pair (created if needed). The
+	 * beforeValidate hook cannot do this for static updates because Sequelize
+	 * discards attribute changes made during validation.
+	 * @param {object} message fields to change, including `id`
+	 * @returns {Promise<[number]>} affected row count
+	 */
 	static async updateMessage(message) {
-		return await this.update({ ...message }, { where: { id: message.id } });
+		const values = { ...message };
+		if (values.user !== undefined || values.prisoner !== undefined) {
+			const current = await this.findByPk(message.id);
+			if (current) {
+				const user = values.user ?? current.user;
+				const prisoner = values.prisoner ?? current.prisoner;
+				if (user !== null && prisoner !== null) {
+					const [chat] = await Chat.findOrCreateChat(user, prisoner);
+					values.chat = chat.id;
+				}
+			}
+		}
+		return await this.update(values, { where: { id: message.id } });
 	}
 
 	// Delete

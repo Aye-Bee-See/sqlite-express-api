@@ -1,4 +1,5 @@
 import LoudError from '#services/LoudError.js';
+import ValidationError from '#services/ValidationError.js';
 //import Utilities from '#services/Utilities.js';
 
 import { messages as msgConstants } from '#routes/constants.js';
@@ -33,11 +34,35 @@ export default class RouteController {
 		this.controllerName = name;
 		this.#implementsInterface(this, RouteControllerInterface);
 	}
+	static DEFAULT_PAGE_SIZE = 10;
+	static MAX_PAGE_SIZE = 100;
+
+	/**
+	 * Turn the page / page_size query parameters into Sequelize limit / offset.
+	 * Both are optional; when present they must be positive integers, and
+	 * page_size may not exceed MAX_PAGE_SIZE.
+	 * @param {string|number|undefined} page 1-based page number
+	 * @param {string|number|undefined} page_size rows per page
+	 * @returns {{limit: number, offset: number}}
+	 * @throws {ValidationError} for non-numeric, fractional, zero, negative, or oversized values
+	 */
 	handleLimits(page, page_size) {
-		const limit = page_size || 10;
-		const list_start = page - 1 || 0;
-		const offset = list_start * limit;
-		return { limit, offset };
+		const blank = (v) => v === undefined || v === null || v === '';
+		const pageNum = blank(page) ? 1 : Number(page);
+		const sizeNum = blank(page_size) ? RouteController.DEFAULT_PAGE_SIZE : Number(page_size);
+		const errors = [];
+		if (!Number.isInteger(pageNum) || pageNum < 1) {
+			errors.push('page must be a positive integer.');
+		}
+		if (!Number.isInteger(sizeNum) || sizeNum < 1 || sizeNum > RouteController.MAX_PAGE_SIZE) {
+			errors.push(
+				'page_size must be an integer between 1 and ' + RouteController.MAX_PAGE_SIZE + '.'
+			);
+		}
+		if (errors.length > 0) {
+			throw new ValidationError(errors);
+		}
+		return { limit: sizeNum, offset: (pageNum - 1) * sizeNum };
 	}
 	/*	#formatMessagesList(messagesList) {
 		let formattedList = {};
@@ -80,10 +105,10 @@ export default class RouteController {
 	}
 
 	handleErr(res, errMsg = null, msgType = 'par') {
-		// Handle Sequelize validation errors globally
-		if (errMsg && errMsg.name === 'SequelizeValidationError' && errMsg.errors) {
-			const messages = errMsg.errors.map((e) => e.message);
-			return res.status(400).json({ success: false, errors: messages });
+		// Validation failures (ours or Sequelize's) share one shape.
+		const validationMessages = ValidationError.messagesFrom(errMsg);
+		if (validationMessages) {
+			return res.status(400).json({ success: false, errors: validationMessages });
 		}
 		const ctrlMsg = msgConstants[this.controllerName];
 		const stack = this.#findStack(res);

@@ -8,6 +8,7 @@ import Chapter from '#models/chapter.model.js';
 import PrisonerSupport from '#models/prisoner-support.model.js';
 import ClaimToken from '#models/claim-token.model.js';
 import MessageStatus from '#models/message-status.model.js';
+import Attachment from '#models/attachment.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -57,6 +58,7 @@ Child.belongsToMany(
 */
 
 export {
+	Attachment,
 	Chat,
 	Chapter,
 	ClaimToken,

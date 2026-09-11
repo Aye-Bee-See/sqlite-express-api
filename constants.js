@@ -10,7 +10,9 @@ const {
 	DB_RESET,
 	DB_SEED,
 	DB_LOGGING,
-	DB_STORAGE
+	DB_STORAGE,
+	UPLOAD_DIR,
+	UPLOAD_MAX_BYTES
 } = process.env;
 
 /**
@@ -56,3 +58,8 @@ export const dbLogging = envBool(DB_LOGGING, false);
 export const quietBoot = process.env.NODE_ENV === 'test';
 /** SQLite file path, or ':memory:' for a throwaway in-process database (tests). */
 export const dbStorage = DB_STORAGE || 'database.sqlite';
+/** Directory that holds uploaded attachments (created on first upload). */
+export const uploadDir = UPLOAD_DIR || 'uploads';
+/** Largest accepted upload, in bytes. Default 10 MiB. */
+export const uploadMaxBytes =
+	UPLOAD_MAX_BYTES && Number(UPLOAD_MAX_BYTES) > 0 ? Number(UPLOAD_MAX_BYTES) : 10 * 1024 * 1024;

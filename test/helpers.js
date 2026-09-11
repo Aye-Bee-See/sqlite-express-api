@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 /**
  * Shared test harness.
  *
@@ -16,11 +20,27 @@ process.env.ADMIN_PASSWORD = '';
 process.env.ADMIN_EMAIL = '';
 process.env.CORS_ORIGIN = 'http://localhost:3001';
 process.env.NODE_ENV = 'test';
+process.env.UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'abc-uploads-'));
+process.env.UPLOAD_MAX_BYTES = String(64 * 1024);
 
 const { createApp, ready } = await import('../app.js');
 const db = await import('../database/sql-database.js');
 
-export const { User, Prison, Prisoner, Rule, Chapter, Chat, Message, ClaimToken, sequelize } = db;
+export const {
+	User,
+	Prison,
+	Prisoner,
+	Rule,
+	Chapter,
+	Chat,
+	Message,
+	ClaimToken,
+	Attachment,
+	sequelize
+} = db;
+
+/** Where this test process stores uploads; removed by stopServer(). */
+export const uploadDir = process.env.UPLOAD_DIR;
 
 let server;
 let baseUrl;
@@ -50,6 +70,7 @@ export async function stopServer() {
 		server = undefined;
 	}
 	await sequelize.close();
+	rmSync(uploadDir, { recursive: true, force: true });
 }
 
 /**
@@ -84,6 +105,39 @@ export const get = (path, o) => api('GET', path, o);
 export const post = (path, body, o = {}) => api('POST', path, { ...o, body });
 export const put = (path, body, o = {}) => api('PUT', path, { ...o, body });
 export const del = (path, body, o = {}) => api('DELETE', path, { ...o, body });
+
+/**
+ * Send a multipart upload.
+ * @param {string} path
+ * @param {{fields?: object, file?: {name: string, type: string, bytes: Buffer|Uint8Array}, field?: string}} parts
+ * @param {{token?: string}} [o]
+ */
+export async function upload(path, { fields = {}, file, field = 'file' } = {}, o = {}) {
+	const form = new FormData();
+	for (const [k, v] of Object.entries(fields)) {
+		form.append(k, String(v));
+	}
+	if (file) {
+		form.append(field, new Blob([file.bytes], { type: file.type }), file.name);
+	}
+	const headers = o.token ? { Authorization: 'Bearer ' + o.token } : {};
+	const res = await fetch(baseUrl + path, { method: 'POST', headers, body: form });
+	const text = await res.text();
+	let parsed = text;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		// leave as text
+	}
+	return { status: res.status, body: parsed, headers: res.headers };
+}
+
+/** Fetch raw bytes (for downloads). */
+export async function getBytes(path, o = {}) {
+	const headers = o.token ? { Authorization: 'Bearer ' + o.token } : {};
+	const res = await fetch(baseUrl + path, { headers });
+	return { status: res.status, bytes: Buffer.from(await res.arrayBuffer()), headers: res.headers };
+}
 
 /**
  * Log in and return the token.

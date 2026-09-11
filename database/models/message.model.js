@@ -4,6 +4,7 @@ import Hooks from '#hooks/all.hooks.js';
 import modelsService from '#models/models.service.js';
 import Chat from '#models/chat.model.js';
 import MessageStatus from '#models/message-status.model.js';
+import Attachment from '#models/attachment.model.js';
 import Prisoner from '#models/prisoner.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
@@ -50,6 +51,12 @@ export default class Message extends Model {
 		});
 		this.hasMany(models.MessageStatus, {
 			as: 'status_history',
+			foreignKey: 'message',
+			onDelete: 'CASCADE',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.Attachment, {
+			as: 'attachments',
 			foreignKey: 'message',
 			onDelete: 'CASCADE',
 			onUpdate: 'CASCADE'
@@ -149,14 +156,18 @@ export default class Message extends Model {
 		return await this.readLetter(message.id);
 	}
 
-	/** One message with its relay group and status history embedded. */
+	/** One message with its relay group, status history, and attachments embedded. */
 	static async readLetter(id) {
 		return await this.findByPk(id, {
 			include: [
 				{ model: MessageStatus, as: 'status_history' },
+				{ model: Attachment, as: 'attachments' },
 				{ association: 'relay_group', attributes: ['id', 'name'] }
 			],
-			order: [[{ model: MessageStatus, as: 'status_history' }, 'id', 'ASC']]
+			order: [
+				[{ model: MessageStatus, as: 'status_history' }, 'id', 'ASC'],
+				[{ model: Attachment, as: 'attachments' }, 'id', 'ASC']
+			]
 		});
 	}
 
@@ -280,6 +291,7 @@ export default class Message extends Model {
 	// Delete
 
 	static async deleteMessage(id) {
+		await Attachment.purgeForMessages([Number(id)]);
 		return await this.destroy({
 			where: { id: id },
 			force: true

@@ -99,6 +99,12 @@ const endpoints = {
 			update: '/message',
 			updateStatus: '/status'
 		},
+		attachment: {
+			create: '/attachment',
+			many: '/attachments',
+			one: '/attachment',
+			remove: '/attachment'
+		},
 		delete: {
 			remove: '/message'
 		}
@@ -409,12 +415,24 @@ const messages = {
 			one: {
 				success: { condition: { par: 'Success getting message by ID' } },
 				error: { condition: { par: 'Error getting message by ID' } }
+			},
+			attachments: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing attachments.' } }
+			},
+			getAttachment: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading attachment.' } }
 			}
 		},
 		post: {
 			create: {
 				success: { condition: { par: 'Successfully created message' } },
 				error: { condition: { par: 'Error creating message' } }
+			},
+			createAttachment: {
+				success: { condition: { par: 'Attachment uploaded.' } },
+				error: { condition: { par: 'Error uploading attachment.' } }
 			}
 		},
 		put: {
@@ -436,6 +454,10 @@ const messages = {
 						absent: 'No such message'
 					}
 				}
+			},
+			removeAttachment: {
+				success: { condition: { par: 'Attachment deleted.' } },
+				error: { condition: { par: 'Error deleting attachment.' } }
 			}
 		}
 	},

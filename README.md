@@ -60,19 +60,21 @@ Copy `.env.example` to `.env` and edit it. `.env` is git-ignored.
 cp .env.example .env
 ```
 
-| Variable         | Required | Default                 | Purpose                                                                                                                           |
-| ---------------- | -------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `JWT_SECRET`     | Yes      | none                    | Secret used to sign and verify login tokens. Login fails without it.                                                              |
-| `PORT`           | Yes      | none                    | TCP port to listen on.                                                                                                            |
-| `ADMIN_USERNAME` | No       | none                    | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set. |
-| `ADMIN_PASSWORD` | No       | none                    | Password for that account, at least 7 characters.                                                                                 |
-| `ADMIN_EMAIL`    | No       | none                    | Email for that account.                                                                                                           |
-| `CORS_ORIGIN`    | No       | `http://localhost:3001` | Browser origins allowed by CORS, comma-separated.                                                                                 |
-| `DB_RESET`       | No       | `false`                 | `true` drops every table and replays all migrations on boot. All data is lost.                                                    |
-| `DB_SEED`        | No       | `true`                  | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                             |
-| `DB_LOGGING`     | No       | `false`                 | `true` prints every SQL statement.                                                                                                |
-| `DB_STORAGE`     | No       | `database.sqlite`       | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                        |
-| `NODE_ENV`       | No       | none                    | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                        |
+| Variable           | Required | Default                 | Purpose                                                                                                                               |
+| ------------------ | -------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `JWT_SECRET`       | Yes      | none                    | Secret used to sign and verify login tokens. Login fails without it.                                                                  |
+| `PORT`             | Yes      | none                    | TCP port to listen on.                                                                                                                |
+| `ADMIN_USERNAME`   | No       | none                    | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.     |
+| `ADMIN_PASSWORD`   | No       | none                    | Password for that account, at least 7 characters.                                                                                     |
+| `ADMIN_EMAIL`      | No       | none                    | Email for that account.                                                                                                               |
+| `CORS_ORIGIN`      | No       | `http://localhost:3001` | Browser origins allowed by CORS, comma-separated.                                                                                     |
+| `DB_RESET`         | No       | `false`                 | `true` drops every table and replays all migrations on boot. All data is lost.                                                        |
+| `DB_SEED`          | No       | `true`                  | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                 |
+| `DB_LOGGING`       | No       | `false`                 | `true` prints every SQL statement.                                                                                                    |
+| `DB_STORAGE`       | No       | `database.sqlite`       | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                            |
+| `UPLOAD_DIR`       | No       | `uploads`               | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database. |
+| `UPLOAD_MAX_BYTES` | No       | `10485760`              | Largest accepted upload (10 MiB).                                                                                                     |
+| `NODE_ENV`         | No       | none                    | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                            |
 
 ### Start
 
@@ -108,6 +110,8 @@ The suite runs against an in-memory database and needs no `.env`. It takes a cou
 ### Data persistence
 
 Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
+
+Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and are referenced by rows in the `Attachments` table; back up both together. Deleting a message or chat through the API removes its files.
 
 Schema changes ship as migrations and are applied automatically on boot, so pulling a new version and starting the server upgrades an existing database in place. A database created before migrations existed is adopted on first boot (you will see `Existing database adopted` once).
 
@@ -1288,14 +1292,18 @@ Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data":
 
 ### Messages
 
-| Method | Path                  | Auth                 | Purpose                                             |
-| ------ | --------------------- | -------------------- | --------------------------------------------------- |
-| POST   | `/messaging/message`  | Scoped               | Send a message (creates the chat if needed)         |
-| GET    | `/messaging/messages` | Scoped               | List messages                                       |
-| GET    | `/messaging/message`  | Scoped               | Get one message by id                               |
-| PUT    | `/messaging/message`  | Scoped               | Update a message (while still queued, unless admin) |
-| PUT    | `/messaging/status`   | Relay group or admin | Move a letter to `printed` or `mailed`              |
-| DELETE | `/messaging/message`  | Scoped               | Delete a message (while still queued, unless admin) |
+| Method | Path                     | Auth                 | Purpose                                             |
+| ------ | ------------------------ | -------------------- | --------------------------------------------------- |
+| POST   | `/messaging/message`     | Scoped               | Send a message (creates the chat if needed)         |
+| GET    | `/messaging/messages`    | Scoped               | List messages                                       |
+| GET    | `/messaging/message`     | Scoped               | Get one message by id                               |
+| PUT    | `/messaging/message`     | Scoped               | Update a message (while still queued, unless admin) |
+| PUT    | `/messaging/status`      | Relay group or admin | Move a letter to `printed` or `mailed`              |
+| DELETE | `/messaging/message`     | Scoped               | Delete a message (while still queued, unless admin) |
+| POST   | `/messaging/attachment`  | Scoped               | Upload a file to a message (multipart)              |
+| GET    | `/messaging/attachments` | Scoped               | List a message's attachments                        |
+| GET    | `/messaging/attachment`  | Scoped               | Download one attachment                             |
+| DELETE | `/messaging/attachment`  | Scoped               | Delete one attachment                               |
 
 The scope is the same as for chats: own messages for a `user`; the group's managed writers' messages plus the letters the group relays for a `chapter` account; everything for an admin.
 
@@ -1460,7 +1468,54 @@ Body: `{"id": 41, "status": "printed"}`. Allowed for admins and for `chapter` ac
 
 #### DELETE /messaging/message
 
-Body: `{"id": 41}`. Returns `"data": 1`. Once a letter is `printed` or `mailed`, only an admin may delete it.
+Body: `{"id": 41}`. Returns `"data": 1`. Once a letter is `printed` or `mailed`, only an admin may delete it. The message's attachment files are removed with it.
+
+#### Attachments
+
+A message can carry files: a scan of a prisoner's reply, a photo enclosed with a letter, a PDF to print. Accepted types are `application/pdf`, `image/jpeg`, `image/png`, and `image/webp`; the server checks the file's leading bytes against the declared type and refuses a mismatch. One upload is limited to `UPLOAD_MAX_BYTES` (default 10 MiB).
+
+Attachments follow the message's scope: whoever can read the message can list and download them, and whoever can edit it can add or delete them. Once a letter is `printed` or `mailed`, only an admin can add or remove its files; downloading still works.
+
+Every attachment row looks like:
+
+```json
+{
+	"id": 3,
+	"message": 41,
+	"originalName": "reply.pdf",
+	"mimeType": "application/pdf",
+	"size": 48213,
+	"uploadedBy": 5,
+	"createdAt": "2026-09-12T10:00:00.000Z",
+	"updatedAt": "2026-09-12T10:00:00.000Z"
+}
+```
+
+`GET /messaging/message?id=…&full=true` embeds the same rows under `attachments`.
+
+#### POST /messaging/attachment
+
+`multipart/form-data` with a `message` field (the letter's id) and exactly one file in a field named `file`. Returns `201` with the attachment row.
+
+```bash
+curl -s -X POST http://localhost:3000/messaging/attachment \
+  -H "Authorization: Bearer $TOKEN" \
+  -F message=41 -F file=@reply.pdf
+```
+
+Failure modes, all `400` with the validation shape unless noted: a type outside the accepted list; content that does not match the declared type; a file above the size limit; no file, or a file in a field other than `file`; a missing `message`. A message the caller cannot see is a `403`; one that does not exist is a `404`.
+
+#### GET /messaging/attachments
+
+Parameter: `message` (required). Returns the message's attachment rows, oldest first.
+
+#### GET /messaging/attachment
+
+Parameter: `id` (required). Streams the file with its `Content-Type`, `Content-Length`, and a `Content-Disposition: attachment; filename="…"` header carrying the original name. A row whose file is missing from disk is a `404`.
+
+#### DELETE /messaging/attachment
+
+Body: `{"id": 3}`. Removes the row and the file. Returns `"data": 1`.
 
 ### Chapters
 

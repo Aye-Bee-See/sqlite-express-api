@@ -2,6 +2,7 @@ import express from 'express';
 import { default as passport } from 'passport';
 import { messageEnd } from '#routes/constants.js';
 import { default as messageCrtlr } from '#rtControllers/message.controller.js';
+import { uploadSingle } from '#rtServices/upload.services.js';
 
 class MessageRoutes {
 	static Router;
@@ -66,6 +67,25 @@ class MessageRoutes {
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.updateStatus
 		);
+		// Attachments
+		const authenticate = passport.authenticate('UsrJStrat', {
+			session: false,
+			failWithError: true
+		});
+		this.Router.post(
+			messageEnd.attachment.create,
+			authenticate,
+			uploadSingle('file'),
+			this.#Controller.createAttachment
+		);
+		this.Router.get(messageEnd.attachment.many, authenticate, this.#Controller.attachments);
+		this.Router.get(messageEnd.attachment.one, authenticate, this.#Controller.getAttachment);
+		this.Router.delete(
+			messageEnd.attachment.remove,
+			authenticate,
+			this.#Controller.removeAttachment
+		);
+
 		// Delete
 		this.Router.delete(
 			messageEnd.delete.remove,

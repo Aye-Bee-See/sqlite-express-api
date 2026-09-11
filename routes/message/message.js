@@ -1,9 +1,7 @@
 import express from 'express';
-import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { messageEnd } from '#routes/constants.js';
 import { default as messageCrtlr } from '#rtControllers/message.controller.js';
-import authService from '#rtServices/auth.services.js';
 
 class MessageRoutes {
 	static Router;
@@ -16,14 +14,6 @@ class MessageRoutes {
 	 *   Initialize all necessary parts of the class            *
 	 ************************************************************/
 	static {
-		const app = express();
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		const JwtStrat = authService.authorize;
-		passport.use('UsrJStrat', JwtStrat);
-
 		this.#Controller = new messageCrtlr();
 		this.Router = express.Router();
 

@@ -3,6 +3,7 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Rule from '#models/rule.model.js';
+import { NotFoundError } from '#services/HttpError.js';
 
 export default class Prison extends Model {
 	static init(sequelize) {
@@ -13,17 +14,23 @@ export default class Prison extends Model {
 		});
 	}
 	static associate(models) {
-		this.hasMany(models.Prisoner, { as: 'prisoners', foreignKey: 'prison' });
+		this.hasMany(models.Prisoner, {
+			as: 'prisoners',
+			foreignKey: 'prison',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
 		this.belongsToMany(models.Rule, {
+			as: 'rules',
 			through: 'RulePassthrough',
 			foreignKey: 'prison',
-			sourceKey: 'id'
+			otherKey: 'rule'
 		});
 	}
 
 	// Create
 	static async createPrison({ prisonName, address }) {
-		return await this.create({ prisonName, address, deleted: false });
+		return await this.create({ prisonName, address });
 	}
 
 	static async getAllPrisons(full, limit, offset = 0) {
@@ -93,16 +100,23 @@ export default class Prison extends Model {
 		return await this.update({ ...prison }, { where: { id: prison.id } });
 	}
 
-	static async addRule(rule, prison) {
-		Rule.findOne({
-			where: { id: rule }
-		}).then((rule) => {
-			this.findOne({
-				where: { id: prison }
-			}).then((prison) => {
-				rule.addPrison(prison);
-			});
-		});
+	/**
+	 * Attach an existing rule to an existing prison (idempotent).
+	 * @param {number|string} ruleId
+	 * @param {number|string} prisonId
+	 * @returns {Promise<Prison>} the prison with its rules loaded
+	 * @throws {Error} when either record does not exist
+	 */
+	static async addRule(ruleId, prisonId) {
+		const [rule, prison] = await Promise.all([Rule.findByPk(ruleId), this.findByPk(prisonId)]);
+		if (!rule) {
+			throw new NotFoundError('Rule ' + ruleId + ' not found');
+		}
+		if (!prison) {
+			throw new NotFoundError('Prison ' + prisonId + ' not found');
+		}
+		await prison.addRule(rule);
+		return await this.getPrisonByID(prisonId, true);
 	}
 
 	// Delete

@@ -14,7 +14,12 @@ export default class Rule extends Model {
 	}
 
 	static associate(models) {
-		this.belongsToMany(models.Prison, { through: 'RulePassthrough', foreignKey: 'id' });
+		this.belongsToMany(models.Prison, {
+			as: 'prisons',
+			through: 'RulePassthrough',
+			foreignKey: 'rule',
+			otherKey: 'prison'
+		});
 	}
 
 	static async createRule({ prison, title, description }) {

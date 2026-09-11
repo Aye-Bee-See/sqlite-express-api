@@ -3,6 +3,7 @@ import { Strategy as LocalStrategy } from 'passport-local';
 import jwt from 'jsonwebtoken';
 import { User } from '#db/sql-database.js';
 import bcrypt from 'bcrypt';
+import passport from 'passport';
 import { secretOrKey } from '#constants';
 export default class authService {
 	static #jwtOptions = {
@@ -18,14 +19,12 @@ export default class authService {
 		return { token, expires: expiryDateMs };
 	}
 
-	static async register() {}
-
 	static async #verify(username, password, done) {
 		let user;
 
 		try {
 			user = (await User.getUser({ username })) || false;
-			if (user) {
+			if (user && user.role !== 'banned') {
 				const match = (await bcrypt.compare(password, user.password)) || false;
 				if (match) {
 					const token = authService.#createJWT(user);
@@ -44,12 +43,25 @@ export default class authService {
 		{ usernameField: 'username', passwordField: 'password' },
 		authService.#verify
 	);
-	static authorize = new JwtStrategy(authService.#jwtOptions, (jwt_payload, next) => {
-		let user = User.getUser({ id: jwt_payload.id });
-		if (user) {
-			next(null, user);
-		} else {
-			next(null, false);
+	static authorize = new JwtStrategy(authService.#jwtOptions, async (jwt_payload, next) => {
+		try {
+			if (jwt_payload?.id === undefined || jwt_payload.id === null) {
+				return next(null, false);
+			}
+			const user = await User.getUser({ id: jwt_payload.id });
+			if (user && user.role !== 'banned') {
+				return next(null, user);
+			}
+			return next(null, false);
+		} catch (err) {
+			const errVar = !(err instanceof Error) ? new Error(err) : err;
+			return next(errVar);
 		}
 	});
 }
+
+// Register the strategies once. Route files refer to them by name in
+// passport.authenticate('UsrJStrat' | 'LStrat', ...); index.js imports this
+// module so registration happens before any router is mounted.
+passport.use('UsrJStrat', authService.authorize);
+passport.use('LStrat', authService.login);

@@ -1,9 +1,8 @@
 import express from 'express';
-import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { chapterEnd } from '#routes/constants.js';
 import * as chapterCtrlr from '#rtControllers/chapter.controller.js';
-import authService from '#rtServices/auth.services.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 class ChapterRoutes {
 	static Router;
@@ -16,14 +15,6 @@ class ChapterRoutes {
 	 *   Initialize all necessary parts of the class            *
 	 ************************************************************/
 	static {
-		const app = express();
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		const JwtStrat = authService.authorize;
-		passport.use('UsrJStrat', JwtStrat);
-
 		this.#Controller = new chapterCtrlr.default();
 		this.Router = express.Router();
 
@@ -35,6 +26,7 @@ class ChapterRoutes {
 		this.Router.post(
 			chapterEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.create
 		);
 
@@ -57,6 +49,7 @@ class ChapterRoutes {
 		this.Router.put(
 			chapterEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.update
 		);
 
@@ -65,6 +58,7 @@ class ChapterRoutes {
 		this.Router.delete(
 			chapterEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.remove
 		);
 	}

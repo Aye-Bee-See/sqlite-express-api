@@ -1,11 +1,15 @@
 import Chat from '#models/chat.model.js';
-//import { default as jwt } from 'jsonwebtoken';
-//import bcrypt from 'bcrypt';
-//import { chatMsg } from '#routes/constants.js';
-import { default as Utls } from '#services/Utilities.js';
 import RouteController from '#rtControllers/route.controller.js';
-//import Logger from "#dbg/Logger"
+import AuthzService from '#rtServices/authz.services.js';
+import { HttpError } from '#services/HttpError.js';
 
+/**
+ * Chat controller.
+ *
+ * Ownership: callers with the plain "user" role only ever see, create, change,
+ * or delete chats whose `user` column is their own id. Admins and chapters are
+ * unrestricted.
+ */
 export default class ChatController extends RouteController {
 	constructor() {
 		/*
@@ -28,112 +32,92 @@ export default class ChatController extends RouteController {
 	#handleSuccess;
 	#handleErr;
 	#handleLimits;
-	/***
-	 * TODO:  Needs error trapping for no existing chats
-	 */
-	async getMany(req, res) {
-		const { chatfunc, condition } = this.#handleGetMany(req);
 
-		try {
-			const chats = await chatfunc;
-			this.#handleSuccess(res, chats);
-		} catch (err) {
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar, condition);
+	/**
+	 * Load a chat by id and confirm the caller may act on it.
+	 * @returns {Promise<Chat|null>} the chat, or null when it does not exist
+	 * @throws {Error} a 403 error when the caller is restricted and does not own it
+	 */
+	async #loadOwned(req, id) {
+		const chat = await Chat.getChatByID(id);
+		if (chat && AuthzService.ownOnly(req) && !AuthzService.ownsRecord(req, chat)) {
+			throw AuthzService.forbidden();
 		}
+		return chat;
 	}
 
-	#handleGetMany(req) {
+	/**
+	 * List chats. Filters, in precedence order: user, prisoner, none.
+	 * A restricted caller is always filtered to their own user id; for them a
+	 * `prisoner` parameter narrows within their own chats.
+	 */
+	async getMany(req, res) {
 		const { prisoner, user, full, page, page_size } = req.query;
 		const { limit, offset } = this.#handleLimits(page, page_size);
 		const fullBool = full === 'true';
-
-		let retvals;
-		const ctype = !Utls.isUndefined(user)
-			? 1 // Get chats by user
-			: !Utls.isUndefined(prisoner)
-				? 2 // Get chats by prisoner
-				: 0; // Get all chats
-
-		switch (ctype) {
-			case 1:
-				retvals = {
-					chatfunc: Chat.readChatsByUser(user, fullBool, limit, offset),
-					condition: 'par'
-				};
-				break;
-			case 2:
-				retvals = {
-					chatfunc: Chat.readChatsByPrisoner(prisoner, fullBool, limit, offset),
-					condition: 'par'
-				};
-				break;
-			default:
-				retvals = {
-					chatfunc: Chat.readAllChats(fullBool, limit, offset),
-					condition: 'par'
-				};
-				break;
-		}
-		return retvals;
-	}
-
-	// get one chat
-
-	async getOne(req, res) {
-		const { chatfunc, condition } = this.#handleGetOne(req);
+		const restricted = AuthzService.ownOnly(req);
 
 		try {
-			//  if (!(typeof chatfunc==='function')) throw new Error;
-			const chat = await chatfunc;
-			this.#handleSuccess(res, chat);
+			let chats;
+			if (restricted) {
+				const extra = prisoner !== undefined ? { prisoner } : {};
+				chats = await Chat.readChatsByUser(req.user.id, fullBool, limit, offset, extra);
+			} else if (user !== undefined) {
+				chats = await Chat.readChatsByUser(user, fullBool, limit, offset);
+			} else if (prisoner !== undefined) {
+				chats = await Chat.readChatsByPrisoner(prisoner, fullBool, limit, offset);
+			} else {
+				chats = await Chat.readAllChats(fullBool, limit, offset);
+			}
+			this.#handleSuccess(res, chats);
 		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/**
+	 * Get one chat, either by `id` or by the `user` + `prisoner` pair.
+	 * A restricted caller may omit `user`; it defaults to their own id.
+	 */
+	async getOne(req, res, next) {
+		const { id, prisoner, full: fullString } = req.query;
+		const full = fullString === 'true';
+		const restricted = AuthzService.ownOnly(req);
+		const user = restricted && req.query.user === undefined ? req.user.id : req.query.user;
+		let condition = 'par';
+
+		try {
+			let chat;
+			if (id !== undefined) {
+				await this.#loadOwned(req, id);
+				chat = await Chat.readChatById(id, full);
+			} else if (user !== undefined && prisoner !== undefined) {
+				if (restricted && String(user) !== String(req.user.id)) {
+					throw AuthzService.forbidden();
+				}
+				chat = await Chat.readChatByUserAndPrisoner(user, prisoner, full);
+			} else if (user !== undefined || prisoner !== undefined) {
+				condition = 'param';
+				throw new HttpError(400, 'Both user and prisoner are required.');
+			} else {
+				condition = 'empty';
+				throw new HttpError(400, 'Provide either id, or both user and prisoner.');
+			}
+			this.#handleSuccess(res, this.requireFound(chat, 'Chat'));
+		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar, condition);
 		}
-	}
-
-	#handleGetOne(req) {
-		const { id, user, prisoner, full: fullString } = req.query;
-		const full = fullString === 'true';
-
-		let retvals;
-
-		const ctype = !Utls.isUndefined(id)
-			? 1 // Get chat by id
-			: !Utls.isUndefined(user) && !Utls.isUndefined(prisoner)
-				? 2 // Get chat by user and prisoner
-				: !Utls.isUndefined(user) || !Utls.isUndefined(prisoner)
-					? 3 // Error missing either user or prisoner
-					: 0; // Error empty params
-
-		switch (ctype) {
-			case 1:
-				retvals = {
-					chatfunc: Chat.readChatById(id, full),
-					condition: 'par'
-				};
-				break;
-
-			case 2:
-				retvals = {
-					chatfunc: Chat.readChatByUserAndPrisoner(user, prisoner, full),
-					condition: 'par'
-				};
-				break;
-			case 3:
-				retvals = { condition: 'param' };
-				break;
-			default:
-				retvals = { condition: 'empty' };
-				break;
-		}
-		return retvals;
 	}
 
 	// Create
 	async create(req, res) {
-		const { user, prisoner } = req.body;
+		const { prisoner } = req.body;
+		const user = AuthzService.ownOnly(req) ? req.user.id : req.body.user;
 		try {
 			const chat = await Chat.createChat({ user, prisoner });
 			this.#handleSuccess(res, chat);
@@ -144,25 +128,38 @@ export default class ChatController extends RouteController {
 	}
 
 	// Update
-
-	async update(req, res) {
-		const newChat = req.body;
+	async update(req, res, next) {
+		const newChat = { ...req.body };
 		try {
+			if (AuthzService.ownOnly(req)) {
+				await this.#loadOwned(req, newChat.id);
+				if (newChat.user !== undefined && String(newChat.user) !== String(req.user.id)) {
+					throw AuthzService.forbidden('A chat cannot be reassigned to another user.');
+				}
+			}
 			const updatedRows = await Chat.updateChat(newChat);
+			this.requireAffected(updatedRows, 'Chat ' + newChat.id);
 			this.#handleSuccess(res, { updatedRows, newChat });
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}
 	}
 
 	// Delete
-	async remove(req, res) {
+	async remove(req, res, next) {
 		const { id } = req.body;
 		try {
+			await this.#loadOwned(req, id);
 			const deletedRows = await Chat.deleteChat(id);
-			this.#handleSuccess(res, deletedRows);
+			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Chat ' + id));
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}

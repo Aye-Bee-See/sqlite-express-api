@@ -1,9 +1,8 @@
 import express from 'express';
-import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { userEnd } from '#routes/constants.js';
 import { default as userCrtlr } from '#rtControllers/user.controller.js';
-import authService from '#rtServices/auth.services.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 class UserRoutes {
 	static Router;
@@ -16,16 +15,6 @@ class UserRoutes {
 	 *   Initialize all necessary parts of the class            *
 	 ************************************************************/
 	static {
-		const app = express();
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		const UserJWTStrat = authService.authorize;
-		const LoginStrat = authService.login;
-		passport.use('UsrJStrat', UserJWTStrat);
-		passport.use('LStrat', LoginStrat);
-
 		this.#Controller = new userCrtlr();
 		this.Router = express.Router();
 
@@ -37,8 +26,12 @@ class UserRoutes {
 	 *
 	 ***/
 	static #router() {
-		// Create
-		this.Router.post(userEnd.post.create, this.#Controller.create);
+		// Create (public registration; an admin token unlocks other roles)
+		this.Router.post(
+			userEnd.post.create,
+			AuthzService.optionalAuthenticate,
+			this.#Controller.create
+		);
 
 		// Login
 		this.Router.post(
@@ -51,11 +44,13 @@ class UserRoutes {
 		this.Router.get(
 			userEnd.get.many,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN),
 			this.#Controller.getMany
 		);
 		this.Router.get(
 			userEnd.get.one,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireSelfOrAdmin,
 			this.#Controller.getOne
 		);
 
@@ -63,6 +58,7 @@ class UserRoutes {
 		this.Router.put(
 			userEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireSelfOrAdmin,
 			this.#Controller.update
 		);
 
@@ -70,6 +66,7 @@ class UserRoutes {
 		this.Router.delete(
 			userEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireSelfOrAdmin,
 			this.#Controller.remove
 		);
 	}

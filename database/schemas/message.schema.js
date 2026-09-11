@@ -3,7 +3,6 @@ import { DataTypes } from 'sequelize';
 const messageSchema = {
 	chat: {
 		type: DataTypes.INTEGER,
-		model: 'Chat',
 		allowNull: false,
 		validate: {
 			isInt: {

@@ -420,6 +420,10 @@ Directory lists accept these in addition to `page` and `page_size`:
 | `q`            | prisons, prisoners, rules, chapters, users (admin) | Case-insensitive substring match. Prisons match `prisonName`; prisoners match `birthName` or `chosenName`; rules match `title` or `description`; chapters match `name`; users match `username`, `email`, or `name`. Blank is ignored. |
 | `sort`         | prisons, prisoners, rules, chapters                | `name` (alphabetical: prison name, prisoner chosen then birth name, rule title, chapter name), `newest`, or `oldest`. Default is ascending id.                                                                                        |
 | `status`       | prisoners                                          | `pretrial`, `incarcerated`, or `free`.                                                                                                                                                                                                |
+| `country`      | prisoners, prisons, chapters                       | Exact match on the `country` field.                                                                                                                                                                                                   |
+| `featured`     | prisoners                                          | `true` or `false`.                                                                                                                                                                                                                    |
+| `routing`      | prisons                                            | `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                                                                                            |
+| `service`      | chapters                                           | One service key (see [Chapter fields](#chapter-fields)); matches groups whose `services` include it.                                                                                                                                  |
 | `prison`       | prisoners, rules                                   | Only records attached to that prison.                                                                                                                                                                                                 |
 | `recordStatus` | prisons, prisoners, chapters (staff only)          | See below.                                                                                                                                                                                                                            |
 | `role`         | users (admin)                                      | One role.                                                                                                                                                                                                                             |
@@ -447,17 +451,18 @@ New records default to `published` until the moderation workflow exists. Staff c
 
 Most read endpoints accept `full=true` to embed related records. The string must be exactly `true`; anything else is treated as `false`.
 
-| Endpoint                     | `full=true` adds                                      |
-| ---------------------------- | ----------------------------------------------------- |
-| Users (list, by id, by role) | `chats`                                               |
-| Prisons (list, by id)        | `prisoners`, `rules`                                  |
-| Prisoners (list, by id)      | `prison_details`                                      |
-| Prisoners by prison          | `prison_details`, plus `chats` for staff callers only |
-| Rules (list, by id)          | `prisons`                                             |
-| Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details`        |
-| Messages                     | accepted but ignored                                  |
+| Endpoint                     | `full=true` adds                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| Users (list, by id, by role) | `chats`                                                                            |
+| Prisons (list, by id)        | `prisoners`, `rules`, `relay_groups`                                               |
+| Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`)     |
+| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for staff callers only            |
+| Rules (list, by id)          | `prisons`                                                                          |
+| Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons` |
+| Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details`                                     |
+| Messages                     | accepted but ignored                                                               |
 
-Embedded rules and prisons carry a `RulePassthrough` object describing the link (see the prison example below). Embedded users never include the password hash. For anonymous and `user`-role callers, embedded prisoners and prisons are limited to published ones, and chats are never embedded.
+Embedded rules and prisons carry a `RulePassthrough` object describing the link (see the prison example below). Embedded users never include the password hash. For anonymous and `user`-role callers, embedded prisoners, prisons, and chapters are limited to published ones, chats are never embedded, and the staff-only `verificationNotes` field is omitted from prisoners and prisons everywhere.
 
 ### Deletes and referential integrity
 
@@ -487,14 +492,15 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 #### User fields
 
-| Field      | Rules                                                                                                                                  |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `username` | Required, unique, 3 to 16 characters.                                                                                                  |
-| `password` | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                |
-| `email`    | Required, unique, must look like an email address.                                                                                     |
-| `role`     | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later. |
-| `name`     | Optional display name, 3 to 32 characters.                                                                                             |
-| `bio`      | Optional, 12 to 2400 characters.                                                                                                       |
+| Field       | Rules                                                                                                                                                                              |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `username`  | Required, unique, 3 to 16 characters.                                                                                                                                              |
+| `password`  | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                                                            |
+| `email`     | Required, unique, must look like an email address.                                                                                                                                 |
+| `role`      | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later.                                             |
+| `name`      | Optional display name, 3 to 32 characters.                                                                                                                                         |
+| `bio`       | Optional, 12 to 2400 characters.                                                                                                                                                   |
+| `chapterId` | Id of the chapter (group) this account belongs to. Only an admin can set it, on create or update; anyone else's value is ignored on registration and refused with `403` on update. |
 
 #### POST /auth/user
 
@@ -619,22 +625,32 @@ Body: `{"id": 43}`. Returns `"data": 1`. A user who still has chats or messages 
 
 ### Prisons
 
-| Method | Path              | Auth             | Purpose                   |
-| ------ | ----------------- | ---------------- | ------------------------- |
-| POST   | `/prison/prison`  | Admin or chapter | Create a prison           |
-| GET    | `/prison/prisons` | Public           | List prisons              |
-| GET    | `/prison/prison`  | Public           | Get one prison by id      |
-| PUT    | `/prison/prison`  | Admin or chapter | Update a prison           |
-| PUT    | `/prison/rule`    | Admin or chapter | Attach a rule to a prison |
-| DELETE | `/prison/prison`  | Admin or chapter | Delete a prison           |
+| Method | Path              | Auth             | Purpose                            |
+| ------ | ----------------- | ---------------- | ---------------------------------- |
+| POST   | `/prison/prison`  | Admin or chapter | Create a prison                    |
+| GET    | `/prison/prisons` | Public           | List prisons                       |
+| GET    | `/prison/prison`  | Public           | Get one prison by id               |
+| PUT    | `/prison/prison`  | Admin or chapter | Update a prison                    |
+| PUT    | `/prison/rule`    | Admin or chapter | Attach a rule to a prison          |
+| DELETE | `/prison/rule`    | Admin or chapter | Detach a rule from a prison        |
+| PUT    | `/prison/relay`   | Admin or chapter | Attach a relay group to a prison   |
+| DELETE | `/prison/relay`   | Admin or chapter | Detach a relay group from a prison |
+| DELETE | `/prison/prison`  | Admin or chapter | Delete a prison                    |
 
 #### Prison fields
 
-| Field          | Type   | Notes                                                                                          |
-| -------------- | ------ | ---------------------------------------------------------------------------------------------- |
-| `prisonName`   | string | Required.                                                                                      |
-| `recordStatus` | string | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status). |
-| `address`      | object | Required. Free-form JSON; the seeds use `{"street": "..."}`.                                   |
+| Field               | Type     | Notes                                                                                          |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `prisonName`        | string   | Required.                                                                                      |
+| `country`           | string   | Free text.                                                                                     |
+| `routing`           | string   | How mail reaches the facility: `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.      |
+| `scanService`       | string   | Details of the scan service, if any.                                                           |
+| `notes`             | string   | Public notes, e.g. delivery risk.                                                              |
+| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                   |
+| `verifiedAt`        | datetime | When it was verified.                                                                          |
+| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                            |
+| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status). |
+| `address`           | object   | Required. Free-form JSON; the seeds use `{"street": "..."}`.                                   |
 
 #### POST /prison/prison
 
@@ -790,7 +806,15 @@ The response echoes the ids and returns the prison with its prisoners and rules 
 }
 ```
 
-(Embedded objects abbreviated.) An unknown rule or prison id is a `404`. There is no detach endpoint; delete the rule, or delete and recreate it, to remove a link.
+(Embedded objects abbreviated.) An unknown rule or prison id is a `404`.
+
+#### DELETE /prison/rule
+
+Body: `{"rule": 1, "prison": 1}`. Detaches the rule; `404` if the link (or either record) does not exist. The rule itself is kept.
+
+#### PUT /prison/relay and DELETE /prison/relay
+
+Body: `{"prison": 1, "chapter": 2}`. Attaches or detaches a relay group (a chapter that prints and mails letters for this facility). Attaching is idempotent and returns the prison with `prisoners`, `rules`, and `relay_groups` embedded under `updatedRows`; detaching returns `1`, or `404` if there was no link.
 
 #### DELETE /prison/prison
 
@@ -804,22 +828,39 @@ Body: `{"id": 53}`. Fails with `400` while the prison still has prisoners.
 | GET    | `/prisoner/prisoners` | Public           | List prisoners, optionally by prison |
 | GET    | `/prisoner/prisoner`  | Public           | Get one prisoner by id               |
 | PUT    | `/prisoner/prisoner`  | Admin or chapter | Update a prisoner                    |
+| PUT    | `/prisoner/support`   | Admin or chapter | Link a support group to a prisoner   |
+| DELETE | `/prisoner/support`   | Admin or chapter | Unlink a support group               |
 | DELETE | `/prisoner/prisoner`  | Admin or chapter | Delete a prisoner                    |
 
 #### Prisoner fields
 
-| Field          | Type     | Notes                                                                      |
-| -------------- | -------- | -------------------------------------------------------------------------- |
-| `birthName`    | string   | Legal name.                                                                |
-| `chosenName`   | string   | Name the person goes by.                                                   |
-| `prison`       | integer  | Id of an existing prison. A nonexistent id is refused.                     |
-| `inmateID`     | string   | Facility-issued identifier. Free text.                                     |
-| `releaseDate`  | datetime | ISO-8601 string.                                                           |
-| `bio`          | string   |                                                                            |
-| `status`       | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`. |
-| `recordStatus` | string   | `draft`, `pending`, or `published` (default). Staff only.                  |
+| Field               | Type     | Notes                                                                                 |
+| ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `birthName`         | string   | Legal name.                                                                           |
+| `chosenName`        | string   | Name the person goes by.                                                              |
+| `prison`            | integer  | Id of an existing prison. A nonexistent id is refused.                                |
+| `inmateID`          | string   | Facility-issued identifier. Free text.                                                |
+| `releaseDate`       | datetime | ISO-8601 string.                                                                      |
+| `bio`               | string   |                                                                                       |
+| `status`            | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`.            |
+| `statusNotice`      | string   | Free text shown on the profile, e.g. "In transit, location unconfirmed".              |
+| `aliases`           | string[] | Alternate names or spellings.                                                         |
+| `country`           | string   | Country of imprisonment. Free text.                                                   |
+| `detainedSince`     | datetime | ISO-8601.                                                                             |
+| `sentence`          | string   | Free text, e.g. "10 years".                                                           |
+| `charges`           | string   | Free text.                                                                            |
+| `estimatedRelease`  | string   | Free text, e.g. "2033", "~2029", "Unknown". `releaseDate` remains for a precise date. |
+| `interests`         | string[] | Tags shown on the profile.                                                            |
+| `photoUrl`          | string   | Must be a URL. Uploads are not supported yet.                                         |
+| `supportWebsite`    | string   | Must be a URL.                                                                        |
+| `donationInfo`      | string   | Free text.                                                                            |
+| `featured`          | boolean  | Shown on the home page. Default `false`.                                              |
+| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                          |
+| `verifiedAt`        | datetime | When it was verified.                                                                 |
+| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                   |
+| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only.                             |
 
-All fields are optional at the database level.
+All fields are optional at the database level. Array and object fields are validated for shape; `aliases` and `interests` must be arrays of non-empty strings.
 
 #### POST /prisoner/prisoner
 
@@ -893,6 +934,10 @@ Returns only prisoners whose `prison` matches. A `prison` id that does not exist
 #### GET /prisoner/prisoner
 
 Parameters: `id` (required), `full`. Returns the prisoner, or `404`.
+
+#### PUT /prisoner/support and DELETE /prisoner/support
+
+Body: `{"prisoner": 1, "chapter": 2, "description": "Letter collection, US Pacific Northwest"}`. Links a support group to a prisoner; sending the same pair again updates the description. The response embeds the prisoner with its `support_groups`, each carrying `PrisonerSupport.description`. `DELETE` with `{"prisoner": 1, "chapter": 2}` removes the link and returns `1`, or `404` if there was none. Unknown ids are `404`.
 
 #### PUT /prisoner/prisoner and DELETE /prisoner/prisoner
 
@@ -1248,16 +1293,25 @@ Body: `{"id": 41}`. Returns `"data": 1`.
 
 #### Chapter fields
 
-| Field             | Type    | Notes                                                          |
-| ----------------- | ------- | -------------------------------------------------------------- |
-| `name`            | string  | Required.                                                      |
-| `location`        | object  | Required. Free-form JSON.                                      |
-| `prisoners`       | object  | Optional JSON blob. Not a relation. Only settable through PUT. |
-| `lettersSent`     | string  | Optional. Only settable through PUT.                           |
-| `averageTimeDays` | integer | Optional. Only settable through PUT.                           |
-| `recordStatus`    | string  | `draft`, `pending`, or `published` (default). Staff only.      |
+| Field             | Type     | Notes                                                                                                                                                                                |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`            | string   | Required.                                                                                                                                                                            |
+| `location`        | object   | Required. Free-form JSON.                                                                                                                                                            |
+| `prisoners`       | object   | Optional JSON blob. Not a relation. Only settable through PUT.                                                                                                                       |
+| `lettersSent`     | string   | Optional. Only settable through PUT.                                                                                                                                                 |
+| `averageTimeDays` | integer  | Optional. Only settable through PUT.                                                                                                                                                 |
+| `subregion`       | string   | City, region, or area, e.g. "Portland, OR".                                                                                                                                          |
+| `country`         | string   | Free text.                                                                                                                                                                           |
+| `about`           | string   | Free text.                                                                                                                                                                           |
+| `website`         | string   | Must be a URL.                                                                                                                                                                       |
+| `email`           | string   | Public contact email. Must be an email address.                                                                                                                                      |
+| `socialLinks`     | object   | Keys `instagram`, `mastodon`, `bluesky`, `x`, `youtube`; string values (empty means unset).                                                                                          |
+| `services`        | string[] | Any of `letter_collection`, `letter_writing_nights`, `domestic_mailing`, `international_mailing`, `international_relay`, `translation_assistance`, `legal_support`, `book_programs`. |
+| `announcement`    | string   | One current announcement for the public profile.                                                                                                                                     |
+| `vouchedBy`       | integer  | Id of the chapter that vouched this group into the network. Must exist.                                                                                                              |
+| `recordStatus`    | string   | `draft`, `pending`, or `published` (default). Staff only.                                                                                                                            |
 
-The create handler only reads `name` and `location`; the other three fields must be added with a follow-up PUT.
+`prisoners` (a JSON blob) is deprecated in favour of the `support_groups` relation and will be removed. `lettersSent` and `averageTimeDays` are free statistics fields.
 
 #### POST /chapter/chapter
 
@@ -1310,7 +1364,7 @@ Parameters: `page`, `page_size`, `q`, `sort`, and (staff) `recordStatus`.
 
 #### GET /chapter/chapter, PUT /chapter/chapter, DELETE /chapter/chapter
 
-`?id=1` for GET; `{"id": 2, ...}` in the body for PUT and DELETE. A missing id is a `404` on all three.
+`?id=1` for GET (add `full=true` to embed `supported_prisoners` and `relay_prisons`); `{"id": 2, ...}` in the body for PUT and DELETE. A missing id is a `404` on all three.
 
 ## Known quirks
 

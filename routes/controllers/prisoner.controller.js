@@ -11,7 +11,11 @@ const READ_CONFIG = {
 		],
 		...SORT_BY_CREATED
 	},
-	filters: { status: { allowed: ['pretrial', 'incarcerated', 'free'] } }
+	filters: {
+		status: { allowed: ['pretrial', 'incarcerated', 'free'] },
+		country: {},
+		featured: { allowed: ['true', 'false'], transform: (v) => v === 'true' }
+	}
 };
 
 export default class PrisonerController extends RouteController {
@@ -27,6 +31,8 @@ export default class PrisonerController extends RouteController {
 		this.update = this.update.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
+		this.addSupport = this.addSupport.bind(this);
+		this.removeSupport = this.removeSupport.bind(this);
 
 		this.#handleErr = super.handleErr;
 		this.#handleSuccess = super.handleSuccess;
@@ -82,20 +88,39 @@ export default class PrisonerController extends RouteController {
 	}
 	// Create
 	async create(req, res) {
-		const { birthName, chosenName, prison, inmateID, releaseDate, bio, status, recordStatus } =
-			req.body;
 		try {
-			const prisoner = await Prisoner.createPrisoner({
-				birthName,
-				chosenName,
-				prison,
-				inmateID,
-				releaseDate,
-				bio,
-				status,
-				recordStatus
-			});
+			const prisoner = await Prisoner.createPrisoner(req.body);
 			this.#handleSuccess(res, prisoner);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/** PUT /prisoner/support { prisoner, chapter, description? }: link a support group. */
+	async addSupport(req, res) {
+		const { prisoner, chapter, description } = req.body;
+		try {
+			const updated = await Prisoner.addSupport(prisoner, chapter, description);
+			this.#handleSuccess(res, { prisoner: updated, chapter });
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/** DELETE /prisoner/support { prisoner, chapter }: unlink a support group. */
+	async removeSupport(req, res) {
+		const { prisoner, chapter } = req.body;
+		try {
+			const removed = await Prisoner.removeSupport(prisoner, chapter);
+			this.#handleSuccess(
+				res,
+				this.requireAffected(
+					removed,
+					'Support link for prisoner ' + prisoner + ' and chapter ' + chapter
+				)
+			);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

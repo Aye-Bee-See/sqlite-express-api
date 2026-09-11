@@ -150,6 +150,7 @@ export default class UserController extends RouteController {
 	 */
 	async create(req, res, next) {
 		const { username, email, password, name, bio } = req.body;
+		const chapterId = AuthzService.isAdmin(req) ? req.body.chapterId : undefined;
 		const role =
 			typeof req.body.role === 'string' ? req.body.role.toLowerCase() : AuthzService.USER;
 		if (role !== AuthzService.USER && !AuthzService.isAdmin(req)) {
@@ -158,7 +159,7 @@ export default class UserController extends RouteController {
 			);
 		}
 		try {
-			const user = await User.createUser({ username, password, role, email, name, bio });
+			const user = await User.createUser({ username, password, role, email, name, bio, chapterId });
 			const strippedPassword = this.#stripPassword(user);
 			this.#handleSuccess(res, strippedPassword);
 		} catch (err) {
@@ -176,6 +177,9 @@ export default class UserController extends RouteController {
 		const newUser = req.body;
 		if (newUser.role !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can change a user's role."));
+		}
+		if (newUser.chapterId !== undefined && !AuthzService.isAdmin(req)) {
+			return next(AuthzService.forbidden("Only an admin can change a user's group membership."));
 		}
 		try {
 			const updatedRows = await User.updateUser(newUser);

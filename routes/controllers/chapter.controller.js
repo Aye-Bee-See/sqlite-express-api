@@ -1,10 +1,24 @@
 import RouteController from '#rtControllers/route.controller.js';
 import Chapter from '#models/chapter.model.js';
+import { Op, literal } from 'sequelize';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+import { CHAPTER_SERVICES } from '#db/validators.js';
 
 const READ_CONFIG = {
 	searchFields: ['name'],
-	sorts: { name: [['name', 'ASC']], ...SORT_BY_CREATED }
+	sorts: { name: [['name', 'ASC']], ...SORT_BY_CREATED },
+	filters: {
+		country: {},
+		// services is a JSON array stored as text; Sequelize would JSON-encode a
+		// LIKE value on a JSON column, so match the quoted element with raw SQL.
+		// The value is validated against CHAPTER_SERVICES (word characters only).
+		service: {
+			allowed: CHAPTER_SERVICES,
+			build: (value) => ({
+				[Op.and]: [literal('`Chapter`.`services` LIKE \'%"' + value + '"%\'')]
+			})
+		}
+	}
 };
 
 export default class chapterController extends RouteController {
@@ -31,9 +45,8 @@ export default class chapterController extends RouteController {
 	#handleLimits;
 
 	async create(req, res) {
-		const { name, location, recordStatus } = req.body;
 		try {
-			const chapter = await Chapter.createChapter({ name, location, recordStatus });
+			const chapter = await Chapter.createChapter(req.body);
 			this.#handleSuccess(res, chapter);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -42,10 +55,10 @@ export default class chapterController extends RouteController {
 	}
 
 	async getOne(req, res) {
-		const { id } = req.query;
+		const { id, full } = req.query;
 		const { publishedOnly } = readOptions(req);
 		try {
-			const chapter = await Chapter.getChapterByID(id, { publishedOnly });
+			const chapter = await Chapter.getChapterByID(id, { full: full === 'true', publishedOnly });
 			this.#handleSuccess(res, this.requireFound(chapter, 'Chapter ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -53,13 +66,14 @@ export default class chapterController extends RouteController {
 		}
 	}
 
-	/** List chapters: page, page_size, q, sort, and (staff only) recordStatus. */
+	/** List chapters: page, page_size, full, q, sort, country, service, and (staff only) recordStatus. */
 	async getMany(req, res) {
-		const { page, page_size } = req.query;
+		const { page, page_size, full } = req.query;
 		const limits = this.#handleLimits(page, page_size);
 		const { publishedOnly, where, order } = readOptions(req, READ_CONFIG);
 		try {
 			const result = await Chapter.getAllChapters({
+				full: full === 'true',
 				limit: limits.limit,
 				offset: limits.offset,
 				publishedOnly,

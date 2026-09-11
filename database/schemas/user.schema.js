@@ -70,6 +70,10 @@ const userSchema = {
 		}
 	},
 
+	chapterId: {
+		type: DataTypes.INTEGER
+	},
+
 	role: {
 		type: DataTypes.STRING,
 		allowNull: false,

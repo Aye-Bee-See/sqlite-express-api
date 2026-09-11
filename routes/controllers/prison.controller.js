@@ -1,10 +1,12 @@
 import Prison from '#models/prison.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+import { ROUTING_METHODS } from '#db/validators.js';
 
 const READ_CONFIG = {
 	searchFields: ['prisonName'],
-	sorts: { name: [['prisonName', 'ASC']], ...SORT_BY_CREATED }
+	sorts: { name: [['prisonName', 'ASC']], ...SORT_BY_CREATED },
+	filters: { country: {}, routing: { allowed: ROUTING_METHODS } }
 };
 
 export default class PrisonController extends RouteController {
@@ -21,6 +23,9 @@ export default class PrisonController extends RouteController {
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
 		this.addRule = this.addRule.bind(this);
+		this.removeRule = this.removeRule.bind(this);
+		this.addRelay = this.addRelay.bind(this);
+		this.removeRelay = this.removeRelay.bind(this);
 
 		this.#handleErr = super.handleErr;
 		this.#handleSuccess = super.handleSuccess;
@@ -67,9 +72,8 @@ export default class PrisonController extends RouteController {
 	}
 	// Create
 	async create(req, res) {
-		const { prisonName, address, recordStatus } = req.body;
 		try {
-			const prison = await Prison.createPrison({ prisonName, address, recordStatus });
+			const prison = await Prison.createPrison(req.body);
 			this.#handleSuccess(res, prison);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -97,6 +101,48 @@ export default class PrisonController extends RouteController {
 		try {
 			const updatedRows = await Prison.addRule(rule, prison);
 			this.#handleSuccess(res, { updatedRows, rule, prison });
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/** DELETE /prison/rule { rule, prison }: detach a rule. */
+	async removeRule(req, res) {
+		const { rule, prison } = req.body;
+		try {
+			const removed = await Prison.removeRule(rule, prison);
+			this.#handleSuccess(
+				res,
+				this.requireAffected(removed, 'Rule ' + rule + ' on prison ' + prison)
+			);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/** PUT /prison/relay { prison, chapter }: attach a relay group. */
+	async addRelay(req, res) {
+		const { chapter, prison } = req.body;
+		try {
+			const updatedRows = await Prison.addRelay(chapter, prison);
+			this.#handleSuccess(res, { updatedRows, chapter, prison });
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/** DELETE /prison/relay { prison, chapter }: detach a relay group. */
+	async removeRelay(req, res) {
+		const { chapter, prison } = req.body;
+		try {
+			const removed = await Prison.removeRelay(chapter, prison);
+			this.#handleSuccess(
+				res,
+				this.requireAffected(removed, 'Relay link for prison ' + prison + ' and chapter ' + chapter)
+			);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

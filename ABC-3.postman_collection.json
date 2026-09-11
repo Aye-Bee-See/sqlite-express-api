@@ -277,12 +277,44 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"prisonName\": \"Test Prison\",\n    \"address\": {\n        \"street\": \"123 Fake Street\"\n    }\n}",
+							"raw": "{\n    \"prisonName\": \"Test Prison\",\n    \"address\": {\n        \"street\": \"123 Fake Street\"\n    },\n    \"country\": \"United States\",\n    \"routing\": \"direct\",\n    \"notes\": \"Allow 3-6 weeks\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
 								}
 							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Prisons (country, routing, q, sort)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/prisons?country=United%20States&routing=direct&q=alpha&sort=name",
+							"host": ["localhost"],
+							"path": ["prison", "prisons"],
+							"port": "3000",
+							"query": [
+								{
+									"key": "country",
+									"value": "United States"
+								},
+								{
+									"key": "routing",
+									"value": "direct"
+								},
+								{
+									"key": "q",
+									"value": "alpha"
+								},
+								{
+									"key": "sort",
+									"value": "name"
+								}
+							]
 						}
 					},
 					"response": []
@@ -363,6 +395,75 @@
 					"response": []
 				},
 				{
+					"name": "Detach Rule From Prison",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/rule",
+							"host": ["localhost"],
+							"path": ["prison", "rule"],
+							"port": "3000"
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"rule\": 1,\n    \"prison\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Attach Relay Group To Prison",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/relay",
+							"host": ["localhost"],
+							"path": ["prison", "relay"],
+							"port": "3000"
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"prison\": 1,\n    \"chapter\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Detach Relay Group From Prison",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/relay",
+							"host": ["localhost"],
+							"path": ["prison", "relay"],
+							"port": "3000"
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"prison\": 1,\n    \"chapter\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Attach Rule To Prison",
 					"request": {
 						"method": "PUT",
@@ -426,12 +527,44 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"birthName\": \"John Smith\",\n    \"chosenName\": \"Jane Smith\",\n    \"inmateID\": \"1\",\n    \"prison\": 1,\n    \"releaseDate\": \"2029-04-05T23:24:24.819Z\",\n    \"bio\": \"Test bio here\",\n    \"status\": \"incarcerated\"\n}",
+							"raw": "{\n    \"birthName\": \"John Smith\",\n    \"chosenName\": \"Jane Smith\",\n    \"aliases\": [\n        \"J. Smith\"\n    ],\n    \"inmateID\": \"1\",\n    \"prison\": 1,\n    \"country\": \"United States\",\n    \"detainedSince\": \"2021-07-14T00:00:00.000Z\",\n    \"sentence\": \"10 years\",\n    \"charges\": \"Example charge\",\n    \"estimatedRelease\": \"2029\",\n    \"releaseDate\": \"2029-04-05T23:24:24.819Z\",\n    \"bio\": \"Test bio here\",\n    \"interests\": [\n        \"writing\",\n        \"history\"\n    ],\n    \"supportWebsite\": \"https://example.org\",\n    \"status\": \"incarcerated\",\n    \"statusNotice\": \"\",\n    \"featured\": false\n}",
 							"options": {
 								"raw": {
 									"language": "json"
 								}
 							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Prisoners (q, status, country, featured, sort)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prisoner/prisoners?q=smith&status=incarcerated&featured=true&sort=name",
+							"host": ["localhost"],
+							"path": ["prisoner", "prisoners"],
+							"port": "3000",
+							"query": [
+								{
+									"key": "q",
+									"value": "smith"
+								},
+								{
+									"key": "status",
+									"value": "incarcerated"
+								},
+								{
+									"key": "featured",
+									"value": "true"
+								},
+								{
+									"key": "sort",
+									"value": "name"
+								}
+							]
 						}
 					},
 					"response": []
@@ -549,6 +682,52 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"id\": 41\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Link Support Group To Prisoner",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prisoner/support",
+							"host": ["localhost"],
+							"path": ["prisoner", "support"],
+							"port": "3000"
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"prisoner\": 1,\n    \"chapter\": 1,\n    \"description\": \"Letter collection, US Pacific Northwest\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Unlink Support Group From Prisoner",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prisoner/support",
+							"host": ["localhost"],
+							"path": ["prisoner", "support"],
+							"port": "3000"
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"prisoner\": 1,\n    \"chapter\": 1\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1102,12 +1281,40 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Test Chapter\",\n    \"location\": {\n        \"street\": \"123 Chapter Street\"\n    }\n}",
+							"raw": "{\n    \"name\": \"Portland ABC\",\n    \"location\": {\n        \"street\": \"123 Chapter Street\"\n    },\n    \"subregion\": \"Portland, OR\",\n    \"country\": \"United States\",\n    \"about\": \"Biweekly letter writing nights.\",\n    \"website\": \"https://portlandabc.example\",\n    \"email\": \"letters@portlandabc.example\",\n    \"socialLinks\": {\n        \"instagram\": \"https://instagram.com/portlandabc\"\n    },\n    \"services\": [\n        \"letter_collection\",\n        \"letter_writing_nights\",\n        \"domestic_mailing\"\n    ]\n}",
 							"options": {
 								"raw": {
 									"language": "json"
 								}
 							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Chapters (country, service, q)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/chapter/chapters?country=United%20States&service=letter_collection&q=abc",
+							"host": ["localhost"],
+							"path": ["chapter", "chapters"],
+							"port": "3000",
+							"query": [
+								{
+									"key": "country",
+									"value": "United States"
+								},
+								{
+									"key": "service",
+									"value": "letter_collection"
+								},
+								{
+									"key": "q",
+									"value": "abc"
+								}
+							]
 						}
 					},
 					"response": []
@@ -1132,7 +1339,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/chapter/chapter?id=1",
+							"raw": "localhost:3000/chapter/chapter?id=1&full=true",
 							"host": ["localhost"],
 							"path": ["chapter", "chapter"],
 							"port": "3000",
@@ -1140,6 +1347,10 @@
 								{
 									"key": "id",
 									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
 								}
 							]
 						}

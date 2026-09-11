@@ -39,10 +39,12 @@ const endpoints = {
 			create: '/prisoner'
 		},
 		put: {
-			update: '/prisoner'
+			update: '/prisoner',
+			addSupport: '/support'
 		},
 		delete: {
-			remove: '/prisoner'
+			remove: '/prisoner',
+			removeSupport: '/support'
 		}
 	},
 	prison: {
@@ -55,10 +57,13 @@ const endpoints = {
 		},
 		put: {
 			update: '/prison',
-			addRule: '/rule'
+			addRule: '/rule',
+			addRelay: '/relay'
 		},
 		delete: {
-			remove: '/prison'
+			remove: '/prison',
+			removeRule: '/rule',
+			removeRelay: '/relay'
 		}
 	},
 	chapter: {
@@ -269,6 +274,10 @@ const messages = {
 			update: {
 				success: { condition: { par: 'Succeessfully updated prisoner' } },
 				error: { condition: { par: 'Error updating prisoner.' } }
+			},
+			addSupport: {
+				success: { condition: { par: 'Successfully added support group to prisoner' } },
+				error: { condition: { par: 'Error adding support group to prisoner.' } }
 			}
 		},
 		delete: {
@@ -280,6 +289,10 @@ const messages = {
 						absent: 'No such prisoner'
 					}
 				}
+			},
+			removeSupport: {
+				success: { condition: { par: 'Successfully removed support group from prisoner' } },
+				error: { condition: { par: 'Error removing support group from prisoner.' } }
 			}
 		}
 	},
@@ -312,6 +325,10 @@ const messages = {
 			addRule: {
 				success: { condition: { par: 'Successfully added rule to prison' } },
 				error: { condition: { par: 'Error adding rule to prison.' } }
+			},
+			addRelay: {
+				success: { condition: { par: 'Successfully added relay group to prison' } },
+				error: { condition: { par: 'Error adding relay group to prison.' } }
 			}
 		},
 		delete: {
@@ -323,6 +340,14 @@ const messages = {
 						absent: 'No such prison'
 					}
 				}
+			},
+			removeRule: {
+				success: { condition: { par: 'Successfully removed rule from prison' } },
+				error: { condition: { par: 'Error removing rule from prison.' } }
+			},
+			removeRelay: {
+				success: { condition: { par: 'Successfully removed relay group from prison' } },
+				error: { condition: { par: 'Error removing relay group from prison.' } }
 			}
 		}
 	},

@@ -58,6 +58,20 @@ class PrisonerRoutes {
 			this.#Controller.update
 		);
 
+		// Support groups
+		this.Router.put(
+			prisonerEnd.put.addSupport,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			this.#Controller.addSupport
+		);
+		this.Router.delete(
+			prisonerEnd.delete.removeSupport,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			this.#Controller.removeSupport
+		);
+
 		// Delete
 
 		this.Router.delete(

@@ -28,7 +28,8 @@ export const SORT_BY_CREATED = {
  * - q: case-insensitive substring match across `searchFields`.
  * - sort: one of the keys in `sorts`; default is ascending id.
  * - any key of `filters`: an exact-match column filter, optionally limited
- *   to an allowed list of values.
+ *   to an allowed list of values (`allowed`), converted (`transform`), or
+ *   turned into an arbitrary where fragment (`build`).
  *
  * @param {object} req
  * @param {{searchFields?: string[], sorts?: object, filters?: object}} [config]
@@ -61,8 +62,10 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 		}
 		if (spec.allowed && !spec.allowed.includes(value)) {
 			errors.push(param + ' must be one of ' + spec.allowed.join(', ') + '.');
+		} else if (spec.build) {
+			Object.assign(where, spec.build(value));
 		} else {
-			where[spec.column || param] = value;
+			where[spec.column || param] = spec.transform ? spec.transform(value) : value;
 		}
 	}
 

@@ -59,26 +59,37 @@ export default class Rule extends Model {
 
 	/**
 	 * One page of rules. Rules have no publication state of their own.
-	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean}} options
+	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean, where?: object, order?: Array}} options
 	 * @returns {Promise<{rows: Rule[], count: number}>}
 	 */
-	static async getAllRules({ full = false, limit, offset = 0, publishedOnly = false } = {}) {
+	static async getAllRules({
+		full = false,
+		limit,
+		offset = 0,
+		publishedOnly = false,
+		where = {},
+		order = [['id', 'ASC']]
+	} = {}) {
 		return await this.findAndCountAll({
+			where,
 			include: full ? this.#includes(publishedOnly) : [],
 			limit,
 			offset,
 			distinct: true,
-			order: [['id', 'ASC']]
+			order
 		});
 	}
 
 	/**
 	 * One page of the rules attached to one prison.
 	 * @param {number|string} prisonId
-	 * @param {{limit?: number, offset?: number, publishedOnly?: boolean}} options
+	 * @param {{limit?: number, offset?: number, publishedOnly?: boolean, where?: object, order?: Array}} options
 	 * @throws {NotFoundError} when the prison does not exist, or is unpublished and publishedOnly
 	 */
-	static async getRulesByPrison(prisonId, { limit, offset = 0, publishedOnly = false } = {}) {
+	static async getRulesByPrison(
+		prisonId,
+		{ limit, offset = 0, publishedOnly = false, where = {}, order = [['id', 'ASC']] } = {}
+	) {
 		const prison = await modelsService.modelInstanceExists('Prison', prisonId);
 		if (prison instanceof Error) {
 			throw prison;
@@ -87,6 +98,7 @@ export default class Rule extends Model {
 			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
 		return await this.findAndCountAll({
+			where,
 			include: [
 				{
 					model: Prison,
@@ -99,7 +111,7 @@ export default class Rule extends Model {
 			limit,
 			offset,
 			distinct: true,
-			order: [['id', 'ASC']]
+			order
 		});
 	}
 

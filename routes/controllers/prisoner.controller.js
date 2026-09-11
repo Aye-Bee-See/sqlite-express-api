@@ -1,6 +1,18 @@
 import Prisoner from '#models/prisoner.model.js';
 import RouteController from '#rtControllers/route.controller.js';
-import { readOptions } from '#rtControllers/directory.helpers.js';
+import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+
+const READ_CONFIG = {
+	searchFields: ['birthName', 'chosenName'],
+	sorts: {
+		name: [
+			['chosenName', 'ASC'],
+			['birthName', 'ASC']
+		],
+		...SORT_BY_CREATED
+	},
+	filters: { status: { allowed: ['pretrial', 'incarcerated', 'free'] } }
+};
 
 export default class PrisonerController extends RouteController {
 	constructor() {
@@ -26,26 +38,28 @@ export default class PrisonerController extends RouteController {
 	#handleLimits;
 
 	/**
-	 * List prisoners, optionally filtered to one prison with ?prison=<id>.
-	 * Paginated with page and page_size; full=true embeds the prison and, for
-	 * staff listing by prison, each prisoner's chats.
+	 * List prisoners: page, page_size, full, q (name search), sort, status,
+	 * prison (limit to one prison), and (staff only) recordStatus. full=true
+	 * embeds the prison and, for staff listing by prison, each prisoner's chats.
 	 */
 	async getMany(req, res) {
 		const { prison, full, page, page_size } = req.query;
 		const limits = this.#handleLimits(page, page_size);
-		const { publishedOnly, where } = readOptions(req);
+		const { publishedOnly, where, order } = readOptions(req, READ_CONFIG);
 		const options = {
 			full: full === 'true',
 			limit: limits.limit,
 			offset: limits.offset,
-			publishedOnly
+			publishedOnly,
+			where,
+			order
 		};
 
 		try {
 			const result =
 				prison !== undefined
 					? await Prisoner.getPrisonersByPrison(prison, options)
-					: await Prisoner.getAllPrisoners({ ...options, where });
+					: await Prisoner.getAllPrisoners(options);
 			this.handlePage(res, result, limits);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;

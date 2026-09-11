@@ -449,7 +449,7 @@ The policy, as implemented:
 - Registration is public and always yields `role: user`; other roles need an admin token.
 - Banned users are refused at login and at token verification, so `hasRole` never sees them.
 - User management is admin-only, except that anyone may read, update, or delete their own record and non-admins may not change `role`.
-- Reads of prisons, prisoners, rules, and chapters need no token (`optionalAuthenticate`). Anonymous callers and the `user` role see published records only; staff see everything and may filter by `recordStatus`. `AuthzService.publishedOnly(req)` decides, and `routes/controllers/directory.helpers.js` turns it into model options. Writes need `admin` or `chapter`.
+- Reads of prisons, prisoners, rules, and chapters need no token (`optionalAuthenticate`). Anonymous callers and the `user` role see published records only; staff see everything and may filter by `recordStatus`. `AuthzService.publishedOnly(req)` decides, and `readOptions(req, config)` in `routes/controllers/directory.helpers.js` turns it, plus `q`, `sort`, `recordStatus`, and per-resource exact-match filters, into `{ publishedOnly, where, order }` for the model readers. Each directory controller declares its `READ_CONFIG` (search fields, sort orders, allowed filters) at the top of the file; add to that object to expose a new filter. Writes need `admin` or `chapter`.
 - Chats and messages: `user` sees only their own; `admin` and `chapter` see everything. Enforced in the controllers because it depends on the record, not just the route.
 
 To change the policy, edit the route files (which roles guard which routes) and the two controllers (ownership). `requireRole` is deliberately dumb so that the policy stays visible in the route definitions.
@@ -551,6 +551,8 @@ User ids do not come out in seed-file order; in one run `admin` received id 3. D
 List readers return `findAndCountAll` results, `{ rows, count }`, and controllers send them through `RouteController.handlePage(res, result, limits)`, which puts `rows` in `data` and adds `total`, `page`, and `page_size` to the envelope. Counts use `distinct: true` wherever a has-many include could multiply rows.
 
 The directory models (Prison, Prisoner, Rule, Chapter) take an options object: `getAllPrisons({ full, limit, offset, publishedOnly, where })`, `getPrisonByID(id, { full, publishedOnly })`, and so on. `publishedOnly` adds `recordStatus = 'published'` to the query and to the embedded prisoners/prisons, and hides chats from prisoner embeds. Chat, Message, and User readers are still positional `(…, limit, offset)`; convert them to the same style when you next touch them.
+
+Chat list readers add a `lastMessageAt` attribute (a correlated `MAX(createdAt)` subquery) and order by it descending with empty chats last; the literal is repeated in `ORDER BY` rather than referenced by alias so it survives the subquery Sequelize wraps around limited queries with includes. `Chat.attachLastMessages(rows)` then fetches the newest message per chat in one query and sets a `last_message` summary on each row. Text search uses `Op.like` with `%term%`; SQLite's `LIKE` is case-insensitive for ASCII, and `%`/`_` in the term act as wildcards.
 
 `full` is a string in the query; controllers compare `full === 'true'`. Message endpoints accept it and ignore it (there is no message eager-load yet).
 

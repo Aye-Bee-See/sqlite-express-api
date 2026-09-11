@@ -1,10 +1,30 @@
-import { Model } from 'sequelize';
+import { Model, literal } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Message from '#models/message.model.js';
 import Prisoner from '#models/prisoner.model.js';
 import User from '#models/user.model.js';
 import modelsService from '#models/models.service.js';
+
+/** Correlated subquery: when the newest message in the chat was created. */
+const LAST_MESSAGE_AT = literal(
+	'(SELECT MAX(`createdAt`) FROM `Messages` WHERE `Messages`.`chat` = `Chat`.`id`)'
+);
+
+/**
+ * List options shared by every chat list reader: expose `lastMessageAt` and
+ * order most-recently-active first, with chats that have no messages last.
+ */
+function listOptions() {
+	return {
+		attributes: { include: [[LAST_MESSAGE_AT, 'lastMessageAt']] },
+		order: [
+			[literal('(' + LAST_MESSAGE_AT.val + ') IS NULL'), 'ASC'],
+			[LAST_MESSAGE_AT, 'DESC'],
+			['id', 'DESC']
+		]
+	};
+}
 
 export default class Chat extends Model {
 	static init(sequelize) {
@@ -83,7 +103,7 @@ export default class Chat extends Model {
 			};
 		}
 		filters = { ...filters, ...options };
-		return await Chat.findAndCountAll({ ...filters, distinct: true, order: [['id', 'ASC']] });
+		return await Chat.findAndCountAll({ ...filters, ...listOptions(), distinct: true });
 	}
 
 	/**
@@ -131,7 +151,7 @@ export default class Chat extends Model {
 			};
 		}
 		filters = { ...filters, ...options };
-		return await Chat.findAndCountAll({ ...filters, distinct: true, order: [['id', 'ASC']] });
+		return await Chat.findAndCountAll({ ...filters, ...listOptions(), distinct: true });
 	}
 
 	static async readChatsByPrisoner(id, full, limit, offset = 0) {
@@ -163,7 +183,7 @@ export default class Chat extends Model {
 			};
 		}
 		filters = { ...filters, ...options };
-		return await Chat.findAndCountAll({ ...filters, distinct: true, order: [['id', 'ASC']] });
+		return await Chat.findAndCountAll({ ...filters, ...listOptions(), distinct: true });
 	}
 
 	static async readChatByUserAndPrisoner(user, prisoner, full) {
@@ -222,6 +242,41 @@ export default class Chat extends Model {
 				where: { id: id }
 			});
 		}
+	}
+
+	/**
+	 * Attach `last_message` (id, sender, messageText, createdAt, or null) to
+	 * each chat row in place, with one extra query for the whole page.
+	 * @param {Chat[]} chats
+	 * @returns {Promise<Chat[]>} the same rows
+	 */
+	static async attachLastMessages(chats) {
+		if (chats.length === 0) {
+			return chats;
+		}
+		const messages = await Message.findAll({
+			where: { chat: chats.map((c) => c.id) },
+			order: [
+				['createdAt', 'DESC'],
+				['id', 'DESC']
+			]
+		});
+		const latest = new Map();
+		for (const m of messages) {
+			if (!latest.has(m.chat)) {
+				latest.set(m.chat, m);
+			}
+		}
+		for (const chat of chats) {
+			const m = latest.get(chat.id);
+			chat.setDataValue(
+				'last_message',
+				m
+					? { id: m.id, sender: m.sender, messageText: m.messageText, createdAt: m.createdAt }
+					: null
+			);
+		}
+		return chats;
 	}
 
 	static async findOrCreateChat(user, prisoner) {

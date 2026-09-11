@@ -76,7 +76,7 @@ export default class Prison extends Model {
 
 	/**
 	 * One page of prisons.
-	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean, where?: object}} options
+	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean, where?: object, order?: Array}} options
 	 * @returns {Promise<{rows: Prison[], count: number}>}
 	 */
 	static async getAllPrisons({
@@ -84,7 +84,8 @@ export default class Prison extends Model {
 		limit,
 		offset = 0,
 		publishedOnly = false,
-		where = {}
+		where = {},
+		order = [['id', 'ASC']]
 	} = {}) {
 		return await this.findAndCountAll({
 			where: { ...where, ...publishedWhere(publishedOnly) },
@@ -92,7 +93,7 @@ export default class Prison extends Model {
 			limit,
 			offset,
 			distinct: true,
-			order: [['id', 'ASC']]
+			order
 		});
 	}
 

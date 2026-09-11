@@ -37,15 +37,21 @@ export default class Chapter extends Model {
 
 	/**
 	 * One page of chapters.
-	 * @param {{limit?: number, offset?: number, publishedOnly?: boolean, where?: object}} options
+	 * @param {{limit?: number, offset?: number, publishedOnly?: boolean, where?: object, order?: Array}} options
 	 * @returns {Promise<{rows: Chapter[], count: number}>}
 	 */
-	static async getAllChapters({ limit, offset = 0, publishedOnly = false, where = {} } = {}) {
+	static async getAllChapters({
+		limit,
+		offset = 0,
+		publishedOnly = false,
+		where = {},
+		order = [['id', 'ASC']]
+	} = {}) {
 		return await this.findAndCountAll({
 			where: { ...where, ...publishedWhere(publishedOnly) },
 			limit,
 			offset,
-			order: [['id', 'ASC']]
+			order
 		});
 	}
 

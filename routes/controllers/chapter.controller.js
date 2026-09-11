@@ -1,6 +1,11 @@
 import RouteController from '#rtControllers/route.controller.js';
 import Chapter from '#models/chapter.model.js';
-import { readOptions } from '#rtControllers/directory.helpers.js';
+import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+
+const READ_CONFIG = {
+	searchFields: ['name'],
+	sorts: { name: [['name', 'ASC']], ...SORT_BY_CREATED }
+};
 
 export default class chapterController extends RouteController {
 	constructor() {
@@ -48,17 +53,18 @@ export default class chapterController extends RouteController {
 		}
 	}
 
-	/** List chapters: page, page_size, and (staff only) recordStatus. */
+	/** List chapters: page, page_size, q, sort, and (staff only) recordStatus. */
 	async getMany(req, res) {
 		const { page, page_size } = req.query;
 		const limits = this.#handleLimits(page, page_size);
-		const { publishedOnly, where } = readOptions(req);
+		const { publishedOnly, where, order } = readOptions(req, READ_CONFIG);
 		try {
 			const result = await Chapter.getAllChapters({
 				limit: limits.limit,
 				offset: limits.offset,
 				publishedOnly,
-				where
+				where,
+				order
 			});
 			this.handlePage(res, result, limits);
 		} catch (err) {

@@ -411,6 +411,27 @@ List endpoints accept two optional query parameters:
 
 All list endpoints are paginated, including `GET /chapter/chapters`.
 
+### Searching, filtering, and sorting lists
+
+Directory lists accept these in addition to `page` and `page_size`:
+
+| Parameter      | Where                                              | Effect                                                                                                                                                                                                                                |
+| -------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `q`            | prisons, prisoners, rules, chapters, users (admin) | Case-insensitive substring match. Prisons match `prisonName`; prisoners match `birthName` or `chosenName`; rules match `title` or `description`; chapters match `name`; users match `username`, `email`, or `name`. Blank is ignored. |
+| `sort`         | prisons, prisoners, rules, chapters                | `name` (alphabetical: prison name, prisoner chosen then birth name, rule title, chapter name), `newest`, or `oldest`. Default is ascending id.                                                                                        |
+| `status`       | prisoners                                          | `pretrial`, `incarcerated`, or `free`.                                                                                                                                                                                                |
+| `prison`       | prisoners, rules                                   | Only records attached to that prison.                                                                                                                                                                                                 |
+| `recordStatus` | prisons, prisoners, chapters (staff only)          | See below.                                                                                                                                                                                                                            |
+| `role`         | users (admin)                                      | One role.                                                                                                                                                                                                                             |
+
+Parameters combine, `total` reflects the filtered result, and every invalid value is reported together in one validation error:
+
+```bash
+curl -s 'http://localhost:3000/prisoner/prisoners?q=smith&status=incarcerated&sort=name&page_size=5'
+```
+
+Chats are not searchable, but they are always ordered by most recent activity; see [GET /chat/chats](#get-chatchats).
+
 ### Record status
 
 Prisons, prisoners, and chapters carry a `recordStatus` of `draft`, `pending`, or `published`. It controls visibility:
@@ -510,7 +531,7 @@ See [Logging in](#logging-in).
 
 #### GET /auth/users
 
-Admin only. Parameters: `role`, `full`, `page`, `page_size`.
+Admin only. Parameters: `role`, `q`, `full`, `page`, `page_size`.
 
 ```bash
 curl -s 'http://localhost:3000/auth/users?role=chapter' -H "Authorization: Bearer $TOKEN"
@@ -641,7 +662,7 @@ curl -s -X POST http://localhost:3000/prison/prison \
 
 #### GET /prison/prisons
 
-Parameters: `page`, `page_size`, `full`, and (staff) `recordStatus`.
+Parameters: `page`, `page_size`, `full`, `q`, `sort`, and (staff) `recordStatus`.
 
 ```json
 {
@@ -831,7 +852,7 @@ curl -s -X POST http://localhost:3000/prisoner/prisoner \
 
 #### GET /prisoner/prisoners
 
-Parameters: `prison`, `full`, `page`, `page_size`, and (staff) `recordStatus`.
+Parameters: `prison`, `status`, `q`, `sort`, `full`, `page`, `page_size`, and (staff) `recordStatus`.
 
 ```bash
 curl -s 'http://localhost:3000/prisoner/prisoners?prison=1' -H "Authorization: Bearer $TOKEN"
@@ -908,7 +929,7 @@ Returns `201` with the rule.
 
 #### GET /rule/rules
 
-Parameters: `prison`, `full`, `page`, `page_size`. `?prison=1` returns the rules attached to prison 1 (`404` if the prison does not exist). `full=true` embeds `prisons` on the unfiltered list.
+Parameters: `prison`, `q`, `sort`, `full`, `page`, `page_size`. `?prison=1` returns the rules attached to prison 1 (`404` if the prison does not exist). `full=true` embeds `prisons` on the unfiltered list.
 
 #### GET /rule/rule
 
@@ -991,6 +1012,28 @@ Body: `{"user": 1, "prisoner": 9}`. For a `user`-role caller the `user` field is
 #### GET /chat/chats
 
 Parameters: `user`, `prisoner`, `full`, `page`, `page_size`. If both `user` and `prisoner` are given, `user` wins. A `user`-role caller always gets their own chats, and may narrow with `prisoner`. A `user` or `prisoner` id that does not exist is a `404`.
+
+Chats are ordered by most recent message first; chats with no messages come last. Every row carries two extra fields for inbox views:
+
+- `lastMessageAt`: timestamp of the newest message, or `null`.
+- `last_message`: `{ id, sender, messageText, createdAt }` of the newest message, or `null`. `sender` tells you the direction (`user` means sent, `prisoner` means received).
+
+```json
+{
+	"user": 1,
+	"prisoner": 1,
+	"id": 1,
+	"createdAt": "2026-09-11T18:21:43.400Z",
+	"updatedAt": "2026-09-11T18:21:43.400Z",
+	"lastMessageAt": "2026-09-11 18:21:43.426 +00:00",
+	"last_message": {
+		"id": 1,
+		"sender": "user",
+		"messageText": "Hello",
+		"createdAt": "2026-09-11T18:21:43.426Z"
+	}
+}
+```
 
 With `full=true`:
 
@@ -1242,7 +1285,7 @@ curl -s -X POST http://localhost:3000/chapter/chapter \
 
 #### GET /chapter/chapters
 
-Parameters: `page`, `page_size`, and (staff) `recordStatus`.
+Parameters: `page`, `page_size`, `q`, `sort`, and (staff) `recordStatus`.
 
 ```json
 {

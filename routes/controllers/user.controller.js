@@ -31,9 +31,16 @@ export default class UserController extends RouteController {
 	#handleErr;
 	#handleLimits;
 
+	/**
+	 * Return a plain object for a user with the password hash removed.
+	 * Everything else, including eager-loaded chats, is kept.
+	 * @param {import('sequelize').Model|object} userObject
+	 * @returns {object}
+	 */
 	#stripPassword(userObject) {
-		const { id, email, name, role, username, bio } = userObject;
-		return { id, email, name, role, username, bio };
+		const plain = typeof userObject.toJSON === 'function' ? userObject.toJSON() : { ...userObject };
+		delete plain.password;
+		return plain;
 	}
 
 	#handlePass(res, user, type) {
@@ -46,36 +53,15 @@ export default class UserController extends RouteController {
 		}
 	}
 
-	#stripUsersListPasswords(usersList) {
-		let pwStrippedList = [];
-		Object.entries(usersList).forEach((value) => {
-			pwStrippedList.push(this.#stripPassword(value));
-		});
-		return pwStrippedList;
-	}
 	/**
-	 * TODO: UPDATE loops to handle for non-incrementation or strings
+	 * Send a list of users with password hashes removed. An empty list is a
+	 * successful, empty result, not an error.
 	 */
-	#formatUsersList(usersList) {
-		let formattedList = {};
-
-		for (let i = 0; i < usersList.length; i++) {
-			const id = usersList[i].dataValues.id;
-			const userData = usersList[i].dataValues;
-			formattedList[id] = userData;
-		}
-		return formattedList;
-	}
-
 	#handleUsers(res, users) {
-		const formattedList = this.#formatUsersList(users);
-		const filteredUsers = this.#stripUsersListPasswords(formattedList);
-		if (users.length > 0) {
-			this.#handleSuccess(res, filteredUsers);
-		} else {
-			const errorVar = new Error();
-			this.#handleErr(res, errorVar, 'empty');
-		}
+		this.#handleSuccess(
+			res,
+			users.map((user) => this.#stripPassword(user))
+		);
 	}
 
 	/***

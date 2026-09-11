@@ -2,7 +2,6 @@ import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
-import modelsService from '#models/models.service.js';
 
 export default class User extends Model {
 	static init(sequelize) {
@@ -78,29 +77,31 @@ export default class User extends Model {
 		return await User.findAll(filters);
 	}
 
+	/**
+	 * List users holding one role.
+	 * @param {string} role one of the roles allowed by the schema (case-insensitive)
+	 * @param {boolean} full include each user's chats
+	 * @param {number} limit
+	 * @param {number} offset
+	 * @throws {Error} when the role is not one the schema allows
+	 */
 	static async getUsersByRole(role, full, limit, offset = 0) {
-		const exists = await modelsService.modelInstanceExists('Role', role);
-		if (exists instanceof Error) {
-			throw exists;
+		const allowedRoles = Schemas.user.role.validate.isIn.args[0];
+		const normalizedRole = typeof role === 'string' ? role.toLowerCase() : role;
+		if (!allowedRoles.includes(normalizedRole)) {
+			throw new Error(
+				'Unknown role "' + role + '". Expected one of: ' + allowedRoles.join(', ') + '.'
+			);
 		}
-		let filters = { limit, offset };
-		let options;
+		let filters = { limit, offset, where: { role: normalizedRole } };
 		if (full) {
-			options = {
-				where: { role: role },
-				include: [
-					{
-						model: 'Chat',
-						as: 'chats'
-					}
-				]
-			};
-		} else {
-			options = {
-				where: { role: role }
-			};
+			filters.include = [
+				{
+					model: Chat,
+					as: 'chats'
+				}
+			];
 		}
-		filters = { ...filters, ...options };
 		return await User.findAll(filters);
 	}
 

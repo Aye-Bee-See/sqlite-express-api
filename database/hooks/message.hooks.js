@@ -1,4 +1,5 @@
 import Chat from '#models/chat.model.js';
+import { initialStatusFor } from '#db/letter-status.js';
 
 export default {
 	/**
@@ -13,6 +14,14 @@ export default {
 	 * chat itself when the user or prisoner changes.
 	 */
 	beforeValidate: async (instance) => {
+		if (instance.isNewRecord) {
+			// Replies are always received; letters start queued unless a valid
+			// outgoing status was given explicitly (seeds, admin backfills).
+			const given = instance.dataValues.status;
+			if (instance.sender === 'prisoner' || !given || given === 'received') {
+				instance.status = initialStatusFor(instance.sender);
+			}
+		}
 		const { user, prisoner } = instance.dataValues;
 		if (user === undefined || user === null || prisoner === undefined || prisoner === null) {
 			return;

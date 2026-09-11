@@ -96,7 +96,8 @@ const endpoints = {
 			create: '/message'
 		},
 		put: {
-			update: '/message'
+			update: '/message',
+			updateStatus: '/status'
 		},
 		delete: {
 			remove: '/message'
@@ -420,6 +421,10 @@ const messages = {
 			update: {
 				success: { condition: { par: 'Succeessfully updated message' } },
 				error: { condition: { par: 'Error updating message.' } }
+			},
+			updateStatus: {
+				success: { condition: { par: 'Letter status updated.' } },
+				error: { condition: { par: 'Error updating letter status.' } }
 			}
 		},
 		delete: {

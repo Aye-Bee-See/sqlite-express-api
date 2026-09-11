@@ -122,6 +122,20 @@ export default class Prisoner extends Model {
 		return includes;
 	}
 
+	/**
+	 * The facility a prisoner is held in and the ids of its relay groups.
+	 * @param {Prisoner} prisoner
+	 * @returns {Promise<{prison: Prison|null, relayIds: number[]}>}
+	 */
+	static async relayGroupsFor(prisoner) {
+		const prison = await Prison.findByPk(prisoner.prison);
+		if (!prison) {
+			return { prison: null, relayIds: [] };
+		}
+		const groups = await prison.getRelay_groups({ attributes: ['id'], joinTableAttributes: [] });
+		return { prison, relayIds: groups.map((g) => g.id) };
+	}
+
 	// Create
 
 	static async createPrisoner(fields) {

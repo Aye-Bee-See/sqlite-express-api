@@ -3,6 +3,11 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import modelsService from '#models/models.service.js';
 import Chat from '#models/chat.model.js';
+import MessageStatus from '#models/message-status.model.js';
+import Prisoner from '#models/prisoner.model.js';
+import ValidationError from '#services/ValidationError.js';
+import { HttpError } from '#services/HttpError.js';
+import { canTransition, initialStatusFor, LETTER_STATUSES } from '#db/letter-status.js';
 
 export default class Message extends Model {
 	static init(sequelize) {
@@ -31,8 +36,128 @@ export default class Message extends Model {
 			onDelete: 'RESTRICT',
 			onUpdate: 'CASCADE'
 		});
-		// this.belongsTo(models.Prisoner, { through: "Chat", foreignKey: 'prisoner', sourceKey: 'id' });
-		// this.belongsTo(models.User, { through: "Chat", foreignKey: 'user', sourceKey: 'id' });
+		this.belongsTo(models.Chapter, {
+			as: 'relay_group',
+			foreignKey: 'relayChapter',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.User, {
+			as: 'status_changed_by',
+			foreignKey: 'statusChangedBy',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.MessageStatus, {
+			as: 'status_history',
+			foreignKey: 'message',
+			onDelete: 'CASCADE',
+			onUpdate: 'CASCADE'
+		});
+	}
+
+	// Letter lifecycle
+
+	/**
+	 * Decide which group mails a letter. An explicit `requested` group must be
+	 * one of the facility's relay groups. Otherwise: the caller's own group if
+	 * it relays for that facility, else the facility's only relay group, else
+	 * none (refused when the facility is relay_only).
+	 * @param {number|string} prisonerId
+	 * @param {number|string|null|undefined} requested `relayChapter` from the body
+	 * @param {number|null} callerChapter the caller's group, for chapter-role callers
+	 * @returns {Promise<number|null>}
+	 * @throws {ValidationError}
+	 */
+	static async resolveRelayChapter(prisonerId, requested, callerChapter = null) {
+		const prisoner = await Prisoner.findByPk(prisonerId);
+		if (!prisoner) {
+			// The foreign key reports the missing prisoner; nothing to route.
+			return requested ?? null;
+		}
+		const { prison, relayIds } = await Prisoner.relayGroupsFor(prisoner);
+		if (requested !== undefined && requested !== null && requested !== '') {
+			if (!relayIds.includes(Number(requested))) {
+				throw new ValidationError(
+					'Relay group ' + requested + ' does not relay mail for this facility.'
+				);
+			}
+			return Number(requested);
+		}
+		if (callerChapter && relayIds.includes(callerChapter)) {
+			return callerChapter;
+		}
+		if (relayIds.length === 1) {
+			return relayIds[0];
+		}
+		if (prison && prison.routing === 'relay_only') {
+			throw new ValidationError(
+				relayIds.length === 0
+					? 'This facility only accepts relayed mail and has no relay group yet.'
+					: 'This facility only accepts relayed mail; choose a relay group (relayChapter).'
+			);
+		}
+		return null;
+	}
+
+	/**
+	 * Create a letter or reply with its relay group resolved and the first
+	 * history row written.
+	 * @param {object} message fields for createMessage
+	 * @param {{callerChapter?: number|null, changedBy?: number|null}} context
+	 */
+	static async createLetter(message, { callerChapter = null, changedBy = null } = {}) {
+		const relayChapter = await this.resolveRelayChapter(
+			message.prisoner,
+			message.relayChapter,
+			callerChapter
+		);
+		const status = initialStatusFor(message.sender);
+		const created = await this.create({
+			...message,
+			relayChapter,
+			status,
+			statusChangedAt: new Date(),
+			statusChangedBy: changedBy
+		});
+		await MessageStatus.record(created.id, null, created.status, changedBy);
+		return created;
+	}
+
+	/**
+	 * Move a letter along its lifecycle (queued -> printed -> mailed).
+	 * @param {Message} message
+	 * @param {string} status the target status
+	 * @param {number|null} changedBy
+	 * @returns {Promise<Message>} the updated message with its history
+	 * @throws {ValidationError} unknown status; {HttpError} 409 for a move the lifecycle does not allow
+	 */
+	static async changeStatus(message, status, changedBy = null) {
+		if (!LETTER_STATUSES.includes(status)) {
+			throw new ValidationError('Status must be one of ' + LETTER_STATUSES.join(', ') + '.');
+		}
+		if (!canTransition(message.status, status)) {
+			throw new HttpError(
+				409,
+				'A ' + message.status + ' letter cannot move to ' + status + '.',
+				'LetterStatusError'
+			);
+		}
+		const from = message.status;
+		await message.update({ status, statusChangedAt: new Date(), statusChangedBy: changedBy });
+		await MessageStatus.record(message.id, from, status, changedBy);
+		return await this.readLetter(message.id);
+	}
+
+	/** One message with its relay group and status history embedded. */
+	static async readLetter(id) {
+		return await this.findByPk(id, {
+			include: [
+				{ model: MessageStatus, as: 'status_history' },
+				{ association: 'relay_group', attributes: ['id', 'name'] }
+			],
+			order: [[{ model: MessageStatus, as: 'status_history' }, 'id', 'ASC']]
+		});
 	}
 
 	//  Create

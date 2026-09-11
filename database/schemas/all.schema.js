@@ -7,6 +7,7 @@ import userSchema from '#schemas/user.schema.js';
 import chapterSchema from '#schemas/chapter.schema.js';
 import prisonerSupportSchema from '#schemas/prisoner-support.schema.js';
 import claimTokenSchema from '#schemas/claim-token.schema.js';
+import messageStatusSchema from '#schemas/message-status.schema.js';
 
 export default class Schemas {
 	static chat = chatSchema;
@@ -18,4 +19,5 @@ export default class Schemas {
 	static chapter = chapterSchema;
 	static prisonerSupport = prisonerSupportSchema;
 	static claimToken = claimTokenSchema;
+	static messageStatus = messageStatusSchema;
 }

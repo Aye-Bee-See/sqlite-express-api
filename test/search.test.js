@@ -153,7 +153,8 @@ test('chats list most recently active first, with lastMessageAt and a last_messa
 	);
 	assert.equal(mine.body.data[0].last_message.messageText, 'newer thread');
 	assert.equal(mine.body.data[0].last_message.sender, 'user');
-	assert.equal(typeof mine.body.data[0].lastMessageAt, 'string');
+	assert.equal(mine.body.data[0].lastMessageAt, mine.body.data[0].last_message.createdAt);
+	assert.match(mine.body.data[0].lastMessageAt, /^\d{4}-\d{2}-\d{2}T/);
 	assert.ok(mine.body.data[0].lastMessageAt >= mine.body.data[1].lastMessageAt);
 
 	// A reply moves the older thread back to the top.

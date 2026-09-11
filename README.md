@@ -1025,7 +1025,7 @@ Chats are ordered by most recent message first; chats with no messages come last
 	"id": 1,
 	"createdAt": "2026-09-11T18:21:43.400Z",
 	"updatedAt": "2026-09-11T18:21:43.400Z",
-	"lastMessageAt": "2026-09-11 18:21:43.426 +00:00",
+	"lastMessageAt": "2026-09-11T18:21:43.426Z",
 	"last_message": {
 		"id": 1,
 		"sender": "user",

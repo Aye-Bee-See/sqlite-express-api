@@ -245,8 +245,9 @@ export default class Chat extends Model {
 	}
 
 	/**
-	 * Attach `last_message` (id, sender, messageText, createdAt, or null) to
-	 * each chat row in place, with one extra query for the whole page.
+	 * Attach `last_message` (id, sender, messageText, createdAt, or null) and
+	 * normalise `lastMessageAt` to an ISO timestamp on each chat row in place,
+	 * with one extra query for the whole page.
 	 * @param {Chat[]} chats
 	 * @returns {Promise<Chat[]>} the same rows
 	 */
@@ -269,6 +270,8 @@ export default class Chat extends Model {
 		}
 		for (const chat of chats) {
 			const m = latest.get(chat.id);
+			// The ordering subquery yields SQLite's raw text; expose the same instant as an ISO date.
+			chat.setDataValue('lastMessageAt', m ? m.createdAt : null);
 			chat.setDataValue(
 				'last_message',
 				m

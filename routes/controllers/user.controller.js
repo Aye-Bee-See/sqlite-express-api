@@ -4,6 +4,7 @@ import User from '#models/user.model.js';
 //import { secretOrKey } from '#constants';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { HttpError, NotFoundError } from '#services/HttpError.js';
 
 export default class UserController extends RouteController {
 	constructor() {
@@ -48,8 +49,7 @@ export default class UserController extends RouteController {
 			const strippedPassword = this.#stripPassword(user);
 			this.#handleSuccess(res, strippedPassword);
 		} else {
-			const err = new Error();
-			this.#handleErr(res, err, type);
+			this.#handleErr(res, new NotFoundError('User not found'), type);
 		}
 	}
 
@@ -140,8 +140,7 @@ export default class UserController extends RouteController {
 				}
 				break;
 			default:
-				errorVar = new Error();
-				this.#handleErr(res, errorVar, type);
+				this.#handleErr(res, new HttpError(400, 'No ID, username, or email provided.'), type);
 				break;
 		}
 	}
@@ -182,6 +181,7 @@ export default class UserController extends RouteController {
 		}
 		try {
 			const updatedRows = await User.updateUser(newUser);
+			this.requireAffected(updatedRows, 'User ' + newUser.id);
 			// Never echo a password, plain or hashed, back to the client.
 			const { password, ...echoed } = newUser;
 			void password;
@@ -197,7 +197,7 @@ export default class UserController extends RouteController {
 		const { id } = req.body;
 		try {
 			const deletedRows = await User.deleteUser(id);
-			this.#handleSuccess(res, deletedRows);
+			this.#handleSuccess(res, this.requireAffected(deletedRows, 'User ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

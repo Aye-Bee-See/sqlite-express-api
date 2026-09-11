@@ -1,6 +1,7 @@
 import Chat from '#models/chat.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { HttpError } from '#services/HttpError.js';
 
 /**
  * Chat controller.
@@ -98,12 +99,12 @@ export default class ChatController extends RouteController {
 				chat = await Chat.readChatByUserAndPrisoner(user, prisoner, full);
 			} else if (user !== undefined || prisoner !== undefined) {
 				condition = 'param';
-				throw new Error('Both user and prisoner are required.');
+				throw new HttpError(400, 'Both user and prisoner are required.');
 			} else {
 				condition = 'empty';
-				throw new Error('Provide either id, or both user and prisoner.');
+				throw new HttpError(400, 'Provide either id, or both user and prisoner.');
 			}
-			this.#handleSuccess(res, chat);
+			this.#handleSuccess(res, this.requireFound(chat, 'Chat'));
 		} catch (err) {
 			if (err && err.status === 403) {
 				return next(err);
@@ -137,6 +138,7 @@ export default class ChatController extends RouteController {
 				}
 			}
 			const updatedRows = await Chat.updateChat(newChat);
+			this.requireAffected(updatedRows, 'Chat ' + newChat.id);
 			this.#handleSuccess(res, { updatedRows, newChat });
 		} catch (err) {
 			if (err && err.status === 403) {
@@ -153,7 +155,7 @@ export default class ChatController extends RouteController {
 		try {
 			await this.#loadOwned(req, id);
 			const deletedRows = await Chat.deleteChat(id);
-			this.#handleSuccess(res, deletedRows);
+			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Chat ' + id));
 		} catch (err) {
 			if (err && err.status === 403) {
 				return next(err);

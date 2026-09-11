@@ -2,6 +2,7 @@ import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
+import ValidationError from '#services/ValidationError.js';
 
 export default class User extends Model {
 	static init(sequelize) {
@@ -89,7 +90,7 @@ export default class User extends Model {
 		const allowedRoles = Schemas.user.role.validate.isIn.args[0];
 		const normalizedRole = typeof role === 'string' ? role.toLowerCase() : role;
 		if (!allowedRoles.includes(normalizedRole)) {
-			throw new Error(
+			throw new ValidationError(
 				'Unknown role "' + role + '". Expected one of: ' + allowedRoles.join(', ') + '.'
 			);
 		}

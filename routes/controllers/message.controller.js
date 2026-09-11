@@ -92,7 +92,7 @@ export default class MessageController extends RouteController {
 		const { id } = req.query;
 		try {
 			const message = await this.#loadOwned(req, id);
-			this.#handleSuccess(res, message);
+			this.#handleSuccess(res, this.requireFound(message, 'Message ' + id));
 		} catch (err) {
 			if (err && err.status === 403) {
 				return next(err);
@@ -126,6 +126,7 @@ export default class MessageController extends RouteController {
 				newMessage.user = req.user.id;
 			}
 			const updatedRows = await Message.updateMessage(newMessage);
+			this.requireAffected(updatedRows, 'Message ' + newMessage.id);
 			this.#handleSuccess(res, { updatedRows, newMessage });
 		} catch (err) {
 			if (err && err.status === 403) {
@@ -142,7 +143,7 @@ export default class MessageController extends RouteController {
 		try {
 			await this.#loadOwned(req, id);
 			const deletedRows = await Message.deleteMessage(id);
-			this.#handleSuccess(res, deletedRows);
+			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Message ' + id));
 		} catch (err) {
 			if (err && err.status === 403) {
 				return next(err);

@@ -1,5 +1,6 @@
 import LoudError from '#services/LoudError.js';
 import ValidationError from '#services/ValidationError.js';
+import { HttpError, NotFoundError } from '#services/HttpError.js';
 //import Utilities from '#services/Utilities.js';
 
 import { messages as msgConstants } from '#routes/constants.js';
@@ -94,14 +95,51 @@ export default class RouteController {
 			? callerName.toLowerCase().substring(3)
 			: callerName;
 		const { method } = stack;
-		let message = {};
-		message['data'] = outObj;
-		message['info'] = ctrlMsg[method][msgRef].success.condition[condition];
-		message['success'] = true;
-		message['status'] = 200;
-		message['name'] = this.controllerName + ' ' + msgRef;
+		// Creates answer 201; everything else (reads, updates, deletes, login) 200.
+		const status = msgRef === 'create' ? 201 : 200;
+		const message = {
+			data: outObj,
+			info: ctrlMsg[method][msgRef].success.condition[condition],
+			success: true,
+			status,
+			name: this.controllerName + ' ' + msgRef
+		};
 
-		res.status(200).json(message);
+		res.status(status).json(message);
+	}
+
+	/**
+	 * Assert that a lookup found something.
+	 * @template T
+	 * @param {T|null|undefined} record
+	 * @param {string} what description used in the 404 message, e.g. "Prison 7"
+	 * @returns {T}
+	 * @throws {NotFoundError}
+	 */
+	requireFound(record, what) {
+		if (record === null || record === undefined) {
+			throw new NotFoundError(what + ' not found');
+		}
+		return record;
+	}
+
+	/**
+	 * Assert that an update or delete touched at least one row.
+	 * @param {number|[number]} count Sequelize's affected-row count (update returns it in an array)
+	 * @param {string} what description used in the 404 message
+	 * @returns {number|[number]} the count, unchanged
+	 * @throws {NotFoundError}
+	 */
+	requireAffected(count, what) {
+		const n = Array.isArray(count) ? count[0] : count;
+		if (!n) {
+			throw new NotFoundError(what + ' not found');
+		}
+		return count;
+	}
+
+	static isDevelopment() {
+		return process.env.NODE_ENV === 'development';
 	}
 
 	handleErr(res, errMsg = null, msgType = 'par') {
@@ -117,12 +155,24 @@ export default class RouteController {
 			? callerName.toLowerCase().substring(3)
 			: callerName;
 		const { method } = stack;
-		const info = ctrlMsg[method][msgRef].error.condition[msgType];
-		const message = errMsg
-			? { info: info, type: errMsg.name, error: errMsg.message, stack: errMsg.stack.toString() }
-			: { info: info };
+		const conditions = ctrlMsg[method][msgRef].error.condition;
+		const info = conditions[msgType] ?? conditions.par;
+		// No error object at all is treated as a generic client fault.
+		const status = errMsg ? HttpError.statusOf(errMsg) : 400;
+		const body = { success: false, name: errMsg ? errMsg.name : 'Error', info, status };
+		if (errMsg && errMsg.message) {
+			if (status < 500) {
+				body.error = errMsg.message;
+			} else if (RouteController.isDevelopment()) {
+				body.error = errMsg.message;
+				body.stack = errMsg.stack;
+			}
+		}
+		if (status >= 500) {
+			console.error('[' + this.controllerName + ' ' + msgRef + ']', errMsg);
+		}
 
-		res.status(400).json(message);
+		res.status(status).json(body);
 	}
 
 	#implementsInterface(childObj, interfaceObj) {

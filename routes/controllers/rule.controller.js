@@ -55,7 +55,7 @@ export default class ruleController extends RouteController {
 		const fullBool = full === 'true';
 		try {
 			const rule = await Rule.getRuleByID(id, fullBool);
-			this.#handleSuccess(res, rule);
+			this.#handleSuccess(res, this.requireFound(rule, 'Rule ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -79,6 +79,7 @@ export default class ruleController extends RouteController {
 		const newRule = req.body;
 		try {
 			const updatedRows = await Rule.updateRule(newRule);
+			this.requireAffected(updatedRows, 'Rule ' + newRule.id);
 			this.#handleSuccess(res, { updatedRows, newRule });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -91,7 +92,7 @@ export default class ruleController extends RouteController {
 		const { id } = req.body;
 		try {
 			const deletedRows = await Rule.deleteRule(id);
-			this.#handleSuccess(res, deletedRows);
+			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Rule ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

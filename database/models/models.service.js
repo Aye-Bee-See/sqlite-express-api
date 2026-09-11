@@ -4,6 +4,7 @@ import Prison from '#models/prison.model.js';
 import Prisoner from '#models/prisoner.model.js';
 import Rule from '#models/rule.model.js';
 import User from '#models/user.model.js';
+import { NotFoundError } from '#services/HttpError.js';
 
 export default class modelsService {
 	/**
@@ -36,14 +37,12 @@ export default class modelsService {
 				model = User;
 				break;
 			default:
-				errMsg = 'Unknown modelName';
-				break;
+				throw new Error('modelInstanceExists: unknown model "' + modelName + '"');
 		}
 
 		const instanceExists = await model.findByPk(primaryKeyValue);
-		//console.log(instanceExists);
 		if (!instanceExists) {
-			return new Error(errMsg);
+			return new NotFoundError(errMsg);
 		}
 		return instanceExists;
 	}

@@ -10,6 +10,7 @@ import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
 import ChapterRoutes from '#routes/chapter/chapter.js';
 import ErrorService from '#rtServices/error.services.js';
+import { NotFoundError } from '#services/HttpError.js';
 import cors from 'cors';
 
 const app = express();
@@ -42,6 +43,9 @@ app.use('/prisoner', PrisonerRoutes.Router);
 app.use('/rule', RuleRoutes.Router);
 app.use('/messaging', MessageRoutes.Router);
 app.use('/chat', ChatRoutes.Router);
-app.use('/chat', ChatRoutes.Router);
 app.use('/chapter', ChapterRoutes.Router);
+// Unknown routes get a JSON 404 instead of Express's HTML page.
+app.use((req, res, next) => {
+	next(new NotFoundError('Cannot ' + req.method + ' ' + req.path));
+});
 app.use(ErrorService.handler);

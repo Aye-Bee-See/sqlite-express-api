@@ -3,6 +3,7 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Rule from '#models/rule.model.js';
+import { NotFoundError } from '#services/HttpError.js';
 
 export default class Prison extends Model {
 	static init(sequelize) {
@@ -109,10 +110,10 @@ export default class Prison extends Model {
 	static async addRule(ruleId, prisonId) {
 		const [rule, prison] = await Promise.all([Rule.findByPk(ruleId), this.findByPk(prisonId)]);
 		if (!rule) {
-			throw new Error('Rule ' + ruleId + ' not found');
+			throw new NotFoundError('Rule ' + ruleId + ' not found');
 		}
 		if (!prison) {
-			throw new Error('Prison ' + prisonId + ' not found');
+			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
 		await prison.addRule(rule);
 		return await this.getPrisonByID(prisonId, true);

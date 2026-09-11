@@ -57,7 +57,7 @@ export default class PrisonerController extends RouteController {
 		const fullBool = full === 'true';
 		try {
 			const prisoner = await Prisoner.getPrisonerByID(id, fullBool);
-			this.#handleSuccess(res, prisoner);
+			this.#handleSuccess(res, this.requireFound(prisoner, 'Prisoner ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -90,6 +90,7 @@ export default class PrisonerController extends RouteController {
 		const newPrisoner = req.body;
 		try {
 			const updatedRows = await Prisoner.updatePrisoner(newPrisoner);
+			this.requireAffected(updatedRows, 'Prisoner ' + newPrisoner.id);
 			this.#handleSuccess(res, { updatedRows, newPrisoner });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -102,7 +103,7 @@ export default class PrisonerController extends RouteController {
 		const { id } = req.body;
 		try {
 			const deletedRows = await Prisoner.deletePrisoner(id);
-			this.#handleSuccess(res, deletedRows);
+			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Prisoner ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

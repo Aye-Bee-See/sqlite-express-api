@@ -2,6 +2,7 @@ import { Model, literal } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Message from '#models/message.model.js';
+import Attachment from '#models/attachment.model.js';
 import Prisoner from '#models/prisoner.model.js';
 import User from '#models/user.model.js';
 import modelsService from '#models/models.service.js';
@@ -310,17 +311,14 @@ export default class Chat extends Model {
 
 	// Delete
 
+	/**
+	 * Delete a chat with its messages and their attachment files.
+	 * @returns {Promise<number>} chats removed
+	 */
 	static async deleteChat(id) {
-		var destroyedChats = 0;
-		await Message.destroy({
-			where: {
-				chat: id
-			}
-		}).then(
-			await this.destroy({ where: { id: id } }).then((dc) => {
-				destroyedChats = dc;
-			})
-		);
-		return destroyedChats;
+		const messages = await Message.findAll({ where: { chat: id }, attributes: ['id'] });
+		await Attachment.purgeForMessages(messages.map((m) => m.id));
+		await Message.destroy({ where: { chat: id } });
+		return await this.destroy({ where: { id: id } });
 	}
 }

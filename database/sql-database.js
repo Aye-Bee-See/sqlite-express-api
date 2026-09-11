@@ -31,6 +31,7 @@ export const Chapter = Models.Chapter.init(sequelize, Sequelize);
 export const PrisonerSupport = Models.PrisonerSupport.init(sequelize, Sequelize);
 export const ClaimToken = Models.ClaimToken.init(sequelize, Sequelize);
 export const MessageStatus = Models.MessageStatus.init(sequelize, Sequelize);
+export const Attachment = Models.Attachment.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -41,6 +42,7 @@ Rule.associate(Models);
 Chapter.associate(Models);
 ClaimToken.associate(Models);
 MessageStatus.associate(Models);
+Attachment.associate(Models);
 
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;

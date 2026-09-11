@@ -4,6 +4,10 @@ import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import ValidationError from '#services/ValidationError.js';
 import { isOpen, LETTER_STATUSES } from '#db/letter-status.js';
+import Attachment from '#models/attachment.model.js';
+import { NotFoundError } from '#services/HttpError.js';
+import { sniffType, storedPath } from '#services/files.js';
+import { access } from 'node:fs/promises';
 
 /**
  * Message (letter) controller.
@@ -32,6 +36,10 @@ export default class MessageController extends RouteController {
 		this.updateStatus = this.updateStatus.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
+		this.createAttachment = this.createAttachment.bind(this);
+		this.attachments = this.attachments.bind(this);
+		this.getAttachment = this.getAttachment.bind(this);
+		this.removeAttachment = this.removeAttachment.bind(this);
 
 		this.#handleErr = super.handleErr;
 		this.#handleSuccess = super.handleSuccess;
@@ -212,6 +220,113 @@ export default class MessageController extends RouteController {
 			}
 			const updated = await Message.changeStatus(message, status, req.user.id);
 			this.#handleSuccess(res, updated);
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	// Attachments
+
+	/**
+	 * Load a message the caller may see; non-admins may only change its
+	 * attachments while the letter is still open.
+	 */
+	async #attachableMessage(req, scope, messageId, { forWrite }) {
+		const message = this.requireFound(
+			await this.#loadAllowed(scope, messageId),
+			'Message ' + messageId
+		);
+		if (forWrite && scope.kind !== 'all' && !isOpen(message.status)) {
+			throw AuthzService.forbidden(
+				'Attachments of a ' + message.status + ' letter can no longer be changed.'
+			);
+		}
+		return message;
+	}
+
+	/**
+	 * POST /messaging/attachment (multipart): field `file` plus `message`.
+	 * The file's bytes must match its declared type.
+	 */
+	async createAttachment(req, res, next) {
+		const { message: messageId } = req.body;
+		try {
+			if (!req.file) {
+				throw new ValidationError('Send the file in a multipart field named "file".');
+			}
+			if (messageId === undefined || messageId === '') {
+				throw new ValidationError('message (the id of the letter) is required.');
+			}
+			const scope = await threadScope(req);
+			const message = await this.#attachableMessage(req, scope, messageId, { forWrite: true });
+			const mimeType = sniffType(req.file.buffer);
+			if (!mimeType || mimeType !== req.file.mimetype) {
+				throw new ValidationError(
+					'The file content does not match its type ' + req.file.mimetype + '.'
+				);
+			}
+			const attachment = await Attachment.attach({
+				message: message.id,
+				buffer: req.file.buffer,
+				mimeType,
+				originalName: req.file.originalname,
+				uploadedBy: req.user.id
+			});
+			this.#handleSuccess(res, attachment);
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/** GET /messaging/attachments?message=: the attachments of one message. */
+	async attachments(req, res, next) {
+		const { message: messageId } = req.query;
+		try {
+			if (messageId === undefined) {
+				throw new ValidationError('message (the id of the letter) is required.');
+			}
+			const scope = await threadScope(req);
+			const message = await this.#attachableMessage(req, scope, messageId, { forWrite: false });
+			this.#handleSuccess(res, await Attachment.listForMessage(message.id));
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/** GET /messaging/attachment?id=: download the file. */
+	async getAttachment(req, res, next) {
+		const { id } = req.query;
+		try {
+			const attachment = this.requireFound(await Attachment.withFile(id), 'Attachment ' + id);
+			const scope = await threadScope(req);
+			await this.#attachableMessage(req, scope, attachment.message, { forWrite: false });
+			const path = storedPath(attachment.storedName);
+			try {
+				await access(path);
+			} catch {
+				throw new NotFoundError('Attachment ' + id + ' file is missing from storage');
+			}
+			const safeName = (attachment.originalName || attachment.storedName).replace(
+				/[^\w.\-() ]+/g,
+				'_'
+			);
+			res.setHeader('Content-Type', attachment.mimeType);
+			res.setHeader('Content-Length', attachment.size);
+			res.setHeader('Content-Disposition', 'attachment; filename="' + safeName + '"');
+			res.sendFile(path);
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/** DELETE /messaging/attachment { id }. */
+	async removeAttachment(req, res, next) {
+		const { id } = req.body;
+		try {
+			const attachment = this.requireFound(await Attachment.findByPk(id), 'Attachment ' + id);
+			const scope = await threadScope(req);
+			await this.#attachableMessage(req, scope, attachment.message, { forWrite: true });
+			this.#handleSuccess(res, await Attachment.remove(id));
 		} catch (err) {
 			this.#fail(res, next, err);
 		}

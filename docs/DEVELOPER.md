@@ -127,6 +127,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 ├── services/
 │   ├── HttpError.js                  HttpError(status, message), NotFoundError, HttpError.statusOf(err).
 │   ├── ValidationError.js            ValidationError(messages), ValidationError.messagesFrom(err).
+│   ├── files.js                      Attachment storage: ALLOWED_TYPES, sniffType(buffer), storeFile, storedPath, removeFile under UPLOAD_DIR.
 │   ├── LoudError.js                  Error subclass that prints a colored banner; used by the controller interface check.
 │   └── Utilities.js                  isUndefined, resolveSequential (used by seeds), objectToStringButSafe (unused).
 ├── routes/
@@ -135,7 +136,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   │   ├── auth.services.js          LocalStrategy, JwtStrategy, JWT creation; registers both strategies with passport.
 │   │   ├── authz.services.js         requireRole, requireSelfOrAdmin, requireGroupMember, optionalAuthenticate, chapterOf, mayManageUser, forbidden(), unauthorized().
 │   │   ├── scope.services.js         threadScope(req) and resolveWriter(): who may see and write which chats and messages.
-│   │   └── error.services.js         ErrorService.handler, the final error middleware.
+│   │   ├── error.services.js         ErrorService.handler, the final error middleware.
+│   │   └── upload.services.js        uploadSingle(field): multer (memory) with size and type limits, errors rendered as ValidationError.
 │   ├── controllers/
 │   │   ├── route.controller.js       Base class: pagination, requireFound/requireAffected, handleSuccess, handleErr.
 │   │   ├── user.controller.js        Plus login, registration role policy, password/note stripping, managed writers, claim tokens.
@@ -169,6 +171,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     │   ├── chat.model.js             Readers accept an extra where-clause for ownership filtering.
     │   ├── message.model.js          Same; updateMessage re-resolves the chat; createLetter, resolveRelayChapter, changeStatus, readLetter.
     │   ├── message-status.model.js   MessageStatus: one row per status change.
+    │   ├── attachment.model.js       Attachment: attach (store + row), withFile, listForMessage, remove, purgeForMessages; storedName hidden by default scope.
     │   └── chapter.model.js
     ├── schemas/
     │   ├── all.schema.js             Schemas class with one static per model.
@@ -207,19 +210,21 @@ Each alias lists several extension fallbacks. Include the `.js` extension in imp
 
 `constants.js` calls `dotenv/config` and exports:
 
-| Export          | Env var          | Default                 | Used by                                                               |
-| --------------- | ---------------- | ----------------------- | --------------------------------------------------------------------- |
-| `secretOrKey`   | `JWT_SECRET`     | none                    | `auth.services.js` to sign and verify tokens. Login fails without it. |
-| `sysPort`       | `PORT`           | none                    | `index.js` `app.listen`. Unset means a random free port.              |
-| `adminUsername` | `ADMIN_USERNAME` | none                    | `bootstrap-admin.js`                                                  |
-| `adminPassword` | `ADMIN_PASSWORD` | none                    | `bootstrap-admin.js`                                                  |
-| `adminEmail`    | `ADMIN_EMAIL`    | none                    | `bootstrap-admin.js`                                                  |
-| `corsOrigins`   | `CORS_ORIGIN`    | `http://localhost:3001` | `index.js`; comma-separated, trimmed, empties dropped.                |
-| `dbReset`       | `DB_RESET`       | `false`                 | `sql-database.js`: drop all tables and replay every migration.        |
-| `dbSeed`        | `DB_SEED`        | `true`                  | `sql-database.js`: whether to run `createSeeds()`.                    |
-| `dbLogging`     | `DB_LOGGING`     | `false`                 | `sql-database.js`: Sequelize `logging`.                               |
-| `dbStorage`     | `DB_STORAGE`     | `database.sqlite`       | `sql-database.js`: SQLite file, or `:memory:`.                        |
-| `quietBoot`     | `NODE_ENV=test`  | `false`                 | Suppresses boot-time console output under the test runner.            |
+| Export           | Env var            | Default                 | Used by                                                               |
+| ---------------- | ------------------ | ----------------------- | --------------------------------------------------------------------- |
+| `secretOrKey`    | `JWT_SECRET`       | none                    | `auth.services.js` to sign and verify tokens. Login fails without it. |
+| `sysPort`        | `PORT`             | none                    | `index.js` `app.listen`. Unset means a random free port.              |
+| `adminUsername`  | `ADMIN_USERNAME`   | none                    | `bootstrap-admin.js`                                                  |
+| `adminPassword`  | `ADMIN_PASSWORD`   | none                    | `bootstrap-admin.js`                                                  |
+| `adminEmail`     | `ADMIN_EMAIL`      | none                    | `bootstrap-admin.js`                                                  |
+| `corsOrigins`    | `CORS_ORIGIN`      | `http://localhost:3001` | `index.js`; comma-separated, trimmed, empties dropped.                |
+| `dbReset`        | `DB_RESET`         | `false`                 | `sql-database.js`: drop all tables and replay every migration.        |
+| `dbSeed`         | `DB_SEED`          | `true`                  | `sql-database.js`: whether to run `createSeeds()`.                    |
+| `dbLogging`      | `DB_LOGGING`       | `false`                 | `sql-database.js`: Sequelize `logging`.                               |
+| `dbStorage`      | `DB_STORAGE`       | `database.sqlite`       | `sql-database.js`: SQLite file, or `:memory:`.                        |
+| `quietBoot`      | `NODE_ENV=test`    | `false`                 | Suppresses boot-time console output under the test runner.            |
+| `uploadDir`      | `UPLOAD_DIR`       | `uploads`               | `services/files.js`: where attachment files are written.              |
+| `uploadMaxBytes` | `UPLOAD_MAX_BYTES` | `10485760`              | `upload.services.js`: multer file size limit.                         |
 
 The three `db*` values go through `envBool` (`constants.js:22`), which accepts `true/false`, `1/0`, `yes/no`, `on/off` in any case and otherwise returns the default. `NODE_ENV=development` is read directly by the two error renderers to decide whether 500 responses include the underlying message and stack.
 
@@ -457,6 +462,7 @@ The policy, as implemented:
 - User management is admin-only, except that anyone may read, update, or delete their own record and non-admins may not change `role`, `chapterId`, or the custody columns. A group's `chapter` account may read, edit (`name`, `email`, `managerNote` only), and delete the group's unclaimed managed writers.
 - Reads of prisons, prisoners, rules, and chapters need no token (`optionalAuthenticate`). Anonymous callers and the `user` role see published records only; staff see everything and may filter by `recordStatus`. `AuthzService.publishedOnly(req)` decides, and `readOptions(req, config)` in `routes/controllers/directory.helpers.js` turns it, plus `q`, `sort`, `recordStatus`, and per-resource exact-match filters, into `{ publishedOnly, where, order }` for the model readers. Each directory controller declares its `READ_CONFIG` (search fields, sort orders, allowed filters) at the top of the file; add to that object to expose a new filter. Writes need `admin` or `chapter`.
 - Chats and messages follow `threadScope(req)` in `routes/services/scope.services.js`: `{ kind: 'all' | 'managed' | 'own', where, messageWhere, allowsUser(id), allows(chat) (async), allowsMessage(message) }`. Admins get everything; a `chapter` caller gets `user IN (ids of writers its group manages)` **or** `relayChapter = its group` (for chats: chats holding such a message, via a literal subquery); a `user` gets their own id. Controllers spread `scope.where` / `scope.messageWhere` **last** into list queries, call `allows` / `allowsMessage` before single-record reads, updates, and deletes, and use `resolveWriter(req, scope, body.user, { sender, prisoner })` on create (user role: self; chapter: a managed writer, the group's anonymous writer when omitted, or an independent writer only for a `prisoner` reply on a thread the group relays; admin: as given). Enforced in the controllers because it depends on the record, not just the route.
+- Attachments (`Attachment` model, `MessageController.createAttachment` / `attachments` / `getAttachment` / `removeAttachment`): scoped exactly like the message they belong to via `allowsMessage`; adding or removing requires the letter to be `isOpen` unless the caller is an admin. Uploads go through `uploadSingle('file')`, are sniffed with `sniffType`, and must match the declared MIME type. `Message.deleteMessage` and `Chat.deleteChat` call `Attachment.purgeForMessages` first because the database cascade cannot unlink files.
 - Letter lifecycle (`database/letter-status.js`, `Message.createLetter` / `changeStatus`, `MessageController.updateStatus`): every message has `status`; letters start `queued`, replies `received`; `PUT /messaging/status` moves queued to printed to mailed for admins or the letter's `relayChapter`; `MessageStatus` rows record every change. `Message.resolveRelayChapter(prisonerId, requested, callerChapter)` validates an explicit group against the facility's relay groups (`Prisoner.relayGroupsFor`) and otherwise defaults to the caller's group, then the single relay group, then none unless the facility is `relay_only`. Non-admins may edit or delete a letter only while `isOpen(status)`.
 - Managed writers (`user.controller.js`, `User.createManagedWriter` and friends, `ClaimToken`): a group creates an account with `managedBy` set; the local strategy refuses login while `managedBy && !claimedAt`; `POST /auth/claim` sets credentials, `claimedAt`, `claimedFrom`, and clears `managedBy`, after which the group is out of scope. `User.anonymousWriterFor(chapterId)` find-or-creates the one account with `anonymousForChapter = chapterId`. `managerNote` is stripped from every response except to admins and the managing group (`#stripPassword(user, req)` in the user controller).
 
@@ -613,6 +619,7 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 - npm 11 gates packages with install scripts. The approvals live in `package.json` under `allowScripts` (pinned by version: `bcrypt`, `sqlite3`, `quick-lint-js`, `fsevents`). When one of those packages is upgraded, run `npm install-scripts approve <pkg>` again and commit the change.
 - `sqlite3` needs `prebuild-install` 7.1.3 or newer (pinned in the lockfile) to pick the right prebuilt binary on Node 24 and later; older versions compared N-API versions as strings and asked for a build that does not exist, then fell back to a source build that fails on Python 3.12+ (no `distutils`).
 - Node 26 removed `SlowBuffer`; `jsonwebtoken` 9.0.3 (via `jws` 4 / `jwa` 2) no longer loads the module that used it. Do not downgrade below 9.0.3.
+- `multer` 2 parses multipart uploads (Express 5 compatible, no install scripts). Files are held in memory (`memoryStorage`) up to `UPLOAD_MAX_BYTES`, sniffed, then written by `services/files.js`; raise the limit with care since each in-flight upload occupies that much memory.
 - `engines.node` is `>=18` (Express 5, static class blocks, `Object.hasOwn`).
 - On Apple Silicon, make sure `node -p process.arch` prints `arm64`; an Intel Node under Rosetta will fail to load arm64 binaries and vice versa. After switching, `rm -rf node_modules && npm ci`.
 
@@ -620,8 +627,8 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 
 `npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
 
-- `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin; a Chapter record `group` with a `chapter`-role member and an unclaimed managed `writer`; two independent users `alice` and `bob`; a prison with two prisoners; a rule).
-- Each test file is its own process, so each gets a fresh in-memory database. Files: `auth`, `authorization`, `directory`, `directory-fields`, `letters`, `messaging`, `migrations`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
+- `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `upload()` (multipart via `FormData`) and `getBytes()` (raw download), a per-process temporary `UPLOAD_DIR` (removed by `stopServer()`) with a 64 KiB `UPLOAD_MAX_BYTES`, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin; a Chapter record `group` with a `chapter`-role member and an unclaimed managed `writer`; two independent users `alice` and `bob`; a prison with two prisoners; a rule).
+- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `letters`, `messaging`, `migrations`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
 - Seeded data is not used by the tests; fixtures are created explicitly, so tests never depend on seed ids.
 - CI (`.github/workflows/test.yml`) runs `npm ci`, ESLint, and the suite on Node 22 and 24 for every pull request and push to `main`.
 
@@ -698,7 +705,7 @@ Known gaps, roughly in the order they are worth tackling:
 3. **Message `full=true`** on the single read embeds `relay_group` and `status_history`; on lists it is still ignored. `chat_details` / `user_details` / `prisoner_details` includes are a few lines if clients want them.
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
 5. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
-6. **Attachments and retention.** Scans of prisoner replies and letter enclosures need an `Attachments` table, a data directory, and multipart uploads (a new dependency); planned as its own pull request. Retention (purging `mailed` letters after a window, then `VACUUM`) is a scheduled job to add once the product decides the window. Directory writes are still open to every chapter account.
+6. **Retention and storage.** Purging `mailed` letters (and their attachment files) after a window, then `VACUUM`, is a scheduled job to add once the product decides the window. Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes are still open to every chapter account.
 7. **Rate limiting and request logging.** None.
 8. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
 9. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.

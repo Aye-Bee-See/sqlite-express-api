@@ -3,6 +3,7 @@ import User from '#models/user.model.js';
 //import bcrypt from 'bcrypt';
 //import { secretOrKey } from '#constants';
 import RouteController from '#rtControllers/route.controller.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 export default class UserController extends RouteController {
 	constructor() {
@@ -159,9 +160,20 @@ export default class UserController extends RouteController {
 		}
 	}
 
-	async create(req, res) {
+	/**
+	 * Register a user. Anonymous callers (and non-admins) always get the
+	 * "user" role; only an admin token may create admin, chapter, or banned
+	 * accounts.
+	 */
+	async create(req, res, next) {
 		const { username, email, password, name, bio } = req.body;
-		const role = req.body.role.toLowerCase();
+		const role =
+			typeof req.body.role === 'string' ? req.body.role.toLowerCase() : AuthzService.USER;
+		if (role !== AuthzService.USER && !AuthzService.isAdmin(req)) {
+			return next(
+				AuthzService.forbidden('Only an admin can create a user with role "' + role + '".')
+			);
+		}
 		try {
 			const user = await User.createUser({ username, password, role, email, name, bio });
 			const strippedPassword = this.#stripPassword(user);
@@ -173,8 +185,15 @@ export default class UserController extends RouteController {
 	}
 	// Update
 
-	async update(req, res) {
+	/**
+	 * Update a user. Route middleware already limits non-admins to their own
+	 * record; here we also stop them from promoting themselves.
+	 */
+	async update(req, res, next) {
 		const newUser = req.body;
+		if (newUser.role !== undefined && !AuthzService.isAdmin(req)) {
+			return next(AuthzService.forbidden("Only an admin can change a user's role."));
+		}
 		try {
 			const updatedRows = await User.updateUser(newUser);
 			this.#handleSuccess(res, { updatedRows, newUser });

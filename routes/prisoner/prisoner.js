@@ -4,6 +4,7 @@ import { default as passport } from 'passport';
 import { prisonerEnd } from '#routes/constants.js';
 import { default as prisonerCrtlr } from '#rtControllers/prisoner.controller.js';
 import authService from '#rtServices/auth.services.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 class PrisonerRoutes {
 	static Router;
@@ -40,6 +41,7 @@ class PrisonerRoutes {
 		this.Router.post(
 			prisonerEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.create
 		);
 
@@ -62,6 +64,7 @@ class PrisonerRoutes {
 		this.Router.put(
 			prisonerEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.update
 		);
 
@@ -70,6 +73,7 @@ class PrisonerRoutes {
 		this.Router.delete(
 			prisonerEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.remove
 		);
 	}

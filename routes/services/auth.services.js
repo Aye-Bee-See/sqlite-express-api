@@ -25,7 +25,7 @@ export default class authService {
 
 		try {
 			user = (await User.getUser({ username })) || false;
-			if (user) {
+			if (user && user.role !== 'banned') {
 				const match = (await bcrypt.compare(password, user.password)) || false;
 				if (match) {
 					const token = authService.#createJWT(user);
@@ -50,7 +50,7 @@ export default class authService {
 				return next(null, false);
 			}
 			const user = await User.getUser({ id: jwt_payload.id });
-			if (user) {
+			if (user && user.role !== 'banned') {
 				return next(null, user);
 			}
 			return next(null, false);

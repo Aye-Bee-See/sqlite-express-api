@@ -126,7 +126,7 @@ const messages = {
 			http: {
 				400: 'Something went wrong',
 				401: 'Unauthorized',
-				403: 'Bad request',
+				403: 'Forbidden',
 				404: 'Not found',
 				405: 'Method not allowed',
 				408: 'Request timeout',

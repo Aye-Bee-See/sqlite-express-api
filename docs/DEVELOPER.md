@@ -695,7 +695,7 @@ Known gaps, roughly in the order they are worth tackling:
 
 1. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
 2. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
-3. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
+3. **Message `full=true`** on the single read embeds `relay_group` and `status_history`; on lists it is still ignored. `chat_details` / `user_details` / `prisoner_details` includes are a few lines if clients want them.
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
 5. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
 6. **Attachments and retention.** Scans of prisoner replies and letter enclosures need an `Attachments` table, a data directory, and multipart uploads (a new dependency); planned as its own pull request. Retention (purging `mailed` letters after a window, then `VACUUM`) is a scheduled job to add once the product decides the window. Directory writes are still open to every chapter account.

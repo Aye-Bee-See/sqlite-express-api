@@ -213,6 +213,7 @@ A token whose user has since been deleted or banned is rejected with `401`.
 | Attach a rule to a prison                                  | No                    | Yes                               | Yes     |
 | Read, create, update, delete chats and messages            | **Own threads only**  | **Managed writers' threads only** | All     |
 | Send a message as the prisoner side (`sender: prisoner`)   | No (forced to `user`) | Yes                               | Yes     |
+| Move a letter to `printed` / `mailed`                      | No                    | As its relay group                | Yes     |
 | Create managed writers, issue claim tokens                 | No                    | Own group                         | Yes     |
 | Read, edit, delete a group's unclaimed managed writers     | No                    | Own group                         | Yes     |
 | Read own user record; update or delete own account         | Yes                   | Yes                               | Yes     |

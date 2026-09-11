@@ -1,8 +1,21 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
 import ValidationError from '#services/ValidationError.js';
+
+/** Case-insensitive substring match on username, email, and name. */
+function searchWhere(q) {
+	const term = typeof q === 'string' ? q.trim() : '';
+	if (!term) {
+		return {};
+	}
+	return {
+		[Op.or]: ['username', 'email', 'name'].map((field) => ({
+			[field]: { [Op.like]: '%' + term + '%' }
+		}))
+	};
+}
 
 export default class User extends Model {
 	static init(sequelize) {
@@ -63,8 +76,8 @@ export default class User extends Model {
 		return count;
 	}
 
-	static async getAllUsers(full, limit, offset = 0) {
-		let filters = { limit, offset };
+	static async getAllUsers(full, limit, offset = 0, q = '') {
+		let filters = { limit, offset, where: searchWhere(q) };
 		let options;
 
 		if (full) {
@@ -90,7 +103,7 @@ export default class User extends Model {
 	 * @param {number} offset
 	 * @throws {Error} when the role is not one the schema allows
 	 */
-	static async getUsersByRole(role, full, limit, offset = 0) {
+	static async getUsersByRole(role, full, limit, offset = 0, q = '') {
 		const allowedRoles = Schemas.user.role.validate.isIn.args[0];
 		const normalizedRole = typeof role === 'string' ? role.toLowerCase() : role;
 		if (!allowedRoles.includes(normalizedRole)) {
@@ -98,7 +111,7 @@ export default class User extends Model {
 				'Unknown role "' + role + '". Expected one of: ' + allowedRoles.join(', ') + '.'
 			);
 		}
-		let filters = { limit, offset, where: { role: normalizedRole } };
+		let filters = { limit, offset, where: { role: normalizedRole, ...searchWhere(q) } };
 		if (full) {
 			filters.include = [
 				{

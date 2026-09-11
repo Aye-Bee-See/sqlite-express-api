@@ -1,6 +1,11 @@
 import Rule from '#models/rule.model.js';
 import RouteController from '#rtControllers/route.controller.js';
-import { readOptions } from '#rtControllers/directory.helpers.js';
+import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+
+const READ_CONFIG = {
+	searchFields: ['title', 'description'],
+	sorts: { name: [['title', 'ASC']], ...SORT_BY_CREATED }
+};
 
 export default class ruleController extends RouteController {
 	constructor() {
@@ -26,15 +31,15 @@ export default class ruleController extends RouteController {
 	#handleLimits;
 
 	/**
-	 * List rules, optionally only those attached to one prison via
-	 * ?prison=<id>. Paginated with page and page_size; full=true embeds the
+	 * List rules: page, page_size, full, q (title/description search), sort,
+	 * and prison (only rules attached to that prison). full=true embeds the
 	 * prisons each rule is attached to.
 	 */
 	async getMany(req, res) {
 		const { prison, full, page, page_size } = req.query;
 		const limits = this.#handleLimits(page, page_size);
-		const { publishedOnly } = readOptions(req);
-		const options = { limit: limits.limit, offset: limits.offset, publishedOnly };
+		const { publishedOnly, where, order } = readOptions(req, READ_CONFIG);
+		const options = { limit: limits.limit, offset: limits.offset, publishedOnly, where, order };
 
 		try {
 			const result =

@@ -1,6 +1,11 @@
 import Prison from '#models/prison.model.js';
 import RouteController from '#rtControllers/route.controller.js';
-import { readOptions } from '#rtControllers/directory.helpers.js';
+import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+
+const READ_CONFIG = {
+	searchFields: ['prisonName'],
+	sorts: { name: [['prisonName', 'ASC']], ...SORT_BY_CREATED }
+};
 
 export default class PrisonController extends RouteController {
 	constructor() {
@@ -26,18 +31,19 @@ export default class PrisonController extends RouteController {
 	#handleErr;
 	#handleLimits;
 
-	/** List prisons: page, page_size, full, and (staff only) recordStatus. */
+	/** List prisons: page, page_size, full, q, sort, and (staff only) recordStatus. */
 	async getMany(req, res) {
 		const { full, page, page_size } = req.query;
 		const limits = this.#handleLimits(page, page_size);
-		const { publishedOnly, where } = readOptions(req);
+		const { publishedOnly, where, order } = readOptions(req, READ_CONFIG);
 		try {
 			const result = await Prison.getAllPrisons({
 				full: full === 'true',
 				limit: limits.limit,
 				offset: limits.offset,
 				publishedOnly,
-				where
+				where,
+				order
 			});
 			this.handlePage(res, result, limits);
 		} catch (err) {

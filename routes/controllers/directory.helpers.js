@@ -1,27 +1,82 @@
+import { Op } from 'sequelize';
 import AuthzService from '#rtServices/authz.services.js';
 import ValidationError from '#services/ValidationError.js';
 import { RECORD_STATUSES } from '#db/record-status.js';
 
 /**
- * Shared read options for the public directory controllers (prison,
- * prisoner, rule, chapter).
+ * Sort orders every directory list understands, in addition to whatever a
+ * resource adds (usually `name`).
+ */
+export const SORT_BY_CREATED = {
+	newest: [
+		['createdAt', 'DESC'],
+		['id', 'DESC']
+	],
+	oldest: [
+		['createdAt', 'ASC'],
+		['id', 'ASC']
+	]
+};
+
+/**
+ * Turn a list request into model read options for the public directory
+ * controllers (prison, prisoner, rule, chapter).
  *
- * - Anonymous callers and the user role only ever see published records.
- * - Staff (admin, chapter) see everything and may filter with
- *   ?recordStatus=draft|pending|published.
+ * Query parameters handled here:
+ * - recordStatus: staff only; anonymous and user-role callers always get
+ *   published records and the parameter is ignored for them.
+ * - q: case-insensitive substring match across `searchFields`.
+ * - sort: one of the keys in `sorts`; default is ascending id.
+ * - any key of `filters`: an exact-match column filter, optionally limited
+ *   to an allowed list of values.
  *
  * @param {object} req
- * @returns {{publishedOnly: boolean, where: object}}
- * @throws {ValidationError} for an unknown recordStatus value
+ * @param {{searchFields?: string[], sorts?: object, filters?: object}} [config]
+ * @returns {{publishedOnly: boolean, where: object, order: Array}}
+ * @throws {ValidationError} listing every bad parameter at once
  */
-export function readOptions(req) {
+export function readOptions(req, { searchFields = [], sorts = {}, filters = {} } = {}) {
 	const publishedOnly = AuthzService.publishedOnly(req);
-	const { recordStatus } = req.query;
-	if (publishedOnly || recordStatus === undefined || recordStatus === '') {
-		return { publishedOnly, where: {} };
+	const { recordStatus, q, sort } = req.query;
+	const where = {};
+	const errors = [];
+
+	if (!publishedOnly && recordStatus !== undefined && recordStatus !== '') {
+		if (RECORD_STATUSES.includes(recordStatus)) {
+			where.recordStatus = recordStatus;
+		} else {
+			errors.push('recordStatus must be one of ' + RECORD_STATUSES.join(', ') + '.');
+		}
 	}
-	if (!RECORD_STATUSES.includes(recordStatus)) {
-		throw new ValidationError('recordStatus must be one of ' + RECORD_STATUSES.join(', ') + '.');
+
+	const term = typeof q === 'string' ? q.trim() : '';
+	if (term && searchFields.length > 0) {
+		where[Op.or] = searchFields.map((field) => ({ [field]: { [Op.like]: '%' + term + '%' } }));
 	}
-	return { publishedOnly, where: { recordStatus } };
+
+	for (const [param, spec] of Object.entries(filters)) {
+		const value = req.query[param];
+		if (value === undefined || value === '') {
+			continue;
+		}
+		if (spec.allowed && !spec.allowed.includes(value)) {
+			errors.push(param + ' must be one of ' + spec.allowed.join(', ') + '.');
+		} else {
+			where[spec.column || param] = value;
+		}
+	}
+
+	let order = [['id', 'ASC']];
+	if (sort !== undefined && sort !== '') {
+		if (sorts[sort]) {
+			order = sorts[sort];
+		} else {
+			errors.push('sort must be one of ' + Object.keys(sorts).join(', ') + '.');
+		}
+	}
+
+	if (errors.length > 0) {
+		throw new ValidationError(errors);
+	}
+	return { publishedOnly, where, order };
 }

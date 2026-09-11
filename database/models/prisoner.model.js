@@ -96,7 +96,7 @@ export default class Prisoner extends Model {
 
 	/**
 	 * One page of prisoners.
-	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean, where?: object}} options
+	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean, where?: object, order?: Array}} options
 	 * @returns {Promise<{rows: Prisoner[], count: number}>}
 	 */
 	static async getAllPrisoners({
@@ -104,7 +104,8 @@ export default class Prisoner extends Model {
 		limit,
 		offset = 0,
 		publishedOnly = false,
-		where = {}
+		where = {},
+		order = [['id', 'ASC']]
 	} = {}) {
 		return await this.findAndCountAll({
 			where: { ...where, ...publishedWhere(publishedOnly) },
@@ -112,7 +113,7 @@ export default class Prisoner extends Model {
 			limit,
 			offset,
 			distinct: true,
-			order: [['id', 'ASC']]
+			order
 		});
 	}
 
@@ -131,12 +132,19 @@ export default class Prisoner extends Model {
 	/**
 	 * One page of the prisoners held at one prison.
 	 * @param {number|string} prisonId
-	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean}} options
+	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean, where?: object, order?: Array}} options
 	 * @throws {NotFoundError} when the prison does not exist, or is unpublished and publishedOnly
 	 */
 	static async getPrisonersByPrison(
 		prisonId,
-		{ full = false, limit, offset = 0, publishedOnly = false } = {}
+		{
+			full = false,
+			limit,
+			offset = 0,
+			publishedOnly = false,
+			where = {},
+			order = [['id', 'ASC']]
+		} = {}
 	) {
 		const prison = await modelsService.modelInstanceExists('Prison', prisonId);
 		if (prison instanceof Error) {
@@ -146,12 +154,12 @@ export default class Prisoner extends Model {
 			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
 		return await this.findAndCountAll({
-			where: { prison: prisonId, ...publishedWhere(publishedOnly) },
+			where: { ...where, prison: prisonId, ...publishedWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly, true) : [],
 			limit,
 			offset,
 			distinct: true,
-			order: [['id', 'ASC']]
+			order
 		});
 	}
 

@@ -70,6 +70,7 @@ export default class ChatController extends RouteController {
 			} else {
 				chats = await Chat.readAllChats(fullBool, limit, offset);
 			}
+			await Chat.attachLastMessages(chats.rows);
 			this.handlePage(res, chats, limits);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;

@@ -24,7 +24,7 @@ export default class authService {
 
 		try {
 			user = (await User.getUserWithPassword({ username })) || false;
-			if (user && user.role !== 'banned') {
+			if (user && user.role !== 'banned' && !User.isUnclaimedManaged(user)) {
 				const match = (await bcrypt.compare(password, user.password)) || false;
 				if (match) {
 					const token = authService.#createJWT(user);

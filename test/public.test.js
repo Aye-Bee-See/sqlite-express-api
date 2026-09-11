@@ -145,7 +145,7 @@ test('embedded records are filtered for non-staff and complete for staff', async
 	);
 });
 
-test('chats are never embedded in prisoner reads for non-staff', async () => {
+test('chats are embedded in prisoner reads for admins only', async () => {
 	await post(
 		'/messaging/message',
 		{ messageText: 'private', sender: 'user', prisoner: f.prisoner1.id, user: f.alice.id },
@@ -158,7 +158,9 @@ test('chats are never embedded in prisoner reads for non-staff', async () => {
 		assert.ok(res.body.data.every((p) => p.prison_details.id === f.prison.id));
 	}
 	const staff = await get('/prisoner/prisoners?prison=' + f.prison.id + '&full=true', chapter);
-	const one = staff.body.data.find((p) => p.id === f.prisoner1.id);
+	assert.ok(staff.body.data.every((p) => p.chats === undefined));
+	const adminRead = await get('/prisoner/prisoners?prison=' + f.prison.id + '&full=true', admin);
+	const one = adminRead.body.data.find((p) => p.id === f.prisoner1.id);
 	assert.equal(one.chats.length, 1);
 });
 
@@ -217,6 +219,6 @@ test('totals are present on the other paginated lists too', async () => {
 		assert.equal(res.body.page, 1, path);
 	}
 	const users = await get('/auth/users?page_size=2', admin);
-	assert.equal(users.body.total, 4);
+	assert.equal(users.body.total, 5);
 	assert.ok(!JSON.stringify(users.body).includes('$2b$'));
 });

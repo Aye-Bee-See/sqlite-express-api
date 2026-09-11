@@ -1,13 +1,16 @@
 import Message from '#models/message.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 
 /**
  * Message controller.
  *
- * Ownership: callers with the plain "user" role only ever see, create, change,
- * or delete messages whose `user` column is their own id, and always send as
- * the user side of the conversation. Admins and chapters are unrestricted.
+ * Visibility follows threadScope(): users see their own messages, chapters
+ * see messages of writers their group manages, admins see everything. A
+ * user-role caller always sends as themselves and as the user side; a
+ * chapter sends as a writer it manages (or its anonymous writer) and may
+ * record either side.
  */
 export default class MessageController extends RouteController {
 	constructor() {
@@ -33,55 +36,52 @@ export default class MessageController extends RouteController {
 	#handleLimits;
 
 	/**
-	 * Extra where-clause for restricted callers, empty for everyone else.
-	 */
-	#ownerFilter(req) {
-		return AuthzService.ownOnly(req) ? { user: req.user.id } : {};
-	}
-
-	/**
 	 * Load a message by id and confirm the caller may act on it.
-	 * @returns {Promise<Message|null>} the message, or null when it does not exist
-	 * @throws {Error} a 403 error when the caller is restricted and does not own it
+	 * @returns {Promise<Message|null>}
+	 * @throws {Error} a 403 error when the caller may not see it
 	 */
-	async #loadOwned(req, id) {
+	async #loadAllowed(scope, id) {
 		const message = await Message.getMessageByID(id);
-		if (message && AuthzService.ownOnly(req) && !AuthzService.ownsRecord(req, message)) {
+		if (message && !scope.allows(message)) {
 			throw AuthzService.forbidden();
 		}
 		return message;
 	}
 
 	/**
-	 * List messages. Exactly one filter is applied, chosen in this order of
-	 * precedence: id, chat, prisoner, user. With no filter, all messages are
-	 * listed. All variants are paginated with page and page_size. Restricted
-	 * callers only ever receive their own messages.
-	 *
-	 * The `full` flag is accepted for symmetry with other resources but the
-	 * message model has no working eager-load yet, so it is ignored here.
+	 * List messages. Exactly one filter is applied, in precedence order: id,
+	 * chat, prisoner, user; with no filter, everything in the caller's scope.
+	 * Paginated with page and page_size.
 	 */
-	async getMany(req, res) {
+	async getMany(req, res, next) {
 		const { id, chat, prisoner, user, page, page_size } = req.query;
 		const limits = this.#handleLimits(page, page_size);
 		const { limit, offset } = limits;
-		const owner = this.#ownerFilter(req);
 
 		try {
+			const scope = await threadScope(req);
 			let messages;
 			if (id !== undefined) {
-				messages = await Message.readMessageById(id, limit, offset, owner);
+				messages = await Message.readMessageById(id, limit, offset, scope.where);
 			} else if (chat !== undefined) {
-				messages = await Message.readMessagesByChat(chat, limit, offset, owner);
+				messages = await Message.readMessagesByChat(chat, limit, offset, scope.where);
 			} else if (prisoner !== undefined) {
-				messages = await Message.readMessagesByPrisoner(prisoner, limit, offset, owner);
+				messages = await Message.readMessagesByPrisoner(prisoner, limit, offset, scope.where);
 			} else if (user !== undefined) {
-				messages = await Message.readMessagesByUser(user, limit, offset, owner);
+				// A user-role caller always lists their own messages, whatever `user` says.
+				const writer = scope.kind === 'own' ? req.user.id : user;
+				if (!scope.allowsUser(writer)) {
+					throw AuthzService.forbidden('Writer ' + writer + ' is outside your scope.');
+				}
+				messages = await Message.readMessagesByUser(writer, limit, offset);
 			} else {
-				messages = await Message.readAllMessages(limit, offset, owner);
+				messages = await Message.readAllMessages(limit, offset, scope.where);
 			}
 			this.handlePage(res, messages, limits);
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}
@@ -92,7 +92,8 @@ export default class MessageController extends RouteController {
 	async getOne(req, res, next) {
 		const { id } = req.query;
 		try {
-			const message = await this.#loadOwned(req, id);
+			const scope = await threadScope(req);
+			const message = await this.#loadAllowed(scope, id);
 			this.#handleSuccess(res, this.requireFound(message, 'Message ' + id));
 		} catch (err) {
 			if (err && err.status === 403) {
@@ -104,15 +105,18 @@ export default class MessageController extends RouteController {
 	}
 
 	// Create
-	async create(req, res) {
+	async create(req, res, next) {
 		const { messageText, prisoner } = req.body;
-		const restricted = AuthzService.ownOnly(req);
-		const user = restricted ? req.user.id : req.body.user;
-		const sender = restricted ? 'user' : req.body.sender;
 		try {
+			const scope = await threadScope(req);
+			const user = await resolveWriter(req, scope, req.body.user);
+			const sender = scope.kind === 'own' ? 'user' : req.body.sender;
 			const message = await Message.createMessage({ messageText, sender, prisoner, user });
 			this.#handleSuccess(res, message);
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}
@@ -122,9 +126,16 @@ export default class MessageController extends RouteController {
 	async update(req, res, next) {
 		const newMessage = { ...req.body };
 		try {
-			if (AuthzService.ownOnly(req)) {
-				await this.#loadOwned(req, newMessage.id);
-				newMessage.user = req.user.id;
+			const scope = await threadScope(req);
+			if (scope.kind !== 'all') {
+				await this.#loadAllowed(scope, newMessage.id);
+				if (scope.kind === 'own') {
+					newMessage.user = req.user.id;
+				} else if (newMessage.user !== undefined && !scope.allowsUser(newMessage.user)) {
+					throw AuthzService.forbidden(
+						'Your group does not manage writer ' + newMessage.user + '.'
+					);
+				}
 			}
 			const updatedRows = await Message.updateMessage(newMessage);
 			this.requireAffected(updatedRows, 'Message ' + newMessage.id);
@@ -142,7 +153,8 @@ export default class MessageController extends RouteController {
 	async remove(req, res, next) {
 		const { id } = req.body;
 		try {
-			await this.#loadOwned(req, id);
+			const scope = await threadScope(req);
+			await this.#loadAllowed(scope, id);
 			const deletedRows = await Message.deleteMessage(id);
 			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Message ' + id));
 		} catch (err) {

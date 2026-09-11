@@ -20,7 +20,7 @@ process.env.NODE_ENV = 'test';
 const { createApp, ready } = await import('../app.js');
 const db = await import('../database/sql-database.js');
 
-export const { User, Prison, Prisoner, Rule, Chapter, Chat, Message, sequelize } = db;
+export const { User, Prison, Prisoner, Rule, Chapter, Chat, Message, ClaimToken, sequelize } = db;
 
 let server;
 let baseUrl;
@@ -120,12 +120,18 @@ export async function makeUser(overrides = {}) {
 }
 
 /**
- * A standard cast: an admin, a chapter, two ordinary users, one prison with
- * two prisoners, and one rule. Chats and messages are left to each test.
+ * A standard cast: an admin; a group (Chapter record) with one chapter-role
+ * member account and one unclaimed managed writer; alice and bob, two
+ * independent users; one prison with two prisoners; one rule. Chats and
+ * messages are left to each test.
  */
 export async function makeFixtures() {
 	const admin = await makeUser({ role: 'admin', username: 'admin' });
+	const group = await Chapter.createChapter({ name: 'Fixture Group', location: {} });
 	const chapter = await makeUser({ role: 'chapter', username: 'chapter' });
+	await User.update({ chapterId: group.id }, { where: { id: chapter.id } });
+	chapter.user = await User.findByPk(chapter.id);
+	const writer = await User.createManagedWriter({ name: 'Managed Writer', chapterId: group.id });
 	const alice = await makeUser({ role: 'user', username: 'alice' });
 	const bob = await makeUser({ role: 'user', username: 'bob' });
 	const prison = await Prison.createPrison({
@@ -146,5 +152,5 @@ export async function makeFixtures() {
 		inmateID: 'P-2'
 	});
 	const rule = await Rule.createRule({ title: 'No pictures', description: 'Text only' });
-	return { admin, chapter, alice, bob, prison, prisoner1, prisoner2, rule };
+	return { admin, group, chapter, writer, alice, bob, prison, prisoner1, prisoner2, rule };
 }

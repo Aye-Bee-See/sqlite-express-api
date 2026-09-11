@@ -78,8 +78,37 @@ export default class AuthzService {
 	}
 
 	/**
+	 * The chapter a chapter-role caller belongs to, or null.
+	 * @param {object} req
+	 * @returns {number|null}
+	 */
+	static chapterOf(req) {
+		if (!AuthzService.hasRole(req, AuthzService.CHAPTER)) {
+			return null;
+		}
+		return req.user.chapterId || null;
+	}
+
+	/**
+	 * Middleware: admins pass; chapter-role callers must belong to a group.
+	 */
+	static requireGroupMember(req, res, next) {
+		if (AuthzService.isAdmin(req) || AuthzService.chapterOf(req)) {
+			return next();
+		}
+		if (AuthzService.hasRole(req, AuthzService.CHAPTER)) {
+			return next(
+				AuthzService.forbidden(
+					'This chapter account is not a member of a group yet; ask an admin to set chapterId.'
+				)
+			);
+		}
+		return next(AuthzService.forbidden());
+	}
+
+	/**
 	 * Is the caller limited to records they own? True for the plain "user"
-	 * role; admins and chapters may see every chat and message.
+	 * role. Chats and messages use threadScope() in scope.services.js instead.
 	 * @param {object} req
 	 * @returns {boolean}
 	 */
@@ -150,7 +179,30 @@ export default class AuthzService {
 		if (AuthzService.isAdmin(req) || AuthzService.targetsSelf(req)) {
 			return next();
 		}
+		// A chapter may reach its own unclaimed writers; the controller re-checks
+		// custody once the record is loaded (see managesTarget).
+		if (AuthzService.chapterOf(req)) {
+			return next();
+		}
 		return next(AuthzService.forbidden());
+	}
+
+	/**
+	 * Once a user record is loaded: may this caller act on it? Admins, the
+	 * user themselves, or the chapter that manages an unclaimed writer.
+	 * @param {object} req
+	 * @param {object} target a User instance or plain object
+	 * @returns {boolean}
+	 */
+	static mayManageUser(req, target) {
+		if (!target) {
+			return false;
+		}
+		if (AuthzService.isAdmin(req) || String(target.id) === String(req.user.id)) {
+			return true;
+		}
+		const chapter = AuthzService.chapterOf(req);
+		return Boolean(chapter && target.managedBy === chapter && !target.claimedAt);
 	}
 
 	/**

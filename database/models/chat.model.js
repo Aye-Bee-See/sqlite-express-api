@@ -81,8 +81,8 @@ export default class Chat extends Model {
 
 	// Read
 
-	static async readAllChats(full, limit, offset = 0) {
-		let filters = { limit, offset };
+	static async readAllChats(full, limit, offset = 0, extraWhere = {}) {
+		let filters = { limit, offset, where: { ...extraWhere } };
 		let options;
 		if (full) {
 			options = {
@@ -102,7 +102,7 @@ export default class Chat extends Model {
 				]
 			};
 		}
-		filters = { ...filters, ...options };
+		filters = { ...filters, ...options, where: { ...extraWhere } };
 		return await Chat.findAndCountAll({ ...filters, ...listOptions(), distinct: true });
 	}
 
@@ -154,18 +154,18 @@ export default class Chat extends Model {
 		return await Chat.findAndCountAll({ ...filters, ...listOptions(), distinct: true });
 	}
 
-	static async readChatsByPrisoner(id, full, limit, offset = 0) {
+	static async readChatsByPrisoner(id, full, limit, offset = 0, extraWhere = {}) {
 		const exists = await modelsService.modelInstanceExists('Prisoner', id);
 		if (exists instanceof Error) {
 			throw exists;
 		}
 		let filters = { limit, offset };
 		let options = {
-			where: { prisoner: id }
+			where: { prisoner: id, ...extraWhere }
 		};
 		if (full) {
 			options = {
-				where: { prisoner: id },
+				where: { prisoner: id, ...extraWhere },
 				include: [
 					{
 						model: Message,

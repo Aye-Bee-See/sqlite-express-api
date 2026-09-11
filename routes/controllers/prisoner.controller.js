@@ -1,6 +1,7 @@
 import Prisoner from '#models/prisoner.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 const READ_CONFIG = {
 	searchFields: ['birthName', 'chosenName'],
@@ -46,7 +47,8 @@ export default class PrisonerController extends RouteController {
 	/**
 	 * List prisoners: page, page_size, full, q (name search), sort, status,
 	 * prison (limit to one prison), and (staff only) recordStatus. full=true
-	 * embeds the prison and, for staff listing by prison, each prisoner's chats.
+	 * embeds the prison and support groups and, for admins listing by prison,
+	 * each prisoner's chats.
 	 */
 	async getMany(req, res) {
 		const { prison, full, page, page_size } = req.query;
@@ -57,6 +59,7 @@ export default class PrisonerController extends RouteController {
 			limit: limits.limit,
 			offset: limits.offset,
 			publishedOnly,
+			withChats: AuthzService.isAdmin(req),
 			where,
 			order
 		};

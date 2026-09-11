@@ -74,6 +74,25 @@ const userSchema = {
 		type: DataTypes.INTEGER
 	},
 
+	/** Chapter holding this account in custody (a managed writer); null once claimed or for independent accounts. */
+	managedBy: {
+		type: DataTypes.INTEGER
+	},
+	claimedAt: {
+		type: DataTypes.DATE
+	},
+	claimedFrom: {
+		type: DataTypes.INTEGER
+	},
+	/** Set on the one anonymous-writer account each chapter gets. */
+	anonymousForChapter: {
+		type: DataTypes.INTEGER
+	},
+	/** Internal note, visible to the managing chapter and admins only. */
+	managerNote: {
+		type: DataTypes.TEXT
+	},
+
 	role: {
 		type: DataTypes.STRING,
 		allowNull: false,

@@ -26,11 +26,16 @@ test('user list returns full rows without hashes and paginates', async () => {
 	assert.equal(res.status, 200);
 	assert.equal(res.body.data.length, 2);
 	assert.deepEqual(Object.keys(res.body.data[0]).sort(), [
+		'anonymousForChapter',
 		'bio',
 		'chapterId',
+		'claimedAt',
+		'claimedFrom',
 		'createdAt',
 		'email',
 		'id',
+		'managedBy',
+		'managerNote',
 		'name',
 		'role',
 		'updatedAt',

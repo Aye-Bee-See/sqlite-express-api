@@ -73,7 +73,6 @@ export default class User extends Model {
 			};
 		}
 		filters = { ...filters, ...options };
-		console.log(filters);
 
 		return await User.findAll(filters);
 	}

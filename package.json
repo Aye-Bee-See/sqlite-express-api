@@ -5,6 +5,8 @@
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
+		"start": "node index.js",
+		"dev": "nodemon index.js",
 		"test": "echo \"echo the test\"",
 		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
 		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",

@@ -11,14 +11,9 @@ export default class Chapter extends Model {
 		});
 	}
 
-	static associate(models) {
-		//TODO: Has many prisoners
-		//
-		// !!!!!REMOVE CONSOLE LOG ONCE METHOD IS BUILT!!!!!
-		// linter requires all variables to be used so stub functions must implement all variables in some way
-
-		console.log({ models });
-	}
+	// Chapters have no associations yet. A future relation to prisoners or
+	// users would be declared here, like the other models.
+	static associate() {}
 
 	//Create
 	static async createChapter({ name, location }) {

@@ -1,7 +1,7 @@
 import express from 'express';
 import passport from 'passport';
 import { default as bodyParser } from 'body-parser';
-import { sysPort } from '#constants';
+import { sysPort, corsOrigins } from '#constants';
 import { default as authRouter } from '#routes/user/user.js';
 import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
@@ -18,7 +18,7 @@ const app = express();
 // Add CORS middleware before any routes are defined
 app.use(
 	cors({
-		origin: 'http://localhost:3001',
+		origin: corsOrigins,
 		methods: 'GET, POST, OPTIONS, PUT, PATCH, DELETE',
 		allowedHeaders: 'X-Requested-With,content-type, authorization',
 		credentials: false

@@ -36,8 +36,12 @@ export default class Message extends Model {
 	}
 
 	//  Create
-	static async createMessage(messageText, sender) {
-		return await this.create(messageText, sender);
+	/**
+	 * @param {{messageText: string, sender: string, user: number, prisoner: number}} message
+	 * The chat is resolved by the beforeValidate hook.
+	 */
+	static async createMessage(message) {
+		return await this.create(message);
 	}
 
 	/**

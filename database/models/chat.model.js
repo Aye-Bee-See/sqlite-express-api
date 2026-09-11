@@ -103,15 +103,6 @@ export default class Chat extends Model {
 	 * @param {object} extraWhere additional column filters merged into the where clause
 	 */
 	static async readChatsByUser(id, full, limit, offset = 0, extraWhere = {}) {
-		/* 
-         * TODO:
-         *
-         const userExists = await User.findByPk(id);
-         console.log(userExists);
-         if (!userExists) {
-         throw new Error('User does not exist');
-         } */
-
 		const exists = await modelsService.modelInstanceExists('User', id);
 		if (exists instanceof Error) {
 			throw exists;
@@ -144,13 +135,6 @@ export default class Chat extends Model {
 	}
 
 	static async readChatsByPrisoner(id, full, limit, offset = 0) {
-		/*
-         * TODO:
-         *         const prisonerExists = await Prisoner.findByPk(id);
-         if (!prisonerExists) {
-         throw new Error('Prisoner does not exist');
-         }
-         */
 		const exists = await modelsService.modelInstanceExists('Prisoner', id);
 		if (exists instanceof Error) {
 			throw exists;

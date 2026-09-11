@@ -1,8 +1,4 @@
 import Prison from '#models/prison.model.js';
-//import { default as jwt } from 'jsonwebtoken';
-//import bcrypt from 'bcrypt';
-//import { prisonMsg } from '#routes/constants.js';
-//import { default as Utls } from '#services/Utilities.js';
 import RouteController from '#rtControllers/route.controller.js';
 
 export default class PrisonController extends RouteController {
@@ -33,7 +29,6 @@ export default class PrisonController extends RouteController {
 		const { limit, offset } = this.#handleLimits(page, page_size);
 		const fullBool = full === 'true';
 
-		// const {limit, offset} = req.query;
 		try {
 			const prisons = await Prison.getAllPrisons(fullBool, limit, offset);
 			this.#handleSuccess(res, prisons);
@@ -62,7 +57,6 @@ export default class PrisonController extends RouteController {
 		try {
 			const prison = await Prison.createPrison({ prisonName, address });
 			this.#handleSuccess(res, prison);
-			// res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -96,18 +90,6 @@ export default class PrisonController extends RouteController {
 	}
 
 	// Delete
-	// async remove(req, res)
-	// {
-	//     const {id} = req.body;
-	//     try {
-	//         const deletedRows = await Prisoner.deletePrisoner(id);
-	//         this.#handleSuccess(res, deletedRows);
-	//     } catch (err) {
-	//         err = !(err instanceof Error) ? new Error(err) : err;
-	//         this.#handleErr(res, err);
-	//     }
-	// }
-
 	async remove(req, res) {
 		const { id } = req.body;
 		try {

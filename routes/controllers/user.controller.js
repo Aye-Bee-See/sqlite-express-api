@@ -1,7 +1,4 @@
 import User from '#models/user.model.js';
-//import { default as jwt } from 'jsonwebtoken';
-//import bcrypt from 'bcrypt';
-//import { secretOrKey } from '#constants';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
@@ -72,7 +69,6 @@ export default class UserController extends RouteController {
 		const { role, full, page, page_size } = req.query;
 		const { limit, offset } = this.#handleLimits(page, page_size);
 
-		//const {role, full, limit, offset} = req.query;
 		const fullBool = full === 'true';
 
 		if (role) {

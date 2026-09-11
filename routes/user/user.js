@@ -1,9 +1,7 @@
 import express from 'express';
-import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { userEnd } from '#routes/constants.js';
 import { default as userCrtlr } from '#rtControllers/user.controller.js';
-import authService from '#rtServices/auth.services.js';
 import AuthzService from '#rtServices/authz.services.js';
 
 class UserRoutes {
@@ -17,16 +15,6 @@ class UserRoutes {
 	 *   Initialize all necessary parts of the class            *
 	 ************************************************************/
 	static {
-		const app = express();
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		const UserJWTStrat = authService.authorize;
-		const LoginStrat = authService.login;
-		passport.use('UsrJStrat', UserJWTStrat);
-		passport.use('LStrat', LoginStrat);
-
 		this.#Controller = new userCrtlr();
 		this.Router = express.Router();
 

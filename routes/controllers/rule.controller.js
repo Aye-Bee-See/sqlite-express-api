@@ -1,7 +1,4 @@
 import Rule from '#models/rule.model.js';
-//import { default as jwt } from 'jsonwebtoken';
-//import bcrypt from 'bcrypt';
-//import { ruleMsg } from '#routes/constants.js';
 import RouteController from '#rtControllers/route.controller.js';
 
 export default class ruleController extends RouteController {

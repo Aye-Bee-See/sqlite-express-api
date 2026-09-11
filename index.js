@@ -10,6 +10,7 @@ import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
 import ChapterRoutes from '#routes/chapter/chapter.js';
 import ErrorService from '#rtServices/error.services.js';
+import '#rtServices/auth.services.js'; // registers the passport strategies
 import { NotFoundError } from '#services/HttpError.js';
 import cors from 'cors';
 

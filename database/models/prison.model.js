@@ -30,7 +30,7 @@ export default class Prison extends Model {
 
 	// Create
 	static async createPrison({ prisonName, address }) {
-		return await this.create({ prisonName, address, deleted: false });
+		return await this.create({ prisonName, address });
 	}
 
 	static async getAllPrisons(full, limit, offset = 0) {

@@ -4,6 +4,7 @@ import Prison from '#models/prison.model.js';
 import Prisoner from '#models/prisoner.model.js';
 import Rule from '#models/rule.model.js';
 import User from '#models/user.model.js';
+import Chapter from '#models/chapter.model.js';
 import { NotFoundError } from '#services/HttpError.js';
 
 export default class modelsService {
@@ -35,6 +36,9 @@ export default class modelsService {
 				break;
 			case 'User':
 				model = User;
+				break;
+			case 'Chapter':
+				model = Chapter;
 				break;
 			default:
 				throw new Error('modelInstanceExists: unknown model "' + modelName + '"');

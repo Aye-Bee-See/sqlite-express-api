@@ -3,6 +3,7 @@ import { Strategy as LocalStrategy } from 'passport-local';
 import jwt from 'jsonwebtoken';
 import { User } from '#db/sql-database.js';
 import bcrypt from 'bcrypt';
+import passport from 'passport';
 import { secretOrKey } from '#constants';
 export default class authService {
 	static #jwtOptions = {
@@ -17,8 +18,6 @@ export default class authService {
 		let token = jwt.sign(payload, secretOrKey, { expiresIn: '1w' });
 		return { token, expires: expiryDateMs };
 	}
-
-	static async register() {}
 
 	static async #verify(username, password, done) {
 		let user;
@@ -60,3 +59,9 @@ export default class authService {
 		}
 	});
 }
+
+// Register the strategies once. Route files refer to them by name in
+// passport.authenticate('UsrJStrat' | 'LStrat', ...); index.js imports this
+// module so registration happens before any router is mounted.
+passport.use('UsrJStrat', authService.authorize);
+passport.use('LStrat', authService.login);

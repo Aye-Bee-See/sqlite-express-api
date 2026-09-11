@@ -13,11 +13,6 @@
 		"pre-commit": "lint-staged",
 		"prepare": "husky install"
 	},
-	"husky": {
-		"hooks": {
-			"pre-commit": "lint-staged"
-		}
-	},
 	"lint-staged": {
 		"**/*.+(js|mjs)": "eslint --fix",
 		"**/*.+(js|mjs|json|css|md)": "prettier --write"
@@ -95,12 +90,9 @@
 		],
 		"#services/*": [
 			"./services/*",
-			"./service/*.js",
+			"./services/*.js",
 			"./services/*.mjs",
 			"./services/*.cjs"
-		],
-		"#dbg/*": [
-			"./debug/*.mjs"
 		],
 		"#constants": "./constants.js"
 	},

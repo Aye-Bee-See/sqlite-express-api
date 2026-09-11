@@ -1,9 +1,7 @@
 import express from 'express';
-import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { prisonerEnd } from '#routes/constants.js';
 import { default as prisonerCrtlr } from '#rtControllers/prisoner.controller.js';
-import authService from '#rtServices/auth.services.js';
 import AuthzService from '#rtServices/authz.services.js';
 
 class PrisonerRoutes {
@@ -17,14 +15,6 @@ class PrisonerRoutes {
 	 *   Initialize all necessary parts of the class            *
 	 ************************************************************/
 	static {
-		const app = express();
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		const JwtStrat = authService.authorize;
-		passport.use('UsrJStrat', JwtStrat);
-
 		this.#Controller = new prisonerCrtlr();
 		this.Router = express.Router();
 

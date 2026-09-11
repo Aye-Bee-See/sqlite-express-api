@@ -1,8 +1,4 @@
 import Prisoner from '#models/prisoner.model.js';
-//import { default as jwt } from 'jsonwebtoken';
-//import bcrypt from 'bcrypt';
-//import { prisonerMsg } from '#routes/constants.js';
-//import { default as Utls } from '#services/Utilities.js';
 import RouteController from '#rtControllers/route.controller.js';
 
 export default class PrisonerController extends RouteController {
@@ -77,7 +73,6 @@ export default class PrisonerController extends RouteController {
 				status
 			});
 			this.#handleSuccess(res, prisoner);
-			// res.status(200).json({msg: ruleMsg.post.create.success.condition.par, rule});
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

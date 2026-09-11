@@ -1,9 +1,8 @@
 const endpoints = {
 	user: {
 		get: {
-			many: '/users{/:role}{/:full}{/:page}{/:page_size}',
-			one: '/user{/:id}{/:email}{/:username}{/:full}',
-			protect: '/protected'
+			many: '/users',
+			one: '/user'
 		},
 		post: {
 			create: '/user',
@@ -18,8 +17,8 @@ const endpoints = {
 	},
 	rule: {
 		get: {
-			many: '/rules{/:prison}{/:full}{/:page}{/:page_size}',
-			one: '/rule{/:id}'
+			many: '/rules',
+			one: '/rule'
 		},
 		post: {
 			create: '/rule'
@@ -33,8 +32,8 @@ const endpoints = {
 	},
 	prisoner: {
 		get: {
-			many: '/prisoners{/:prison}{/:full}{/:page}{/:page_size}',
-			one: '/prisoner{/:id}'
+			many: '/prisoners',
+			one: '/prisoner'
 		},
 		post: {
 			create: '/prisoner'
@@ -48,8 +47,8 @@ const endpoints = {
 	},
 	prison: {
 		get: {
-			many: '/prisons{/:full}{/:page}{/:page_size}',
-			one: '/prison{/:id}'
+			many: '/prisons',
+			one: '/prison'
 		},
 		post: {
 			create: '/prison'
@@ -65,7 +64,7 @@ const endpoints = {
 	chapter: {
 		get: {
 			many: '/chapters',
-			one: '/chapter{/:id}'
+			one: '/chapter'
 		},
 		post: {
 			create: '/chapter'
@@ -79,8 +78,8 @@ const endpoints = {
 	},
 	message: {
 		get: {
-			many: '/messages{/:id}{/:chat}{/:prisoner}{/:user}{/:page}{/:page_size}',
-			one: '/message{/:id}'
+			many: '/messages',
+			one: '/message'
 		},
 		post: {
 			create: '/message'
@@ -94,8 +93,8 @@ const endpoints = {
 	},
 	chat: {
 		get: {
-			many: '/chats{/:prisoner}{/:user}{/:full}{/:page}{/:page_size}',
-			one: '/chat{/:id}{/:prisoner}{/:user}{/:full}'
+			many: '/chats',
+			one: '/chat'
 		},
 		post: {
 			create: '/chat'
@@ -174,12 +173,6 @@ const messages = {
 						name: 'Error getting user by username.'
 					}
 				}
-			},
-			protect: {
-				success: {
-					condition: { par: 'Congrats! You are seeing this because you are authorized.' }
-				},
-				error: { condition: { par: null } }
 			}
 		},
 		post: {

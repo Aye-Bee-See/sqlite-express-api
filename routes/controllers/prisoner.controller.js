@@ -28,34 +28,22 @@ export default class PrisonerController extends RouteController {
 	#handleErr;
 	#handleLimits;
 
+	/**
+	 * List prisoners, optionally filtered to one prison with ?prison=<id>.
+	 * Paginated with page and page_size; full=true embeds the prison and,
+	 * for the by-prison variant, each prisoner's chats.
+	 */
 	async getMany(req, res) {
 		const { prison, full, page, page_size } = req.query;
 		const { limit, offset } = this.#handleLimits(page, page_size);
 		const fullBool = full === 'true';
 
-		//const {prison, limit, offset} = req.query;
-		if (prison) {
-			this.getListByPrison(req, res);
-		} else {
-			try {
-				const rules = await Prisoner.getAllPrisoners(fullBool, limit, offset);
-				this.#handleSuccess(res, rules);
-			} catch (err) {
-				const errorVar = !(err instanceof Error) ? new Error(err) : err;
-				this.#handleErr(res, errorVar);
-			}
-		}
-	}
-
-	async getListByPrison(req, res) {
-		const { prison, full, page, page_size } = req.query;
-		const limit = page_size || 10;
-		const list_start = page - 1 || 0;
-		const offset = list_start * limit;
-		const fullBool = full === 'true';
 		try {
-			const prisoner = await Prisoner.getPrisonersByPrison(fullBool, prison, limit, offset);
-			this.#handleSuccess(res, prisoner);
+			const prisoners =
+				prison !== undefined
+					? await Prisoner.getPrisonersByPrison(prison, fullBool, limit, offset)
+					: await Prisoner.getAllPrisoners(fullBool, limit, offset);
+			this.#handleSuccess(res, prisoners);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

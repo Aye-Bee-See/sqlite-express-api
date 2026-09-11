@@ -250,15 +250,16 @@ export default class Chat extends Model {
 
 	// Update
 
+	/**
+	 * Update a chat by id. Foreign-key constraints reject a user or prisoner
+	 * that does not exist.
+	 * @param {object} chat fields to change, including `id`
+	 * @returns {Promise<[number]>} affected row count
+	 */
 	static async updateChat(chat) {
-		const user = chat.user;
-		const prisoner = chat.prisoner;
-		return await this.update({ ...chat }, { where: { id: chat.id } })
-			.then((updatedChat) =>
-				this.update({ user: user, prisoner: prisoner }, { where: { chat: updatedChat } })
-			)
-			.catch();
+		return await this.update({ ...chat }, { where: { id: chat.id } });
 	}
+
 	// Delete
 
 	static async deleteChat(id) {

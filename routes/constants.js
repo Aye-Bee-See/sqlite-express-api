@@ -2,17 +2,23 @@ const endpoints = {
 	user: {
 		get: {
 			many: '/users',
-			one: '/user'
+			one: '/user',
+			writers: '/writers',
+			claimInfo: '/claim'
 		},
 		post: {
 			create: '/user',
-			login: '/login'
+			login: '/login',
+			createWriter: '/writer',
+			createToken: '/writer/token',
+			claim: '/claim'
 		},
 		put: {
 			update: '/user'
 		},
 		delete: {
-			remove: '/user'
+			remove: '/user',
+			revokeToken: '/writer/token'
 		}
 	},
 	rule: {
@@ -178,6 +184,21 @@ const messages = {
 						name: 'Error getting user by username.'
 					}
 				}
+			},
+			writers: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing managed writers.' } }
+			},
+			claimInfo: {
+				success: { condition: { par: 'Claim token is valid.' } },
+				error: {
+					condition: {
+						par: 'Error checking claim token.',
+						unknown: 'This claim token is not valid.',
+						used: 'This claim token has already been used.',
+						expired: 'This claim token has expired. Ask your group for a new one.'
+					}
+				}
 			}
 		},
 		post: {
@@ -188,6 +209,25 @@ const messages = {
 			login: {
 				success: { condition: { par: 'Login success.' } },
 				error: { condition: { par: 'No such user or associated password found.' } }
+			},
+			createWriter: {
+				success: { condition: { par: 'Successfully created managed writer.' } },
+				error: { condition: { par: 'Error creating managed writer.' } }
+			},
+			createToken: {
+				success: { condition: { par: 'Claim token generated. Show it to the writer once.' } },
+				error: { condition: { par: 'Error generating claim token.' } }
+			},
+			claim: {
+				success: { condition: { par: 'Account claimed. You can now sign in.' } },
+				error: {
+					condition: {
+						par: 'Error claiming account.',
+						unknown: 'This claim token is not valid.',
+						used: 'This claim token has already been used.',
+						expired: 'This claim token has expired. Ask your group for a new one.'
+					}
+				}
 			}
 		},
 		put: {
@@ -205,6 +245,10 @@ const messages = {
 						absent: 'No such user'
 					}
 				}
+			},
+			revokeToken: {
+				success: { condition: { par: 'Claim token revoked.' } },
+				error: { condition: { par: 'Error revoking claim token.' } }
 			}
 		}
 	},

@@ -133,16 +133,17 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   ├── constants.js                  endpoints{} (paths) and messages{} (strings) for every resource.
 │   ├── services/
 │   │   ├── auth.services.js          LocalStrategy, JwtStrategy, JWT creation; registers both strategies with passport.
-│   │   ├── authz.services.js         requireRole, requireSelfOrAdmin, optionalAuthenticate, ownOnly, ownsRecord, forbidden(), unauthorized().
+│   │   ├── authz.services.js         requireRole, requireSelfOrAdmin, requireGroupMember, optionalAuthenticate, chapterOf, mayManageUser, forbidden(), unauthorized().
+│   │   ├── scope.services.js         threadScope(req) and resolveWriter(): who may see and write which chats and messages.
 │   │   └── error.services.js         ErrorService.handler, the final error middleware.
 │   ├── controllers/
 │   │   ├── route.controller.js       Base class: pagination, requireFound/requireAffected, handleSuccess, handleErr.
-│   │   ├── user.controller.js        Plus login, registration role policy, password stripping.
+│   │   ├── user.controller.js        Plus login, registration role policy, password/note stripping, managed writers, claim tokens.
 │   │   ├── prison.controller.js      Plus addRule.
 │   │   ├── prisoner.controller.js
 │   │   ├── rule.controller.js
-│   │   ├── chat.controller.js        Ownership checks for the user role.
-│   │   ├── message.controller.js     Ownership checks for the user role.
+│   │   ├── chat.controller.js        Scope checks via threadScope().
+│   │   ├── message.controller.js     Scope checks via threadScope().
 │   │   └── chapter.controller.js
 │   ├── user/user.js                  Route classes. All seven follow the same template.
 │   ├── prison/prison.js
@@ -160,7 +161,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     ├── models/
     │   ├── all.model.js              Re-exports every model; has a comment explaining Sequelize associations.
     │   ├── models.service.js         modelInstanceExists(modelName, pk): instance or NotFoundError.
-    │   ├── user.model.js             defaultScope hides the password; getUserWithPassword for login.
+    │   ├── user.model.js             defaultScope hides the password; getUserWithPassword for login; managed-writer helpers.
+    │   ├── claim-token.model.js      ClaimToken: issue/revoke/lookup one-time claim tokens (hashes only).
     │   ├── prison.model.js           addRule.
     │   ├── prisoner.model.js
     │   ├── rule.model.js
@@ -428,29 +430,33 @@ Consequences: a deleted user's tokens stop working immediately; banning a user r
 
 `routes/services/authz.services.js` is a class of static helpers used by route files and controllers:
 
-| Member                     | Line   | What it does                                                                                                                                  |
-| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ADMIN`, `CHAPTER`, `USER` |        | Role name constants.                                                                                                                          |
-| `forbidden(message)`       |        | Builds an `Error` with `name: 'AuthorizationError'`, `status: 403`.                                                                           |
-| `unauthorized(message)`    |        | Same with `AuthenticationError` / 401.                                                                                                        |
-| `hasRole(req, ...roles)`   |        | Does `req.user.role` match one of the roles?                                                                                                  |
-| `isAdmin(req)`             |        | Shorthand.                                                                                                                                    |
-| `ownOnly(req)`             | `:67`  | True for the plain `user` role: the caller is confined to records they own.                                                                   |
-| `ownsRecord(req, record)`  | `:78`  | Compares `record.user` to `req.user.id` as strings.                                                                                           |
-| `targetsSelf(req)`         |        | Does the request's `id` / `email` / `username` (query for GET, body otherwise, same precedence as the user controller) match the caller?      |
-| `requireRole(...roles)`    | `:118` | Middleware: 403 unless the caller holds one of the roles.                                                                                     |
-| `requireSelfOrAdmin`       | `:130` | Middleware: allow admins, or any caller whose own record is the target.                                                                       |
-| `optionalAuthenticate`     | `:142` | Middleware: if an `Authorization` header is present, verify it with the JWT strategy and set `req.user`; a bad token is a 401, not anonymous. |
-| `isStaff(req)`             |        | Admin or chapter.                                                                                                                             |
-| `publishedOnly(req)`       |        | True for anonymous callers and the `user` role: directory reads are limited to published records.                                             |
+| Member                     | Line   | What it does                                                                                                                                                              |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADMIN`, `CHAPTER`, `USER` |        | Role name constants.                                                                                                                                                      |
+| `forbidden(message)`       |        | Builds an `Error` with `name: 'AuthorizationError'`, `status: 403`.                                                                                                       |
+| `unauthorized(message)`    |        | Same with `AuthenticationError` / 401.                                                                                                                                    |
+| `hasRole(req, ...roles)`   |        | Does `req.user.role` match one of the roles?                                                                                                                              |
+| `isAdmin(req)`             |        | Shorthand.                                                                                                                                                                |
+| `ownOnly(req)`             |        | True for the plain `user` role. Chats and messages no longer use it; see `scope.services.js` below.                                                                       |
+| `ownsRecord(req, record)`  |        | Compares `record.user` to `req.user.id` as strings.                                                                                                                       |
+| `chapterOf(req)`           |        | The `chapterId` of a `chapter`-role caller, or `null`.                                                                                                                    |
+| `requireGroupMember`       |        | Middleware: admins pass; `chapter` callers must have a `chapterId` (403 with an explanatory message otherwise).                                                           |
+| `mayManageUser(req, user)` |        | Admin, self, or the chapter that manages this still-unclaimed writer.                                                                                                     |
+| `targetsSelf(req)`         |        | Does the request's `id` / `email` / `username` (query for GET, body otherwise, same precedence as the user controller) match the caller?                                  |
+| `requireRole(...roles)`    | `:118` | Middleware: 403 unless the caller holds one of the roles.                                                                                                                 |
+| `requireSelfOrAdmin`       |        | Middleware: allow admins, any caller whose own record is the target, and any group member (the controller then re-checks with `mayManageUser` once the record is loaded). |
+| `optionalAuthenticate`     | `:142` | Middleware: if an `Authorization` header is present, verify it with the JWT strategy and set `req.user`; a bad token is a 401, not anonymous.                             |
+| `isStaff(req)`             |        | Admin or chapter.                                                                                                                                                         |
+| `publishedOnly(req)`       |        | True for anonymous callers and the `user` role: directory reads are limited to published records.                                                                         |
 
 The policy, as implemented:
 
 - Registration is public and always yields `role: user`; other roles need an admin token.
 - Banned users are refused at login and at token verification, so `hasRole` never sees them.
-- User management is admin-only, except that anyone may read, update, or delete their own record and non-admins may not change `role`.
+- User management is admin-only, except that anyone may read, update, or delete their own record and non-admins may not change `role`, `chapterId`, or the custody columns. A group's `chapter` account may read, edit (`name`, `email`, `managerNote` only), and delete the group's unclaimed managed writers.
 - Reads of prisons, prisoners, rules, and chapters need no token (`optionalAuthenticate`). Anonymous callers and the `user` role see published records only; staff see everything and may filter by `recordStatus`. `AuthzService.publishedOnly(req)` decides, and `readOptions(req, config)` in `routes/controllers/directory.helpers.js` turns it, plus `q`, `sort`, `recordStatus`, and per-resource exact-match filters, into `{ publishedOnly, where, order }` for the model readers. Each directory controller declares its `READ_CONFIG` (search fields, sort orders, allowed filters) at the top of the file; add to that object to expose a new filter. Writes need `admin` or `chapter`.
-- Chats and messages: `user` sees only their own; `admin` and `chapter` see everything. Enforced in the controllers because it depends on the record, not just the route.
+- Chats and messages follow `threadScope(req)` in `routes/services/scope.services.js`: `{ kind: 'all' | 'managed' | 'own', where, allowsUser(id), allows(record) }`. Admins get everything; a `chapter` caller gets `user IN (ids of writers its group manages)`; a `user` gets their own id. Controllers spread `scope.where` **last** into list queries, call `scope.allows(record)` before single-record reads, updates, and deletes, and use `resolveWriter(req, scope, body.user)` on create (user role: self; chapter: a managed writer, or the group's anonymous writer when omitted; admin: as given). Enforced in the controllers because it depends on the record, not just the route.
+- Managed writers (`user.controller.js`, `User.createManagedWriter` and friends, `ClaimToken`): a group creates an account with `managedBy` set; the local strategy refuses login while `managedBy && !claimedAt`; `POST /auth/claim` sets credentials, `claimedAt`, `claimedFrom`, and clears `managedBy`, after which the group is out of scope. `User.anonymousWriterFor(chapterId)` find-or-creates the one account with `anonymousForChapter = chapterId`. `managerNote` is stripped from every response except to admins and the managing group (`#stripPassword(user, req)` in the user controller).
 
 To change the policy, edit the route files (which roles guard which routes) and the two controllers (ownership). `requireRole` is deliberately dumb so that the policy stays visible in the route definitions.
 
@@ -485,29 +491,33 @@ The foreign-key columns are declared as plain integers in the schemas; the `refe
 
 Declared in each model's `associate(models)`. Every pair uses the column the schema already has, with `onDelete: 'RESTRICT', onUpdate: 'CASCADE'`:
 
-| Declaration                                                                                                                             | Column                            |
-| --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `Chat.belongsTo(User, { as: 'user_details', foreignKey: 'user' })`                                                                      | `Chats.user`                      |
-| `Chat.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' })`                                                          | `Chats.prisoner`                  |
-| `Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat' })`                                                                         | `Messages.chat`                   |
-| `Message.belongsTo(Chat, { as: 'chat_details', foreignKey: 'chat' })`                                                                   | `Messages.chat`                   |
-| `Message.belongsTo(User, { as: 'user_details', foreignKey: 'user' })`                                                                   | `Messages.user`                   |
-| `Message.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' })`                                                       | `Messages.prisoner`               |
-| `User.hasMany(Chat, { as: 'chats', foreignKey: 'user' })`                                                                               | `Chats.user`                      |
-| `User.hasMany(Message, { as: 'messages', foreignKey: 'user' })`                                                                         | `Messages.user`                   |
-| `Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'prison' })`                                                            | `Prisoners.prison`                |
-| `Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner' })`                                                                       | `Chats.prisoner`                  |
-| `Prisoner.hasMany(Message, { as: 'messages', foreignKey: 'prisoner' })`                                                                 | `Messages.prisoner`               |
-| `Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison' })`                                                                   | `Prisoners.prison`                |
-| `Prison.belongsToMany(Rule, { as: 'rules', through: 'RulePassthrough', foreignKey: 'prison', otherKey: 'rule' })`                       | `RulePassthrough.prison`, `.rule` |
-| `Rule.belongsToMany(Prison, { as: 'prisons', through: 'RulePassthrough', foreignKey: 'rule', otherKey: 'prison' })`                     | same                              |
-| `Prisoner.belongsTo(Chapter, { as: 'verified_by_group', foreignKey: 'verifiedBy', onDelete: 'SET NULL' })`                              | `Prisoners.verifiedBy`            |
-| `Prisoner.belongsToMany(Chapter, { as: 'support_groups', through: PrisonerSupport, foreignKey: 'prisoner', otherKey: 'chapter' })`      | `PrisonerSupport`                 |
-| `Prison.belongsToMany(Chapter, { as: 'relay_groups', through: 'PrisonRelay', foreignKey: 'prison', otherKey: 'chapter' })`              | `PrisonRelay`                     |
-| `Prison.belongsTo(Chapter, { as: 'verified_by_group', foreignKey: 'verifiedBy', onDelete: 'SET NULL' })`                                | `Prisons.verifiedBy`              |
-| `Chapter.belongsToMany(Prisoner, { as: 'supported_prisoners', ... })`, `Chapter.belongsToMany(Prison, { as: 'relay_prisons', ... })`    | same tables                       |
-| `Chapter.belongsTo(Chapter, { as: 'vouched_by_group', foreignKey: 'vouchedBy', onDelete: 'SET NULL' })`                                 | `Chapters.vouchedBy`              |
-| `Chapter.hasMany(User, { as: 'members', foreignKey: 'chapterId', onDelete: 'SET NULL' })`, `User.belongsTo(Chapter, { as: 'chapter' })` | `User.chapterId`                  |
+| Declaration                                                                                                                                                  | Column                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `Chat.belongsTo(User, { as: 'user_details', foreignKey: 'user' })`                                                                                           | `Chats.user`                       |
+| `Chat.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' })`                                                                               | `Chats.prisoner`                   |
+| `Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat' })`                                                                                              | `Messages.chat`                    |
+| `Message.belongsTo(Chat, { as: 'chat_details', foreignKey: 'chat' })`                                                                                        | `Messages.chat`                    |
+| `Message.belongsTo(User, { as: 'user_details', foreignKey: 'user' })`                                                                                        | `Messages.user`                    |
+| `Message.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' })`                                                                            | `Messages.prisoner`                |
+| `User.hasMany(Chat, { as: 'chats', foreignKey: 'user' })`                                                                                                    | `Chats.user`                       |
+| `User.hasMany(Message, { as: 'messages', foreignKey: 'user' })`                                                                                              | `Messages.user`                    |
+| `Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'prison' })`                                                                                 | `Prisoners.prison`                 |
+| `Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner' })`                                                                                            | `Chats.prisoner`                   |
+| `Prisoner.hasMany(Message, { as: 'messages', foreignKey: 'prisoner' })`                                                                                      | `Messages.prisoner`                |
+| `Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison' })`                                                                                        | `Prisoners.prison`                 |
+| `Prison.belongsToMany(Rule, { as: 'rules', through: 'RulePassthrough', foreignKey: 'prison', otherKey: 'rule' })`                                            | `RulePassthrough.prison`, `.rule`  |
+| `Rule.belongsToMany(Prison, { as: 'prisons', through: 'RulePassthrough', foreignKey: 'rule', otherKey: 'prison' })`                                          | same                               |
+| `Prisoner.belongsTo(Chapter, { as: 'verified_by_group', foreignKey: 'verifiedBy', onDelete: 'SET NULL' })`                                                   | `Prisoners.verifiedBy`             |
+| `Prisoner.belongsToMany(Chapter, { as: 'support_groups', through: PrisonerSupport, foreignKey: 'prisoner', otherKey: 'chapter' })`                           | `PrisonerSupport`                  |
+| `Prison.belongsToMany(Chapter, { as: 'relay_groups', through: 'PrisonRelay', foreignKey: 'prison', otherKey: 'chapter' })`                                   | `PrisonRelay`                      |
+| `Prison.belongsTo(Chapter, { as: 'verified_by_group', foreignKey: 'verifiedBy', onDelete: 'SET NULL' })`                                                     | `Prisons.verifiedBy`               |
+| `Chapter.belongsToMany(Prisoner, { as: 'supported_prisoners', ... })`, `Chapter.belongsToMany(Prison, { as: 'relay_prisons', ... })`                         | same tables                        |
+| `Chapter.belongsTo(Chapter, { as: 'vouched_by_group', foreignKey: 'vouchedBy', onDelete: 'SET NULL' })`                                                      | `Chapters.vouchedBy`               |
+| `Chapter.hasMany(User, { as: 'members', foreignKey: 'chapterId', onDelete: 'SET NULL' })`, `User.belongsTo(Chapter, { as: 'chapter' })`                      | `User.chapterId`                   |
+| `User.belongsTo(Chapter, { as: 'managing_chapter', foreignKey: 'managedBy', onDelete: 'SET NULL' })`                                                         | `User.managedBy`                   |
+| `User.belongsTo(Chapter, { as: 'claimed_from_chapter', foreignKey: 'claimedFrom', onDelete: 'SET NULL' })`                                                   | `User.claimedFrom`                 |
+| `User.belongsTo(Chapter, { as: 'anonymous_for_chapter', foreignKey: 'anonymousForChapter', onDelete: 'CASCADE' })` (unique)                                  | `User.anonymousForChapter`         |
+| `ClaimToken.belongsTo(User, { as: 'writer', foreignKey: 'userId', onDelete: 'CASCADE' })`, `{ as: 'issuer', foreignKey: 'createdBy', onDelete: 'SET NULL' }` | `ClaimTokens.userId`, `.createdBy` |
 
 The join table's own foreign keys cascade, so deleting a rule or prison removes its links. `RESTRICT` everywhere else was a deliberate choice: letters should never disappear as a side effect of deleting an account or a facility. Switch an association to `SET NULL` or `CASCADE` only after deciding what the product wants.
 
@@ -526,7 +536,9 @@ Each `database/models/<model>.model.js` exports a class extending Sequelize's `M
 Worth knowing:
 
 - Chat and Message list readers accept a trailing `extraWhere = {}` that is spread **last** into the where-clause. The controllers use it for the ownership filter, and spreading it last guarantees a query parameter cannot override it.
-- `Chat.getChatByID`, `Message.getMessageByID` are `findByPk` wrappers used for ownership checks and single reads.
+- `Chat.getChatByID`, `Message.getMessageByID` are `findByPk` wrappers used for scope checks and single reads.
+- `User.createManagedWriter`, `anonymousWriterFor`, `managedWriterIds`, `listManagedWriters`, `claim`, `isUnclaimedManaged`, and the placeholder-email helpers live in `user.model.js` under "Managed writers". Generated usernames are `writer-` plus 8 hex characters (the column allows 16) and `anon-<chapterId>`.
+- `ClaimToken.issue(userId, createdBy)` deletes any unused token, stores a SHA-256 hash of a 24-character base32 token (Crockford alphabet, upper-cased before hashing so input is case-insensitive) with a 72-hour expiry, and returns the plaintext once. `lookup(token)` returns `{ record, state }` with `state` one of `valid`, `used`, `expired`, `unknown`; the controller maps `unknown` to 404 and the others to 410.
 - `Chat.readChatById` uses `findOne` and returns an object, like `readChatByUserAndPrisoner`.
 - `Message.updateMessage` (`message.model.js:139`) re-resolves the chat when `user` or `prisoner` changes, merging with the stored row so changing only one of them still lands in the right chat. It has to do this itself because Sequelize's static `update` discards attribute changes made by `beforeValidate` hooks.
 - `Prison.addRule(ruleId, prisonId)` (`prison.model.js:110`) loads both, throws `NotFoundError` for a missing one, calls the `addRule` mixin (idempotent), and returns the prison with its rules loaded.
@@ -603,8 +615,8 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 
 `npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
 
-- `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin, chapter, two users, a prison with two prisoners, a rule).
-- Each test file is its own process, so each gets a fresh in-memory database. Files: `auth`, `authorization`, `directory`, `messaging`, `users` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
+- `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin; a Chapter record `group` with a `chapter`-role member and an unclaimed managed `writer`; two independent users `alice` and `bob`; a prison with two prisoners; a rule).
+- Each test file is its own process, so each gets a fresh in-memory database. Files: `auth`, `authorization`, `directory`, `directory-fields`, `messaging`, `migrations`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
 - Seeded data is not used by the tests; fixtures are created explicitly, so tests never depend on seed ids.
 - CI (`.github/workflows/test.yml`) runs `npm ci`, ESLint, and the suite on Node 22 and 24 for every pull request and push to `main`.
 
@@ -681,7 +693,7 @@ Known gaps, roughly in the order they are worth tackling:
 3. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
 5. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
-6. **Chapter-scoped data.** Chapter accounts currently see and edit everything; if chapters should only handle their own region's letters, that needs a relation between Chapter and users or prisons and a filter like the user ownership one.
+6. **Relay-scoped threads.** Chapter accounts now see only their managed writers' threads. Once letter routing exists (a letter's relay group), threads relayed through a group should join `threadScope()` for that group; until then an independent user's letter is visible to admins only. Directory writes are still open to every chapter account.
 7. **Rate limiting and request logging.** None.
 8. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
 9. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.

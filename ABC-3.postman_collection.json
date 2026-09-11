@@ -258,6 +258,180 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Create Managed Writer (group member or admin)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/writer",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "writer"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Sam Writer\",\n    \"email\": \"sam@example.com\",\n    \"managerNote\": \"Comes on Tuesdays\",\n    \"chapter\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('writerId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "List Managed Writers (group member or admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/writers?page=1&page_size=10&q=",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "writers"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								},
+								{
+									"key": "q",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Claim Token",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/writer/token",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "writer", "token"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"writer\": \"{{writerId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.token) {",
+									"    pm.collectionVariables.set('claimToken', body.data.token);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Revoke Claim Token",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/writer/token",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "writer", "token"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"writer\": \"{{writerId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check Claim Token (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/claim?token={{claimToken}}",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "claim"],
+							"query": [
+								{
+									"key": "token",
+									"value": "{{claimToken}}"
+								}
+							]
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Claim Account (public)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/claim",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "claim"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"{{claimToken}}\",\n    \"username\": \"samwriter\",\n    \"password\": \"longenough\",\n    \"email\": \"sam@example.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -1414,6 +1588,16 @@
 		},
 		{
 			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "writerId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "claimToken",
 			"value": "",
 			"type": "string"
 		}

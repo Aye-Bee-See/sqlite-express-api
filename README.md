@@ -19,15 +19,16 @@ This README is written for people who **use** the API: front-end developers, int
 
 ## Concepts
 
-| Term         | Meaning                                                                                                                                                                                                                       |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User**     | An account. Has a `role` of `admin`, `user`, `chapter`, or `banned`. A `user` is a person on the outside writing letters; a `chapter` is a partner organisation that prints and mails them; an `admin` manages everything.    |
-| **Prison**   | A correctional facility. Has a name and a free-form JSON `address`.                                                                                                                                                           |
-| **Prisoner** | An incarcerated person that users can write to. Belongs to one prison. Stores birth name, chosen name, inmate ID, release date, a bio, and a status.                                                                          |
-| **Rule**     | A mail rule a prison enforces, such as "No pictures". A rule can be attached to many prisons and a prison can have many rules.                                                                                                |
-| **Chat**     | A thread between exactly one user and one prisoner. Chats are created automatically the first time a message is sent between a pair, and can also be created directly.                                                        |
-| **Message**  | One letter or text within a chat. `sender` is either `user` or `prisoner`.                                                                                                                                                    |
-| **Chapter**  | A local chapter of the partner non-profit. Has a name, a JSON `location`, and some statistics fields. Note that chapter _accounts_ are users with the `chapter` role; the Chapter resource describes the organisation itself. |
+| Term               | Meaning                                                                                                                                                                                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User**           | An account. Has a `role` of `admin`, `user`, `chapter`, or `banned`. A `user` is a person on the outside writing letters; a `chapter` is a partner organisation that prints and mails them; an `admin` manages everything.                                     |
+| **Prison**         | A correctional facility. Has a name and a free-form JSON `address`.                                                                                                                                                                                            |
+| **Prisoner**       | An incarcerated person that users can write to. Belongs to one prison. Stores birth name, chosen name, inmate ID, release date, a bio, and a status.                                                                                                           |
+| **Rule**           | A mail rule a prison enforces, such as "No pictures". A rule can be attached to many prisons and a prison can have many rules.                                                                                                                                 |
+| **Chat**           | A thread between exactly one user and one prisoner. Chats are created automatically the first time a message is sent between a pair, and can also be created directly.                                                                                         |
+| **Message**        | One letter or text within a chat. `sender` is either `user` or `prisoner`.                                                                                                                                                                                     |
+| **Managed writer** | A `user` account a group created for someone who writes through it (for example at a letter-writing night). The group sends letters on the writer's behalf until the writer claims the account with a one-time token; see [Managed writers](#managed-writers). |
+| **Chapter**        | A local chapter of the partner non-profit. Has a name, a JSON `location`, and some statistics fields. Note that chapter _accounts_ are users with the `chapter` role; the Chapter resource describes the organisation itself.                                  |
 
 All identifiers are auto-incrementing integers. Every record carries `createdAt` and `updatedAt` ISO-8601 timestamps.
 
@@ -147,6 +148,7 @@ These work without a token:
 
 - `POST /auth/user` registers an account. It always gets the `user` role.
 - `POST /auth/login` returns a token.
+- `GET /auth/claim` and `POST /auth/claim` check and use a claim token; see [Managed writers](#managed-writers).
 - Every **GET** on prisons, prisoners, rules, and chapters (the public directory). Anonymous callers see only records whose `recordStatus` is `published`; see [Record status](#record-status).
 - `GET /health`.
 
@@ -203,17 +205,19 @@ A token whose user has since been deleted or banned is rejected with `401`.
 
 ### What each role can do
 
-| Action                                                     | `user`                | `chapter` | `admin` |
-| ---------------------------------------------------------- | --------------------- | --------- | ------- |
-| Read published prisons, prisoners, rules, chapters         | Yes (and anonymous)   | Yes       | Yes     |
-| Read draft and pending directory records                   | No                    | Yes       | Yes     |
-| Create, update, delete prisons, prisoners, rules, chapters | No                    | Yes       | Yes     |
-| Attach a rule to a prison                                  | No                    | Yes       | Yes     |
-| Read, create, update, delete chats and messages            | **Own threads only**  | All       | All     |
-| Send a message as the prisoner side (`sender: prisoner`)   | No (forced to `user`) | Yes       | Yes     |
-| Read own user record; update or delete own account         | Yes                   | Yes       | Yes     |
-| Read, update, delete other users; list users               | No                    | No        | Yes     |
-| Change a role, or create a non-`user` account              | No                    | No        | Yes     |
+| Action                                                     | `user`                | `chapter`                         | `admin` |
+| ---------------------------------------------------------- | --------------------- | --------------------------------- | ------- |
+| Read published prisons, prisoners, rules, chapters         | Yes (and anonymous)   | Yes                               | Yes     |
+| Read draft and pending directory records                   | No                    | Yes                               | Yes     |
+| Create, update, delete prisons, prisoners, rules, chapters | No                    | Yes                               | Yes     |
+| Attach a rule to a prison                                  | No                    | Yes                               | Yes     |
+| Read, create, update, delete chats and messages            | **Own threads only**  | **Managed writers' threads only** | All     |
+| Send a message as the prisoner side (`sender: prisoner`)   | No (forced to `user`) | Yes                               | Yes     |
+| Create managed writers, issue claim tokens                 | No                    | Own group                         | Yes     |
+| Read, edit, delete a group's unclaimed managed writers     | No                    | Own group                         | Yes     |
+| Read own user record; update or delete own account         | Yes                   | Yes                               | Yes     |
+| Read, update, delete other users; list users               | No                    | No                                | Yes     |
+| Change a role, or create a non-`user` account              | No                    | No                                | Yes     |
 
 "Own threads" means chats whose `user` is the caller's id, and messages whose `user` is the caller's id. For a `user`:
 
@@ -221,7 +225,9 @@ A token whose user has since been deleted or banned is rejected with `401`.
 - Fetching, updating, or deleting someone else's chat or message returns `403`.
 - Creating a chat or message always uses the caller's own id as `user`, whatever the body says, and messages are always sent as `user`.
 
-Every refusal is a `403` with the general error shape. A `chapter` account is unrestricted on chats and messages so it can read letters to print and transcribe prisoner replies.
+Every refusal is a `403` with the general error shape.
+
+A `chapter` account is scoped to its group. It sees the threads of the writers its group manages (see [Managed writers](#managed-writers)), can send letters for them and transcribe prisoner replies, and sees nothing else. A `chapter` account that is not yet a member of a group (no `chapterId`) has no threads at all and cannot create writers; an admin puts it in a group with `PUT /auth/user`. Threads relayed through a group by mail routing will join this scope once letter routing exists.
 
 ### Creating accounts with other roles
 
@@ -456,7 +462,7 @@ Most read endpoints accept `full=true` to embed related records. The string must
 | Users (list, by id, by role) | `chats`                                                                            |
 | Prisons (list, by id)        | `prisoners`, `rules`, `relay_groups`                                               |
 | Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`)     |
-| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for staff callers only            |
+| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only            |
 | Rules (list, by id)          | `prisons`                                                                          |
 | Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons` |
 | Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details`                                     |
@@ -477,30 +483,40 @@ Deleting a rule or a prison removes its rule-to-prison links automatically. Crea
 
 ## Endpoint reference
 
-The **Auth** column says who may call the endpoint: _Public_ (no token needed; directory reads show published records only without a staff token), _Any_ (any valid token), _Admin or chapter_, _Admin_, _Self or admin_ (your own record, or an admin), _Own_ (any token, but a `user` only sees their own threads).
+The **Auth** column says who may call the endpoint: _Public_ (no token needed; directory reads show published records only without a staff token), _Any_ (any valid token), _Admin or chapter_, _Admin_, _Self or admin_ (your own record, or an admin), _Group_ (a `chapter` account that belongs to a group, or an admin), _Scoped_ (any token; a `user` sees their own threads, a `chapter` its group's managed writers' threads, an admin everything).
 
 ### Users
 
-| Method | Path          | Auth          | Purpose                                            |
-| ------ | ------------- | ------------- | -------------------------------------------------- |
-| POST   | `/auth/user`  | Public        | Register (role `user`); admins may set other roles |
-| POST   | `/auth/login` | Public        | Log in and receive a token                         |
-| GET    | `/auth/users` | Admin         | List users, optionally by role                     |
-| GET    | `/auth/user`  | Self or admin | Get one user by id, email, or username             |
-| PUT    | `/auth/user`  | Self or admin | Update a user                                      |
-| DELETE | `/auth/user`  | Self or admin | Delete a user                                      |
+| Method | Path                 | Auth          | Purpose                                                                        |
+| ------ | -------------------- | ------------- | ------------------------------------------------------------------------------ |
+| POST   | `/auth/user`         | Public        | Register (role `user`); admins may set other roles                             |
+| POST   | `/auth/login`        | Public        | Log in and receive a token                                                     |
+| GET    | `/auth/users`        | Admin         | List users, optionally by role                                                 |
+| GET    | `/auth/user`         | Self or admin | Get one user by id, email, or username; a group may read its unclaimed writers |
+| PUT    | `/auth/user`         | Self or admin | Update a user; a group may edit its unclaimed writers' name, email, note       |
+| DELETE | `/auth/user`         | Self or admin | Delete a user; a group may delete its unclaimed writers                        |
+| POST   | `/auth/writer`       | Group         | Create a managed writer under the caller's group                               |
+| GET    | `/auth/writers`      | Group         | List the group's managed writers (admins: all, or `?chapter=`)                 |
+| POST   | `/auth/writer/token` | Group         | Generate or regenerate a writer's claim token                                  |
+| DELETE | `/auth/writer/token` | Group         | Revoke a writer's claim token                                                  |
+| GET    | `/auth/claim`        | Public        | Check a claim token                                                            |
+| POST   | `/auth/claim`        | Public        | Claim a managed account                                                        |
 
 #### User fields
 
-| Field       | Rules                                                                                                                                                                              |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `username`  | Required, unique, 3 to 16 characters.                                                                                                                                              |
-| `password`  | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                                                            |
-| `email`     | Required, unique, must look like an email address.                                                                                                                                 |
-| `role`      | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later.                                             |
-| `name`      | Optional display name, 3 to 32 characters.                                                                                                                                         |
-| `bio`       | Optional, 12 to 2400 characters.                                                                                                                                                   |
-| `chapterId` | Id of the chapter (group) this account belongs to. Only an admin can set it, on create or update; anyone else's value is ignored on registration and refused with `403` on update. |
+| Field                      | Rules                                                                                                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `username`                 | Required, unique, 3 to 16 characters.                                                                                                                                              |
+| `password`                 | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                                                            |
+| `email`                    | Required, unique, must look like an email address.                                                                                                                                 |
+| `role`                     | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later.                                             |
+| `name`                     | Optional display name, 3 to 32 characters.                                                                                                                                         |
+| `bio`                      | Optional, 12 to 2400 characters.                                                                                                                                                   |
+| `managedBy`                | Id of the group holding this account in custody (a managed writer). `null` for independent accounts and once claimed. Admin-only to set directly.                                  |
+| `claimedAt`, `claimedFrom` | When the writer claimed the account and from which group; both `null` until then. Read-only.                                                                                       |
+| `anonymousForChapter`      | Set on the one anonymous-writer account each group gets; see [Managed writers](#managed-writers). Read-only.                                                                       |
+| `managerNote`              | Free-text note the managing group keeps about a writer. Returned only to admins and to the managing group; absent from every other response.                                       |
+| `chapterId`                | Id of the chapter (group) this account belongs to. Only an admin can set it, on create or update; anyone else's value is ignored on registration and refused with `403` on update. |
 
 #### POST /auth/user
 
@@ -570,7 +586,7 @@ An unknown `role` value is a validation error listing the allowed roles. An empt
 
 Supply exactly one of `id`, `email`, or `username`. If more than one is supplied, `id` wins, then `email`, then `username`. Email and username matching is case-sensitive.
 
-A non-admin may only fetch their own record; anything else is a `403`. No parameter at all is a `400`; no match is a `404`.
+A non-admin may only fetch their own record, except that a group's `chapter` account may fetch the group's unclaimed managed writers; anything else is a `403`. No parameter at all is a `400`; no match is a `404`.
 
 ```bash
 curl -s 'http://localhost:3000/auth/user?id=43' -H "Authorization: Bearer $TOKEN"
@@ -599,7 +615,7 @@ curl -s 'http://localhost:3000/auth/user?id=43' -H "Authorization: Bearer $TOKEN
 
 #### PUT /auth/user
 
-Body must include `id`; every other field present is written. A non-admin may only update their own record and may not include `role`. Changing `password` is supported and re-hashes it.
+Body must include `id`; every other field present is written. A non-admin may only update their own record and may not include `role`, `chapterId`, `managedBy`, `claimedAt`, `claimedFrom`, or `anonymousForChapter`. A group's `chapter` account may also update its unclaimed managed writers, but only `name`, `email`, and `managerNote`; anything else in that body is a `403`. Changing `password` is supported and re-hashes it.
 
 ```bash
 curl -s -X PUT http://localhost:3000/auth/user \
@@ -621,7 +637,101 @@ A password sent in the body is not echoed back.
 
 #### DELETE /auth/user
 
-Body: `{"id": 43}`. Returns `"data": 1`. A user who still has chats or messages cannot be deleted (see [Deletes and referential integrity](#deletes-and-referential-integrity)).
+Body: `{"id": 43}`. Returns `"data": 1`. A user who still has chats or messages cannot be deleted (see [Deletes and referential integrity](#deletes-and-referential-integrity)). A group's `chapter` account may delete the group's unclaimed managed writers.
+
+### Managed writers
+
+A group often writes on behalf of people who have no account: someone at a letter-writing night, or someone who wants the group to handle everything. A **managed writer** is a `user` account the group creates for such a person. Until the writer claims it:
+
+- The account cannot log in. It has a generated username (`writer-…`), an unguessable password, and, if no email was given, a placeholder address ending in `@managed.example`.
+- The group's `chapter` accounts see its threads, send letters as it, record prisoner replies, and may edit its `name`, `email`, and `managerNote` or delete it.
+- The group can hand the writer a **claim token** (valid 72 hours, shown once). The writer visits the claim page, picks a username and password, and the account becomes theirs: the group loses access to it and its threads, and `claimedAt` / `claimedFrom` record the hand-over.
+
+Every group also has one **anonymous writer**, created the first time a `chapter` account sends a letter or creates a chat without naming a `user`. It is a managed writer like any other (it appears in the list and can even be claimed), and all of the group's anonymous letters share it.
+
+#### POST /auth/writer
+
+Body: `{"name": "Sam", "email": "sam@example.com", "managerNote": "Comes on Tuesdays"}`. `name` is required (3 to 32 characters); `email` and `managerNote` are optional. Admins must add `"chapter": <group id>`; a `chapter` account's own group is used and any `chapter` in its body is ignored. Returns `201` with the new user record.
+
+```bash
+curl -s -X POST http://localhost:3000/auth/writer \
+  -H "Authorization: Bearer $CHAPTER_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Sam","managerNote":"Comes on Tuesdays"}'
+```
+
+```json
+{
+	"data": {
+		"id": 58,
+		"username": "writer-3f9a1c2e",
+		"email": "writer-3f9a1c2e@managed.example",
+		"name": "Sam",
+		"role": "user",
+		"managedBy": 1,
+		"claimedAt": null,
+		"claimedFrom": null,
+		"managerNote": "Comes on Tuesdays",
+		"createdAt": "2026-09-11T20:30:00.000Z",
+		"updatedAt": "2026-09-11T20:30:00.000Z"
+	},
+	"info": "Successfully created managed writer.",
+	"success": true,
+	"status": 201,
+	"name": "user createWriter"
+}
+```
+
+#### GET /auth/writers
+
+Parameters: `page`, `page_size`, `q` (matches username, email, or name). A `chapter` account gets its group's writers, claimed ones excluded. An admin gets every unclaimed managed writer, or one group's with `chapter=<id>`. Each row carries `claimToken`: `{ "expiresAt": … }` while a token is live, otherwise `null`. The token itself is never listed.
+
+#### POST /auth/writer/token
+
+Body: `{"writer": 58}`. Generates a token for the writer and returns it once; generating again replaces the previous token. `409` if the account is not an unclaimed managed writer, `403` if another group manages it.
+
+```json
+{
+	"data": {
+		"writer": 58,
+		"token": "7K3MQ9X2VD5WF0PR8HZG1AB4",
+		"expiresAt": "2026-09-14T20:30:00.000Z"
+	},
+	"info": "Claim token generated. Show it to the writer once.",
+	"success": true,
+	"status": 201,
+	"name": "user createToken"
+}
+```
+
+Tokens are 24 characters from a case-insensitive alphabet without `I`, `L`, `O`, or `U`, so they can be read aloud or written on paper. Only a hash is stored.
+
+#### DELETE /auth/writer/token
+
+Body: `{"writer": 58}`. Revokes the live token; `404` if there is none.
+
+#### GET /auth/claim
+
+Public. `?token=…` returns who the token is for, so the claim page can show it before asking for credentials:
+
+```json
+{
+	"data": {
+		"writer": { "id": 58, "name": "Sam" },
+		"chapter": { "id": 1, "name": "Portland Chapter" },
+		"expiresAt": "2026-09-14T20:30:00.000Z"
+	},
+	"info": "Claim token is valid.",
+	"success": true,
+	"status": 200,
+	"name": "user claimInfo"
+}
+```
+
+An unknown or revoked token is a `404`; a used or expired one is a `410`, and `info` says which.
+
+#### POST /auth/claim
+
+Public. Body: `{"token": "…", "username": "sam", "password": "longenough", "email": "sam@example.com"}`. `username` and `password` follow the [user field rules](#user-fields); `email` is optional and replaces a placeholder address. On success (`201`) the account is independent: `managedBy` is `null`, `claimedAt` and `claimedFrom` are set, the token is marked used, and the writer can log in. Validation failures (a short password, a taken username) leave the token usable.
 
 ### Prisons
 
@@ -899,7 +1009,7 @@ Parameters: `prison`, `status`, `q`, `sort`, `full`, `page`, `page_size`, and (s
 curl -s 'http://localhost:3000/prisoner/prisoners?prison=1' -H "Authorization: Bearer $TOKEN"
 ```
 
-Returns only prisoners whose `prison` matches. A `prison` id that does not exist (or is not published, for non-staff) is a `404`. Without `prison`, all prisoners are listed. With `full=true` each row gains `prison_details` (and, for staff filtering by prison, `chats`):
+Returns only prisoners whose `prison` matches. A `prison` id that does not exist (or is not published, for non-staff) is a `404`. Without `prison`, all prisoners are listed. With `full=true` each row gains `prison_details` and `support_groups` (and, for admins filtering by prison, `chats`):
 
 ```json
 {
@@ -1017,13 +1127,15 @@ Body `{"id": 45, ...}` and `{"id": 45}`. Deleting a rule also removes its links 
 
 ### Chats
 
-| Method | Path          | Auth | Purpose                                     |
-| ------ | ------------- | ---- | ------------------------------------------- |
-| POST   | `/chat/chat`  | Own  | Create a chat between a user and a prisoner |
-| GET    | `/chat/chats` | Own  | List chats, optionally by user or prisoner  |
-| GET    | `/chat/chat`  | Own  | Get one chat by id or by user + prisoner    |
-| PUT    | `/chat/chat`  | Own  | Update a chat                               |
-| DELETE | `/chat/chat`  | Own  | Delete a chat and its messages              |
+| Method | Path          | Auth   | Purpose                                     |
+| ------ | ------------- | ------ | ------------------------------------------- |
+| POST   | `/chat/chat`  | Scoped | Create a chat between a user and a prisoner |
+| GET    | `/chat/chats` | Scoped | List chats, optionally by user or prisoner  |
+| GET    | `/chat/chat`  | Scoped | Get one chat by id or by user + prisoner    |
+| PUT    | `/chat/chat`  | Scoped | Update a chat                               |
+| DELETE | `/chat/chat`  | Scoped | Delete a chat and its messages              |
+
+"Scoped" means: a `user` sees and acts on their own threads; a `chapter` account on the threads of the writers its group manages; an admin on everything. Reading, updating, or deleting a thread outside the scope is a `403`.
 
 #### Chat fields
 
@@ -1036,7 +1148,7 @@ You usually do not need to create chats by hand. Sending a message with `POST /m
 
 #### POST /chat/chat
 
-Body: `{"user": 1, "prisoner": 9}`. For a `user`-role caller the `user` field is replaced with their own id. Nonexistent ids are refused. Duplicates are not prevented; the message endpoint's find-or-create always uses the oldest chat for a pair, so prefer letting it create chats.
+Body: `{"user": 1, "prisoner": 9}`. For a `user`-role caller the `user` field is replaced with their own id. A `chapter` account may name one of its group's managed writers, or omit `user` to use the group's anonymous writer; any other id is a `403`. Nonexistent ids are refused. Duplicates are not prevented; the message endpoint's find-or-create always uses the oldest chat for a pair, so prefer letting it create chats.
 
 ```json
 {
@@ -1056,7 +1168,7 @@ Body: `{"user": 1, "prisoner": 9}`. For a `user`-role caller the `user` field is
 
 #### GET /chat/chats
 
-Parameters: `user`, `prisoner`, `full`, `page`, `page_size`. If both `user` and `prisoner` are given, `user` wins. A `user`-role caller always gets their own chats, and may narrow with `prisoner`. A `user` or `prisoner` id that does not exist is a `404`.
+Parameters: `user`, `prisoner`, `full`, `page`, `page_size`. `user` and `prisoner` combine. A `user`-role caller always gets their own chats, whatever `user` says, and may narrow with `prisoner`. A `chapter` account gets its group's managed writers' chats; a `user` outside that set is a `403`. A `user` or `prisoner` id that does not exist is a `404`.
 
 Chats are ordered by most recent message first; chats with no messages come last. Every row carries two extra fields for inbox views:
 
@@ -1175,23 +1287,25 @@ Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data":
 
 ### Messages
 
-| Method | Path                  | Auth | Purpose                                     |
-| ------ | --------------------- | ---- | ------------------------------------------- |
-| POST   | `/messaging/message`  | Own  | Send a message (creates the chat if needed) |
-| GET    | `/messaging/messages` | Own  | List messages                               |
-| GET    | `/messaging/message`  | Own  | Get one message by id                       |
-| PUT    | `/messaging/message`  | Own  | Update a message                            |
-| DELETE | `/messaging/message`  | Own  | Delete a message                            |
+| Method | Path                  | Auth   | Purpose                                     |
+| ------ | --------------------- | ------ | ------------------------------------------- |
+| POST   | `/messaging/message`  | Scoped | Send a message (creates the chat if needed) |
+| GET    | `/messaging/messages` | Scoped | List messages                               |
+| GET    | `/messaging/message`  | Scoped | Get one message by id                       |
+| PUT    | `/messaging/message`  | Scoped | Update a message                            |
+| DELETE | `/messaging/message`  | Scoped | Delete a message                            |
+
+The scope is the same as for chats: own messages for a `user`, the group's managed writers' messages for a `chapter` account, everything for an admin.
 
 #### Message fields
 
-| Field         | Type    | Notes                                                                                    |
-| ------------- | ------- | ---------------------------------------------------------------------------------------- |
-| `chat`        | integer | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.              |
-| `messageText` | string  | The letter body.                                                                         |
-| `sender`      | string  | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.       |
-| `user`        | integer | Required. Id of the user side. A `user`-role caller's own id is used regardless of body. |
-| `prisoner`    | integer | Required. Id of the prisoner side.                                                       |
+| Field         | Type    | Notes                                                                                                                                                                                                                    |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `chat`        | integer | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                                                                                                                                              |
+| `messageText` | string  | The letter body.                                                                                                                                                                                                         |
+| `sender`      | string  | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.                                                                                                                                       |
+| `user`        | integer | Id of the user side. A `user`-role caller's own id is used regardless of body. A `chapter` account may name one of its group's managed writers, or omit it to send as the group's anonymous writer. Required for admins. |
+| `prisoner`    | integer | Required. Id of the prisoner side.                                                                                                                                                                                       |
 
 #### POST /messaging/message
 
@@ -1232,7 +1346,7 @@ Failure modes:
 
 #### GET /messaging/messages
 
-Parameters: `id`, `chat`, `prisoner`, `user`, `page`, `page_size`. Filters take precedence in that order; only the first one present is used. A filter naming a chat, prisoner, or user that does not exist is a `404`. A `user`-role caller only ever receives their own messages, whatever filter they pass.
+Parameters: `id`, `chat`, `prisoner`, `user`, `page`, `page_size`. Filters take precedence in that order; only the first one present is used. A filter naming a chat, prisoner, or user that does not exist is a `404`. A `user`-role caller only ever receives their own messages, whatever filter they pass; a `chapter` account only its group's managed writers' messages, and a `user` filter outside that set is a `403`.
 
 ```bash
 curl -s 'http://localhost:3000/messaging/messages?chat=1' -H "Authorization: Bearer $TOKEN"

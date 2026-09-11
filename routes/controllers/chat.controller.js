@@ -1,14 +1,14 @@
 import Chat from '#models/chat.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import { HttpError } from '#services/HttpError.js';
 
 /**
  * Chat controller.
  *
- * Ownership: callers with the plain "user" role only ever see, create, change,
- * or delete chats whose `user` column is their own id. Admins and chapters are
- * unrestricted.
+ * Visibility follows threadScope(): users see their own threads, chapters
+ * see the threads of writers their group manages, admins see everything.
  */
 export default class ChatController extends RouteController {
 	constructor() {
@@ -36,43 +36,49 @@ export default class ChatController extends RouteController {
 	/**
 	 * Load a chat by id and confirm the caller may act on it.
 	 * @returns {Promise<Chat|null>} the chat, or null when it does not exist
-	 * @throws {Error} a 403 error when the caller is restricted and does not own it
+	 * @throws {Error} a 403 error when the caller may not see it
 	 */
-	async #loadOwned(req, id) {
+	async #loadAllowed(scope, id) {
 		const chat = await Chat.getChatByID(id);
-		if (chat && AuthzService.ownOnly(req) && !AuthzService.ownsRecord(req, chat)) {
+		if (chat && !scope.allows(chat)) {
 			throw AuthzService.forbidden();
 		}
 		return chat;
 	}
 
 	/**
-	 * List chats. Filters, in precedence order: user, prisoner, none.
-	 * A restricted caller is always filtered to their own user id; for them a
-	 * `prisoner` parameter narrows within their own chats.
+	 * List chats within the caller's scope. Filters: user (always the caller
+	 * for user-role accounts; must be in scope for chapters), prisoner, or
+	 * both; none lists everything in scope.
 	 */
-	async getMany(req, res) {
+	async getMany(req, res, next) {
 		const { prisoner, user, full, page, page_size } = req.query;
 		const limits = this.#handleLimits(page, page_size);
 		const { limit, offset } = limits;
 		const fullBool = full === 'true';
-		const restricted = AuthzService.ownOnly(req);
 
 		try {
+			const scope = await threadScope(req);
+			// A user-role caller always lists their own threads, whatever `user` says.
+			const writer = scope.kind === 'own' ? req.user.id : user;
+			if (writer !== undefined && !scope.allowsUser(writer)) {
+				throw AuthzService.forbidden('Writer ' + writer + ' is outside your scope.');
+			}
 			let chats;
-			if (restricted) {
+			if (writer !== undefined) {
 				const extra = prisoner !== undefined ? { prisoner } : {};
-				chats = await Chat.readChatsByUser(req.user.id, fullBool, limit, offset, extra);
-			} else if (user !== undefined) {
-				chats = await Chat.readChatsByUser(user, fullBool, limit, offset);
+				chats = await Chat.readChatsByUser(writer, fullBool, limit, offset, extra);
 			} else if (prisoner !== undefined) {
-				chats = await Chat.readChatsByPrisoner(prisoner, fullBool, limit, offset);
+				chats = await Chat.readChatsByPrisoner(prisoner, fullBool, limit, offset, scope.where);
 			} else {
-				chats = await Chat.readAllChats(fullBool, limit, offset);
+				chats = await Chat.readAllChats(fullBool, limit, offset, scope.where);
 			}
 			await Chat.attachLastMessages(chats.rows);
 			this.handlePage(res, chats, limits);
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}
@@ -80,22 +86,23 @@ export default class ChatController extends RouteController {
 
 	/**
 	 * Get one chat, either by `id` or by the `user` + `prisoner` pair.
-	 * A restricted caller may omit `user`; it defaults to their own id.
+	 * A user-role caller may omit `user`; it defaults to their own id.
 	 */
 	async getOne(req, res, next) {
 		const { id, prisoner, full: fullString } = req.query;
 		const full = fullString === 'true';
-		const restricted = AuthzService.ownOnly(req);
-		const user = restricted && req.query.user === undefined ? req.user.id : req.query.user;
 		let condition = 'par';
 
 		try {
+			const scope = await threadScope(req);
+			const user =
+				scope.kind === 'own' && req.query.user === undefined ? req.user.id : req.query.user;
 			let chat;
 			if (id !== undefined) {
-				await this.#loadOwned(req, id);
+				await this.#loadAllowed(scope, id);
 				chat = await Chat.readChatById(id, full);
 			} else if (user !== undefined && prisoner !== undefined) {
-				if (restricted && String(user) !== String(req.user.id)) {
+				if (!scope.allowsUser(user)) {
 					throw AuthzService.forbidden();
 				}
 				chat = await Chat.readChatByUserAndPrisoner(user, prisoner, full);
@@ -117,13 +124,17 @@ export default class ChatController extends RouteController {
 	}
 
 	// Create
-	async create(req, res) {
+	async create(req, res, next) {
 		const { prisoner } = req.body;
-		const user = AuthzService.ownOnly(req) ? req.user.id : req.body.user;
 		try {
+			const scope = await threadScope(req);
+			const user = await resolveWriter(req, scope, req.body.user);
 			const chat = await Chat.createChat({ user, prisoner });
 			this.#handleSuccess(res, chat);
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}
@@ -133,10 +144,13 @@ export default class ChatController extends RouteController {
 	async update(req, res, next) {
 		const newChat = { ...req.body };
 		try {
-			if (AuthzService.ownOnly(req)) {
-				await this.#loadOwned(req, newChat.id);
-				if (newChat.user !== undefined && String(newChat.user) !== String(req.user.id)) {
-					throw AuthzService.forbidden('A chat cannot be reassigned to another user.');
+			const scope = await threadScope(req);
+			if (scope.kind !== 'all') {
+				await this.#loadAllowed(scope, newChat.id);
+				if (newChat.user !== undefined && !scope.allowsUser(newChat.user)) {
+					throw AuthzService.forbidden(
+						'A chat cannot be reassigned to a writer outside your scope.'
+					);
 				}
 			}
 			const updatedRows = await Chat.updateChat(newChat);
@@ -155,7 +169,8 @@ export default class ChatController extends RouteController {
 	async remove(req, res, next) {
 		const { id } = req.body;
 		try {
-			await this.#loadOwned(req, id);
+			const scope = await threadScope(req);
+			await this.#loadAllowed(scope, id);
 			const deletedRows = await Chat.deleteChat(id);
 			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Chat ' + id));
 		} catch (err) {

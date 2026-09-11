@@ -111,7 +111,7 @@ export default class RouteController {
 			: callerName;
 		const { method } = stack;
 		// Creates answer 201; everything else (reads, updates, deletes, login) 200.
-		const status = msgRef === 'create' ? 201 : 200;
+		const status = ['create', 'createWriter', 'createToken', 'claim'].includes(msgRef) ? 201 : 200;
 		const message = {
 			data: outObj,
 			info: ctrlMsg[method][msgRef].success.condition[condition],

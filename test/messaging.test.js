@@ -95,18 +95,29 @@ test("a user gets 403 on another user's message or chat by id", async () => {
 	);
 });
 
-test('chapter and admin roles can read everything and send as the prisoner', async () => {
+test('admins read everything; chapters only their managed writers', async () => {
 	const own = await get('/messaging/messages', alice);
 	const messageId = own.body.data[0].id;
-	for (const who of [chapter, admin]) {
-		assert.equal((await get('/messaging/message?id=' + messageId, who)).status, 200);
-		const all = await get('/messaging/messages?page_size=100', who);
-		assert.ok(all.body.data.length >= 3);
-	}
-	const reply = await post(
+	assert.equal((await get('/messaging/message?id=' + messageId, admin)).status, 200);
+	const all = await get('/messaging/messages?page_size=100', admin);
+	assert.ok(all.body.data.length >= 3);
+
+	// alice is independent: the group cannot see or write to her threads.
+	assert.equal((await get('/messaging/message?id=' + messageId, chapter)).status, 403);
+	assert.deepEqual((await get('/messaging/messages?page_size=100', chapter)).body.data, []);
+	assert.equal((await get('/messaging/messages?user=' + f.alice.id, chapter)).status, 403);
+	const spoof = await post(
 		'/messaging/message',
 		{ messageText: 'From inside', sender: 'prisoner', prisoner: f.prisoner1.id, user: f.alice.id },
 		chapter
+	);
+	assert.equal(spoof.status, 403);
+
+	// An admin can record the prisoner's side of any thread.
+	const reply = await post(
+		'/messaging/message',
+		{ messageText: 'From inside', sender: 'prisoner', prisoner: f.prisoner1.id, user: f.alice.id },
+		admin
 	);
 	assert.equal(reply.status, 201);
 	assert.equal(reply.body.data.sender, 'prisoner');

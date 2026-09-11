@@ -1,4 +1,5 @@
 import { Model, Op } from 'sequelize';
+import { randomBytes } from 'node:crypto';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
@@ -37,6 +38,24 @@ export default class User extends Model {
 			as: 'chapter',
 			foreignKey: 'chapterId',
 			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.Chapter, {
+			as: 'managing_chapter',
+			foreignKey: 'managedBy',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.Chapter, {
+			as: 'claimed_from_chapter',
+			foreignKey: 'claimedFrom',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.Chapter, {
+			as: 'anonymous_for_chapter',
+			foreignKey: 'anonymousForChapter',
+			onDelete: 'CASCADE',
 			onUpdate: 'CASCADE'
 		});
 		this.hasMany(models.Chat, {
@@ -222,6 +241,124 @@ export default class User extends Model {
 				where: { username: username, email: email }
 			});
 		}
+	}
+
+	// Managed writers
+
+	/** Placeholder address for a managed writer who gave no email. */
+	static placeholderEmail(tag) {
+		return 'writer-' + tag + '@managed.example';
+	}
+
+	static isPlaceholderEmail(email) {
+		return typeof email === 'string' && email.endsWith('@managed.example');
+	}
+
+	/** Is this account in a chapter's custody and not yet claimed? */
+	static isUnclaimedManaged(user) {
+		return Boolean(user && user.managedBy && !user.claimedAt);
+	}
+
+	/**
+	 * Create an account under a chapter's custody. The writer gets a generated
+	 * username, an unguessable password (login is refused until claimed
+	 * anyway), and a placeholder email unless one is given.
+	 * @param {{name: string, email?: string, managerNote?: string, chapterId: number}} fields
+	 */
+	static async createManagedWriter({ name, email, managerNote, chapterId }) {
+		// 'writer-' plus 8 hex characters fits the 16-character username limit.
+		const tag = randomBytes(4).toString('hex');
+		const cleanEmail = typeof email === 'string' && email.trim() !== '' ? email.trim() : null;
+		return await this.create(
+			{
+				username: 'writer-' + tag,
+				password: randomBytes(24).toString('base64url'),
+				email: cleanEmail || User.placeholderEmail(tag),
+				name,
+				role: 'user',
+				managedBy: chapterId,
+				claimedAt: null,
+				claimedFrom: null,
+				managerNote: managerNote || null
+			},
+			{ individualHooks: true }
+		);
+	}
+
+	/**
+	 * The chapter's anonymous-writer account, created on first use.
+	 * @param {number} chapterId
+	 * @returns {Promise<User>}
+	 */
+	static async anonymousWriterFor(chapterId) {
+		const existing = await this.findOne({ where: { anonymousForChapter: chapterId } });
+		if (existing) {
+			return existing;
+		}
+		const tag = 'anon-' + chapterId;
+		return await this.create(
+			{
+				username: 'anon-' + chapterId,
+				password: randomBytes(24).toString('base64url'),
+				email: User.placeholderEmail(tag),
+				name: 'Anonymous writer',
+				role: 'user',
+				managedBy: chapterId,
+				anonymousForChapter: chapterId
+			},
+			{ individualHooks: true }
+		);
+	}
+
+	/**
+	 * Ids of every account a chapter manages (including its anonymous writer).
+	 * @param {number} chapterId
+	 * @returns {Promise<number[]>}
+	 */
+	static async managedWriterIds(chapterId) {
+		if (!chapterId) {
+			return [];
+		}
+		const rows = await this.findAll({ where: { managedBy: chapterId }, attributes: ['id'] });
+		return rows.map((r) => r.id);
+	}
+
+	/**
+	 * One page of managed writers, optionally for one chapter.
+	 * @param {{chapterId?: number, limit?: number, offset?: number, q?: string}} options
+	 */
+	static async listManagedWriters({ chapterId, limit, offset = 0, q = '' } = {}) {
+		const where = { managedBy: chapterId ? chapterId : { [Op.ne]: null }, ...searchWhere(q) };
+		return await this.findAndCountAll({
+			where,
+			limit,
+			offset,
+			order: [['id', 'ASC']]
+		});
+	}
+
+	/**
+	 * Turn a managed writer into an independent account.
+	 * @param {User} user the writer
+	 * @param {{username: string, password: string, email?: string}} credentials
+	 * @returns {Promise<[number]>} affected row count
+	 */
+	static async claim(user, { username, password, email }) {
+		const values = {
+			username,
+			password,
+			claimedAt: new Date(),
+			claimedFrom: user.managedBy,
+			managedBy: null
+		};
+		if (typeof email === 'string' && email.trim() !== '') {
+			values.email = email.trim();
+		}
+		const [count] = await this.update(values, {
+			where: { id: user.id },
+			individualHooks: true
+		});
+		return [count];
 	}
 
 	// Update

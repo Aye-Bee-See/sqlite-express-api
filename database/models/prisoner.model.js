@@ -97,7 +97,7 @@ export default class Prisoner extends Model {
 
 	/**
 	 * Includes for full=true: the prison, the supporting groups (with the
-	 * link's description), and, for staff only when asked, chats. Embedded
+	 * link's description), and, for admins only when asked, chats. Embedded
 	 * records are limited to published ones for non-staff.
 	 */
 	static #includes(publishedOnly, withChats = false) {
@@ -198,6 +198,7 @@ export default class Prisoner extends Model {
 			limit,
 			offset = 0,
 			publishedOnly = false,
+			withChats = false,
 			where = {},
 			order = [['id', 'ASC']]
 		} = {}
@@ -212,7 +213,7 @@ export default class Prisoner extends Model {
 		return await this.findAndCountAll({
 			...this.publicAttributes(publishedOnly),
 			where: { ...where, prison: prisonId, ...publishedWhere(publishedOnly) },
-			include: full ? this.#includes(publishedOnly, true) : [],
+			include: full ? this.#includes(publishedOnly, withChats) : [],
 			limit,
 			offset,
 			distinct: true,

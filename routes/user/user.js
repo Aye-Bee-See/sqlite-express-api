@@ -40,6 +40,21 @@ class UserRoutes {
 			this.#Controller.login
 		);
 
+		// Managed writers (chapter accounts that belong to a group, or admins)
+		const staffOnly = [
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			AuthzService.requireGroupMember
+		];
+		this.Router.post(userEnd.post.createWriter, ...staffOnly, this.#Controller.createWriter);
+		this.Router.get(userEnd.get.writers, ...staffOnly, this.#Controller.writers);
+		this.Router.post(userEnd.post.createToken, ...staffOnly, this.#Controller.createToken);
+		this.Router.delete(userEnd.delete.revokeToken, ...staffOnly, this.#Controller.revokeToken);
+
+		// Claiming (public: the token is the credential)
+		this.Router.get(userEnd.get.claimInfo, this.#Controller.claimInfo);
+		this.Router.post(userEnd.post.claim, this.#Controller.claim);
+
 		// Read
 		this.Router.get(
 			userEnd.get.many,

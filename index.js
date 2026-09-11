@@ -1,52 +1,14 @@
-import express from 'express';
-import passport from 'passport';
-import { default as bodyParser } from 'body-parser';
-import { sysPort, corsOrigins } from '#constants';
-import { default as authRouter } from '#routes/user/user.js';
-import prisonRoutes from '#routes/prison/prison.js';
-import PrisonerRoutes from '#routes/prisoner/prisoner.js';
-import RuleRoutes from '#routes/rule/rule.js';
-import MessageRoutes from '#routes/message/message.js';
-import ChatRoutes from '#routes/chat/chat.js';
-import ChapterRoutes from '#routes/chapter/chapter.js';
-import ErrorService from '#rtServices/error.services.js';
-import '#rtServices/auth.services.js'; // registers the passport strategies
-import { NotFoundError } from '#services/HttpError.js';
-import cors from 'cors';
+import { sysPort } from '#constants';
+import { createApp, ready } from './app.js';
 
-const app = express();
+const app = createApp();
 
-// Add CORS middleware before any routes are defined
-app.use(
-	cors({
-		origin: corsOrigins,
-		methods: 'GET, POST, OPTIONS, PUT, PATCH, DELETE',
-		allowedHeaders: 'X-Requested-With,content-type, authorization',
-		credentials: false
-	})
-);
-
-// parse application/json
-app.use(bodyParser.json());
-//parse application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({ extended: true }));
-
-app.use(passport.initialize());
-
-// start the app
+// Listen right away so /health can answer 503 while the database is still
+// being prepared, then report when the app is usable.
 app.listen(sysPort, function () {
 	console.log('Express is running on port: ' + sysPort);
 });
 
-app.use('/auth', authRouter.Router);
-app.use('/prison', prisonRoutes.Router);
-app.use('/prisoner', PrisonerRoutes.Router);
-app.use('/rule', RuleRoutes.Router);
-app.use('/messaging', MessageRoutes.Router);
-app.use('/chat', ChatRoutes.Router);
-app.use('/chapter', ChapterRoutes.Router);
-// Unknown routes get a JSON 404 instead of Express's HTML page.
-app.use((req, res, next) => {
-	next(new NotFoundError('Cannot ' + req.method + ' ' + req.path));
+ready.then(() => {
+	console.log('Ready to serve requests.');
 });
-app.use(ErrorService.handler);

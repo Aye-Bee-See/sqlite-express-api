@@ -70,6 +70,7 @@ cp .env.example .env
 | `DB_RESET`       | No       | `false`                 | `true` drops and recreates every table on boot. All data is lost.                                                                 |
 | `DB_SEED`        | No       | `true`                  | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                             |
 | `DB_LOGGING`     | No       | `false`                 | `true` prints every SQL statement.                                                                                                |
+| `DB_STORAGE`     | No       | `database.sqlite`       | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                        |
 | `NODE_ENV`       | No       | none                    | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                        |
 
 ### Start
@@ -93,7 +94,15 @@ Created admin account "bootadmin" (id 42).
 Database ready.
 ```
 
-The server accepts connections as soon as the first line prints, but requests that need data should wait for `Database ready.`
+The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting"}` until the database is ready and `200 {"status":"ok"}` afterwards; it needs no token.
+
+### Running the tests
+
+```bash
+npm test
+```
+
+The suite runs against an in-memory database and needs no `.env`. It takes a couple of seconds.
 
 ### Data persistence
 

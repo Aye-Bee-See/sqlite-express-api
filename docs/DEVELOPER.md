@@ -57,14 +57,15 @@ Notes:
 - The database is created and seeded on first boot and persists afterwards. `DB_RESET=true npm start` wipes it.
 - To get an admin token, log in as the seeded `admin` / `abcpassword`, or set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` in `.env`.
 
-There are no automated tests yet. `npm test` prints a placeholder string. See [Open items](#open-items).
+`npm test` runs the suite against an in-memory database in a couple of seconds and needs no `.env`. See [Tests](#tests).
 
 ## Architecture overview
 
 Layers, top to bottom:
 
 ```text
-index.js                          Express app, global middleware, JSON 404 catch-all, mounts one Router per resource
+index.js                          Calls createApp() and listens
+app.js                            Express app, global middleware, /health, JSON 404 catch-all, mounts one Router per resource
   routes/<resource>/<resource>.js     Route class: binds paths to passport + authorization gates + controller methods
     routes/services/auth.services.js    Passport strategies (local login, JWT) and token creation
     routes/services/authz.services.js   Role, self, and ownership checks
@@ -105,10 +106,13 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 
 ```text
 .
-├── index.js                          Entry point. Builds the app, imports auth.services (strategy registration), mounts routers, JSON 404, error handler.
+├── index.js                          Entry point. createApp() then listen.
+├── app.js                            createApp(): middleware, /health, routers, JSON 404, error handler; also re-exports `ready`.
 ├── constants.js                      Loads .env; exports JWT secret, port, admin bootstrap values, CORS origins, DB flags.
 ├── package.json                      ESM, path aliases under "imports", scripts, allowScripts, engines.
 ├── package-lock.json                 In sync; npm ci works.
+├── .github/workflows/test.yml        CI: npm ci, eslint, npm test on Node 22 and 24.
+├── test/                             node --test suite; helpers.js boots the app on an in-memory database.
 ├── .env.example                      Every environment variable with a comment.
 ├── eslint.config.js                  ESLint 9 flat config: JS, JSON, Markdown, CSS, Prettier.
 ├── .prettierrc.json                  Tabs, single quotes, width 100, no trailing commas.
@@ -205,6 +209,8 @@ Each alias lists several extension fallbacks. Include the `.js` extension in imp
 | `dbReset`       | `DB_RESET`       | `false`                 | `sql-database.js`: `sync({ force })`.                                 |
 | `dbSeed`        | `DB_SEED`        | `true`                  | `sql-database.js`: whether to run `createSeeds()`.                    |
 | `dbLogging`     | `DB_LOGGING`     | `false`                 | `sql-database.js`: Sequelize `logging`.                               |
+| `dbStorage`     | `DB_STORAGE`     | `database.sqlite`       | `sql-database.js`: SQLite file, or `:memory:`.                        |
+| `quietBoot`     | `NODE_ENV=test`  | `false`                 | Suppresses boot-time console output under the test runner.            |
 
 The three `db*` values go through `envBool` (`constants.js:22`), which accepts `true/false`, `1/0`, `yes/no`, `on/off` in any case and otherwise returns the default. `NODE_ENV=development` is read directly by the two error renderers to decide whether 500 responses include the underlying message and stack.
 
@@ -214,16 +220,16 @@ Hardcoded: the SQLite file path `database.sqlite` relative to the process workin
 
 The database is set up as a side effect of importing `database/sql-database.js`, which happens through the import graph:
 
-1. `index.js` imports `#rtServices/auth.services.js` (for its side effect of registering the passport strategies) and the seven route modules.
+1. `index.js` imports `app.js`, which imports `#rtServices/auth.services.js` (for its side effect of registering the passport strategies) and the seven route modules.
 2. `auth.services.js` imports `{ User } from '#db/sql-database.js'`.
 3. Evaluating `sql-database.js`:
    - creates the Sequelize instance (`logging` from `DB_LOGGING`);
    - calls `Model.init(sequelize, Sequelize)` for all seven models (each reads its schema and hooks);
    - calls `associate(Models)` on all seven;
    - starts the async chain exported as `ready` (`sql-database.js:47`): `sequelize.sync({ force: dbReset })`, then `createSeeds()` unless `DB_SEED=false`, then `ensureAdmin()`, then logs `Database ready.` A failure anywhere is logged as `Database setup failed:`.
-4. Back in `index.js`, `app.listen(PORT)` is called, routers are mounted, then the JSON 404 catch-all and `ErrorService.handler`.
+4. `createApp()` mounts `/health`, the routers, the JSON 404 catch-all, and `ErrorService.handler`; `index.js` then calls `app.listen(PORT)` and logs `Ready to serve requests.` when `ready` resolves.
 
-Requests are accepted before `ready` resolves. On a persistent database this is a few milliseconds; on a fresh one, seeding takes a second or two. Nothing awaits `ready` yet; a health endpoint that does would be a small, useful addition.
+Requests are accepted before `ready` resolves. `GET /health` returns 503 until then and 200 afterwards, so deployment tooling and the test helper can wait on it.
 
 Without `DB_RESET`, `sync()` creates missing tables and leaves existing ones alone. It does **not** alter existing tables when a schema changes; after changing a schema in development, boot once with `DB_RESET=true` or delete `database.sqlite`. There is no migration tooling (see [Open items](#open-items)).
 
@@ -302,7 +308,7 @@ From `index.js`:
 | `/chat`      | `ChatRoutes`     |
 | `/chapter`   | `ChapterRoutes`  |
 
-After the routers, `index.js:50` adds a catch-all that calls `next(new NotFoundError('Cannot ' + req.method + ' ' + req.path))`, then `ErrorService.handler`.
+After the routers, `app.js` adds a catch-all that calls `next(new NotFoundError('Cannot ' + req.method + ' ' + req.path))`, then `ErrorService.handler`.
 
 ## Controller layer
 
@@ -555,7 +561,14 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 
 ### Tests
 
-None. When adding them, the first obstacle is that importing any route module boots the database and starts seeding. The cleanest path is to extract app construction from `index.js` into a function, point Sequelize at `storage: ':memory:'` under test, await `ready`, and drive the app with `supertest`. Old branches `ABS-61-create-api-unit-tests` and `unit-tests-second-attempt` contain earlier attempts.
+`npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
+
+- `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin, chapter, two users, a prison with two prisoners, a rule).
+- Each test file is its own process, so each gets a fresh in-memory database. Files: `auth`, `authorization`, `directory`, `messaging`, `users` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
+- Seeded data is not used by the tests; fixtures are created explicitly, so tests never depend on seed ids.
+- CI (`.github/workflows/test.yml`) runs `npm ci`, ESLint, and the suite on Node 22 and 24 for every pull request and push to `main`.
+
+When adding a feature, add a test in the matching file; when fixing a bug, add the failing case first. Keep assertions on response shapes strict (status, `name`, `errors`), since clients code against them.
 
 ### Postman
 
@@ -623,17 +636,15 @@ The codebase was idle from June 2025 to September 2026. The first thing the revi
 
 Known gaps, roughly in the order they are worth tackling:
 
-1. **Automated tests.** Nothing protects any of the above from regressing. See [Tests](#tests).
-2. **Schema migrations.** `sync()` cannot alter tables. Adopt Sequelize CLI or Umzug before the schema changes in production.
-3. **A health endpoint** that awaits `ready`, so deployment tooling can tell "listening" from "usable".
-4. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
-5. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
-6. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
-7. **Chapter list pagination.** `GET /chapter/chapters` returns everything.
-8. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
-9. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
-10. **Chapter-scoped data.** Chapter accounts currently see and edit everything; if chapters should only handle their own region's letters, that needs a relation between Chapter and users or prisons and a filter like the user ownership one.
-11. **Rate limiting and request logging.** None.
-12. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
-13. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
-14. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.
+1. **Schema migrations.** `sync()` cannot alter tables. Adopt Sequelize CLI or Umzug before the schema changes in production.
+2. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
+3. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
+4. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
+5. **Chapter list pagination.** `GET /chapter/chapters` returns everything.
+6. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
+7. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
+8. **Chapter-scoped data.** Chapter accounts currently see and edit everything; if chapters should only handle their own region's letters, that needs a relation between Chapter and users or prisons and a filter like the user ownership one.
+9. **Rate limiting and request logging.** None.
+10. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
+11. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
+12. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.

@@ -1,6 +1,6 @@
 import { Sequelize } from 'sequelize';
 import * as Models from '#models/all.model.js';
-import { dbReset, dbSeed, dbLogging } from '#constants';
+import { dbReset, dbSeed, dbLogging, dbStorage, quietBoot } from '#constants';
 
 import { createSeeds } from './seeds/all.seeds.js';
 import { ensureAdmin } from './bootstrap-admin.js';
@@ -14,10 +14,11 @@ import { ensureAdmin } from './bootstrap-admin.js';
  * - DB_RESET=true   drop and recreate every table on boot (default: keep data)
  * - DB_SEED=false   skip loading the seed files (default: seed empty tables)
  * - DB_LOGGING=true print every SQL statement (default: quiet)
+ * - DB_STORAGE=path  SQLite file to use; ':memory:' for tests (default: database.sqlite)
  */
 const config = {
 	dialect: 'sqlite',
-	storage: 'database.sqlite',
+	storage: dbStorage,
 	logging: dbLogging ? console.log : false
 };
 
@@ -44,18 +45,21 @@ Chapter.associate(Models);
  * unless DB_SEED is false, then make sure an admin account exists.
  * Resolves once the database is ready to serve requests.
  */
+const log = quietBoot ? () => {} : console.log;
+const warn = quietBoot ? () => {} : console.warn;
+
 export const ready = (async () => {
 	if (dbReset) {
-		console.warn('DB_RESET is set: dropping and recreating every table.');
+		warn('DB_RESET is set: dropping and recreating every table.');
 	}
 	await sequelize.sync({ force: dbReset });
 	if (dbSeed) {
 		await createSeeds();
 	} else {
-		console.log('DB_SEED is false: skipping seed data.');
+		log('DB_SEED is false: skipping seed data.');
 	}
 	await ensureAdmin();
-	console.log('Database ready.');
+	log('Database ready.');
 })().catch((err) => {
 	console.error('Database setup failed:', err);
 });

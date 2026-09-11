@@ -1,5 +1,5 @@
 import User from '#models/user.model.js';
-import { adminUsername, adminPassword, adminEmail } from '#constants';
+import { adminUsername, adminPassword, adminEmail, quietBoot } from '#constants';
 
 const ADMIN_ROLE = 'admin';
 const BANNER = '\x1b[48;2;255;92;0;38;2;253;230;255;1m%s\x1b[0m';
@@ -26,7 +26,7 @@ export async function ensureAdmin() {
 
 	if (!configured) {
 		const adminCount = await User.count({ where: { role: ADMIN_ROLE } });
-		if (adminCount === 0) {
+		if (adminCount === 0 && !quietBoot) {
 			console.group(BANNER, ' ****** NO ADMIN ACCOUNT ***** ');
 			console.error(
 				'No user has the admin role and ADMIN_USERNAME, ADMIN_PASSWORD, and ADMIN_EMAIL are not all set.'
@@ -48,7 +48,9 @@ export async function ensureAdmin() {
 					'"; leaving it unchanged.'
 			);
 		} else {
-			console.log('Admin account "' + adminUsername + '" already exists.');
+			if (!quietBoot) {
+				console.log('Admin account "' + adminUsername + '" already exists.');
+			}
 		}
 		return null;
 	}
@@ -60,6 +62,8 @@ export async function ensureAdmin() {
 		role: ADMIN_ROLE,
 		name: 'Administrator'
 	});
-	console.log('Created admin account "' + adminUsername + '" (id ' + created.id + ').');
+	if (!quietBoot) {
+		console.log('Created admin account "' + adminUsername + '" (id ' + created.id + ').');
+	}
 	return created;
 }

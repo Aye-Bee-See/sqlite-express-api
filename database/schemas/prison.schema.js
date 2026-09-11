@@ -8,10 +8,6 @@ const prisonSchema = {
 	address: {
 		type: DataTypes.JSON,
 		allowNull: false
-	},
-	deleted: {
-		type: DataTypes.JSON,
-		allowNull: false
 	}
 };
 

@@ -14,8 +14,24 @@ export default class Prisoner extends Model {
 		});
 	}
 	static associate(models) {
-		this.belongsTo(models.Prison, { as: 'prison_details', foreignKey: 'prisonId' });
-		this.hasMany(models.Chat, { as: 'chats', foreignKey: 'prisonerId' });
+		this.belongsTo(models.Prison, {
+			as: 'prison_details',
+			foreignKey: 'prison',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.Chat, {
+			as: 'chats',
+			foreignKey: 'prisoner',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.Message, {
+			as: 'messages',
+			foreignKey: 'prisoner',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
 	}
 
 	// Create
@@ -60,8 +76,7 @@ export default class Prisoner extends Model {
 				include: [
 					{
 						model: Prison,
-						as: 'prison_details',
-						key: 'prison_key'
+						as: 'prison_details'
 					}
 				]
 			};
@@ -88,27 +103,32 @@ export default class Prisoner extends Model {
 		}
 	}
 
+	/**
+	 * List prisoners held at one prison.
+	 * @param {number|string} prisonId
+	 * @param {boolean} full include prison details and each prisoner's chats
+	 * @param {number} limit
+	 * @param {number} offset
+	 * @throws {Error} when the prison does not exist
+	 */
 	static async getPrisonersByPrison(prisonId, full, limit, offset = 0) {
 		const exists = await modelsService.modelInstanceExists('Prison', prisonId);
 		if (exists instanceof Error) {
 			throw exists;
 		}
-		let filters = { limit, offset };
-		let options = {
-			where: { prison: prisonId }
-		};
+		let filters = { limit, offset, where: { prison: prisonId } };
 		if (full) {
-			options = {
-				include: [
-					{
-						model: Chat,
-						as: 'chats'
-					}
-				],
-				where: { prison: prisonId }
-			};
+			filters.include = [
+				{
+					model: Prison,
+					as: 'prison_details'
+				},
+				{
+					model: Chat,
+					as: 'chats'
+				}
+			];
 		}
-		filters = { ...filters, ...options };
 		return await Prisoner.findAll(filters);
 	}
 

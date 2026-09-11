@@ -1,9 +1,7 @@
 import express from 'express';
-import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { chatEnd } from '#routes/constants.js';
 import { default as chatCrtlr } from '#rtControllers/chat.controller.js';
-import authService from '#rtServices/auth.services.js';
 
 class ChatRoutes {
 	static Router;
@@ -16,14 +14,6 @@ class ChatRoutes {
 	 *   Initialize all necessary parts of the class            *
 	 ************************************************************/
 	static {
-		const app = express();
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		const UserJWTStrat = authService.authorize;
-		passport.use('UsrJStrat', UserJWTStrat);
-
 		this.#Controller = new chatCrtlr();
 		this.Router = express.Router();
 

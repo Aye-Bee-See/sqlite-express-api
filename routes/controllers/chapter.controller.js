@@ -38,7 +38,7 @@ export default class chapterController extends RouteController {
 		const { id } = req.query;
 		try {
 			const chapter = await Chapter.getChapterByID(id);
-			this.#handleSuccess(res, chapter);
+			this.#handleSuccess(res, this.requireFound(chapter, 'Chapter ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -59,6 +59,7 @@ export default class chapterController extends RouteController {
 		const newChapter = req.body;
 		try {
 			const updatedRows = await Chapter.updateChapter(newChapter);
+			this.requireAffected(updatedRows, 'Chapter ' + newChapter.id);
 			this.#handleSuccess(res, { updatedRows, newChapter });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -70,7 +71,7 @@ export default class chapterController extends RouteController {
 		const { id } = req.body;
 		try {
 			const deletedRows = await Chapter.deleteChapter(id);
-			this.#handleSuccess(res, deletedRows);
+			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Chapter ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

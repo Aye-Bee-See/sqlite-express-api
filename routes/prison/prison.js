@@ -1,9 +1,8 @@
 import express from 'express';
-import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { prisonEnd } from '#routes/constants.js';
 import { default as prisonCrtlr } from '#rtControllers/prison.controller.js';
-import authService from '#rtServices/auth.services.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 class PrisonRoutes {
 	static Router;
@@ -16,14 +15,6 @@ class PrisonRoutes {
 	 *   Initialize all necessary parts of the class                                              *
 	 ************************************************************/
 	static {
-		const app = express();
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		const JwtStrat = authService.authorize;
-		passport.use('UsrJStrat', JwtStrat);
-
 		this.#Controller = new prisonCrtlr();
 		this.Router = express.Router();
 
@@ -40,6 +31,7 @@ class PrisonRoutes {
 		this.Router.post(
 			prisonEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.create
 		);
 
@@ -62,12 +54,14 @@ class PrisonRoutes {
 		this.Router.put(
 			prisonEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.update
 		);
 		// Add Rule
 		this.Router.put(
-			prisonEnd.put.rule,
+			prisonEnd.put.addRule,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.addRule
 		);
 
@@ -76,6 +70,7 @@ class PrisonRoutes {
 		this.Router.delete(
 			prisonEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.remove
 		);
 	}

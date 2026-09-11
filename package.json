@@ -3,18 +3,18 @@
 	"version": "1.0.0",
 	"description": "",
 	"main": "index.js",
+	"engines": {
+		"node": ">=18"
+	},
 	"type": "module",
 	"scripts": {
+		"start": "node index.js",
+		"dev": "nodemon index.js",
 		"test": "echo \"echo the test\"",
 		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
 		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",
 		"pre-commit": "lint-staged",
-		"prepare": "husky install"
-	},
-	"husky": {
-		"hooks": {
-			"pre-commit": "lint-staged"
-		}
+		"prepare": "husky"
 	},
 	"lint-staged": {
 		"**/*.+(js|mjs)": "eslint --fix",
@@ -29,7 +29,7 @@
 		"cors": "^2.8.5",
 		"dotenv": "^16.4.5",
 		"express": "^5.0.1",
-		"jsonwebtoken": "^9.0.2",
+		"jsonwebtoken": "^9.0.3",
 		"passport": "^0.7.0",
 		"passport-jwt": "^4.0.1",
 		"passport-local": "^1.0.0",
@@ -93,12 +93,9 @@
 		],
 		"#services/*": [
 			"./services/*",
-			"./service/*.js",
+			"./services/*.js",
 			"./services/*.mjs",
 			"./services/*.cjs"
-		],
-		"#dbg/*": [
-			"./debug/*.mjs"
 		],
 		"#constants": "./constants.js"
 	},
@@ -112,10 +109,16 @@
 		"eslint-config-prettier": "^10.1.5",
 		"eslint-plugin-prettier": "^5.4.1",
 		"globals": "^16.2.0",
-		"husky": "^8.0.0",
+		"husky": "^9.1.7",
 		"lint-staged": "^16.1.1",
 		"nodemon": "^3.1.0",
 		"prettier": "3.5.3",
 		"quick-lint-js": "3.2.0"
+	},
+	"allowScripts": {
+		"bcrypt@5.1.1": true,
+		"sqlite3@5.1.7": true,
+		"quick-lint-js@3.2.0": true,
+		"fsevents@2.3.3": true
 	}
 }

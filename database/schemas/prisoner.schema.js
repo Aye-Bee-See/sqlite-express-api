@@ -8,9 +8,7 @@ const prisonerSchema = {
 		type: DataTypes.STRING
 	},
 	prison: {
-		type: DataTypes.INTEGER,
-		model: 'prisons',
-		key: 'prison_key'
+		type: DataTypes.INTEGER
 	},
 	inmateID: {
 		type: DataTypes.STRING
@@ -23,9 +21,11 @@ const prisonerSchema = {
 	},
 	status: {
 		type: DataTypes.STRING,
-		isIn: {
-			args: [['pending, pretrial', 'incarcerated', 'free']],
-			msg: 'Status must be pretrial, incarcerated, or free.'
+		validate: {
+			isIn: {
+				args: [['pretrial', 'incarcerated', 'free']],
+				msg: 'Status must be pretrial, incarcerated, or free.'
+			}
 		}
 	}
 };

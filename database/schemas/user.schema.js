@@ -4,13 +4,9 @@ const userSchema = {
 	name: {
 		type: DataTypes.STRING,
 		validate: {
-			min: {
-				args: [3],
-				msg: 'Username must be 3 characters or more.'
-			},
-			max: {
-				args: [32],
-				msg: 'Username cannot be more than 16 characters.'
+			len: {
+				args: [3, 32],
+				msg: 'Name must be between 3 and 32 characters.'
 			}
 		}
 	},
@@ -19,13 +15,9 @@ const userSchema = {
 		type: DataTypes.STRING,
 		allowNull: false,
 		validate: {
-			min: {
-				args: [3],
-				msg: 'Username must be at least 3 characters long.'
-			},
-			max: {
-				args: [16],
-				msg: 'Username must be no more than 16 characters long.'
+			len: {
+				args: [3, 16],
+				msg: 'Username must be between 3 and 16 characters.'
 			},
 			notNull: {
 				msg: 'Username cannot be null.'
@@ -71,13 +63,9 @@ const userSchema = {
 	bio: {
 		type: DataTypes.TEXT,
 		validate: {
-			min: {
-				args: [12],
-				msg: 'Bio must be at least 12 characters long.'
-			},
-			max: {
-				args: [2400],
-				msg: 'Bio must be no longer than 2400 characters.'
+			len: {
+				args: [12, 2400],
+				msg: 'Bio must be between 12 and 2400 characters.'
 			}
 		}
 	},
@@ -88,7 +76,7 @@ const userSchema = {
 		validate: {
 			isIn: {
 				args: [['admin', 'user', 'chapter', 'banned']],
-				msg: 'Role must be either admin, user, or banned.'
+				msg: 'Role must be one of admin, user, chapter, or banned.'
 			}
 		}
 	}

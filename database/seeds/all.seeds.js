@@ -29,22 +29,12 @@ export async function createSeeds() {
 	];
 
 	const seedsData = await Utilities.resolveSequential(seeds);
-	console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * * * * * * * * * * * * ');
-	console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * Seed Data * * * * * * ');
-	console.log('\x1b[48;5;49;38;5;33;1;7m%s\x1b[0m', ' * * * * * * * * * * * * * * * * * ');
-	console.group('\x1b[48;5;49;38;5;33;1m%s\x1b[0m', '       In file all.seeds.js       ');
-	for (let i = 0; i < seedsData.length; i++) {
-		//get all keys
-		let seedsDataKeys = Object.keys(seedsData[i][0]);
-		const seedsDataValuesIndex = seedsDataKeys.indexOf('dataValues');
-		// remove dataValues from list of keys
-		seedsDataKeys.splice(seedsDataValuesIndex, 1);
-		// remove all keys except dataValues
-		seedsDataKeys.forEach((keyThatIsNotDataValues) => {
-			delete seedsData[i][0][keyThatIsNotDataValues];
-		});
-		console.log('%O', seedsData[i][0]);
-	}
-	console.groupEnd();
-	console.log('\x1b[48;5;49;38;5;33;1m%s\x1b[0m', '           End Seed Data           ');
+	const names = ['users', 'prisons', 'prisoners', 'rules', 'chats', 'messages', 'chapters'];
+	const summary = names.map((name, i) => {
+		const rows = seedsData[i];
+		return Array.isArray(rows)
+			? name + ': ' + rows.length + ' seeded'
+			: name + ': already populated';
+	});
+	console.log('Seed data: ' + summary.join(', ') + '.');
 }

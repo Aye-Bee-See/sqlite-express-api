@@ -1,8 +1,7 @@
 import User from '#models/user.model.js';
-//import { default as jwt } from 'jsonwebtoken';
-//import bcrypt from 'bcrypt';
-//import { secretOrKey } from '#constants';
 import RouteController from '#rtControllers/route.controller.js';
+import AuthzService from '#rtServices/authz.services.js';
+import { HttpError, NotFoundError } from '#services/HttpError.js';
 
 export default class UserController extends RouteController {
 	constructor() {
@@ -30,9 +29,16 @@ export default class UserController extends RouteController {
 	#handleErr;
 	#handleLimits;
 
+	/**
+	 * Return a plain object for a user with the password hash removed.
+	 * Everything else, including eager-loaded chats, is kept.
+	 * @param {import('sequelize').Model|object} userObject
+	 * @returns {object}
+	 */
 	#stripPassword(userObject) {
-		const { id, email, name, role, username, bio } = userObject;
-		return { id, email, name, role, username, bio };
+		const plain = typeof userObject.toJSON === 'function' ? userObject.toJSON() : { ...userObject };
+		delete plain.password;
+		return plain;
 	}
 
 	#handlePass(res, user, type) {
@@ -40,41 +46,19 @@ export default class UserController extends RouteController {
 			const strippedPassword = this.#stripPassword(user);
 			this.#handleSuccess(res, strippedPassword);
 		} else {
-			const err = new Error();
-			this.#handleErr(res, err, type);
+			this.#handleErr(res, new NotFoundError('User not found'), type);
 		}
 	}
 
-	#stripUsersListPasswords(usersList) {
-		let pwStrippedList = [];
-		Object.entries(usersList).forEach((value) => {
-			pwStrippedList.push(this.#stripPassword(value));
-		});
-		return pwStrippedList;
-	}
 	/**
-	 * TODO: UPDATE loops to handle for non-incrementation or strings
+	 * Send a list of users with password hashes removed. An empty list is a
+	 * successful, empty result, not an error.
 	 */
-	#formatUsersList(usersList) {
-		let formattedList = {};
-
-		for (let i = 0; i < usersList.length; i++) {
-			const id = usersList[i].dataValues.id;
-			const userData = usersList[i].dataValues;
-			formattedList[id] = userData;
-		}
-		return formattedList;
-	}
-
 	#handleUsers(res, users) {
-		const formattedList = this.#formatUsersList(users);
-		const filteredUsers = this.#stripUsersListPasswords(formattedList);
-		if (users.length > 0) {
-			this.#handleSuccess(res, filteredUsers);
-		} else {
-			const errorVar = new Error();
-			this.#handleErr(res, errorVar, 'empty');
-		}
+		this.#handleSuccess(
+			res,
+			users.map((user) => this.#stripPassword(user))
+		);
 	}
 
 	/***
@@ -85,7 +69,6 @@ export default class UserController extends RouteController {
 		const { role, full, page, page_size } = req.query;
 		const { limit, offset } = this.#handleLimits(page, page_size);
 
-		//const {role, full, limit, offset} = req.query;
 		const fullBool = full === 'true';
 
 		if (role) {
@@ -153,15 +136,25 @@ export default class UserController extends RouteController {
 				}
 				break;
 			default:
-				errorVar = new Error();
-				this.#handleErr(res, errorVar, type);
+				this.#handleErr(res, new HttpError(400, 'No ID, username, or email provided.'), type);
 				break;
 		}
 	}
 
-	async create(req, res) {
+	/**
+	 * Register a user. Anonymous callers (and non-admins) always get the
+	 * "user" role; only an admin token may create admin, chapter, or banned
+	 * accounts.
+	 */
+	async create(req, res, next) {
 		const { username, email, password, name, bio } = req.body;
-		const role = req.body.role.toLowerCase();
+		const role =
+			typeof req.body.role === 'string' ? req.body.role.toLowerCase() : AuthzService.USER;
+		if (role !== AuthzService.USER && !AuthzService.isAdmin(req)) {
+			return next(
+				AuthzService.forbidden('Only an admin can create a user with role "' + role + '".')
+			);
+		}
 		try {
 			const user = await User.createUser({ username, password, role, email, name, bio });
 			const strippedPassword = this.#stripPassword(user);
@@ -173,11 +166,22 @@ export default class UserController extends RouteController {
 	}
 	// Update
 
-	async update(req, res) {
+	/**
+	 * Update a user. Route middleware already limits non-admins to their own
+	 * record; here we also stop them from promoting themselves.
+	 */
+	async update(req, res, next) {
 		const newUser = req.body;
+		if (newUser.role !== undefined && !AuthzService.isAdmin(req)) {
+			return next(AuthzService.forbidden("Only an admin can change a user's role."));
+		}
 		try {
 			const updatedRows = await User.updateUser(newUser);
-			this.#handleSuccess(res, { updatedRows, newUser });
+			this.requireAffected(updatedRows, 'User ' + newUser.id);
+			// Never echo a password, plain or hashed, back to the client.
+			const { password, ...echoed } = newUser;
+			void password;
+			this.#handleSuccess(res, { updatedRows, newUser: echoed });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -189,7 +193,7 @@ export default class UserController extends RouteController {
 		const { id } = req.body;
 		try {
 			const deletedRows = await User.deleteUser(id);
-			this.#handleSuccess(res, deletedRows);
+			this.#handleSuccess(res, this.requireAffected(deletedRows, 'User ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

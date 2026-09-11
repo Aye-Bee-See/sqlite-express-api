@@ -2,12 +2,10 @@ import { DataTypes } from 'sequelize';
 
 const chatSchema = {
 	user: {
-		type: DataTypes.INTEGER,
-		model: 'User'
+		type: DataTypes.INTEGER
 	},
 	prisoner: {
-		type: DataTypes.INTEGER,
-		model: 'Prisoner'
+		type: DataTypes.INTEGER
 	},
 	// Add the id field to the schema
 	id: {

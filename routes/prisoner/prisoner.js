@@ -1,9 +1,8 @@
 import express from 'express';
-import { default as bodyParser } from 'body-parser';
 import { default as passport } from 'passport';
 import { prisonerEnd } from '#routes/constants.js';
 import { default as prisonerCrtlr } from '#rtControllers/prisoner.controller.js';
-import authService from '#rtServices/auth.services.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 class PrisonerRoutes {
 	static Router;
@@ -16,14 +15,6 @@ class PrisonerRoutes {
 	 *   Initialize all necessary parts of the class            *
 	 ************************************************************/
 	static {
-		const app = express();
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		const JwtStrat = authService.authorize;
-		passport.use('UsrJStrat', JwtStrat);
-
 		this.#Controller = new prisonerCrtlr();
 		this.Router = express.Router();
 
@@ -40,6 +31,7 @@ class PrisonerRoutes {
 		this.Router.post(
 			prisonerEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.create
 		);
 
@@ -62,6 +54,7 @@ class PrisonerRoutes {
 		this.Router.put(
 			prisonerEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.update
 		);
 
@@ -70,6 +63,7 @@ class PrisonerRoutes {
 		this.Router.delete(
 			prisonerEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.remove
 		);
 	}

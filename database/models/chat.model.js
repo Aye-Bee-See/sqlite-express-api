@@ -15,9 +15,24 @@ export default class Chat extends Model {
 		});
 	}
 	static associate(models) {
-		this.belongsTo(models.Prisoner, { as: 'prisoner_details', foreignKey: 'prisonerId' });
-		this.belongsTo(models.User, { as: 'user_details', foreignKey: 'userId' });
-		this.hasMany(models.Message, { as: 'messages', foreignKey: 'chatId' });
+		this.belongsTo(models.Prisoner, {
+			as: 'prisoner_details',
+			foreignKey: 'prisoner',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.User, {
+			as: 'user_details',
+			foreignKey: 'user',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.Message, {
+			as: 'messages',
+			foreignKey: 'chat',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
 	}
 
 	// Create
@@ -54,8 +69,7 @@ export default class Chat extends Model {
 				include: [
 					{
 						model: Message,
-						as: 'messages',
-						key: 'chat_key'
+						as: 'messages'
 					},
 					{
 						model: User,
@@ -72,32 +86,38 @@ export default class Chat extends Model {
 		return await Chat.findAll(filters);
 	}
 
-	static async readChatsByUser(id, full, limit, offset = 0) {
-		/* 
-         * TODO:
-         *
-         const userExists = await User.findByPk(id);
-         console.log(userExists);
-         if (!userExists) {
-         throw new Error('User does not exist');
-         } */
+	/**
+	 * Get a single chat by primary key, without associations.
+	 * @param {number|string} id
+	 * @returns {Promise<Chat|null>}
+	 */
+	static async getChatByID(id) {
+		return await this.findByPk(id);
+	}
 
+	/**
+	 * @param {number|string} id user id
+	 * @param {boolean} full include messages and user/prisoner details
+	 * @param {number} limit
+	 * @param {number} offset
+	 * @param {object} extraWhere additional column filters merged into the where clause
+	 */
+	static async readChatsByUser(id, full, limit, offset = 0, extraWhere = {}) {
 		const exists = await modelsService.modelInstanceExists('User', id);
 		if (exists instanceof Error) {
 			throw exists;
 		}
 		let filters = { limit, offset };
 		let options = {
-			where: { user: id }
+			where: { ...extraWhere, user: id }
 		};
 		if (full) {
 			options = {
-				where: { user: id },
+				where: { ...extraWhere, user: id },
 				include: [
 					{
 						model: Message,
-						as: 'messages',
-						key: 'chat_key'
+						as: 'messages'
 					},
 					{
 						model: User,
@@ -115,13 +135,6 @@ export default class Chat extends Model {
 	}
 
 	static async readChatsByPrisoner(id, full, limit, offset = 0) {
-		/*
-         * TODO:
-         *         const prisonerExists = await Prisoner.findByPk(id);
-         if (!prisonerExists) {
-         throw new Error('Prisoner does not exist');
-         }
-         */
 		const exists = await modelsService.modelInstanceExists('Prisoner', id);
 		if (exists instanceof Error) {
 			throw exists;
@@ -136,8 +149,7 @@ export default class Chat extends Model {
 				include: [
 					{
 						model: Message,
-						as: 'messages',
-						key: 'chat_key'
+						as: 'messages'
 					},
 					{
 						model: User,
@@ -161,8 +173,7 @@ export default class Chat extends Model {
 				include: [
 					{
 						model: Message,
-						as: 'messages',
-						key: 'chat_key'
+						as: 'messages'
 					},
 					{
 						model: User,
@@ -181,9 +192,15 @@ export default class Chat extends Model {
 		}
 	}
 
+	/**
+	 * Get one chat by id.
+	 * @param {number|string} id
+	 * @param {boolean} full include messages and user/prisoner details
+	 * @returns {Promise<Chat|null>}
+	 */
 	static async readChatById(id, full) {
 		if (full) {
-			return await this.findAll({
+			return await this.findOne({
 				where: { id: id },
 				include: [
 					{
@@ -192,16 +209,16 @@ export default class Chat extends Model {
 					},
 					{
 						model: User,
-						as: 'user'
+						as: 'user_details'
 					},
 					{
 						model: Prisoner,
-						as: 'prisoner'
+						as: 'prisoner_details'
 					}
 				]
 			});
 		} else {
-			return await this.findAll({
+			return await this.findOne({
 				where: { id: id }
 			});
 		}
@@ -217,15 +234,16 @@ export default class Chat extends Model {
 
 	// Update
 
+	/**
+	 * Update a chat by id. Foreign-key constraints reject a user or prisoner
+	 * that does not exist.
+	 * @param {object} chat fields to change, including `id`
+	 * @returns {Promise<[number]>} affected row count
+	 */
 	static async updateChat(chat) {
-		const user = chat.user;
-		const prisoner = chat.prisoner;
-		return await this.update({ ...chat }, { where: { id: chat.id } })
-			.then((updatedChat) =>
-				this.update({ user: user, prisoner: prisoner }, { where: { chat: updatedChat } })
-			)
-			.catch();
+		return await this.update({ ...chat }, { where: { id: chat.id } });
 	}
+
 	// Delete
 
 	static async deleteChat(id) {

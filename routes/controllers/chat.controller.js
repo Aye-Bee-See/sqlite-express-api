@@ -53,7 +53,8 @@ export default class ChatController extends RouteController {
 	 */
 	async getMany(req, res) {
 		const { prisoner, user, full, page, page_size } = req.query;
-		const { limit, offset } = this.#handleLimits(page, page_size);
+		const limits = this.#handleLimits(page, page_size);
+		const { limit, offset } = limits;
 		const fullBool = full === 'true';
 		const restricted = AuthzService.ownOnly(req);
 
@@ -69,7 +70,7 @@ export default class ChatController extends RouteController {
 			} else {
 				chats = await Chat.readAllChats(fullBool, limit, offset);
 			}
-			this.#handleSuccess(res, chats);
+			this.handlePage(res, chats, limits);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

@@ -37,17 +37,9 @@ class RuleRoutes {
 
 		// Read
 
-		this.Router.get(
-			ruleEnd.get.many,
-			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			this.#Controller.getMany
-		);
+		this.Router.get(ruleEnd.get.many, AuthzService.optionalAuthenticate, this.#Controller.getMany);
 
-		this.Router.get(
-			ruleEnd.get.one,
-			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			this.#Controller.getOne
-		);
+		this.Router.get(ruleEnd.get.one, AuthzService.optionalAuthenticate, this.#Controller.getOne);
 
 		// Update
 

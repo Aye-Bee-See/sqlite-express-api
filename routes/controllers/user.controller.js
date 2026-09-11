@@ -54,10 +54,11 @@ export default class UserController extends RouteController {
 	 * Send a list of users with password hashes removed. An empty list is a
 	 * successful, empty result, not an error.
 	 */
-	#handleUsers(res, users) {
-		this.#handleSuccess(
+	#handleUsers(res, result, limits) {
+		this.handlePage(
 			res,
-			users.map((user) => this.#stripPassword(user))
+			{ rows: result.rows.map((user) => this.#stripPassword(user)), count: result.count },
+			limits
 		);
 	}
 
@@ -67,14 +68,15 @@ export default class UserController extends RouteController {
 	async getMany(req, res) {
 		let errorVar;
 		const { role, full, page, page_size } = req.query;
-		const { limit, offset } = this.#handleLimits(page, page_size);
+		const limits = this.#handleLimits(page, page_size);
+		const { limit, offset } = limits;
 
 		const fullBool = full === 'true';
 
 		if (role) {
 			try {
 				const users = await User.getUsersByRole(role, fullBool, limit, offset);
-				this.#handleUsers(res, users);
+				this.#handleUsers(res, users, limits);
 			} catch (err) {
 				errorVar = !(err instanceof Error) ? new Error(err) : err;
 				this.#handleErr(res, errorVar, 'role');
@@ -82,7 +84,7 @@ export default class UserController extends RouteController {
 		} else {
 			try {
 				const users = await User.getAllUsers(fullBool, limit, offset);
-				this.#handleUsers(res, users);
+				this.#handleUsers(res, users, limits);
 			} catch (err) {
 				errorVar = !(err instanceof Error) ? new Error(err) : err;
 				this.#handleErr(res, errorVar);

@@ -34,15 +34,11 @@ class ChapterRoutes {
 
 		this.Router.get(
 			chapterEnd.get.many,
-			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.optionalAuthenticate,
 			this.#Controller.getMany
 		);
 
-		this.Router.get(
-			chapterEnd.get.one,
-			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			this.#Controller.getOne
-		);
+		this.Router.get(chapterEnd.get.one, AuthzService.optionalAuthenticate, this.#Controller.getOne);
 
 		// Update
 

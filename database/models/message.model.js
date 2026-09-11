@@ -66,7 +66,7 @@ export default class Message extends Model {
 	// Read
 	static async readAllMessages(limit, offset = 0, extraWhere = {}) {
 		let filters = { limit, offset, where: { ...extraWhere } };
-		return await Message.findAll(filters);
+		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
 	}
 
 	/**
@@ -84,7 +84,7 @@ export default class Message extends Model {
 			where: { id: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
-		return await Message.findAll(filters);
+		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
 	}
 
 	static async readMessagesByChat(id, limit, offset = 0, extraWhere = {}) {
@@ -97,7 +97,7 @@ export default class Message extends Model {
 			where: { chat: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
-		return await Message.findAll(filters);
+		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
 	}
 
 	static async readMessagesByPrisoner(id, limit, offset = 0, extraWhere = {}) {
@@ -110,7 +110,7 @@ export default class Message extends Model {
 			where: { prisoner: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
-		return await Message.findAll(filters);
+		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
 	}
 
 	static async readMessagesByUser(id, limit, offset = 0, extraWhere = {}) {
@@ -123,7 +123,7 @@ export default class Message extends Model {
 			where: { user: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
-		return await Message.findAll(filters);
+		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
 	}
 
 	// Update

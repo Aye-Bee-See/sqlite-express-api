@@ -1,6 +1,7 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
+import { publishedWhere } from '#db/record-status.js';
 
 export default class Chapter extends Model {
 	static init(sequelize) {
@@ -16,8 +17,12 @@ export default class Chapter extends Model {
 	static associate() {}
 
 	//Create
-	static async createChapter({ name, location }) {
-		return await this.create({ name, location });
+	static async createChapter({ name, location, recordStatus }) {
+		const values = { name, location };
+		if (recordStatus !== undefined) {
+			values.recordStatus = recordStatus;
+		}
+		return await this.create(values);
 	}
 	static async createBulkChapters(chapterArray) {
 		return await this.bulkCreate(chapterArray, { individualHooks: true, ignoreDuplicates: true });
@@ -29,14 +34,28 @@ export default class Chapter extends Model {
 
 		return count;
 	}
-	//TODO add pagination to this
-	static async getAllChapters() {
-		return await this.findAll({});
+
+	/**
+	 * One page of chapters.
+	 * @param {{limit?: number, offset?: number, publishedOnly?: boolean, where?: object}} options
+	 * @returns {Promise<{rows: Chapter[], count: number}>}
+	 */
+	static async getAllChapters({ limit, offset = 0, publishedOnly = false, where = {} } = {}) {
+		return await this.findAndCountAll({
+			where: { ...where, ...publishedWhere(publishedOnly) },
+			limit,
+			offset,
+			order: [['id', 'ASC']]
+		});
 	}
 
-	static async getChapterByID(id) {
+	/**
+	 * @param {number|string} id
+	 * @param {{publishedOnly?: boolean}} options
+	 */
+	static async getChapterByID(id, { publishedOnly = false } = {}) {
 		return await this.findOne({
-			where: { id: id }
+			where: { id, ...publishedWhere(publishedOnly) }
 		});
 	}
 

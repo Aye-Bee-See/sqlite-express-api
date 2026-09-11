@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { recordStatusAttribute } from '#db/record-status.js';
 
 const chapterSchema = {
 	name: {
@@ -17,6 +18,10 @@ const chapterSchema = {
 	},
 	averageTimeDays: {
 		type: DataTypes.INTEGER
+	},
+	recordStatus: {
+		type: DataTypes.STRING,
+		...recordStatusAttribute
 	}
 };
 

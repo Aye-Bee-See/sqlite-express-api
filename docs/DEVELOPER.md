@@ -441,13 +441,15 @@ Consequences: a deleted user's tokens stop working immediately; banning a user r
 | `requireRole(...roles)`    | `:118` | Middleware: 403 unless the caller holds one of the roles.                                                                                     |
 | `requireSelfOrAdmin`       | `:130` | Middleware: allow admins, or any caller whose own record is the target.                                                                       |
 | `optionalAuthenticate`     | `:142` | Middleware: if an `Authorization` header is present, verify it with the JWT strategy and set `req.user`; a bad token is a 401, not anonymous. |
+| `isStaff(req)`             |        | Admin or chapter.                                                                                                                             |
+| `publishedOnly(req)`       |        | True for anonymous callers and the `user` role: directory reads are limited to published records.                                             |
 
 The policy, as implemented:
 
 - Registration is public and always yields `role: user`; other roles need an admin token.
 - Banned users are refused at login and at token verification, so `hasRole` never sees them.
 - User management is admin-only, except that anyone may read, update, or delete their own record and non-admins may not change `role`.
-- Writes to prisons, prisoners, rules, and chapters need `admin` or `chapter`. Reads need any token.
+- Reads of prisons, prisoners, rules, and chapters need no token (`optionalAuthenticate`). Anonymous callers and the `user` role see published records only; staff see everything and may filter by `recordStatus`. `AuthzService.publishedOnly(req)` decides, and `routes/controllers/directory.helpers.js` turns it into model options. Writes need `admin` or `chapter`.
 - Chats and messages: `user` sees only their own; `admin` and `chapter` see everything. Enforced in the controllers because it depends on the record, not just the route.
 
 To change the policy, edit the route files (which roles guard which routes) and the two controllers (ownership). `requireRole` is deliberately dumb so that the policy stays visible in the route definitions.
@@ -464,17 +466,17 @@ Tables: `User` (explicit `tableName`), `Prisons`, `Prisoners`, `Rules`, `Chats`,
 
 `database/schemas/<model>.schema.js` files export plain objects passed to `Model.init`:
 
-| Model    | Columns (beyond id and timestamps)                                                                                      | Validation                                                                                                                           |
-| -------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| User     | `name`, `username` (unique, not null), `password` (not null), `email` (unique, not null), `bio` TEXT, `role` (not null) | `username` len 3-16, `name` len 3-32, `bio` len 12-2400, `password` len 7-255, `email` isEmail, `role` in admin/user/chapter/banned. |
-| Prison   | `prisonName` (not null), `address` JSON (not null)                                                                      | none                                                                                                                                 |
-| Prisoner | `birthName`, `chosenName`, `prison` INT (FK), `inmateID`, `releaseDate` DATE, `bio`, `status`                           | `status` in pretrial/incarcerated/free                                                                                               |
-| Rule     | `title`, `description`                                                                                                  | none                                                                                                                                 |
-| Chat     | `user` INT (FK), `prisoner` INT (FK), explicit `id`                                                                     | none                                                                                                                                 |
-| Message  | `chat` INT (FK, not null), `messageText`, `sender` (not null), `prisoner` INT (FK, not null), `user` INT (FK, not null) | `chat`/`prisoner`/`user` isInt + notNull; `sender` in user/prisoner                                                                  |
-| Chapter  | `name` (not null), `location` JSON (not null), `prisoners` JSON, `lettersSent` STRING, `averageTimeDays` INT            | none                                                                                                                                 |
+| Model    | Columns (beyond id and timestamps)                                                                                           | Validation                                                                                                                           |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| User     | `name`, `username` (unique, not null), `password` (not null), `email` (unique, not null), `bio` TEXT, `role` (not null)      | `username` len 3-16, `name` len 3-32, `bio` len 12-2400, `password` len 7-255, `email` isEmail, `role` in admin/user/chapter/banned. |
+| Prison   | `prisonName` (not null), `address` JSON (not null), `recordStatus` (not null, default published)                             | `recordStatus` in draft/pending/published                                                                                            |
+| Prisoner | `birthName`, `chosenName`, `prison` INT (FK), `inmateID`, `releaseDate` DATE, `bio`, `status`, `recordStatus`                | `status` in pretrial/incarcerated/free; `recordStatus` in draft/pending/published                                                    |
+| Rule     | `title`, `description`                                                                                                       | none                                                                                                                                 |
+| Chat     | `user` INT (FK), `prisoner` INT (FK), explicit `id`                                                                          | none                                                                                                                                 |
+| Message  | `chat` INT (FK, not null), `messageText`, `sender` (not null), `prisoner` INT (FK, not null), `user` INT (FK, not null)      | `chat`/`prisoner`/`user` isInt + notNull; `sender` in user/prisoner                                                                  |
+| Chapter  | `name` (not null), `location` JSON (not null), `prisoners` JSON, `lettersSent` STRING, `averageTimeDays` INT, `recordStatus` | `recordStatus` in draft/pending/published                                                                                            |
 
-The foreign-key columns are declared as plain integers in the schemas; the `references` and `ON DELETE` clauses come from the associations below.
+The foreign-key columns are declared as plain integers in the schemas; the `references` and `ON DELETE` clauses come from the associations below. `recordStatus` is defined once in `database/record-status.js` and spread into the three schemas.
 
 ### Associations
 
@@ -546,7 +548,9 @@ User ids do not come out in seed-file order; in one run `admin` received id 3. D
 
 `handleLimits` in the base controller validates `page` and `page_size` and turns them into Sequelize `limit` and `offset`. Every list controller calls it; there are no private copies of the arithmetic any more.
 
-Model read methods take `(…, full, limit, offset)` or `(…, limit, offset)` and build a `findAll` options object; `full` switches on an `include` array. The signatures are mostly consistent now but still positional. An options object would remove the whole class of argument-order bug that was fixed in 2026; consider it if you touch many of them.
+List readers return `findAndCountAll` results, `{ rows, count }`, and controllers send them through `RouteController.handlePage(res, result, limits)`, which puts `rows` in `data` and adds `total`, `page`, and `page_size` to the envelope. Counts use `distinct: true` wherever a has-many include could multiply rows.
+
+The directory models (Prison, Prisoner, Rule, Chapter) take an options object: `getAllPrisons({ full, limit, offset, publishedOnly, where })`, `getPrisonByID(id, { full, publishedOnly })`, and so on. `publishedOnly` adds `recordStatus = 'published'` to the query and to the embedded prisoners/prisons, and hides chats from prisoner embeds. Chat, Message, and User readers are still positional `(…, limit, offset)`; convert them to the same style when you next touch them.
 
 `full` is a string in the query; controllers compare `full === 'true'`. Message endpoints accept it and ignore it (there is no message eager-load yet).
 
@@ -664,11 +668,10 @@ Known gaps, roughly in the order they are worth tackling:
 1. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
 2. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
 3. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
-4. **Chapter list pagination.** `GET /chapter/chapters` returns everything.
-5. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
-6. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
-7. **Chapter-scoped data.** Chapter accounts currently see and edit everything; if chapters should only handle their own region's letters, that needs a relation between Chapter and users or prisons and a filter like the user ownership one.
-8. **Rate limiting and request logging.** None.
-9. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
-10. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
-11. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.
+4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
+5. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
+6. **Chapter-scoped data.** Chapter accounts currently see and edit everything; if chapters should only handle their own region's letters, that needs a relation between Chapter and users or prisons and a filter like the user ownership one.
+7. **Rate limiting and request logging.** None.
+8. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
+9. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
+10. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.

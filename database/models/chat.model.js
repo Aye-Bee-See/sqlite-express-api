@@ -83,7 +83,7 @@ export default class Chat extends Model {
 			};
 		}
 		filters = { ...filters, ...options };
-		return await Chat.findAll(filters);
+		return await Chat.findAndCountAll({ ...filters, distinct: true, order: [['id', 'ASC']] });
 	}
 
 	/**
@@ -131,7 +131,7 @@ export default class Chat extends Model {
 			};
 		}
 		filters = { ...filters, ...options };
-		return await Chat.findAll(filters);
+		return await Chat.findAndCountAll({ ...filters, distinct: true, order: [['id', 'ASC']] });
 	}
 
 	static async readChatsByPrisoner(id, full, limit, offset = 0) {
@@ -163,7 +163,7 @@ export default class Chat extends Model {
 			};
 		}
 		filters = { ...filters, ...options };
-		return await Chat.findAll(filters);
+		return await Chat.findAndCountAll({ ...filters, distinct: true, order: [['id', 'ASC']] });
 	}
 
 	static async readChatByUserAndPrisoner(user, prisoner, full) {

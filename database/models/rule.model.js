@@ -3,6 +3,8 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prison from '#models/prison.model.js';
 import modelsService from '#models/models.service.js';
+import { NotFoundError } from '#services/HttpError.js';
+import { publishedWhere, PUBLISHED } from '#db/record-status.js';
 
 export default class Rule extends Model {
 	static init(sequelize) {
@@ -22,8 +24,19 @@ export default class Rule extends Model {
 		});
 	}
 
-	static async createRule({ prison, title, description }) {
-		return await this.create({ prison, title, description });
+	/** Includes for full=true: the prisons a rule is attached to (published only when asked). */
+	static #includes(publishedOnly) {
+		return [
+			{
+				model: Prison,
+				as: 'prisons',
+				...(publishedOnly ? { where: publishedWhere(true), required: false } : {})
+			}
+		];
+	}
+
+	static async createRule({ title, description }) {
+		return await this.create({ title, description });
 	}
 	/**
 	 *  create multiple rule
@@ -44,60 +57,61 @@ export default class Rule extends Model {
 		return count;
 	}
 
-	static async getAllRules(limit, offset = 0, full = false) {
-		let filters = { limit, offset };
-		let options;
-		if (full) {
-			options = {
-				include: [
-					{
-						model: Prison,
-						as: 'prisons'
-					}
-				]
-			};
-		}
-		filters = { ...filters, ...options };
-		return await Rule.findAll(filters);
+	/**
+	 * One page of rules. Rules have no publication state of their own.
+	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean}} options
+	 * @returns {Promise<{rows: Rule[], count: number}>}
+	 */
+	static async getAllRules({ full = false, limit, offset = 0, publishedOnly = false } = {}) {
+		return await this.findAndCountAll({
+			include: full ? this.#includes(publishedOnly) : [],
+			limit,
+			offset,
+			distinct: true,
+			order: [['id', 'ASC']]
+		});
 	}
 
-	static async getRulesByPrison(prison, limit, offset = 0) {
-		const exists = await modelsService.modelInstanceExists('Prison', prison);
-		if (exists instanceof Error) {
-			throw exists;
+	/**
+	 * One page of the rules attached to one prison.
+	 * @param {number|string} prisonId
+	 * @param {{limit?: number, offset?: number, publishedOnly?: boolean}} options
+	 * @throws {NotFoundError} when the prison does not exist, or is unpublished and publishedOnly
+	 */
+	static async getRulesByPrison(prisonId, { limit, offset = 0, publishedOnly = false } = {}) {
+		const prison = await modelsService.modelInstanceExists('Prison', prisonId);
+		if (prison instanceof Error) {
+			throw prison;
 		}
-		let filters = { limit, offset };
-		let options = {
+		if (publishedOnly && prison.recordStatus !== PUBLISHED) {
+			throw new NotFoundError('Prison ' + prisonId + ' not found');
+		}
+		return await this.findAndCountAll({
 			include: [
 				{
 					model: Prison,
 					as: 'prisons',
-					where: {
-						id: prison
-					}
+					where: { id: prisonId },
+					required: true,
+					attributes: []
 				}
-			]
-		};
-		filters = { ...filters, ...options };
-		return await Rule.findAll(filters);
+			],
+			limit,
+			offset,
+			distinct: true,
+			order: [['id', 'ASC']]
+		});
 	}
 
-	static async getRuleByID(id, full) {
-		if (full) {
-			return await this.findOne({
-				where: { id: id },
-				include: [
-					{
-						model: Prison,
-						as: 'prisons'
-					}
-				]
-			});
-		} else {
-			return await this.findOne({
-				where: { id: id }
-			});
-		}
+	/**
+	 * @param {number|string} id
+	 * @param {{full?: boolean, publishedOnly?: boolean}} options
+	 */
+	static async getRuleByID(id, { full = false, publishedOnly = false } = {}) {
+		return await this.findOne({
+			where: { id },
+			include: full ? this.#includes(publishedOnly) : []
+		});
 	}
 
 	static async updateRule(rule) {

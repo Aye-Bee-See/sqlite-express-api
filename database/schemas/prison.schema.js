@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { recordStatusAttribute } from '#db/record-status.js';
 
 const prisonSchema = {
 	prisonName: {
@@ -8,6 +9,10 @@ const prisonSchema = {
 	address: {
 		type: DataTypes.JSON,
 		allowNull: false
+	},
+	recordStatus: {
+		type: DataTypes.STRING,
+		...recordStatusAttribute
 	}
 };
 

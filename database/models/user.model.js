@@ -79,7 +79,7 @@ export default class User extends Model {
 		}
 		filters = { ...filters, ...options };
 
-		return await User.findAll(filters);
+		return await User.findAndCountAll({ ...filters, distinct: true, order: [['id', 'ASC']] });
 	}
 
 	/**
@@ -107,7 +107,7 @@ export default class User extends Model {
 				}
 			];
 		}
-		return await User.findAll(filters);
+		return await User.findAndCountAll({ ...filters, distinct: true, order: [['id', 'ASC']] });
 	}
 
 	/**

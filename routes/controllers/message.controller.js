@@ -63,7 +63,8 @@ export default class MessageController extends RouteController {
 	 */
 	async getMany(req, res) {
 		const { id, chat, prisoner, user, page, page_size } = req.query;
-		const { limit, offset } = this.#handleLimits(page, page_size);
+		const limits = this.#handleLimits(page, page_size);
+		const { limit, offset } = limits;
 		const owner = this.#ownerFilter(req);
 
 		try {
@@ -79,7 +80,7 @@ export default class MessageController extends RouteController {
 			} else {
 				messages = await Message.readAllMessages(limit, offset, owner);
 			}
-			this.#handleSuccess(res, messages);
+			this.handlePage(res, messages, limits);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

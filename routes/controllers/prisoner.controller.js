@@ -1,5 +1,6 @@
 import Prisoner from '#models/prisoner.model.js';
 import RouteController from '#rtControllers/route.controller.js';
+import { readOptions } from '#rtControllers/directory.helpers.js';
 
 export default class PrisonerController extends RouteController {
 	constructor() {
@@ -26,20 +27,26 @@ export default class PrisonerController extends RouteController {
 
 	/**
 	 * List prisoners, optionally filtered to one prison with ?prison=<id>.
-	 * Paginated with page and page_size; full=true embeds the prison and,
-	 * for the by-prison variant, each prisoner's chats.
+	 * Paginated with page and page_size; full=true embeds the prison and, for
+	 * staff listing by prison, each prisoner's chats.
 	 */
 	async getMany(req, res) {
 		const { prison, full, page, page_size } = req.query;
-		const { limit, offset } = this.#handleLimits(page, page_size);
-		const fullBool = full === 'true';
+		const limits = this.#handleLimits(page, page_size);
+		const { publishedOnly, where } = readOptions(req);
+		const options = {
+			full: full === 'true',
+			limit: limits.limit,
+			offset: limits.offset,
+			publishedOnly
+		};
 
 		try {
-			const prisoners =
+			const result =
 				prison !== undefined
-					? await Prisoner.getPrisonersByPrison(prison, fullBool, limit, offset)
-					: await Prisoner.getAllPrisoners(fullBool, limit, offset);
-			this.#handleSuccess(res, prisoners);
+					? await Prisoner.getPrisonersByPrison(prison, options)
+					: await Prisoner.getAllPrisoners({ ...options, where });
+			this.handlePage(res, result, limits);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -50,9 +57,9 @@ export default class PrisonerController extends RouteController {
 
 	async getOne(req, res) {
 		const { id, full } = req.query;
-		const fullBool = full === 'true';
+		const { publishedOnly } = readOptions(req);
 		try {
-			const prisoner = await Prisoner.getPrisonerByID(id, fullBool);
+			const prisoner = await Prisoner.getPrisonerByID(id, { full: full === 'true', publishedOnly });
 			this.#handleSuccess(res, this.requireFound(prisoner, 'Prisoner ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -61,7 +68,8 @@ export default class PrisonerController extends RouteController {
 	}
 	// Create
 	async create(req, res) {
-		const { birthName, chosenName, prison, inmateID, releaseDate, bio, status } = req.body;
+		const { birthName, chosenName, prison, inmateID, releaseDate, bio, status, recordStatus } =
+			req.body;
 		try {
 			const prisoner = await Prisoner.createPrisoner({
 				birthName,
@@ -70,7 +78,8 @@ export default class PrisonerController extends RouteController {
 				inmateID,
 				releaseDate,
 				bio,
-				status
+				status,
+				recordStatus
 			});
 			this.#handleSuccess(res, prisoner);
 		} catch (err) {

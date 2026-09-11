@@ -1,5 +1,6 @@
 import Rule from '#models/rule.model.js';
 import RouteController from '#rtControllers/route.controller.js';
+import { readOptions } from '#rtControllers/directory.helpers.js';
 
 export default class ruleController extends RouteController {
 	constructor() {
@@ -23,6 +24,7 @@ export default class ruleController extends RouteController {
 	#handleSuccess;
 	#handleErr;
 	#handleLimits;
+
 	/**
 	 * List rules, optionally only those attached to one prison via
 	 * ?prison=<id>. Paginated with page and page_size; full=true embeds the
@@ -30,15 +32,16 @@ export default class ruleController extends RouteController {
 	 */
 	async getMany(req, res) {
 		const { prison, full, page, page_size } = req.query;
-		const { limit, offset } = this.#handleLimits(page, page_size);
-		const fullBool = full === 'true';
+		const limits = this.#handleLimits(page, page_size);
+		const { publishedOnly } = readOptions(req);
+		const options = { limit: limits.limit, offset: limits.offset, publishedOnly };
 
 		try {
-			const rules =
+			const result =
 				prison !== undefined
-					? await Rule.getRulesByPrison(prison, limit, offset)
-					: await Rule.getAllRules(limit, offset, fullBool);
-			this.#handleSuccess(res, rules);
+					? await Rule.getRulesByPrison(prison, options)
+					: await Rule.getAllRules({ ...options, full: full === 'true' });
+			this.handlePage(res, result, limits);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -49,9 +52,9 @@ export default class ruleController extends RouteController {
 
 	async getOne(req, res) {
 		const { id, full } = req.query;
-		const fullBool = full === 'true';
+		const { publishedOnly } = readOptions(req);
 		try {
-			const rule = await Rule.getRuleByID(id, fullBool);
+			const rule = await Rule.getRuleByID(id, { full: full === 'true', publishedOnly });
 			this.#handleSuccess(res, this.requireFound(rule, 'Rule ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;

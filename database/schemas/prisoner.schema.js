@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { recordStatusAttribute } from '#db/record-status.js';
 
 const prisonerSchema = {
 	birthName: {
@@ -27,6 +28,10 @@ const prisonerSchema = {
 				msg: 'Status must be pretrial, incarcerated, or free.'
 			}
 		}
+	},
+	recordStatus: {
+		type: DataTypes.STRING,
+		...recordStatusAttribute
 	}
 };
 export default prisonerSchema;

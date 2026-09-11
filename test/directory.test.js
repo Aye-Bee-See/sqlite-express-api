@@ -26,6 +26,7 @@ test('prison create, read, update, delete', async () => {
 		'createdAt',
 		'id',
 		'prisonName',
+		'recordStatus',
 		'updatedAt'
 	]);
 

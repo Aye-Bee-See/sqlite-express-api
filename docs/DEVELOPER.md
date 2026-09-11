@@ -1,8 +1,8 @@
 # Aye Bee See API: Developer Guide
 
-This guide is for people changing the code in this repository. It explains how the service is put together, how a request travels through it, how the data layer works, what tooling is in place, and, in detail, what is currently broken and why. If you only want to call the API, read the [README](../README.md) instead.
+This guide is for people changing the code in this repository. It explains how the service is put together, how a request travels through it, how authentication and authorization work, how the data layer is wired, what tooling is in place, and what is still open. If you only want to call the API, read the [README](../README.md) instead.
 
-Everything here describes `main` as of September 2026 (last commit June 2025). Statements about runtime behavior were verified by running the server locally with the single-line crash in `route.controller.js` patched; see [Bug catalog](#bug-catalog) item B1.
+It describes `main` after pull requests #60 and #61 (September 2026). Line references point at that state; they drift as files change, so treat them as a starting point for `grep`, not gospel. Every behavioral claim was verified by running the server.
 
 ## Contents
 
@@ -17,120 +17,125 @@ Everything here describes `main` as of September 2026 (last commit June 2025). S
 - [Controller layer](#controller-layer)
 - [Response and error contract](#response-and-error-contract)
 - [Authentication internals](#authentication-internals)
+- [Authorization internals](#authorization-internals)
 - [Data layer](#data-layer)
 - [Seeds](#seeds)
 - [Pagination and the `full` flag](#pagination-and-the-full-flag)
 - [Tooling](#tooling)
 - [How to add a new resource](#how-to-add-a-new-resource)
 - [Conventions and gotchas](#conventions-and-gotchas)
-- [Bug catalog](#bug-catalog)
-- [Suggested order of work](#suggested-order-of-work)
+- [History: what was fixed in 2026](#history-what-was-fixed-in-2026)
+- [Open items](#open-items)
 
 ## What this service is
 
 Aye Bee See lets people send physical letters to incarcerated people from a phone or browser. The user writes a message; a partner non-profit chapter prints it and mails it; replies are transcribed back into the same thread. This repository is the API that the front end (expected at `http://localhost:3001` in development) talks to. It owns:
 
-- **Users** (outside correspondents, admins, chapters) and login.
+- **Users** (outside correspondents, chapter accounts, admins) and login.
 - **Prisons** and their **Rules** (mail restrictions).
 - **Prisoners** and which prison each is in.
 - **Chats** (one user, one prisoner) and the **Messages** inside them.
 - **Chapters** of the partner organization.
 
-It is a single Node.js process using Express 5, Passport (local + JWT strategies), Sequelize 6, and SQLite. There is no queue, no cache, and no background job. The mailing side (printing, postage, tracking) is not represented in this codebase yet; the nearest thing is the `lettersSent` and `averageTimeDays` columns on Chapter.
+It is a single Node.js process using Express 5, Passport (local and JWT strategies), Sequelize 6, and SQLite. There is no queue, no cache, and no background job. The mailing side (printing, postage, tracking) is not represented in this codebase yet; the nearest thing is the `lettersSent` and `averageTimeDays` columns on Chapter.
 
 ## Quick start for developers
 
 ```bash
 git clone https://github.com/Aye-Bee-See/sqlite-express-api.git
 cd sqlite-express-api
-npm install
-printf 'JWT_SECRET=dev-secret-change-me\nPORT=3000\n' > .env
-npx nodemon index.js
+npm ci
+cp .env.example .env      # then edit JWT_SECRET at minimum
+npm run dev
 ```
 
 Notes:
 
-- `npm ci` fails because `package-lock.json` is out of date relative to `package.json` (eslint, husky, and lint-staged ranges drifted). `npm install` works but will rewrite the lockfile; decide whether to commit that.
-- `bcrypt` and `sqlite3` are native modules. On a fresh machine npm downloads prebuilt binaries; if that fails you need a C++ toolchain.
-- The server was verified on Node 24.20. The code uses static class blocks, private class members, and `Object.hasOwn`, so Node 16.11 or newer is the practical floor.
-- `npm install` runs the `prepare` script, which runs `husky install` and creates `.husky/_`. That enables the pre-commit hook described under [Tooling](#tooling).
-- To actually get a response from any endpoint you must first apply the fix in [B1](#b1-every-controller-response-throws).
+- `npm ci` works and is preferred; the lockfile is in sync. `bcrypt` and `sqlite3` are native modules with prebuilt binaries for Intel and Apple Silicon Macs; their install scripts are pre-approved in `package.json` (see [Tooling](#tooling)).
+- Verified on Node 24 and Node 26. `engines.node` is `>=18`. Node 26 specifically needs `jsonwebtoken` 9.0.3 or newer (already pinned) because it removed `SlowBuffer`.
+- `npm ci` runs the `prepare` script, which installs the Husky pre-commit hook.
+- The database is created and seeded on first boot and persists afterwards. `DB_RESET=true npm start` wipes it.
+- To get an admin token, log in as the seeded `admin` / `abcpassword`, or set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` in `.env`.
 
-There are no tests to run. `npm test` prints a placeholder string.
+There are no automated tests yet. `npm test` prints a placeholder string. See [Open items](#open-items).
 
 ## Architecture overview
 
 Layers, top to bottom:
 
 ```text
-index.js                       Express app, global middleware, mounts one Router per resource
-  routes/<resource>/<resource>.js   Route class: binds paths to passport + controller methods
+index.js                          Express app, global middleware, JSON 404 catch-all, mounts one Router per resource
+  routes/<resource>/<resource>.js     Route class: binds paths to passport + authorization gates + controller methods
+    routes/services/auth.services.js    Passport strategies (local login, JWT) and token creation
+    routes/services/authz.services.js   Role, self, and ownership checks
     routes/controllers/<resource>.controller.js   Controller: reads req, calls model, formats response
-      routes/controllers/route.controller.js         Base class: success/error formatting, pagination
+      routes/controllers/route.controller.js         Base class: pagination, 201/200 success, status-aware errors, 404 helpers
     database/models/<resource>.model.js            Sequelize Model subclass with static CRUD helpers
-      database/schemas/<resource>.schema.js          Column definitions
+      database/schemas/<resource>.schema.js          Column definitions and validators
       database/hooks/<resource>.hooks.js             Lifecycle hooks (password hashing, chat lookup)
-  database/sql-database.js         Creates the Sequelize instance, inits models, syncs, seeds
-routes/constants.js             Every path string and every success/error message
-routes/services/auth.services.js   Passport strategies and JWT creation
+  database/sql-database.js         Creates the Sequelize instance, inits models, syncs, seeds, bootstraps an admin
+  database/bootstrap-admin.js      ensureAdmin()
+routes/constants.js                Every path string and every success/error message
 routes/services/error.services.js  Final Express error handler
+services/HttpError.js              HttpError (status-carrying) and NotFoundError
+services/ValidationError.js        ValidationError, rendered like Sequelize validation failures
 ```
 
-The pattern is a conventional MVC-without-views: route → controller → model. Two design choices shape everything else and are worth understanding before you touch anything:
+Two design choices shape everything else:
 
-1. **All user-facing strings and paths live in one nested object** in `routes/constants.js`, keyed by resource, HTTP method, and operation. Controllers do not know their own messages; the base controller looks them up at response time by inspecting Express's route stack to discover which handler is running. This is clever and fragile; see [Controller layer](#controller-layer).
+1. **All user-facing strings and paths live in one nested object** in `routes/constants.js`, keyed by resource, HTTP method, and operation. Controllers do not know their own messages; the base controller looks them up at response time by inspecting Express's route stack to find which handler is running. See [Controller layer](#controller-layer).
 2. **Models are classes with static methods.** Nothing calls `new Prison()`. Controllers call `Prison.getPrisonByID(id, full)` and the model wraps Sequelize's `findOne` / `findAll` / `update` / `destroy`. Associations are declared in a static `associate(models)` method run once at boot.
 
 ### Request lifecycle
 
-Here is what happens for `GET /prison/prison?id=1` with a valid bearer token:
+`GET /prison/prison?id=1` with a valid bearer token:
 
-1. `index.js` middleware runs in order: `cors` (origin `http://localhost:3001`), `bodyParser.json`, `bodyParser.urlencoded`, `passport.initialize`.
+1. `index.js` middleware runs in order: `cors` (origins from `CORS_ORIGIN`), `bodyParser.json`, `bodyParser.urlencoded`, `passport.initialize`.
 2. Express matches the `/prison` prefix and hands off to `PrisonRoutes.Router`.
-3. Inside that router, the path template `/prison{/:id}` matches. The first handler is `passport.authenticate('UsrJStrat', { session: false, failWithError: true })`.
-4. The JWT strategy in `auth.services.js` extracts the bearer token, verifies its signature and expiry against `JWT_SECRET`, and calls its verify callback. On success `req.user` is set (to a Promise, see [B2](#b2-jwt-verification-does-not-check-the-user-exists)) and the next handler runs. On failure, because of `failWithError`, an `AuthenticationError` is passed to `next(err)` and ends up in `ErrorService.handler`, which sends the 401 JSON.
-5. The second handler is `controller.getOne`, which was bound to the controller instance in the constructor. It reads `id` and `full` from `req.query`, calls `Prison.getPrisonByID(id, fullBool)`, and passes the result to `this.#handleSuccess(res, prison)`.
-6. `RouteController.handleSuccess` walks `res.req.route.stack`, finds the layer whose function name is `bound getOne`, strips the `bound ` prefix, maps `getOne` to the message key `one`, reads the HTTP method from the layer, and looks up `messages.prison.get.one.success.condition.par` in `routes/constants.js`. It then sends `{ data, info, success: true, status: 200, name: 'prison one' }`.
-7. If the model throws, the controller's `catch` wraps non-Error values in an `Error` and calls `this.#handleErr(res, err)`, which does the same stack walk to find `messages.prison.get.one.error.condition.par` and sends a 400.
+3. The path `/prison` matches. The first handler is `passport.authenticate('UsrJStrat', { session: false, failWithError: true })`.
+4. The JWT strategy in `auth.services.js` verifies the signature and expiry against `JWT_SECRET`, loads the user by the `id` claim, and rejects the request if the user is missing or banned. On success `req.user` is the User instance (without its password hash) and the next handler runs. On failure, `failWithError` sends an `AuthenticationError` to `next(err)`, which `ErrorService.handler` renders as a 401.
+5. Reads have no role gate, so the next handler is `controller.getOne`, bound to the controller instance in its constructor. Write routes would first pass through `AuthzService.requireRole(...)` here.
+6. The controller reads `id` and `full` from `req.query`, calls `Prison.getPrisonByID(id, fullBool)`, passes the result through `this.requireFound(prison, 'Prison ' + id)` (which throws `NotFoundError` on `null`), and then `this.#handleSuccess(res, prison)`.
+7. `RouteController.handleSuccess` walks `res.req.route.stack`, finds the layer whose function name is `bound getOne`, maps `getOne` to the message key `one`, reads the HTTP method from the layer, and looks up `messages.prison.get.one.success.condition.par` in `routes/constants.js`. It sends `{ data, info, success: true, status: 200, name: 'prison one' }`. For `create` handlers the status is 201.
+8. If anything throws, the controller's `catch` wraps non-Error values in an `Error` and calls `this.#handleErr(res, err)`, which does the same stack walk for the error message, picks the HTTP status with `HttpError.statusOf(err)` (404 for the `NotFoundError` above, 400 for validation and constraint errors, 500 otherwise), and sends `{ success: false, name, info, status, error }`.
 
-Nothing in that path touches `req.params`. See [Routing layer](#routing-layer).
+Nothing in that path reads `req.params`; all identifiers travel in the query string or body.
 
 ## Repository map
 
 ```text
 .
-├── index.js                          Entry point. Builds the app, mounts routers, starts listening.
-├── constants.js                      Loads .env and exports JWT_SECRET, PORT, REDIS_SECRET.
-├── package.json                      ESM ("type": "module"), path aliases under "imports", scripts.
-├── package-lock.json                 Out of sync with package.json (see Tooling).
+├── index.js                          Entry point. Builds the app, imports auth.services (strategy registration), mounts routers, JSON 404, error handler.
+├── constants.js                      Loads .env; exports JWT secret, port, admin bootstrap values, CORS origins, DB flags.
+├── package.json                      ESM, path aliases under "imports", scripts, allowScripts, engines.
+├── package-lock.json                 In sync; npm ci works.
+├── .env.example                      Every environment variable with a comment.
 ├── eslint.config.js                  ESLint 9 flat config: JS, JSON, Markdown, CSS, Prettier.
 ├── .prettierrc.json                  Tabs, single quotes, width 100, no trailing commas.
-├── .husky/pre-commit                 Runs lint-staged.
-├── .gitignore                        node_modules, database.sqlite, jwt, .env
+├── .husky/pre-commit                 Runs lint-staged (Husky 9 format).
 ├── README.md                         API consumer documentation.
 ├── docs/DEVELOPER.md                 This file.
-├── ABC-3.postman_collection.json     Postman collection, partly outdated.
-├── ABC-3.postman_collection_old.json Older snapshot.
-├── passport.cjs                      Empty file. Dead.
-├── middleware/
-│   └── ErrorHandler.js               An error middleware that is never registered. Dead.
+├── ABC-3.postman_collection.json     Postman collection, current.
+├── ABC-3.postman_collection_old.json Historical snapshot; does not match the API.
 ├── services/
-│   ├── LoudError.js                  Error subclass that prints a colored banner when constructed.
+│   ├── HttpError.js                  HttpError(status, message), NotFoundError, HttpError.statusOf(err).
+│   ├── ValidationError.js            ValidationError(messages), ValidationError.messagesFrom(err).
+│   ├── LoudError.js                  Error subclass that prints a colored banner; used by the controller interface check.
 │   └── Utilities.js                  isUndefined, resolveSequential (used by seeds), objectToStringButSafe (unused).
 ├── routes/
 │   ├── constants.js                  endpoints{} (paths) and messages{} (strings) for every resource.
-│   ├── router.js                     Creates an express app that nothing uses. Dead.
 │   ├── services/
-│   │   ├── auth.services.js          LocalStrategy, JwtStrategy, JWT creation.
+│   │   ├── auth.services.js          LocalStrategy, JwtStrategy, JWT creation; registers both strategies with passport.
+│   │   ├── authz.services.js         requireRole, requireSelfOrAdmin, optionalAuthenticate, ownOnly, ownsRecord, forbidden(), unauthorized().
 │   │   └── error.services.js         ErrorService.handler, the final error middleware.
 │   ├── controllers/
-│   │   ├── route.controller.js       Base class: interface check, handleLimits, handleSuccess, handleErr.
-│   │   ├── user.controller.js        Plus login and password stripping.
+│   │   ├── route.controller.js       Base class: pagination, requireFound/requireAffected, handleSuccess, handleErr.
+│   │   ├── user.controller.js        Plus login, registration role policy, password stripping.
 │   │   ├── prison.controller.js      Plus addRule.
 │   │   ├── prisoner.controller.js
 │   │   ├── rule.controller.js
-│   │   ├── chat.controller.js
-│   │   ├── message.controller.js
+│   │   ├── chat.controller.js        Ownership checks for the user role.
+│   │   ├── message.controller.js     Ownership checks for the user role.
 │   │   └── chapter.controller.js
 │   ├── user/user.js                  Route classes. All seven follow the same template.
 │   ├── prison/prison.js
@@ -140,26 +145,27 @@ Nothing in that path touches `req.params`. See [Routing layer](#routing-layer).
 │   ├── message/message.js
 │   └── chapter/chapter.js
 └── database/
-    ├── sql-database.js               Sequelize instance; init + associate all models; sync({force:true}); seed.
+    ├── sql-database.js               Sequelize instance; init + associate models; sync; seed; ensureAdmin; exports `ready`.
+    ├── bootstrap-admin.js            ensureAdmin(): creates the ADMIN_* account when it does not exist.
     ├── models/
     │   ├── all.model.js              Re-exports every model; has a comment explaining Sequelize associations.
-    │   ├── models.service.js         modelInstanceExists(modelName, pk) helper.
-    │   ├── user.model.js             One class per model, each with static CRUD methods.
-    │   ├── prison.model.js
+    │   ├── models.service.js         modelInstanceExists(modelName, pk): instance or NotFoundError.
+    │   ├── user.model.js             defaultScope hides the password; getUserWithPassword for login.
+    │   ├── prison.model.js           addRule.
     │   ├── prisoner.model.js
     │   ├── rule.model.js
-    │   ├── chat.model.js
-    │   ├── message.model.js
+    │   ├── chat.model.js             Readers accept an extra where-clause for ownership filtering.
+    │   ├── message.model.js          Same; updateMessage re-resolves the chat.
     │   └── chapter.model.js
     ├── schemas/
     │   ├── all.schema.js             Schemas class with one static per model.
     │   └── <model>.schema.js         Plain objects of Sequelize column definitions.
     ├── hooks/
     │   ├── all.hooks.js              Hooks class; only user and message have hooks.
-    │   ├── user.hooks.js             beforeCreate: bcrypt-hash the password.
-    │   └── message.hooks.js          beforeValidate: find-or-create the chat for user + prisoner.
+    │   ├── user.hooks.js             beforeCreate and beforeUpdate: bcrypt-hash the password.
+    │   └── message.hooks.js          beforeValidate: find-or-create the chat for user + prisoner (create only).
     └── seeds/
-        ├── all.seeds.js              Runs the seed functions in dependency order and prints a sample.
+        ├── all.seeds.js              Runs the seed functions in dependency order and prints a one-line summary.
         ├── <model>.seed.js           Reads <model>Seed.json and bulk-creates if the table is empty.
         └── <model>Seed.json          Seed rows.
 ```
@@ -168,85 +174,89 @@ Nothing in that path touches `req.params`. See [Routing layer](#routing-layer).
 
 `package.json` defines Node subpath imports so files can import each other without relative paths. All start with `#`:
 
-| Alias              | Resolves to              | Example                                                  |
-| ------------------ | ------------------------ | -------------------------------------------------------- |
-| `#constants`       | `./constants.js`         | `import { secretOrKey, sysPort } from '#constants'`      |
-| `#/*`              | `./*`                    |                                                          |
-| `#db/*`            | `./database/*`           | `import { User } from '#db/sql-database.js'`             |
-| `#models/*`        | `./database/models/*`    | `import Prison from '#models/prison.model.js'`           |
-| `#schemas/*`       | `./database/schemas/*`   |                                                          |
-| `#hooks/*`         | `./database/hooks/*`     |                                                          |
-| `#seeds/*`         | `./database/seeds/*`     |                                                          |
-| `#routes/*`        | `./routes/*`             | `import { prisonEnd } from '#routes/constants.js'`       |
-| `#rtControllers/*` | `./routes/controllers/*` |                                                          |
-| `#rtServices/*`    | `./routes/services/*`    | `import authService from '#rtServices/auth.services.js'` |
-| `#services/*`      | `./services/*`           | `import Utilities from '#services/Utilities.js'`         |
-| `#dbg/*`           | `./debug/*.mjs`          | Directory does not exist. Unused.                        |
+| Alias              | Resolves to              | Example                                                    |
+| ------------------ | ------------------------ | ---------------------------------------------------------- |
+| `#constants`       | `./constants.js`         | `import { secretOrKey, sysPort } from '#constants'`        |
+| `#/*`              | `./*`                    |                                                            |
+| `#db/*`            | `./database/*`           | `import { User } from '#db/sql-database.js'`               |
+| `#models/*`        | `./database/models/*`    | `import Prison from '#models/prison.model.js'`             |
+| `#schemas/*`       | `./database/schemas/*`   |                                                            |
+| `#hooks/*`         | `./database/hooks/*`     |                                                            |
+| `#seeds/*`         | `./database/seeds/*`     |                                                            |
+| `#routes/*`        | `./routes/*`             | `import { prisonEnd } from '#routes/constants.js'`         |
+| `#rtControllers/*` | `./routes/controllers/*` |                                                            |
+| `#rtServices/*`    | `./routes/services/*`    | `import AuthzService from '#rtServices/authz.services.js'` |
+| `#services/*`      | `./services/*`           | `import { NotFoundError } from '#services/HttpError.js'`   |
 
-Each alias lists several extension fallbacks (`*`, `*.js`, `*.mjs`, `*.cjs`). Note that `#services/*` has a typo in its second entry (`./service/*.js`, singular); it is harmless because every import includes the `.js` extension and matches the first entry. Node does not resolve these aliases for tooling that does not read `package.json` `imports`; ESLint's `js/recommended` does not complain, but an IDE may not follow them without configuration.
+Each alias lists several extension fallbacks. Include the `.js` extension in imports anyway; it keeps resolution unambiguous. IDEs may need to be told about `package.json` `imports` to follow them.
 
 ## Configuration
 
-`constants.js` calls `dotenv/config` and re-exports three environment variables:
+`constants.js` calls `dotenv/config` and exports:
 
-| Export        | Env var        | Used by                                                                                                                   |
-| ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `secretOrKey` | `JWT_SECRET`   | `auth.services.js` to sign and verify tokens. No default; if unset, `jwt.sign` throws on login and every JWT check fails. |
-| `sysPort`     | `PORT`         | `index.js` `app.listen`. No default; if unset Express picks a random free port.                                           |
-| `redisSecret` | `REDIS_SECRET` | Nothing. Leftover from a planned session store.                                                                           |
-| `environ`     | (all)          | Nothing.                                                                                                                  |
+| Export          | Env var          | Default                 | Used by                                                               |
+| --------------- | ---------------- | ----------------------- | --------------------------------------------------------------------- |
+| `secretOrKey`   | `JWT_SECRET`     | none                    | `auth.services.js` to sign and verify tokens. Login fails without it. |
+| `sysPort`       | `PORT`           | none                    | `index.js` `app.listen`. Unset means a random free port.              |
+| `adminUsername` | `ADMIN_USERNAME` | none                    | `bootstrap-admin.js`                                                  |
+| `adminPassword` | `ADMIN_PASSWORD` | none                    | `bootstrap-admin.js`                                                  |
+| `adminEmail`    | `ADMIN_EMAIL`    | none                    | `bootstrap-admin.js`                                                  |
+| `corsOrigins`   | `CORS_ORIGIN`    | `http://localhost:3001` | `index.js`; comma-separated, trimmed, empties dropped.                |
+| `dbReset`       | `DB_RESET`       | `false`                 | `sql-database.js`: `sync({ force })`.                                 |
+| `dbSeed`        | `DB_SEED`        | `true`                  | `sql-database.js`: whether to run `createSeeds()`.                    |
+| `dbLogging`     | `DB_LOGGING`     | `false`                 | `sql-database.js`: Sequelize `logging`.                               |
 
-Other configuration is hardcoded:
+The three `db*` values go through `envBool` (`constants.js:22`), which accepts `true/false`, `1/0`, `yes/no`, `on/off` in any case and otherwise returns the default. `NODE_ENV=development` is read directly by the two error renderers to decide whether 500 responses include the underlying message and stack.
 
-- **Database**: `database/sql-database.js` creates `new Sequelize({ dialect: 'sqlite', storage: 'database.sqlite', ... })`. The `database`, `username`, and `password` keys in that config are ignored by the SQLite dialect. The file path is relative to the process working directory, so always start the server from the repo root. Sequelize's SQL logging is on (the default), which is why every query is printed.
-- **CORS**: `index.js` allows only `http://localhost:3001`, methods `GET, POST, OPTIONS, PUT, PATCH, DELETE`, headers `X-Requested-With, content-type, authorization`, no credentials.
-- **Token lifetime**: one week, in `auth.services.js`.
-- **Default page size**: 10, in `route.controller.js`.
+Hardcoded: the SQLite file path `database.sqlite` relative to the process working directory (start from the repo root); the one-week token lifetime in `auth.services.js`; the default page size (10) and maximum (100) in `route.controller.js`.
 
 ## Boot sequence
 
-Understanding the import graph matters because the database is set up as a **side effect of importing** `database/sql-database.js`, and that import is triggered indirectly.
+The database is set up as a side effect of importing `database/sql-database.js`, which happens through the import graph:
 
-1. `index.js` imports the seven route modules.
-2. Each route module imports `auth.services.js` (for the passport strategies).
-3. `auth.services.js` imports `{ User } from '#db/sql-database.js'`.
-4. Evaluating `sql-database.js`:
-   - creates the Sequelize instance;
+1. `index.js` imports `#rtServices/auth.services.js` (for its side effect of registering the passport strategies) and the seven route modules.
+2. `auth.services.js` imports `{ User } from '#db/sql-database.js'`.
+3. Evaluating `sql-database.js`:
+   - creates the Sequelize instance (`logging` from `DB_LOGGING`);
    - calls `Model.init(sequelize, Sequelize)` for all seven models (each reads its schema and hooks);
-   - calls `associate(Models)` on all seven (this is where `Chapter.associate` prints `{ models: ... }` to the console, a leftover placeholder);
-   - calls `sequelize.sync({ force: true })`, which **drops and recreates every table**, and when that resolves calls `createSeeds()`.
-5. Back in `index.js`, `app.listen(PORT)` is called **before** the routers are mounted, and long before the sync/seed promise resolves. Express handles this fine because mounting happens synchronously in the same tick, but requests that arrive in the first second or two may hit empty or half-created tables.
-6. Routers are mounted, then `ErrorService.handler` is added last as the error middleware.
+   - calls `associate(Models)` on all seven;
+   - starts the async chain exported as `ready` (`sql-database.js:47`): `sequelize.sync({ force: dbReset })`, then `createSeeds()` unless `DB_SEED=false`, then `ensureAdmin()`, then logs `Database ready.` A failure anywhere is logged as `Database setup failed:`.
+4. Back in `index.js`, `app.listen(PORT)` is called, routers are mounted, then the JSON 404 catch-all and `ErrorService.handler`.
 
-Console output during boot, in order: the `{ models }` dump, `Express is running on port: N`, DROP/CREATE statements, INSERT statements from seeding, then a banner and one sample row per seeded model, then `End Seed Data`.
+Requests are accepted before `ready` resolves. On a persistent database this is a few milliseconds; on a fresh one, seeding takes a second or two. Nothing awaits `ready` yet; a health endpoint that does would be a small, useful addition.
 
-Because of `force: true`, **every restart erases all data**. The original README's TODO list already flags this ("Set force: true only in certain destructive environment"). Any work on persistence, migrations, or deploying beyond a laptop starts by making that conditional.
+Without `DB_RESET`, `sync()` creates missing tables and leaves existing ones alone. It does **not** alter existing tables when a schema changes; after changing a schema in development, boot once with `DB_RESET=true` or delete `database.sqlite`. There is no migration tooling (see [Open items](#open-items)).
+
+### Admin bootstrap
+
+`ensureAdmin()` (`database/bootstrap-admin.js:24`) runs after seeding:
+
+- If `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` are all set and no user with that username exists, it creates the account with the admin role and logs `Created admin account "..." (id N).`
+- If the username exists it is left untouched, even when it is not an admin (logged as a warning), so a stray env value can never escalate an account.
+- If the variables are not set and the database has no admin at all, it prints a loud banner and the server keeps running.
 
 ## Routing layer
 
 ### Path definitions
 
-Every path is defined once in the `endpoints` object in `routes/constants.js`, keyed `resource.method.operation`. Extract:
+Every path is defined once in the `endpoints` object in `routes/constants.js`, keyed `resource.method.operation`:
 
 ```js
 prison: {
-	get: {
-		many: '/prisons{/:full}{/:page}{/:page_size}',
-		one: '/prison{/:id}'
-	},
+	get: { many: '/prisons', one: '/prison' },
 	post: { create: '/prison' },
-	put: { update: '/prison', rule: '/rule' },
+	put: { update: '/prison', addRule: '/rule' },
 	delete: { remove: '/prison' }
 }
 ```
 
-`{/:id}` is Express 5 syntax (from `path-to-regexp` v8) for an **optional path segment**. It means `/prison` and `/prison/anything` both match this route. However, **no controller reads `req.params`**; every handler reads `req.query`. So the optional segments only make the router accept more URLs, and then the handler runs with an undefined id. `GET /prison/prison/1` reaches `getOne`, which calls `findOne({ where: { id: undefined } })` and Sequelize throws. Either read `req.params` in controllers (with query as fallback) or delete the segments. The original README's TODO ("Switch any GET requests with body requirements to URL parameters") suggests the intent was path parameters; the implementation ended up on query strings.
+Identifiers and filters never travel in the path. GET handlers read `req.query`; PUT and DELETE handlers read `req.body`. A URL like `/prison/prison/1` matches nothing and gets the JSON 404.
 
-There is also a `protect: '/protected'` path under `user.get` that no route file registers, so `GET /auth/protected` is a 404 even though the Postman collection includes it.
+The `messages` object in the same file mirrors this structure with `success.condition.par` and `error.condition.par` strings (plus a few extra conditions such as `param` / `empty` for chat lookups and `id` / `mail` / `name` / `empty` for user lookups). The operation keys under `messages` must equal the controller method names, because that is how the base controller finds them. This is why the rule-attachment key is `addRule`, not `rule`.
 
 ### Route classes
 
-All seven route files follow one template. `routes/prison/prison.js` is representative:
+All seven route files follow one template. `routes/prison/prison.js`:
 
 ```js
 class PrisonRoutes {
@@ -254,12 +264,6 @@ class PrisonRoutes {
 	static #Controller;
 
 	static {
-		const app = express(); // created, configured, and never used
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(passport.initialize());
-
-		passport.use('UsrJStrat', authService.authorize); // re-registered by every route file
 		this.#Controller = new prisonCrtlr();
 		this.Router = express.Router();
 		this.#router();
@@ -269,54 +273,57 @@ class PrisonRoutes {
 		this.Router.post(
 			prisonEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.create
 		);
-		// ... get many, get one, put update, put rule, delete remove
+		// get many, get one (authenticate only), put update, put addRule, delete remove (authenticate + role gate)
 	}
 }
 export default PrisonRoutes;
 ```
 
-Points to know:
-
-- The class is never instantiated. The static initialization block runs at import time and populates the static `Router` property, which `index.js` mounts: `app.use('/prison', prisonRoutes.Router)`.
-- The local `express()` app with its own body parsers is dead code copied between files. The real body parsing is configured once in `index.js`.
-- `passport.use('UsrJStrat', ...)` is called by all seven files with the same strategy object. Passport's registry is keyed by name, so this is harmless. The user route file additionally registers `'LStrat'` (the local login strategy).
-- Every route except `POST /auth/user` and `POST /auth/login` is wrapped in `passport.authenticate('UsrJStrat', { session: false, failWithError: true })`. `failWithError` is what routes auth failures into the JSON error handler instead of Passport's default plain-text 401.
-- The controller method passed as the final handler must be a bound function whose `name` is `bound <method>`; see the next section for why.
+- The class is never instantiated. The static initialization block runs at import time and fills the static `Router`, which `index.js` mounts.
+- Every route except `POST /auth/user` and `POST /auth/login` starts with `passport.authenticate('UsrJStrat', { session: false, failWithError: true })`. `failWithError` routes auth failures into the JSON error handler.
+- Write routes on prisons, prisoners, rules, and chapters add `AuthzService.requireRole(ADMIN, CHAPTER)`. User routes use `requireRole(ADMIN)` for the list and `requireSelfOrAdmin` for get, update, and delete. Registration uses `optionalAuthenticate` so an admin token can unlock other roles while anonymous callers still get through. Chat and message routes have no route-level gate; ownership is enforced inside their controllers.
+- The controller method passed as the final handler must be a bound function whose `name` is `bound <method>`; see the next section.
+- Strategies are registered once at the bottom of `auth.services.js` (`auth.services.js:66`), not per route file.
 
 ### Mounts
 
 From `index.js`:
 
-| Prefix       | Router           | Notes                                      |
-| ------------ | ---------------- | ------------------------------------------ |
-| `/auth`      | `UserRoutes`     | Users and login.                           |
-| `/prison`    | `PrisonRoutes`   |                                            |
-| `/prisoner`  | `PrisonerRoutes` |                                            |
-| `/rule`      | `RuleRoutes`     |                                            |
-| `/messaging` | `MessageRoutes`  | Messages only. Chats used to be here too.  |
-| `/chat`      | `ChatRoutes`     | Mounted twice (lines 44 and 45). Harmless. |
-| `/chapter`   | `ChapterRoutes`  |                                            |
+| Prefix       | Router           |
+| ------------ | ---------------- |
+| `/auth`      | `UserRoutes`     |
+| `/prison`    | `PrisonRoutes`   |
+| `/prisoner`  | `PrisonerRoutes` |
+| `/rule`      | `RuleRoutes`     |
+| `/messaging` | `MessageRoutes`  |
+| `/chat`      | `ChatRoutes`     |
+| `/chapter`   | `ChapterRoutes`  |
+
+After the routers, `index.js:50` adds a catch-all that calls `next(new NotFoundError('Cannot ' + req.method + ' ' + req.path))`, then `ErrorService.handler`.
 
 ## Controller layer
 
 ### RouteController base class
 
-`routes/controllers/route.controller.js` is the most important file to understand. Every controller extends it and calls `super('<resource>')` with the key used in `routes/constants.js`.
+`routes/controllers/route.controller.js`. Every controller extends it and calls `super('<resource>')` with the key used in `routes/constants.js`.
 
-**Interface check.** The constructor verifies the subclass has `getOne`, `getMany`, `update`, `remove`, and `create` (by `in` check against a plain-object "interface") and throws a `LoudError` at boot otherwise. It is a runtime stand-in for an abstract class.
+**Interface check.** The constructor verifies the subclass has `getOne`, `getMany`, `update`, `remove`, and `create` and throws a `LoudError` at boot otherwise.
 
-**`handleLimits(page, page_size)`** returns `{ limit: page_size || 10, offset: ((page - 1) || 0) * limit }`. Both inputs are raw query strings; nothing is parsed or validated. `page=0` gives `(0 - 1) || 0` which is `-1`, so offset `-10`, and `page_size=abc` produces `NaN`, which SQLite rejects as `no such column: NaN`.
+**`handleLimits(page, page_size)`** (`:49`) turns the two query parameters into `{ limit, offset }`. Blank values default to page 1 and `DEFAULT_PAGE_SIZE` (10). Anything that is not a positive integer, or a `page_size` above `MAX_PAGE_SIZE` (100), throws a `ValidationError` listing each problem. Controllers call it before their `try` block; the thrown error propagates to `ErrorService.handler`, which renders it in the same validation shape.
 
-**`handleSuccess(res, outObj, condition = 'par')`** and **`handleErr(res, errMsg, msgType = 'par')`** are where the response shape comes from. Both call the private `#findStack(res)`:
+**`requireFound(record, what)`** (`:118`) throws `NotFoundError(what + ' not found')` when `record` is null or undefined, otherwise returns it. **`requireAffected(count, what)`** (`:132`) does the same for an update or delete row count (Sequelize's update returns `[count]`). Every `getOne`, `update`, and `remove` uses them, which is where the 404s come from.
+
+**`handleSuccess(res, outObj, condition = 'par')`** (`:89`) and **`handleErr(res, errMsg, msgType = 'par')`** (`:144`) both call the private `#findStack(res)` (`:78`):
 
 ```js
 #findStack(res) {
 	let stack;
 	res.req.route.stack.forEach((layer) => {
-		const fname = layer.name.substr(6);   // strip "bound "
-		if (this.hasOwn(fname)) {             // B1: should be Object.hasOwn(this, fname)
+		const fname = layer.name.substr(6); // strip "bound "
+		if (Object.hasOwn(this, fname)) {
 			stack = layer;
 		}
 	});
@@ -324,496 +331,309 @@ From `index.js`:
 }
 ```
 
-This walks the Express route's handler layers, strips the six-character `bound ` prefix from each function name, and picks the layer whose stripped name is an **own property of the controller instance**. That works only because each controller constructor does `this.create = this.create.bind(this)` for every handler, which both fixes `this` and makes the bound function an own property with the name `bound create`. The `passport.authenticate` layer is named `authenticate`; its stripped name `ticate` is not an own property, so it is skipped.
+It walks the Express route's handler layers, strips the six-character `bound ` prefix from each function name, and picks the layer whose stripped name is an own property of the controller instance. This works because each controller constructor does `this.create = this.create.bind(this)` for every handler, which both fixes `this` and makes the bound function an own property named `bound create`. Middleware layers (`authenticate`, `roleGate`, `requireSelfOrAdmin`, `optionalAuthenticate`) are skipped because their stripped names are not own properties.
 
-From the chosen layer, `handleSuccess` derives:
+From the chosen layer the base class derives `callerName` (`getOne`, `getMany`, `create`, `update`, `remove`, `login`, `addRule`), maps `getOne` / `getMany` to `one` / `many`, reads the HTTP method, and looks up `messages[controllerName][method][msgRef]`. Three things must therefore line up: the controller name passed to `super()`, the method names on the class (all bound), and the key structure in `routes/constants.js`.
 
-- `callerName` = `getOne` / `getMany` / `create` / `update` / `remove` / `login`;
-- `msgRef` = `one` / `many` for the two getters, otherwise `callerName` unchanged;
-- `method` = the layer's HTTP method (`get`, `post`, `put`, `delete`);
+`handleSuccess` sends status 201 when `msgRef === 'create'`, 200 otherwise. `handleErr`:
 
-and looks up `messages[controllerName][method][msgRef].success.condition[condition]`. So for messages to resolve, three things must line up: the controller name passed to `super()`, the method names on the class, and the key structure in `routes/constants.js`. A handler that is not bound (like `addRule` in the prison controller) is invisible to `#findStack`, `stack` stays `undefined`, and `stack.name` throws. See [B10](#b10-put-prisonrule-crashes).
-
-`condition` / `msgType` selects among several strings for one endpoint. Most endpoints only define `par` (the default). User `getOne` uses `id`, `mail`, `name`, `empty`; chat `getOne` defines `param` and `empty`; several `remove` endpoints define `absent` but nothing ever passes it.
-
-`handleErr` has one special case before the lookup: if the error is a `SequelizeValidationError`, it short-circuits to `{ success: false, errors: [messages] }` with status 400. Everything else gets status 400 too, with `info`, `type`, `error`, and the full `stack`.
+1. If `ValidationError.messagesFrom(err)` returns messages (our `ValidationError` or Sequelize's), respond `400 { success: false, errors }`.
+2. Otherwise `status = HttpError.statusOf(err)`: an explicit `status` or `statusCode` wins; `SequelizeUniqueConstraintError` and `SequelizeForeignKeyConstraintError` are 400; everything else is 500.
+3. Look up `info` for the endpoint and condition (falling back to `par`), and send `{ success: false, name, info, status }` plus `error: err.message` for 4xx. For 5xx the error is logged with `console.error`, and `error` and `stack` are included only when `NODE_ENV=development`.
 
 ### Per-resource controllers
 
-They are near-identical. Each method destructures `req.query` or `req.body`, calls one static model method inside `try`, and delegates to `#handleSuccess` / `#handleErr`. The private fields `#handleSuccess` and `#handleErr` are just aliases for the inherited methods, assigned in the constructor; the comment about "JS loses where we are" refers to the `this` problem that binding solves.
+Each method destructures `req.query` or `req.body`, calls one static model method inside `try`, and delegates to `#handleSuccess` / `#handleErr`. The private fields `#handleSuccess` and `#handleErr` are aliases for the inherited methods. Things that differ:
 
-Things that differ:
-
-- **User**: `create` lower-cases `role` before the `try` (crashes if missing). `#stripPassword` picks `id, email, name, role, username, bio` from a user for responses. `login` reads `req.authInfo.token` set by the local strategy. `getMany` post-processes the list through `#formatUsersList` and `#stripUsersListPasswords`, which is where [B5](#b5-get-authusers-returns-empty-objects) lives.
-- **Prison**: has an extra `addRule` handler that is not bound.
-- **Prisoner / Rule**: `getMany` branches to `getListByPrison` when `prison` is present, and those helper methods recompute pagination by hand instead of calling `handleLimits`.
-- **Message**: `getMany` dispatches on the first present of `id`, `chat`, `prisoner`, `user` to four helper methods, each of which again recomputes pagination and calls a model method with an argument list that does not match the model's signature ([B12](#b12-message-list-filters-shift-their-arguments)).
-- **Chat**: `getMany` and `getOne` compute a `{ chatfunc, condition }` pair from the query in private helpers, then `await chatfunc`. When the helper decides the parameters are invalid it returns only a `condition`, and `await undefined` succeeds ([B16](#b16-chat-lookups-with-bad-parameters-succeed)).
-- **Chapter**: the simplest one; no pagination, no `full`.
+- **User** (`user.controller.js`): `create` (`:149`) accepts `next`, lower-cases `role` (default `user`), and returns `AuthzService.forbidden(...)` through `next` when a non-admin asks for anything else. `update` refuses `role` from non-admins the same way and never echoes `password`. `#stripPassword` (`:38`) converts an instance with `toJSON` and deletes `password`; it is applied to list, single, create, and login responses as belt-and-braces on top of the model's default scope. `getMany` with `role` validates it against the schema's list and returns `200 []` for no matches. `login` reads `req.authInfo.token` set by the local strategy.
+- **Prison**: `addRule` is bound and calls `Prison.addRule`, which returns the prison with prisoners and rules embedded.
+- **Prisoner / Rule**: `getMany` branches on a `prison` query parameter.
+- **Chat** (`chat.controller.js`): `#loadOwned(req, id)` (`:41`) loads a chat and throws a 403 when the caller is a restricted `user` who does not own it. `getMany` filters restricted callers to their own id (a `prisoner` parameter narrows within that). `getOne` accepts `id` or `user` + `prisoner` (defaulting `user` to the caller for restricted callers), throws `HttpError(400, ...)` for incomplete parameters, and uses the constants' `param` / `empty` conditions for `info`. `create` forces `user` to the caller for restricted callers; `update` refuses to reassign a chat to another user; `remove` checks ownership. 403s are passed to `next(err)` so they render through `ErrorService`.
+- **Message** (`message.controller.js`): `#ownerFilter(req)` (`:38`) returns `{ user: req.user.id }` for restricted callers, which every list call merges into its where-clause last, so no query parameter can widen it. `#loadOwned` mirrors the chat version. `create` forces `user` to the caller and `sender` to `user` for restricted callers; `update` pins `user` to the caller.
+- **Chapter**: the simplest; no pagination, no `full`.
 
 ## Response and error contract
 
 The README documents the shapes from the client's point of view. Where they come from:
 
-| Shape                                              | Produced by                                             | Status              |
-| -------------------------------------------------- | ------------------------------------------------------- | ------------------- |
-| `{ data, info, success: true, status: 200, name }` | `RouteController.handleSuccess`                         | 200                 |
-| `{ success: false, errors: [...] }`                | `RouteController.handleErr`, validation branch          | 400                 |
-| `{ info, type, error, stack }`                     | `RouteController.handleErr`, general branch             | 400                 |
-| `{ success: false, name, info, status }`           | `ErrorService.handler` (anything passed to `next(err)`) | `err.status` or 400 |
-| HTML "Cannot GET /x"                               | Express default 404 handler                             | 404                 |
+| Shape                                            | Produced by                                        | Status               |
+| ------------------------------------------------ | -------------------------------------------------- | -------------------- |
+| `{ data, info, success: true, status, name }`    | `RouteController.handleSuccess`                    | 201 create, else 200 |
+| `{ success: false, errors: [...] }`              | `handleErr` or `ErrorService.handler`, validation  | 400                  |
+| `{ success: false, name, info, status, error? }` | `handleErr` (controller errors)                    | `HttpError.statusOf` |
+| `{ success: false, name, info, status }`         | `ErrorService.handler` (anything passed to `next`) | `HttpError.statusOf` |
 
-`ErrorService.handler` in `routes/services/error.services.js` is the last middleware. It takes `status` from the error (Passport sets 401 for auth failures and 400 for missing credentials), falls back to 400, takes `message` from the error or the HTTP-status default table in `routes/constants.js`, and sends JSON. It then calls `next(req, res, next)`, which is the wrong signature (it passes `req` as an error object after the response has been sent). Express appears to tolerate this in practice, but the line should go.
+`ErrorService.handler` (`routes/services/error.services.js:24`) is the last middleware. It delegates when headers were already sent, renders validation errors in the shared shape, otherwise picks the status with `HttpError.statusOf`, uses `err.message` (or the HTTP-status default from `routes/constants.js`) as `info`, logs 5xx, and hides 5xx details unless `NODE_ENV=development`. Passport's failures arrive here with `status` already set (401 for bad or missing tokens and wrong credentials, 400 for missing login fields).
 
-`middleware/ErrorHandler.js` is an alternative error handler that was never wired up. Prefer deleting it over leaving two.
-
-Design gaps worth fixing as a set, since clients will code against whatever you choose:
-
-- No 404 for missing records. Most `getOne` calls return 200 with `data: null`; user `getOne` returns 400 with a generic message; deletes of missing rows return 200 with `data: 0`.
-- No 201 for creates, no 204 for deletes.
-- No 500. Internal faults (a `TypeError` from a bug) are reported as 400 with a stack trace in the body, which leaks file paths.
-- `info` strings contain typos ("retireved", "Succeessfully") that clients may already have matched on.
+`HttpError` and `NotFoundError` live in `services/HttpError.js`; throw them from controllers or models for client-caused failures. Anything thrown without a status is treated as a 500, which is the right default for programmer errors.
 
 ## Authentication internals
 
-`routes/services/auth.services.js` defines a class with static members only.
+`routes/services/auth.services.js` defines a class with static members only and registers both strategies with passport at module scope.
 
 ### Login (`LocalStrategy`)
 
-`authService.login` is a `passport-local` strategy configured with `usernameField: 'username'` and `passwordField: 'password'`. Its verify function:
+`authService.login` is a `passport-local` strategy with `usernameField: 'username'`. Its verify function:
 
-1. `User.getUser({ username })` (a `findOne` on the `username` column).
-2. `bcrypt.compare(password, user.password)`.
-3. On match, builds a token with `#createJWT(user)` and calls `done(null, user, { token })`. The third argument becomes `req.authInfo`, which is why the route uses `passport.authenticate('LStrat', { session: false, authInfo: true, failWithError: true })` and the controller reads `req.authInfo.token`.
-4. On no user or no match, `done(null, false)`, which with `failWithError` becomes a 401.
+1. `User.getUserWithPassword({ username })`, the one query in the codebase that selects the password hash (see [User scopes](#user-scopes)).
+2. Refuses users whose role is `banned` (`auth.services.js:27`).
+3. `bcrypt.compare(password, user.password)`.
+4. On match, builds a token with `#createJWT(user)` and calls `done(null, user, { token })`. The third argument becomes `req.authInfo`, which the route enables with `authInfo: true` and the controller reads.
+5. Otherwise `done(null, false)`, which with `failWithError` becomes a 401.
 
-Missing `username` or `password` never reaches the verify function; passport-local fails with a 400 "Bad Request", which `ErrorService.handler` renders as `{ name: 'AuthenticationError', info: 'Bad Request', status: 400 }`.
+Missing `username` or `password` never reaches the verify function; passport-local fails with a 400 that renders as `{ name: 'AuthenticationError', info: 'Bad Request', status: 400 }`.
 
 ### Token creation
 
-```js
-static #createJWT(user) {
-	const expiryDateMs = Date.now() + 6.048e8; // one week
-	const payload = { id: user.id, expiry: expiryDateMs };
-	const token = jwt.sign(payload, secretOrKey, { expiresIn: '1w' });
-	return { token, expires: expiryDateMs };
-}
-```
-
-The payload carries the user id twice-redundant expiry information: a custom `expiry` (ms) and the standard `exp` (s) that `expiresIn` adds. Only `exp` is checked. HS256 is the default algorithm. A decoded token looks like `{ "id": 3, "expiry": 1789749702603, "iat": 1789144902, "exp": 1789749702 }`.
+`#createJWT` (`auth.services.js:13`) signs `{ id: user.id, expiry }` with `expiresIn: '1w'` (HS256). The custom `expiry` claim in milliseconds duplicates the standard `exp`; only `exp` is checked. The login response returns `{ token, expires }`.
 
 ### Token verification (`JwtStrategy`)
 
-```js
-static authorize = new JwtStrategy(authService.#jwtOptions, (jwt_payload, next) => {
-	let user = User.getUser({ id: jwt_payload.id }); // not awaited
-	if (user) {
-		next(null, user);
-	} else {
-		next(null, false);
-	}
-});
-```
+`authService.authorize` (`auth.services.js:46`). `passport-jwt` verifies the signature and expiry first. The callback is `async`: it rejects a payload without an `id` claim, awaits `User.getUser({ id })`, and rejects a missing or banned user (`auth.services.js:52`). On success `req.user` is the User instance loaded through the default scope, so it never carries the password hash. Lookup errors are passed to passport as errors rather than escaping.
 
-`passport-jwt` has already verified the signature and expiry by the time this callback runs. The callback is supposed to confirm the user still exists and hand back the user object. It does not await `User.getUser`, so `user` is a pending Promise, which is truthy, so every token with a valid signature is accepted and `req.user` is a Promise rather than a user. Verified: a token signed for id 9999 (no such user) is accepted. See [B2](#b2-jwt-verification-does-not-check-the-user-exists).
+Consequences: a deleted user's tokens stop working immediately; banning a user revokes their existing tokens; there is still no logout or refresh, and a compromised token is valid until it expires.
 
-### What is missing
+## Authorization internals
 
-- **Authorization.** No middleware checks `role`. Every authenticated route is equally available to `admin`, `user`, `chapter`, and `banned`. `User.banUser` exists on the model but is not exposed and would have no effect on access anyway.
-- **Ownership.** A note in `routes/message/message.js` says "userA should not be able to delete, edit or read userB's messages". Nothing implements that. Because `req.user` is a Promise, controllers cannot currently even find out who is calling.
-- **Registration policy.** `POST /auth/user` is unauthenticated and accepts any role.
-- **Logout / refresh / revocation.** None. There is an old remote branch `18-logout-route`.
-- `authService.register()` is an empty stub.
+`routes/services/authz.services.js` is a class of static helpers used by route files and controllers:
+
+| Member                     | Line   | What it does                                                                                                                                  |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADMIN`, `CHAPTER`, `USER` |        | Role name constants.                                                                                                                          |
+| `forbidden(message)`       |        | Builds an `Error` with `name: 'AuthorizationError'`, `status: 403`.                                                                           |
+| `unauthorized(message)`    |        | Same with `AuthenticationError` / 401.                                                                                                        |
+| `hasRole(req, ...roles)`   |        | Does `req.user.role` match one of the roles?                                                                                                  |
+| `isAdmin(req)`             |        | Shorthand.                                                                                                                                    |
+| `ownOnly(req)`             | `:67`  | True for the plain `user` role: the caller is confined to records they own.                                                                   |
+| `ownsRecord(req, record)`  | `:78`  | Compares `record.user` to `req.user.id` as strings.                                                                                           |
+| `targetsSelf(req)`         |        | Does the request's `id` / `email` / `username` (query for GET, body otherwise, same precedence as the user controller) match the caller?      |
+| `requireRole(...roles)`    | `:118` | Middleware: 403 unless the caller holds one of the roles.                                                                                     |
+| `requireSelfOrAdmin`       | `:130` | Middleware: allow admins, or any caller whose own record is the target.                                                                       |
+| `optionalAuthenticate`     | `:142` | Middleware: if an `Authorization` header is present, verify it with the JWT strategy and set `req.user`; a bad token is a 401, not anonymous. |
+
+The policy, as implemented:
+
+- Registration is public and always yields `role: user`; other roles need an admin token.
+- Banned users are refused at login and at token verification, so `hasRole` never sees them.
+- User management is admin-only, except that anyone may read, update, or delete their own record and non-admins may not change `role`.
+- Writes to prisons, prisoners, rules, and chapters need `admin` or `chapter`. Reads need any token.
+- Chats and messages: `user` sees only their own; `admin` and `chapter` see everything. Enforced in the controllers because it depends on the record, not just the route.
+
+To change the policy, edit the route files (which roles guard which routes) and the two controllers (ownership). `requireRole` is deliberately dumb so that the policy stays visible in the route definitions.
 
 ## Data layer
 
 ### Sequelize setup
 
-`database/sql-database.js` builds everything and exports the Sequelize instance plus each initialized model. Models are initialized in this order: Chat, Message, Prison, Prisoner, Rule, User, Chapter; then `associate` is called on each in a different order (Prisoner, Prison, Message, User, Chat, Rule, Chapter). Order only matters for `associate`, which needs all classes to exist, and it does.
+`database/sql-database.js` builds everything and exports the Sequelize instance, each initialized model, and `ready`. Models are initialized (Chat, Message, Prison, Prisoner, Rule, User, Chapter) and then associated; `associate` needs all classes to exist, which they do by then.
 
-Sequelize creates a table per model using the pluralized model name, except User, which sets `tableName: 'User'` explicitly. Tables: `User`, `Prisons`, `Prisoners`, `Rules`, `Chats`, `Messages`, `Chapters`, and the join table `RulePassthrough`. Every table gets `id`, `createdAt`, and `updatedAt` automatically.
+Tables: `User` (explicit `tableName`), `Prisons`, `Prisoners`, `Rules`, `Chats`, `Messages`, `Chapters`, and the join table `RulePassthrough`. Every table gets `id`, `createdAt`, and `updatedAt`. SQLite enforces the foreign keys because Sequelize turns `PRAGMA foreign_keys` on for every connection.
 
 ### Schemas
 
-`database/schemas/<model>.schema.js` files export plain objects passed to `Model.init`. Summary:
+`database/schemas/<model>.schema.js` files export plain objects passed to `Model.init`:
 
-| Model    | Columns (beyond id and timestamps)                                                                                      | Validation                                                                                                                                                                                                                 |
-| -------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| User     | `name`, `username` (unique, not null), `password` (not null), `email` (unique, not null), `bio` TEXT, `role` (not null) | `password` len 7 to 255; `email` isEmail; `role` in admin/user/chapter/banned. `min`/`max` on the string columns are numeric validators and do nothing for strings ([B26](#b26-string-length-validators-are-ineffective)). |
-| Prison   | `prisonName` (not null), `address` JSON (not null), `deleted` JSON (not null)                                           | none                                                                                                                                                                                                                       |
-| Prisoner | `birthName`, `chosenName`, `prison` INT, `inmateID`, `releaseDate` DATE, `bio`, `status`                                | `status` has an `isIn` placed outside `validate`, so it is ignored ([B25](#b25-prisoner-status-is-not-validated)).                                                                                                         |
-| Rule     | `title`, `description`                                                                                                  | none                                                                                                                                                                                                                       |
-| Chat     | `user` INT, `prisoner` INT, explicit `id`                                                                               | none                                                                                                                                                                                                                       |
-| Message  | `chat` INT (not null), `messageText`, `sender` (not null), `prisoner` INT (not null), `user` INT (not null)             | `chat`/`prisoner`/`user` isInt + notNull; `sender` in user/prisoner                                                                                                                                                        |
-| Chapter  | `name` (not null), `location` JSON (not null), `prisoners` JSON, `lettersSent` STRING, `averageTimeDays` INT            | none                                                                                                                                                                                                                       |
+| Model    | Columns (beyond id and timestamps)                                                                                      | Validation                                                                                                                           |
+| -------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| User     | `name`, `username` (unique, not null), `password` (not null), `email` (unique, not null), `bio` TEXT, `role` (not null) | `username` len 3-16, `name` len 3-32, `bio` len 12-2400, `password` len 7-255, `email` isEmail, `role` in admin/user/chapter/banned. |
+| Prison   | `prisonName` (not null), `address` JSON (not null)                                                                      | none                                                                                                                                 |
+| Prisoner | `birthName`, `chosenName`, `prison` INT (FK), `inmateID`, `releaseDate` DATE, `bio`, `status`                           | `status` in pretrial/incarcerated/free                                                                                               |
+| Rule     | `title`, `description`                                                                                                  | none                                                                                                                                 |
+| Chat     | `user` INT (FK), `prisoner` INT (FK), explicit `id`                                                                     | none                                                                                                                                 |
+| Message  | `chat` INT (FK, not null), `messageText`, `sender` (not null), `prisoner` INT (FK, not null), `user` INT (FK, not null) | `chat`/`prisoner`/`user` isInt + notNull; `sender` in user/prisoner                                                                  |
+| Chapter  | `name` (not null), `location` JSON (not null), `prisoners` JSON, `lettersSent` STRING, `averageTimeDays` INT            | none                                                                                                                                 |
 
-Some schema entries include `model: 'User'` or `model: 'prisons', key: 'prison_key'` next to `type`. Those keys are not Sequelize column options (the real one is `references: { model, key }`), so they are ignored. **No foreign key constraints exist at the database level** for `user`, `prisoner`, `chat`, or `prison`. That is why deleting a prison leaves prisoners pointing at it and why message creation does not verify the user exists.
+The foreign-key columns are declared as plain integers in the schemas; the `references` and `ON DELETE` clauses come from the associations below.
 
-### Associations and the duplicate-column problem
+### Associations
 
-Declared in each model's `associate(models)`:
+Declared in each model's `associate(models)`. Every pair uses the column the schema already has, with `onDelete: 'RESTRICT', onUpdate: 'CASCADE'`:
 
-| Declaration                                                                                         | Column it creates        | Column the code actually uses |
-| --------------------------------------------------------------------------------------------------- | ------------------------ | ----------------------------- |
-| `Chat.belongsTo(User, { as: 'user_details', foreignKey: 'userId' })`                                | `Chats.userId`           | `Chats.user`                  |
-| `Chat.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisonerId' })`                    | `Chats.prisonerId`       | `Chats.prisoner`              |
-| `Chat.hasMany(Message, { as: 'messages', foreignKey: 'chatId' })`                                   | `Messages.chatId`        | `Messages.chat`               |
-| `Message.belongsTo(Chat, { as: 'chat_details', foreignKey: 'chatId' })`                             | (same)                   | `Messages.chat`               |
-| `User.hasMany(Chat, { as: 'chats', foreignKey: 'userId' })`                                         | (same as above)          | `Chats.user`                  |
-| `Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisonerId' })`                                 | (same as above)          | `Chats.prisoner`              |
-| `Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'prisonId' })`                      | `Prisoners.prisonId`     | `Prisoners.prison`            |
-| `Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison' })`                               | uses `Prisoners.prison`  | `Prisoners.prison`            |
-| `Prison.belongsToMany(Rule, { through: 'RulePassthrough', foreignKey: 'prison', sourceKey: 'id' })` | `RulePassthrough.prison` | n/a                           |
-| `Rule.belongsToMany(Prison, { through: 'RulePassthrough', foreignKey: 'id' })`                      | `RulePassthrough.id`     | n/a (should be a rule key)    |
-| `Chapter.associate`                                                                                 | nothing (stub)           |                               |
+| Declaration                                                                                                         | Column                            |
+| ------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `Chat.belongsTo(User, { as: 'user_details', foreignKey: 'user' })`                                                  | `Chats.user`                      |
+| `Chat.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' })`                                      | `Chats.prisoner`                  |
+| `Chat.hasMany(Message, { as: 'messages', foreignKey: 'chat' })`                                                     | `Messages.chat`                   |
+| `Message.belongsTo(Chat, { as: 'chat_details', foreignKey: 'chat' })`                                               | `Messages.chat`                   |
+| `Message.belongsTo(User, { as: 'user_details', foreignKey: 'user' })`                                               | `Messages.user`                   |
+| `Message.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' })`                                   | `Messages.prisoner`               |
+| `User.hasMany(Chat, { as: 'chats', foreignKey: 'user' })`                                                           | `Chats.user`                      |
+| `User.hasMany(Message, { as: 'messages', foreignKey: 'user' })`                                                     | `Messages.user`                   |
+| `Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'prison' })`                                        | `Prisoners.prison`                |
+| `Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner' })`                                                   | `Chats.prisoner`                  |
+| `Prisoner.hasMany(Message, { as: 'messages', foreignKey: 'prisoner' })`                                             | `Messages.prisoner`               |
+| `Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison' })`                                               | `Prisoners.prison`                |
+| `Prison.belongsToMany(Rule, { as: 'rules', through: 'RulePassthrough', foreignKey: 'prison', otherKey: 'rule' })`   | `RulePassthrough.prison`, `.rule` |
+| `Rule.belongsToMany(Prison, { as: 'prisons', through: 'RulePassthrough', foreignKey: 'rule', otherKey: 'prison' })` | same                              |
+| `Chapter.associate()`                                                                                               | nothing yet                       |
 
-The schemas define `user`, `prisoner`, `chat`, and `prison` columns, and every `where` clause and every seed row uses those. The associations, however, declare **different** foreign key names, so Sequelize adds a second set of columns (`userId`, `prisonerId`, `chatId`, `prisonId`) that nothing ever writes. Consequences:
+The join table's own foreign keys cascade, so deleting a rule or prison removes its links. `RESTRICT` everywhere else was a deliberate choice: letters should never disappear as a side effect of deleting an account or a facility. Switch an association to `SET NULL` or `CASCADE` only after deciding what the product wants.
 
-- Every response for chats, messages, and prisoners includes a null `...Id` field.
-- Every `include` (the `full=true` feature) joins on the null columns and returns `[]` or `null`.
-- The only association that lines up is `Prison.hasMany(Prisoner, { foreignKey: 'prison' })`, and even that is contradicted by the `belongsTo` on the other side.
+When you add an `include`, the `as` must match these aliases exactly; Sequelize throws an `EagerLoadingError` otherwise.
 
-The fix is to make each association use the column the schema already has (`foreignKey: 'user'`, `'prisoner'`, `'chat'`, `'prison'`) on both sides of each pair, and to give the `belongsToMany` pair proper keys (`foreignKey: 'prison', otherKey: 'rule'` and the reverse). That is [B17](#b17-association-foreign-keys-do-not-match-the-schema-columns). Do it once, in both directions, and re-check every `include` alias at the same time ([B9](#b9-include-aliases-do-not-match-association-aliases), [B14](#b14-chat-by-id-with-full-uses-the-wrong-aliases)).
+### User scopes
+
+`User.init` sets `defaultScope: { attributes: { exclude: ['password'] } }` and a `withPassword` scope. Every `User.findOne` / `findAll` and every include of User from another model therefore omits the hash without the caller doing anything. `User.getUserWithPassword(where)` uses the scope explicitly and exists for the local login strategy only. If you write new code that needs the hash, use that method, never `User.unscoped()`.
+
+`User.updateUser` runs with `individualHooks: true` (so the `beforeUpdate` hook can hash a changed password) and returns only `[count]`, because with individual hooks Sequelize also hands back the affected instances.
 
 ### Model classes
 
-Each `database/models/<model>.model.js` exports a class extending Sequelize's `Model` with:
+Each `database/models/<model>.model.js` exports a class extending Sequelize's `Model` with `static init`, `static associate`, and static CRUD helpers. Naming is not uniform across models (`get` vs `read`, `ByID` vs `ById`); when adding methods, follow whatever the file already does.
 
-- `static init(sequelize)`: calls `super.init(Schemas.<model>, { sequelize, hooks, modelName })`.
-- `static associate(models)`.
-- Static CRUD helpers: `createX`, `createBulkXs`, `countXs`, `getAllXs` / `readAllXs`, `getXByID` / `readXById`, `updateX`, `deleteX`, and resource-specific finders.
+Worth knowing:
 
-Naming is not uniform across models (`get` vs `read`, `ByID` vs `ById`), and the message controller calls a method that does not exist because of that ([B13](#b13-get-messagingmessage-calls-a-method-that-does-not-exist)).
-
-`models.service.js` provides `modelInstanceExists(modelName, pk)`, which does `findByPk` and returns either the instance or an `Error` (returned, not thrown; callers check `instanceof Error` and throw). It does not know about `Chapter`, and an unknown name leaves `model` undefined so the next line throws a `TypeError` instead of the intended message. `User.getUsersByRole` calls it with `'Role'`, which is how [B6](#b6-listing-users-by-role-crashes) happens.
+- Chat and Message list readers accept a trailing `extraWhere = {}` that is spread **last** into the where-clause. The controllers use it for the ownership filter, and spreading it last guarantees a query parameter cannot override it.
+- `Chat.getChatByID`, `Message.getMessageByID` are `findByPk` wrappers used for ownership checks and single reads.
+- `Chat.readChatById` uses `findOne` and returns an object, like `readChatByUserAndPrisoner`.
+- `Message.updateMessage` (`message.model.js:139`) re-resolves the chat when `user` or `prisoner` changes, merging with the stored row so changing only one of them still lands in the right chat. It has to do this itself because Sequelize's static `update` discards attribute changes made by `beforeValidate` hooks.
+- `Prison.addRule(ruleId, prisonId)` (`prison.model.js:110`) loads both, throws `NotFoundError` for a missing one, calls the `addRule` mixin (idempotent), and returns the prison with its rules loaded.
+- `models.service.js` provides `modelInstanceExists(modelName, pk)`, which returns either the instance or a `NotFoundError` (returned, not thrown; callers check `instanceof Error` and throw). It knows all seven models.
 
 ### Hooks
 
-Only two models have hooks, registered through `database/hooks/all.hooks.js`:
+Registered through `database/hooks/all.hooks.js`:
 
-- **User `beforeCreate`**: replaces `record.password` with `bcrypt.hash(password, 10)`. Runs for `User.create` (the controller passes `individualHooks: true`, though `create` runs hooks anyway) and for `bulkCreate` in the seed (which also passes `individualHooks: true`). It does **not** run for `User.update`, so `PUT /auth/user` with a `password` field stores plain text ([B8](#b8-password-updates-are-not-hashed)).
-- **Message `beforeValidate`**: calls `Chat.findOrCreateChat(record.user, record.prisoner)` and writes the resulting chat id into `instance.chat`. This is the feature that lets clients send a message without first creating a chat. Because it runs before validation, a missing `user` or `prisoner` surfaces as a raw SQL `WHERE parameter ... undefined` error rather than the schema's `notNull` message. Because Sequelize's static `update` validates by default, the same hook runs on `PUT /messaging/message`, which is why updates must include `user` and `prisoner`.
+- **User `beforeCreate`** and **`beforeUpdate`**: replace `password` with `bcrypt.hash(password, 10)`. The update hook only runs when `record.changed('password')`, so unrelated updates do not re-hash the hash. It fires for `User.updateUser` because that call passes `individualHooks: true`.
+- **Message `beforeValidate`** (`message.hooks.js:15`): calls `Chat.findOrCreateChat(user, prisoner)` and writes the chat id onto the instance. Skipped when either id is missing so the schema's `notNull` messages surface. Only effective on create; see `updateMessage` above.
 
 ### Deletion semantics
 
-There is no `paranoid` mode. Every `destroy` is a hard delete. `Prison.deleted` is a JSON column that is set to `false` on create and never read; `Prison.deletePrison` does a real `destroy`. `Chat.deleteChat` deletes messages where `chat = id` first, then the chat, using an unusual `.then(await ...)` construction that happens to work. No other delete cascades.
+There is no `paranoid` mode; every `destroy` is a hard delete, and the foreign keys decide whether it is allowed. `Chat.deleteChat` deletes the chat's messages first, then the chat, which is why it succeeds where a raw delete would be refused.
 
 ## Seeds
 
-`database/seeds/all.seeds.js` runs seed functions **sequentially** (through `Utilities.resolveSequential`, a hand-rolled promise chain) in dependency order: User, Prison, Prisoner, Rule, Chat, Message, Chapter. Each seed function checks `count === 0` before inserting, which was meant to make seeding idempotent; with `sync({ force: true })` the tables are always empty, so the check is moot until that changes.
+`database/seeds/all.seeds.js` runs seed functions sequentially in dependency order: User, Prison, Prisoner, Rule, Chat, Message, Chapter. Each checks `count === 0` before inserting, so seeding is idempotent and safe to leave enabled. After running it logs one line, for example `Seed data: users: 41 seeded, prisons: 52 seeded, ...` or `users: already populated, ...`.
 
-Each `<model>.seed.js` reads its sibling `<model>Seed.json` (`{ "seeds": [ ... ] }`) with `readFileSync` and calls the model's `createBulkXs`, which is `bulkCreate` with `individualHooks: true` and (except messages) `ignoreDuplicates: true`. Messages use `validate: true` instead.
+Each `<model>.seed.js` reads its sibling `<model>Seed.json` (`{ "seeds": [ ... ] }`) and calls the model's `createBulkXs`, which is `bulkCreate` with `individualHooks: true` (so user passwords get hashed) and `ignoreDuplicates: true`. Messages use `validate: true` instead; their `chat` is resolved by the message hook at insert time.
 
-Row counts: 41 users, 52 prisons, 40 prisoners, 44 rules, 40 chats, 40 messages, 1 chapter. Prisoner N is in prison N, chat N pairs user N with prisoner N, and message N belongs to chat N (resolved at insert time by the message hook, not by the seed file). Seeded rules are not attached to any prison because there is no working way to do that.
+Row counts: 41 users, 52 prisons, 40 prisoners, 44 rules, 40 chats, 40 messages, 1 chapter. Prisoner N is in prison N, chat N pairs user id N with prisoner N. Seeded rules are not attached to any prison.
 
-One observed quirk: user ids do not come out in seed-file order (in a verified run `admin` received id 3). Do not hardcode seeded ids in tests; look them up.
-
-After seeding, `all.seeds.js` prints the first row of each model with everything but `dataValues` stripped, under a colored banner. The printing code assumes every seed function returned a non-empty array; if a seed is skipped (count > 0) it will throw on `seedsData[i][0]`.
+User ids do not come out in seed-file order; in one run `admin` received id 3. Do not hardcode seeded ids in tests.
 
 ## Pagination and the `full` flag
 
-`handleLimits` in the base controller turns `page` (1-based) and `page_size` into Sequelize `limit` and `offset`. Several controllers duplicate that arithmetic in helper methods instead of calling it; keep them in sync or, better, delete the copies.
+`handleLimits` in the base controller validates `page` and `page_size` and turns them into Sequelize `limit` and `offset`. Every list controller calls it; there are no private copies of the arithmetic any more.
 
-Model read methods mostly take `(…, full, limit, offset)` or `(…, limit, offset)` and build a `findAll` options object. `full` switches on an `include` array. The signatures are not consistent, and controllers do not always match them:
+Model read methods take `(…, full, limit, offset)` or `(…, limit, offset)` and build a `findAll` options object; `full` switches on an `include` array. The signatures are mostly consistent now but still positional. An options object would remove the whole class of argument-order bug that was fixed in 2026; consider it if you touch many of them.
 
-| Controller call                                                                                             | Model signature                                       | Effect                                                                                                           |
-| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `Prisoner.getPrisonersByPrison(fullBool, prison, limit, offset)`                                            | `getPrisonersByPrison(prisonId, full, limit, offset)` | `findByPk(false)` throws ([B11](#b11-listing-prisoners-by-prison-swaps-arguments))                               |
-| `Message.readMessagesByChat(chat, fullBool, limit, offset)` and the `ByPrisoner`, `ByUser`, `ById` variants | `(id, limit, offset)`                                 | `limit` = boolean, `offset` = 10; first page is skipped ([B12](#b12-message-list-filters-shift-their-arguments)) |
-| `Rule.getAllRules(limit, offset)`                                                                           | `getAllRules(limit, offset, full = false)`            | `full` silently ignored on the rule list                                                                         |
-
-Pick one convention (`(filters, { full, limit, offset })` as an options object would remove the whole class of bug) and apply it everywhere.
+`full` is a string in the query; controllers compare `full === 'true'`. Message endpoints accept it and ignore it (there is no message eager-load yet).
 
 ## Tooling
 
 ### npm scripts
 
-| Script               | Command                                             | Notes                                      |
-| -------------------- | --------------------------------------------------- | ------------------------------------------ |
-| `npm test`           | `echo "echo the test"`                              | Placeholder. There are no tests on `main`. |
-| `npm run lint`       | `eslint --fix "**/*.+(js\|mjs)"`                    | Autofixes. This is what introduced B1.     |
-| `npm run format`     | `prettier --write "**/*.+(js\|mjs\|json\|css\|md)"` |                                            |
-| `npm run pre-commit` | `lint-staged`                                       |                                            |
-| `npm run prepare`    | `husky install`                                     | Runs automatically after `npm install`.    |
-
-There is no `start` or `dev` script. Run `node index.js` or `npx nodemon index.js` directly (nodemon is a devDependency).
+| Script            | Command                                             | Notes                                          |
+| ----------------- | --------------------------------------------------- | ---------------------------------------------- |
+| `npm start`       | `node index.js`                                     |                                                |
+| `npm run dev`     | `nodemon index.js`                                  | Restarts on file changes.                      |
+| `npm test`        | `echo "echo the test"`                              | Placeholder. There are no tests.               |
+| `npm run lint`    | `eslint --fix "**/*.+(js\|mjs)"`                    | Autofixes. Review the diff (see below).        |
+| `npm run format`  | `prettier --write "**/*.+(js\|mjs\|json\|css\|md)"` |                                                |
+| `npm run prepare` | `husky`                                             | Runs automatically after `npm ci` / `install`. |
 
 ### ESLint
 
-`eslint.config.js` is an ESLint 9 flat config. It ignores everything in `.gitignore` plus `package*.json`, and applies `@eslint/js` recommended to JS with Node globals, `@eslint/json` to JSON, `@eslint/markdown` to Markdown (GFM), `@eslint/css` to CSS, and `eslint-plugin-prettier` on top. The Markdown rules mean **documentation files are linted too**: fenced code blocks need a language, heading levels must not skip, and table rows must have consistent column counts.
+`eslint.config.js` is an ESLint 9 flat config. It ignores everything in `.gitignore` plus `package*.json`, and applies `@eslint/js` recommended to JS with Node globals, `@eslint/json` to JSON, `@eslint/markdown` to Markdown (GFM), `@eslint/css` to CSS, and `eslint-plugin-prettier`. The Markdown rules mean **documentation files are linted too**: fenced code blocks need a language, heading levels must not skip, and table rows must have consistent column counts (escape pipes inside table cells as `\|`).
 
-Be careful with `eslint --fix`. The `no-prototype-builtins` rule's autofix turned `this.hasOwnProperty(fname)` into `this.hasOwn(fname)` in commit `dc56059` ("Lint all the things! (but will anything break?)"), which is B1. Review autofix diffs before committing them, and run the server afterward.
+A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this.hasOwnProperty(fname)` into `this.hasOwn(fname)` in the base controller, which crashed every response for a year (see [History](#history-what-was-fixed-in-2026)). Review `--fix` diffs and boot the server before committing them.
 
-### Prettier
+### Prettier, Husky, lint-staged
 
-`.prettierrc.json`: tabs, width 100, single quotes, semicolons, no trailing commas, `arrowParens: always`, `proseWrap: preserve`. Prettier also formats Markdown and JSON (including the seed files and the Postman collections).
+`.prettierrc.json`: tabs, width 100, single quotes, semicolons, no trailing commas. Prettier also formats Markdown and JSON, including the seed files and the Postman collection.
 
-### Husky and lint-staged
+`.husky/pre-commit` runs `npx lint-staged --allow-empty`, which runs `eslint --fix` on staged JS and `prettier --write` on staged JS, JSON, CSS, and Markdown, then re-stages the result. Husky 9 is installed by the `prepare` script.
 
-`.husky/pre-commit` runs `npx lint-staged --allow-empty`, which runs `eslint --fix` on staged JS and `prettier --write` on staged JS, JSON, CSS, and Markdown, then re-stages the result. The `"husky"` key in `package.json` is the Husky v4 configuration format and is ignored by v8/v9; the `.husky/` directory is what counts. `package.json` asks for `husky ^8` while the lockfile has 9.1.7; the v8-style shim line in the hook (`. "$(dirname -- "$0")/_/husky.sh"`) still works under v9 but prints a deprecation warning.
+### Dependencies, native modules, and Node versions
 
-### Lockfile drift
-
-`npm ci` fails on `main` because `package-lock.json` was generated from a different `package.json` (eslint 9.28 vs 9.39, husky 9.1.7 vs ^8, lint-staged 16.1 vs 16.4, and transitive deps). Running `npm install` regenerates it. Commit the regenerated lockfile in a dedicated change so CI (when there is CI) can use `npm ci`.
+- `npm ci` works; keep `package-lock.json` in sync when changing `package.json` by running `npm install` and committing the lockfile.
+- npm 11 gates packages with install scripts. The approvals live in `package.json` under `allowScripts` (pinned by version: `bcrypt`, `sqlite3`, `quick-lint-js`, `fsevents`). When one of those packages is upgraded, run `npm install-scripts approve <pkg>` again and commit the change.
+- `sqlite3` needs `prebuild-install` 7.1.3 or newer (pinned in the lockfile) to pick the right prebuilt binary on Node 24 and later; older versions compared N-API versions as strings and asked for a build that does not exist, then fell back to a source build that fails on Python 3.12+ (no `distutils`).
+- Node 26 removed `SlowBuffer`; `jsonwebtoken` 9.0.3 (via `jws` 4 / `jwa` 2) no longer loads the module that used it. Do not downgrade below 9.0.3.
+- `engines.node` is `>=18` (Express 5, static class blocks, `Object.hasOwn`).
+- On Apple Silicon, make sure `node -p process.arch` prints `arm64`; an Intel Node under Rosetta will fail to load arm64 binaries and vice versa. After switching, `rm -rf node_modules && npm ci`.
 
 ### Tests
 
-None on `main`. Remote branches `ABS-61-create-api-unit-tests` and `unit-tests-second-attempt` contain earlier attempts and may be worth mining. When adding tests, the first obstacle is that importing any route module boots the database and starts seeding; you will want a way to construct the app without side effects (see [Suggested order of work](#suggested-order-of-work)).
+None. When adding them, the first obstacle is that importing any route module boots the database and starts seeding. The cleanest path is to extract app construction from `index.js` into a function, point Sequelize at `storage: ':memory:'` under test, await `ready`, and drive the app with `supertest`. Old branches `ABS-61-create-api-unit-tests` and `unit-tests-second-attempt` contain earlier attempts.
 
 ### Postman
 
-`ABC-3.postman_collection.json` covers every resource but predates the `username` login field, the move of chats from `/messaging` to `/chat`, and the query-string convention. Its `jwt` collection variable is a stale token. Update it or replace it with something generated from an OpenAPI description.
+`ABC-3.postman_collection.json` matches the current API. Collection-level bearer auth reads a `{{jwt}}` collection variable that the **Login (seeded admin)** request's test script fills in. `ABC-3.postman_collection_old.json` is historical.
 
 ### Branches
 
-`origin` has around forty branches, most named after Linear-style tickets (`ABS-nn-...`) or GitHub issue numbers (`11-protect-the-necessary-routes`, `2-make-ids-uuid-instead-of-incrementing-variables`). There is an old `origin/documentation` branch from May 2024 that describes a completely different file layout (per-resource `*.model.js` and `*.helper.js` files under `routes/`); it is 240 commits behind and not a useful base.
+`api-documentation` carries the README and this guide. `bugfixes` was merged in #60. Older ticket-named branches (`ABS-nn-...`, `11-protect-the-necessary-routes`, ...) predate the 2026 work and are mostly superseded; check before reviving one.
 
 ## How to add a new resource
 
-Using a hypothetical `Letter` resource (a printed, mailed artifact) as the example:
+Using a hypothetical `Letter` resource (a printed, mailed artifact):
 
-1. **Schema.** Create `database/schemas/letter.schema.js` exporting a column object. Add `static letter = letterSchema` to `database/schemas/all.schema.js`.
+1. **Schema.** Create `database/schemas/letter.schema.js` exporting a column object with validators under `validate`. Add `static letter = letterSchema` to `database/schemas/all.schema.js`.
 2. **Hooks (optional).** Create `database/hooks/letter.hooks.js` and register it in `database/hooks/all.hooks.js`. Models read `Hooks.<name> || null`.
-3. **Model.** Create `database/models/letter.model.js` with `static init`, `static associate`, and the static CRUD helpers. Follow the `(…, full, limit, offset)` signature consistently. Add it to `database/models/all.model.js`, and if other models need existence checks, to the `switch` in `models.service.js`.
-4. **Wire it up.** In `database/sql-database.js`, add `export const Letter = Models.Letter.init(sequelize, Sequelize);` and `Letter.associate(Models);`. If it has a foreign key to another model, make sure the association `foreignKey` names the column your schema defines.
-5. **Seeds.** Add `database/seeds/letterSeed.json` and `letter.seed.js`, and insert `createLetterSeed` into the array in `all.seeds.js` **after** everything it depends on.
-6. **Paths and messages.** In `routes/constants.js` add a `letter` key to **both** `endpoints` and `messages`. The `messages.letter` object must have `get.many`, `get.one`, `post.create`, `put.update`, and `delete.remove`, each with `success.condition.par` and `error.condition.par`, or `handleSuccess` will throw when it looks them up. Add `letter: letterMsg` and `letter: letterEnd` to the two destructuring exports at the bottom.
-7. **Controller.** Create `routes/controllers/letter.controller.js` extending `RouteController`, call `super('letter')`, and **bind every handler** in the constructor (`this.create = this.create.bind(this)` and so on). Any handler you forget to bind will crash at response time.
-8. **Routes.** Copy `routes/chapter/chapter.js` to `routes/letter/letter.js`, swap the imports and constants, and wrap each route in `passport.authenticate('UsrJStrat', ...)`.
-9. **Mount.** In `index.js`, import the route class and `app.use('/letter', LetterRoutes.Router)` before `app.use(ErrorService.handler)`.
+3. **Model.** Create `database/models/letter.model.js` with `static init`, `static associate`, and the static CRUD helpers. Declare associations with `foreignKey` set to the column your schema defines, an explicit `as`, and an explicit `onDelete`. Add it to `database/models/all.model.js` and to the `switch` in `models.service.js`.
+4. **Wire it up.** In `database/sql-database.js`, add `export const Letter = Models.Letter.init(sequelize, Sequelize);` and `Letter.associate(Models);`.
+5. **Seeds.** Add `database/seeds/letterSeed.json` and `letter.seed.js`, and insert `createLetterSeed` into the array in `all.seeds.js` after everything it depends on. Add the name to the summary list there.
+6. **Paths and messages.** In `routes/constants.js` add a `letter` key to **both** `endpoints` and `messages`. `messages.letter` must have `get.many`, `get.one`, `post.create`, `put.update`, and `delete.remove`, each with `success.condition.par` and `error.condition.par`. Any extra handler (like `addRule`) needs a key with exactly the method's name. Add `letter: letterMsg` and `letter: letterEnd` to the two destructuring exports at the bottom.
+7. **Controller.** Create `routes/controllers/letter.controller.js` extending `RouteController`, call `super('letter')`, and **bind every handler** in the constructor. Use `this.#handleLimits` for lists, `this.requireFound` in `getOne`, and `this.requireAffected` in `update` and `remove`. Throw `HttpError` / `NotFoundError` / `ValidationError` for client faults.
+8. **Routes.** Copy `routes/chapter/chapter.js` to `routes/letter/letter.js`, swap the imports and constants, keep `passport.authenticate('UsrJStrat', ...)` on every route, and add `AuthzService.requireRole(...)` on writes. If a `user` should only see their own letters, add ownership checks in the controller following the chat controller.
+9. **Mount.** In `index.js`, import the route class and `app.use('/letter', LetterRoutes.Router)` before the 404 catch-all.
 10. **Document.** Add the resource to the README's endpoint reference and to the Postman collection.
 
 ## Conventions and gotchas
 
-- **ES modules everywhere.** `package.json` has `"type": "module"`. Use `import`/`export`, and include file extensions in relative and aliased imports.
+- **ES modules everywhere.** `package.json` has `"type": "module"`. Use `import`/`export` and include file extensions.
 - **Tabs, single quotes, width 100.** Prettier enforces it on commit.
-- **Bind your handlers.** The response formatter finds the running handler by looking for a bound function that is an own property of the controller. Arrow-function class fields would also work (they are own properties, but their `name` lacks the `bound ` prefix, so `substr(6)` would mangle it). Stick with `.bind(this)` in the constructor.
-- **Keys must match names.** `super('<name>')` must equal the key in `routes/constants.js`; handler method names must be exactly `create`, `getOne`, `getMany`, `update`, `remove` (and `login` for users) for the message lookup to resolve.
-- **Query strings for GET, JSON body for everything else,** including the `id` on DELETE. The optional path segments in the route strings are not read.
-- **Models return Sequelize instances.** `res.json` serializes them through `toJSON`, which is why responses include `createdAt`/`updatedAt` and the phantom `...Id` columns. Update helpers return Sequelize's `[affectedCount]` array, which is where `updatedRows: [1]` comes from.
-- **`full` is a string.** Controllers compare `full === 'true'`. `full=1` or `full=yes` is false.
-- **Errors are returned, not thrown, by `modelInstanceExists`.** Check `instanceof Error` and throw yourself, as the existing callers do.
-- **Everything logs.** Sequelize logs every statement; several controllers and models have leftover `console.log` / `console.group` calls (`chapter.model.js` associate, `message.controller.js` getMany, `rule.controller.js` getMany, `user.model.js` getAllUsers). Expect noisy output until those are removed.
+- **Bind your handlers.** The response formatter finds the running handler by looking for a bound function that is an own property of the controller. Unbound methods or arrow-function class fields will not be found.
+- **Keys must match names.** `super('<name>')` must equal the key in `routes/constants.js`; handler names must match the keys under `messages.<name>.<method>` (with `getOne` / `getMany` mapping to `one` / `many`).
+- **Query strings for GET, JSON body for everything else,** including the `id` on DELETE. Never read `req.params`; there are no path parameters.
+- **Throw typed errors for client faults.** `NotFoundError` for missing things, `HttpError(400, ...)` for malformed requests, `ValidationError([...])` for input rules. A plain `Error` is a 500 and will be logged as a server fault.
+- **Never select the password hash** except through `User.getUserWithPassword`. Never put an instance that might carry it into a response without `#stripPassword`.
+- **Ownership filters are spread last.** When adding a where-clause parameter to a model reader for authorization, merge it after the caller-supplied filters.
+- **Models return Sequelize instances.** `res.json` serializes them through `toJSON`. Update helpers return `[affectedCount]`.
+- **`full` is a string.** Compare `full === 'true'`.
+- **Errors are returned, not thrown, by `modelInstanceExists`.** Check `instanceof Error` and throw yourself.
+- **Schema changes need a reset in development.** `sync()` does not alter existing tables.
 - **The database file is relative to cwd.** Start the server from the repo root.
 
-## Bug catalog
-
-Each entry gives the symptom, the cause with file and line, and a suggested fix. Line numbers refer to `main` at commit `2047c3e`. Severity: **Blocker** (nothing works), **Security**, **Broken** (an endpoint or option always fails), **Wrong** (succeeds with incorrect results), **Hygiene**.
-
-### B1. Every controller response throws
-
-- **Severity:** Blocker.
-- **Symptom:** every request that reaches a controller returns `{"success":false,"name":"TypeError","info":"this.hasOwn is not a function","status":400}`.
-- **Cause:** `routes/controllers/route.controller.js:57` calls `this.hasOwn(fname)`. `hasOwn` is a static method on `Object`, not an instance method. It was `this.hasOwnProperty(fname)` until commit `dc56059`, when `eslint --fix` rewrote it.
-- **Fix:** `if (Object.hasOwn(this, fname)) {`. One line. Do this first; nothing else can be verified without it.
-
-### B2. JWT verification does not check the user exists
-
-- **Severity:** Security.
-- **Symptom:** any token signed with `JWT_SECRET` is accepted regardless of the `id` inside it; deleted users keep access for up to a week; `req.user` is a Promise.
-- **Cause:** `routes/services/auth.services.js:48`, `let user = User.getUser({ id: jwt_payload.id });` is not awaited. A Promise is truthy.
-- **Fix:** make the callback `async`, `await` the lookup, and call `next(null, false)` when it is null. Consider also rejecting `role === 'banned'` here.
-
-### B3. Registration is public and accepts any role
-
-- **Severity:** Security.
-- **Symptom:** an unauthenticated `POST /auth/user` with `"role": "admin"` creates an admin.
-- **Cause:** `routes/user/user.js` registers the create route with no `passport.authenticate`, and `user.controller.js:164` accepts whatever `role` is sent.
-- **Fix:** decide on a policy. Typical: public registration forces `role: 'user'`; creating other roles requires an admin token. The original README TODO "When creating server create admin user" suggests bootstrapping the first admin from config or the seed.
-
-### B4. No role or ownership checks
-
-- **Severity:** Security.
-- **Symptom:** any token can read or modify any record, including other users.
-- **Cause:** no authorization middleware exists. `role` is stored and never read.
-- **Fix:** after B2, add a small `requireRole(...roles)` middleware and an ownership check for chats and messages (`req.user.id === chat.user`). The note in `routes/message/message.js` describes the intended rule.
-
-### B5. `GET /auth/users` returns empty objects
-
-- **Severity:** Broken.
-- **Symptom:** `data` is `[{}, {}, ...]`.
-- **Cause:** `routes/controllers/user.controller.js:50`. `#stripUsersListPasswords` does `Object.entries(usersList).forEach((value) => this.#stripPassword(value))`. Each `value` is a `[key, user]` pair, so destructuring `{ id, email, ... }` from it yields all `undefined`, and `JSON.stringify` drops undefined fields. (`#formatUsersList` first turns the array into an object keyed by id, which is why `entries` was used.)
-- **Fix:** `Object.values(usersList)` or skip `#formatUsersList` and map over the original array.
-
-### B6. Listing users by role crashes
-
-- **Severity:** Broken.
-- **Symptom:** `GET /auth/users?role=admin` returns `Cannot read properties of undefined (reading 'findByPk')`.
-- **Cause:** `database/models/user.model.js:71` calls `modelsService.modelInstanceExists('Role', role)`. There is no Role model, so `model` is undefined. Additionally line 82 includes `model: 'Chat'` as a string, which Sequelize would reject once the first error is gone.
-- **Fix:** remove the existence check (validate `role` against the allowed list instead) and use the imported `Chat` class in the include.
-
-### B7. Creating a user without `role` throws a TypeError
-
-- **Severity:** Wrong.
-- **Symptom:** `{"name":"TypeError","info":"Cannot read properties of undefined (reading 'toLowerCase')"}` instead of the schema's "Role cannot be null" message.
-- **Cause:** `user.controller.js:164`, `req.body.role.toLowerCase()` runs before the `try`.
-- **Fix:** `const role = (req.body.role ?? '').toLowerCase()` inside the `try`, or default the role per B3.
-
-### B8. Password updates are not hashed
-
-- **Severity:** Security / Wrong.
-- **Symptom:** after `PUT /auth/user` with a `password`, the stored value is plain text and `bcrypt.compare` fails at login.
-- **Cause:** `database/hooks/user.hooks.js:4` only defines `beforeCreate`. `User.updateUser` uses the static `Model.update`, which fires bulk hooks, not `beforeCreate`.
-- **Fix:** add a `beforeUpdate` hook and call `updateUser` with `individualHooks: true`, or hash in the controller when `password` is present. Also strip `password` from the echoed `newUser` in the update response.
-
-### B9. Include aliases do not match association aliases
-
-- **Severity:** Broken.
-- **Symptom:** `GET /prison/prisons?full=true`, `GET /prison/prison?id=1&full=true`, `GET /rule/rules?prison=1`, and `GET /rule/rule?id=1&full=true` fail with `SequelizeEagerLoadingError: ... alias (rules) ... does not match ... (Rules)` (or `prisons` / `Prisons`).
-- **Cause:** `prison.model.js:17` and `rule.model.js:17` declare the `belongsToMany` pair without an `as`, so Sequelize's default aliases are the plural model names. The queries at `prison.model.js:41`, `prison.model.js:79`, `rule.model.js:50`, `rule.model.js:69`, and `rule.model.js:87` use lowercase `rules` / `prisons`.
-- **Fix:** add `as: 'rules'` and `as: 'prisons'` to the two `belongsToMany` calls. Fix the through-table keys at the same time (B17).
-
-### B10. `PUT /prison/rule` crashes
-
-- **Severity:** Broken.
-- **Symptom:** `Cannot read properties of undefined (reading '#handleErr')`.
-- **Cause:** `routes/controllers/prison.controller.js` binds `getMany`, `getOne`, `update`, `remove`, and `create` in the constructor (around line 20) but not `addRule` (line 84). Express calls it unbound, `this` is undefined, and the private field access throws. Even once bound, `#findStack` cannot find it (it is not an own property) and `Prison.addRule` at `prison.model.js:96` neither awaits nor returns its promise chain, so the response would be sent before the association is written.
-- **Fix:** bind `addRule`; add `rule` under `prison.put` in `routes/constants.js` (it already exists there, so the lookup will work once the layer is found); rewrite `Prison.addRule` as `const [r, p] = await Promise.all([Rule.findByPk(rule), Prison.findByPk(prison)]); return p.addRule(r);` after B9/B17 make the association usable.
-
-### B11. Listing prisoners by prison swaps arguments
-
-- **Severity:** Broken.
-- **Symptom:** `GET /prisoner/prisoners?prison=1` returns `Argument passed to findByPk is invalid: false`.
-- **Cause:** `routes/controllers/prisoner.controller.js:57` calls `Prisoner.getPrisonersByPrison(fullBool, prison, limit, offset)`; the model at `prisoner.model.js:91` is `(prisonId, full, limit, offset)`.
-- **Fix:** swap the first two arguments in the controller.
-
-### B12. Message list filters shift their arguments
-
-- **Severity:** Wrong.
-- **Symptom:** `GET /messaging/messages?chat=1` (and `?prisoner=`, `?user=`, `?id=`) returns `[]` even when rows exist.
-- **Cause:** `routes/controllers/message.controller.js:79`, `:93`, and the two similar calls below pass `(id, fullBool, limit, offset)`; the model methods at `message.model.js:50`, `:59`, `:72`, `:85` take `(id, limit, offset)`. So `limit` becomes `false`/`true` and `offset` becomes `10`, skipping the first page.
-- **Fix:** either add a `full` parameter to the model methods (and an include for `chat_details`) or drop `fullBool` from the calls. Delete the four hand-rolled pagination blocks in favor of `handleLimits`.
-
-### B13. `GET /messaging/message` calls a method that does not exist
-
-- **Severity:** Broken.
-- **Symptom:** `Message.getMessageByID is not a function`.
-- **Cause:** `message.controller.js:139` calls `getMessageByID`; the model only has `readMessageById` (which returns an array via `findAll`).
-- **Fix:** add `static async getMessageByID(id, full) { return this.findByPk(id, full ? { include: [...] } : {}); }` to the model.
-
-### B14. Chat by id with `full` uses the wrong aliases
-
-- **Severity:** Broken.
-- **Symptom:** `GET /chat/chat?id=1&full=true` fails with an alias error mentioning `user` vs `user_details`.
-- **Cause:** `chat.model.js:184` (`readChatById`) includes `as: 'user'` and `as: 'prisoner'` at lines 195 and 199; the associations at lines 18 and 19 are named `user_details` and `prisoner_details`. The other chat readers use the right names.
-- **Fix:** use `user_details` / `prisoner_details`, and change `findAll` to `findOne` so that by-id lookups return an object like the by-pair lookup does.
-
-### B15. Chat update fails
-
-- **Severity:** Broken.
-- **Symptom:** `PUT /chat/chat` returns `SQLITE_ERROR: no such column: chat`.
-- **Cause:** `chat.model.js:225`. `updateChat` performs a second `update` with `where: { chat: updatedChat }`; `Chats` has no `chat` column, and `updatedChat` is the `[count]` array from the first update.
-- **Fix:** delete the second update; the first one already writes `user` and `prisoner`.
-
-### B16. Chat lookups with bad parameters succeed
-
-- **Severity:** Wrong.
-- **Symptom:** `GET /chat/chat?user=1` or `GET /chat/chat` returns 200 with `data: {}` instead of the `param` / `empty` error messages defined in `routes/constants.js`.
-- **Cause:** `chat.controller.js:125` and the `default` branch return `{ condition }` without a `chatfunc`; line 88 then does `await chatfunc` on `undefined`, which resolves, and the success path runs.
-- **Fix:** in `getOne`, `if (!chatfunc) throw new Error(...)` before awaiting, or have the helper return a rejected promise.
-
-### B17. Association foreign keys do not match the schema columns
-
-- **Severity:** Wrong (affects every `full=true` and pollutes every response).
-- **Symptom:** `userId`, `prisonerId`, `chatId`, `prisonId` appear in responses and are always null; `full=true` returns `messages: []`, `user_details: null`, `prisoner_details: null`, `prison_details: null`.
-- **Cause:** see [Associations and the duplicate-column problem](#associations-and-the-duplicate-column-problem). Declarations at `chat.model.js:18-20`, `message.model.js:15`, `user.model.js:18`, `prisoner.model.js:17-18`, `prison.model.js:16-21`, `rule.model.js:17`.
-- **Fix:** set `foreignKey` to `user`, `prisoner`, `chat`, `prison` on both sides of each pair; set `foreignKey: 'prison', otherKey: 'rule'` on `Prison.belongsToMany(Rule)` and `foreignKey: 'rule', otherKey: 'prison'` on the reverse; then remove the stray `model:`/`key:` entries from the schemas and add real `references` if you want database-level constraints.
-
-### B18. Duplicate chats
-
-- **Severity:** Wrong.
-- **Symptom:** `POST /chat/chat` with an existing pair creates a second chat; subsequent messages attach to whichever `findOrCreate` finds first.
-- **Cause:** `Chat.createChat` is a plain `create`; no unique index on `(user, prisoner)`.
-- **Fix:** add `indexes: [{ unique: true, fields: ['user', 'prisoner'] }]` to `Chat.init` options and use `findOrCreateChat` in the controller. Also validate that the user and prisoner exist.
-
-### B19. `/auth/protected` is defined but not routed
-
-- **Severity:** Hygiene.
-- **Cause:** `routes/constants.js:6` defines it; `routes/user/user.js` never registers it.
-- **Fix:** register it as a token-check endpoint (its success message is already written) or delete the constant and the Postman request.
-
-### B20. `/chat` is mounted twice
-
-- **Severity:** Hygiene. `index.js:44-45`. Delete one line.
-
-### B21. Optional path segments are declared but never read
-
-- **Severity:** Wrong.
-- **Symptom:** `GET /prison/prison/1` reaches the handler and fails with `WHERE parameter "id" has invalid "undefined" value`.
-- **Cause:** route strings in `routes/constants.js` use `{/:id}` etc.; controllers read `req.query` only.
-- **Fix:** choose. To support path ids: `const id = req.params.id ?? req.query.id`. To drop them: remove the `{/:...}` segments so unsupported URLs 404 cleanly.
-
-### B22. Pagination input is not validated
-
-- **Severity:** Wrong. `route.controller.js:36`. Non-numeric values reach SQL. Parse with `Number.parseInt`, clamp to sane bounds, and return a validation error otherwise.
-
-### B23. Not-found and status-code semantics are inconsistent
-
-- **Severity:** Wrong. See [Response and error contract](#response-and-error-contract). `route.controller.js:100` hardcodes 400 for every error; `:97` includes `errMsg.stack`. Introduce a small error class with a `status`, return 404 when a lookup yields null, 201 on create, and never send stacks outside development.
-
-### B24. Error middleware calls `next` with the wrong arguments
-
-- **Severity:** Hygiene. `routes/services/error.services.js:23`. Remove the `next(req, res, next)` line. Also delete `middleware/ErrorHandler.js` (unused) and `routes/router.js` (unused) and `passport.cjs` (empty).
-
-### B25. Prisoner `status` is not validated
-
-- **Severity:** Wrong. `database/schemas/prisoner.schema.js:26` places `isIn` at the column level instead of under `validate`, and its value list is `['pending, pretrial', 'incarcerated', 'free']` (note the comma inside the first string). Move it under `validate: { isIn: { args: [['pretrial', 'incarcerated', 'free']], msg } }`.
-
-### B26. String length validators are ineffective
-
-- **Severity:** Wrong. `database/schemas/user.schema.js:7`, `:22`, `:74` use `min` / `max`, which Sequelize applies as numeric comparisons. A one-character username is accepted (verified). Use `len: { args: [3, 16], msg }`. Also fix the message at line 13 (says 16, arg says 32) and line 91 (omits `chapter` from the allowed-roles message).
-
-### B27. `Prison.deleted` is unused and the wrong type
-
-- **Severity:** Hygiene. `database/schemas/prison.schema.js:12` declares JSON; it only ever holds `false`. Either implement soft delete (`paranoid: true` on the model, drop the column) or remove it.
-
-### B28. Every boot wipes the database
-
-- **Severity:** Wrong (for anything beyond local development). `database/sql-database.js:32`. Make `force` depend on an environment flag (for example `DB_RESET=true`), default to `sync()` without force, and move seeding behind the same flag or a separate script.
-
-### B29. Message hook runs before validation and on update
-
-- **Severity:** Wrong. `database/hooks/message.hooks.js:6`. A missing `user`/`prisoner` produces a SQL error instead of the schema's `notNull` message, and `PUT /messaging/message` requires both fields. Guard the hook (`if (record.user == null || record.prisoner == null) return;`) so validation reports the problem, and skip the lookup on update when `chat` is already set.
-
-### B30. `Message.createMessage` has a misleading signature
-
-- **Severity:** Hygiene. `message.model.js:21` is declared `(messageText, sender)` but the controller passes one object, which is what `create` wants. Rename the parameter.
-
-### B31. Chapter model is a stub in places
-
-- **Severity:** Hygiene. `chapter.model.js:20` logs all models at boot from an empty `associate`. `getAllChapters` has no pagination. `prisoners` is a JSON blob rather than a relation. `modelsService` does not know about Chapter.
-
-### B32. Rule creation accepts a `prison` that is ignored
-
-- **Severity:** Hygiene. `rule.model.js:20` destructures `prison` and passes it to `create`, but Rule has no such column, so Sequelize drops it silently. Remove it, or implement "create rule and attach to prison" properly once B10 works.
-
-### B33. Leftover debug logging and Sequelize query logging
-
-- **Severity:** Hygiene. `message.controller.js:58-60`, `rule.controller.js:41-44`, `user.model.js:65` (`console.log(filters)` in `getAllUsers`), `chapter.model.js:20`. Add `logging: false` (or an env-controlled logger) to the Sequelize config.
-
-### B34. Lockfile and Husky drift
-
-- **Severity:** Hygiene. See [Tooling](#tooling). Regenerate `package-lock.json`; align `husky` to `^9` and update `.husky/pre-commit` to the v9 format (no shim line).
-
-### B35. CORS is hardcoded
-
-- **Severity:** Hygiene. `index.js:20`. Read allowed origins from an environment variable.
-
-### B36. Postman collection is stale
-
-- **Severity:** Hygiene. Uses `name` for login, `/messaging/chat`, path ids, and a hardcoded token.
-
-## Suggested order of work
-
-A reasonable sequence for "fix up the backend", each step small enough to be one pull request:
-
-1. **Make it run.** B1. Add a `start` and `dev` script. Regenerate the lockfile (B34). Commit `.env.example`.
-2. **Make it safe to expose.** B2, B3, B4, B8. Stop sending stack traces (part of B23).
-3. **Make the data model honest.** B17 with B9 and B14 together, since they all touch the same `associate` calls and includes. Then B10 and B18. Add a unique index on chat pairs and real `references` on foreign keys.
-4. **Fix the argument-order bugs.** B11, B12, B13, B15, B16. Consider replacing positional `(…, full, limit, offset)` parameters with an options object while you are in there.
-5. **Validation.** B7, B22, B25, B26, B29. Consider a request validation layer (any schema library) in front of the controllers so bad input never reaches Sequelize.
-6. **Response contract.** B23. Decide on 201/404/500, remove typos from `info` strings, and version the change so the front end can adapt.
-7. **Persistence.** B28. Environment-gated `force`, a seed script separate from boot, and a plan for migrations (Sequelize CLI or Umzug) if the schema will keep changing.
-8. **Tests.** Extract app construction from `index.js` so tests can build an app against an in-memory SQLite (`storage: ':memory:'`) without listening or seeding, then cover login, one CRUD cycle per resource, and the message-creates-chat behavior. Wire `npm test` to it and add CI.
-9. **Cleanup.** B19, B20, B24, B27, B30 to B33, B35, B36. Delete dead files, remove the per-route `express()` apps, and register the passport strategies once.
-10. **The original TODO list.** UUID ids, a default admin, soft deletes, and role-based route protection were all on the previous README's list and are still open.
+## History: what was fixed in 2026
+
+The codebase was idle from June 2025 to September 2026. The first thing the revival found was that it could not return a single response. Everything below landed in pull request #60 (`bugfixes`, 15 commits) and #61, one concern per commit; each commit message records what was verified.
+
+| Area       | Problem                                                                                                                                | Commit    |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Blocker    | `this.hasOwn` (an eslint autofix) crashed every response                                                                               | `c2c1b8f` |
+| Security   | JWT callback never awaited the user lookup; any signed token was accepted, `req.user` was a Promise                                    | `9ea8bdd` |
+| Security   | Public registration accepted `role: admin`; no role checks anywhere; banned users fully authorized                                     | `9a8f43e` |
+| Security   | Any user could read, edit, delete, or spoof anyone's chats and messages                                                                | `41d934e` |
+| Security   | `PUT /auth/user` stored passwords in plain text                                                                                        | `d0d04b5` |
+| Security   | Password hashes leaked through `user_details` includes and the update response                                                         | #61       |
+| Bootstrap  | No way to obtain an admin once registration was locked down                                                                            | `1085a0c` |
+| Broken     | Message list filters shifted their arguments; get-one called a nonexistent method                                                      | `a7c54e9` |
+| Broken     | Associations pointed at phantom `...Id` columns, so `full=true` returned nulls; rule/prison aliases wrong; rules could not be attached | `4c71da4` |
+| Broken     | User list returned empty objects; role filter crashed                                                                                  | `5b35385` |
+| Broken     | Prisoners-by-prison swapped arguments; chat update targeted a nonexistent column                                                       | `1b2eff2` |
+| Validation | Pagination unvalidated; prisoner status and user string lengths not enforced; message hook masked validation messages                  | `20520f9` |
+| Contract   | Everything was 400 with a stack trace; no 201, no 404, no 500; HTML for unknown routes                                                 | `d516d26` |
+| Hygiene    | Every boot wiped the database; SQL logging on; CORS hardcoded                                                                          | `fbc7fef` |
+| Hygiene    | Dead files, per-route express apps, unrouted paths, never-read path segments, unused column                                            | `b128414` |
+| Tooling    | Lockfile drift, Husky 8, npm 11 script gating, Node 26 incompatibilities, stale Postman collection                                     | `4a1e811` |
+
+## Open items
+
+Known gaps, roughly in the order they are worth tackling:
+
+1. **Automated tests.** Nothing protects any of the above from regressing. See [Tests](#tests).
+2. **Schema migrations.** `sync()` cannot alter tables. Adopt Sequelize CLI or Umzug before the schema changes in production.
+3. **A health endpoint** that awaits `ready`, so deployment tooling can tell "listening" from "usable".
+4. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
+5. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
+6. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
+7. **Chapter list pagination.** `GET /chapter/chapters` returns everything.
+8. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
+9. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
+10. **Chapter-scoped data.** Chapter accounts currently see and edit everything; if chapters should only handle their own region's letters, that needs a relation between Chapter and users or prisons and a filter like the user ownership one.
+11. **Rate limiting and request logging.** None.
+12. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
+13. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
+14. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.

@@ -6,38 +6,38 @@ This repository is the backend HTTP API for that product. It is an Express 5 app
 
 This README is written for people who **use** the API: front-end developers, integrators, and testers. If you want to change the API itself, read the [developer guide](docs/DEVELOPER.md).
 
-> **Status (September 2026).** The code on `main` was last changed in June 2025. As checked in, it does not work: a one-line regression in the shared response formatter makes every controller response fail with a `TypeError` (see [Known issues](#known-issues), item 1). Everything in this document was verified against a local build with that single line patched. Endpoints whose status is listed as **Broken** or **Partial** have further problems, each described in the Known issues section. Endpoints listed as **Works** behave as documented.
-
 ## Contents
 
 - [Concepts](#concepts)
 - [Running the API](#running-the-api)
 - [Seed data and test accounts](#seed-data-and-test-accounts)
-- [Authentication](#authentication)
+- [Authentication and roles](#authentication-and-roles)
 - [Conventions](#conventions)
 - [Endpoint reference](#endpoint-reference)
-- [Known issues](#known-issues)
+- [Known quirks](#known-quirks)
 - [Postman collection](#postman-collection)
 
 ## Concepts
 
-| Term         | Meaning                                                                                                                                                                |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User**     | An account for a person on the outside (or an admin, or a chapter). Has a `role` of `admin`, `user`, `chapter`, or `banned`.                                           |
-| **Prison**   | A correctional facility. Has a name and a free-form JSON `address`.                                                                                                    |
-| **Prisoner** | An incarcerated person that users can write to. Belongs to one prison. Stores birth name, chosen name, inmate ID, release date, a bio, and a status.                   |
-| **Rule**     | A mail rule a prison enforces, such as "No pictures". Rules are meant to be attached to many prisons, and a prison can have many rules.                                |
-| **Chat**     | A thread between exactly one user and one prisoner. Chats are created automatically the first time a message is sent between a pair, but can also be created directly. |
-| **Message**  | One letter or text within a chat. `sender` is either `user` or `prisoner`.                                                                                             |
-| **Chapter**  | A local chapter of the partner non-profit that prints and mails letters. Has a name, a JSON `location`, and some statistics fields.                                    |
+| Term         | Meaning                                                                                                                                                                                                                       |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User**     | An account. Has a `role` of `admin`, `user`, `chapter`, or `banned`. A `user` is a person on the outside writing letters; a `chapter` is a partner organisation that prints and mails them; an `admin` manages everything.    |
+| **Prison**   | A correctional facility. Has a name and a free-form JSON `address`.                                                                                                                                                           |
+| **Prisoner** | An incarcerated person that users can write to. Belongs to one prison. Stores birth name, chosen name, inmate ID, release date, a bio, and a status.                                                                          |
+| **Rule**     | A mail rule a prison enforces, such as "No pictures". A rule can be attached to many prisons and a prison can have many rules.                                                                                                |
+| **Chat**     | A thread between exactly one user and one prisoner. Chats are created automatically the first time a message is sent between a pair, and can also be created directly.                                                        |
+| **Message**  | One letter or text within a chat. `sender` is either `user` or `prisoner`.                                                                                                                                                    |
+| **Chapter**  | A local chapter of the partner non-profit. Has a name, a JSON `location`, and some statistics fields. Note that chapter _accounts_ are users with the `chapter` role; the Chapter resource describes the organisation itself. |
 
-All identifiers are auto-incrementing integers. Every record also carries `createdAt` and `updatedAt` ISO-8601 timestamps.
+All identifiers are auto-incrementing integers. Every record carries `createdAt` and `updatedAt` ISO-8601 timestamps.
+
+Relationships are enforced by the database. A message must point at an existing user and prisoner, a prisoner at an existing prison, and so on. Deleting a record that others still depend on is refused (see [Deletes and referential integrity](#deletes-and-referential-integrity)).
 
 ## Running the API
 
 ### Prerequisites
 
-- Node.js. The code was verified with Node 24. It uses ES modules and package `imports` aliases, so anything older than Node 16 will not work.
+- Node.js 18 or newer. Verified on Node 24 and Node 26, on both Intel and Apple Silicon Macs.
 - npm.
 - No database server. SQLite is bundled through the `sqlite3` npm package, which downloads a prebuilt binary during install.
 
@@ -46,61 +46,76 @@ All identifiers are auto-incrementing integers. Every record also carries `creat
 ```bash
 git clone https://github.com/Aye-Bee-See/sqlite-express-api.git
 cd sqlite-express-api
-npm install
+npm ci
 ```
 
-Use `npm install`, not `npm ci`. The committed `package-lock.json` is out of sync with `package.json`, so `npm ci` refuses to run.
+`npm ci` installs exactly what the lockfile pins. The native modules (`sqlite3`, `bcrypt`) have their install scripts pre-approved in `package.json`, so npm 11 will not prompt.
 
 ### Configure
 
-Create a `.env` file in the repository root. It is git-ignored.
+Copy `.env.example` to `.env` and edit it. `.env` is git-ignored.
 
-```dotenv
-JWT_SECRET=replace-this-with-a-long-random-string
-PORT=3000
+```bash
+cp .env.example .env
 ```
 
-| Variable       | Required | Purpose                                                                                                   |
-| -------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| `JWT_SECRET`   | Yes      | Secret used to sign and verify login tokens. If it is missing, login fails when it tries to sign a token. |
-| `PORT`         | Yes      | TCP port the server listens on. If it is missing, Express listens on a random port.                       |
-| `REDIS_SECRET` | No       | Read into a constant but never used.                                                                      |
+| Variable         | Required | Default                 | Purpose                                                                                                                           |
+| ---------------- | -------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `JWT_SECRET`     | Yes      | none                    | Secret used to sign and verify login tokens. Login fails without it.                                                              |
+| `PORT`           | Yes      | none                    | TCP port to listen on.                                                                                                            |
+| `ADMIN_USERNAME` | No       | none                    | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set. |
+| `ADMIN_PASSWORD` | No       | none                    | Password for that account, at least 7 characters.                                                                                 |
+| `ADMIN_EMAIL`    | No       | none                    | Email for that account.                                                                                                           |
+| `CORS_ORIGIN`    | No       | `http://localhost:3001` | Browser origins allowed by CORS, comma-separated.                                                                                 |
+| `DB_RESET`       | No       | `false`                 | `true` drops and recreates every table on boot. All data is lost.                                                                 |
+| `DB_SEED`        | No       | `true`                  | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                             |
+| `DB_LOGGING`     | No       | `false`                 | `true` prints every SQL statement.                                                                                                |
+| `NODE_ENV`       | No       | none                    | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                        |
 
 ### Start
 
 ```bash
-node index.js
+npm start
 ```
 
 For automatic restarts while developing:
 
 ```bash
-npx nodemon index.js
+npm run dev
 ```
 
-You will see `Express is running on port: 3000`, followed by a long stream of SQL statements and then a block of seed data. The server is ready once `End Seed Data` is printed.
+Boot output looks like this:
 
-### What happens on every start
+```text
+Express is running on port: 3000
+Seed data: users: 41 seeded, prisons: 52 seeded, prisoners: 40 seeded, rules: 44 seeded, chats: 40 seeded, messages: 40 seeded, chapters: 1 seeded.
+Created admin account "bootadmin" (id 42).
+Database ready.
+```
 
-Each start **drops and recreates every table** in `database.sqlite`, then loads the seed data described below. Nothing you create through the API survives a restart. Treat the running server as a disposable fixture.
+The server accepts connections as soon as the first line prints, but requests that need data should wait for `Database ready.`
+
+### Data persistence
+
+Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
 
 ### CORS
 
-The server only sends CORS headers for the origin `http://localhost:3001`. Browser clients served from any other origin will be blocked by the browser. Non-browser clients such as `curl`, Postman, or server-to-server calls are unaffected.
+The server only sends CORS headers for the origins in `CORS_ORIGIN`. Browser clients served from other origins are blocked by the browser. Non-browser clients such as `curl`, Postman, or server-to-server calls are unaffected.
 
 ## Seed data and test accounts
 
-The database is seeded from the JSON files in `database/seeds/` on every boot.
+On a fresh database the JSON files in `database/seeds/` are loaded:
 
-| Resource  | Rows | Notes                                                                                                              |
-| --------- | ---- | ------------------------------------------------------------------------------------------------------------------ |
-| Users     | 41   | One admin plus forty regular users.                                                                                |
-| Prisons   | 52   | "Test Prison", then Greek-letter names ("Alpha Prison", "Beta Prison", ...). Each has a one-line street address.   |
-| Prisoners | 40   | Prisoner N is in prison N. Each has a birth name, chosen name, inmate ID, release date, and bio. `status` is null. |
-| Rules     | 44   | "No pictures", "No contraband", and so on. Seeded rules are **not** attached to any prison.                        |
-| Chats     | 40   | Chat N pairs user N with prisoner N.                                                                               |
-| Messages  | 40   | One short greeting per chat, all sent by the user side.                                                            |
-| Chapters  | 1    | "Test Chapter".                                                                                                    |
+| Resource  | Rows | Notes                                                                                                                        |
+| --------- | ---- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Users     | 41   | One admin plus forty regular users.                                                                                          |
+| Prisons   | 52   | "Test Prison", then Greek-letter names ("Alpha Prison", "Beta Prison", ...). Each has a one-line street address.             |
+| Prisoners | 40   | Prisoner N is in prison N. Each has a birth name, chosen name, inmate ID, release date, and bio. `status` is null.           |
+| Rules     | 44   | "No pictures", "No contraband", and so on. Seeded rules are not attached to any prison; attach them with `PUT /prison/rule`. |
+| Chats     | 40   | Chat N pairs user N with prisoner N.                                                                                         |
+| Messages  | 40   | One short greeting per chat, all sent by the user side.                                                                      |
+| Chapters  | 1    | "Test Chapter".                                                                                                              |
 
 ### Credentials
 
@@ -109,18 +124,20 @@ The database is seeded from the JSON files in `database/seeds/` on every boot.
 | `admin`              | `abcpassword`                | `admin` | `admin@localhost`       |
 | `user1` ... `user40` | `password1` ... `password40` | `user`  | `user1@example.com` ... |
 
-The numeric `id` a seeded account receives is **not** guaranteed to match its position in the seed file. In a verified run `admin` was id 3 and `user2` was id 4. Read your id from the login response rather than assuming it.
+Plus whatever you configured in `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL`.
 
-## Authentication
+The numeric `id` a seeded account receives is **not** guaranteed to match its position in the seed file. In one verified run `admin` was id 3 and `user4` was id 1. Read ids from responses rather than assuming them. This also means "user N is paired with prisoner N" refers to database ids, not to the `userN` usernames.
 
-### Which routes are public
+## Authentication and roles
 
-Only two:
+### Public routes
 
-- `POST /auth/user` (register)
-- `POST /auth/login`
+Only two routes work without a token:
 
-Every other route requires a bearer token.
+- `POST /auth/user` registers an account. It always gets the `user` role.
+- `POST /auth/login` returns a token.
+
+Everything else requires a bearer token.
 
 ### Logging in
 
@@ -135,15 +152,17 @@ curl -s -X POST http://localhost:3000/auth/login \
 	"data": {
 		"user": {
 			"id": 3,
-			"email": "admin@localhost",
 			"name": null,
-			"role": "admin",
 			"username": "admin",
-			"bio": null
+			"email": "admin@localhost",
+			"bio": null,
+			"role": "admin",
+			"createdAt": "2026-09-11T18:18:17.874Z",
+			"updatedAt": "2026-09-11T18:18:17.874Z"
 		},
 		"token": {
-			"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywiZXhwaXJ5IjoxNzg5NzQ5NjE5NDc2LCJpYXQiOjE3ODkxNDQ4MTksImV4cCI6MTc4OTc0OTYxOX0.PLALbf...",
-			"expires": 1789749619476
+			"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywiZXhwaXJ5IjoxNzg5NzU1NTQ3OTA5LCJpYXQiOjE3ODkxNTA3NDcsImV4cCI6MTc4OTc1NTU0N30.hFU0KQ...",
+			"expires": 1789755547909
 		}
 	},
 	"info": "Login success.",
@@ -156,21 +175,62 @@ curl -s -X POST http://localhost:3000/auth/login \
 - The login field is `username`, not `name` or `email`.
 - The body may be JSON or `application/x-www-form-urlencoded`.
 - `data.token.token` is the JWT. `data.token.expires` is the expiry as a Unix timestamp in milliseconds.
-- Tokens are valid for **one week**. There is no refresh endpoint and no logout endpoint; to end a session, discard the token.
-- Wrong username or password returns `401` with the [auth error shape](#authentication-errors). A missing field returns `400` with the same shape and `"info": "Bad Request"`.
+- Tokens are valid for **one week**. There is no refresh or logout endpoint; to end a session, discard the token.
+- Wrong username or password: `401`. Missing field: `400`. Both use the [general error shape](#general-errors).
+- A `banned` account cannot log in, and any token it already holds stops working.
 
 ### Using the token
-
-Send it as a bearer token on every request:
 
 ```bash
 curl -s http://localhost:3000/prison/prisons \
   -H 'Authorization: Bearer eyJhbGciOi...'
 ```
 
-### What a token grants
+A token whose user has since been deleted or banned is rejected with `401`.
 
-A valid token grants **full access to every endpoint**. Roles are stored but never checked, so a `user`, a `chapter`, and a `banned` account can all do everything an `admin` can, including creating and deleting other users. See Known issues 3 and 4 before exposing this service to the public.
+### What each role can do
+
+| Action                                                     | `user`                | `chapter` | `admin` |
+| ---------------------------------------------------------- | --------------------- | --------- | ------- |
+| Read prisons, prisoners, rules, chapters                   | Yes                   | Yes       | Yes     |
+| Create, update, delete prisons, prisoners, rules, chapters | No                    | Yes       | Yes     |
+| Attach a rule to a prison                                  | No                    | Yes       | Yes     |
+| Read, create, update, delete chats and messages            | **Own threads only**  | All       | All     |
+| Send a message as the prisoner side (`sender: prisoner`)   | No (forced to `user`) | Yes       | Yes     |
+| Read own user record; update or delete own account         | Yes                   | Yes       | Yes     |
+| Read, update, delete other users; list users               | No                    | No        | Yes     |
+| Change a role, or create a non-`user` account              | No                    | No        | Yes     |
+
+"Own threads" means chats whose `user` is the caller's id, and messages whose `user` is the caller's id. For a `user`:
+
+- List endpoints silently filter to the caller; a `user` or `prisoner` query parameter cannot widen the result.
+- Fetching, updating, or deleting someone else's chat or message returns `403`.
+- Creating a chat or message always uses the caller's own id as `user`, whatever the body says, and messages are always sent as `user`.
+
+Every refusal is a `403` with the general error shape. A `chapter` account is unrestricted on chats and messages so it can read letters to print and transcribe prisoner replies.
+
+### Creating accounts with other roles
+
+Registration always yields `role: user`. To create a `chapter`, `admin`, or `banned` account, an admin calls the same endpoint with their token:
+
+```bash
+curl -s -X POST http://localhost:3000/auth/user \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"username":"chapter1","password":"longenough","email":"chapter1@example.com","role":"chapter","name":"Portland Chapter"}'
+```
+
+Without an admin token the same request returns:
+
+```json
+{
+	"success": false,
+	"name": "AuthorizationError",
+	"info": "Only an admin can create a user with role \"admin\".",
+	"status": 403
+}
+```
+
+To get the first admin on a fresh database, either log in as the seeded `admin`, or set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` before booting. See [Configure](#configure).
 
 ## Conventions
 
@@ -188,21 +248,21 @@ All examples use `http://localhost:3000`. Each resource lives under its own pref
 | `/messaging` | Messages  | `/messaging/message` | `/messaging/messages` |
 | `/chapter`   | Chapters  | `/chapter/chapter`   | `/chapter/chapters`   |
 
-Note the odd one out: messages are mounted at `/messaging`, while chats are at `/chat`. The older Postman collection used `/messaging/chat`, which now returns a 404.
+Note the odd one out: messages are mounted at `/messaging`, while chats are at `/chat`.
 
 ### How to pass identifiers and filters
 
 - **GET** requests take everything as **query-string parameters**: `GET /prison/prison?id=1`.
 - **PUT** and **DELETE** requests take the `id` (and any fields) in a **JSON body**. Yes, `DELETE` requests carry a body.
-- The route definitions contain optional path segments such as `/prison{/:id}`, but the handlers never read them. `GET /prison/prison/1` is accepted by the router and then fails with a database error, because `id` was not read from the path. Always use the query string.
+- Path-style ids such as `GET /prison/prison/1` are not supported and return a `404`.
 
 ### Request bodies
 
-Send `Content-Type: application/json`. Form-encoded bodies are also parsed. Unknown fields in a create body are ignored; unknown fields in an update body are passed to the database and will cause an error if they are not real columns.
+Send `Content-Type: application/json`. Form-encoded bodies are also parsed. Unknown fields are ignored.
 
 ### Response envelope
 
-Every successful controller response is a JSON object with this shape:
+Every successful response is a JSON object with this shape:
 
 ```json
 {
@@ -214,15 +274,15 @@ Every successful controller response is a JSON object with this shape:
 }
 ```
 
-| Field     | Meaning                                                                                                               |
-| --------- | --------------------------------------------------------------------------------------------------------------------- |
-| `data`    | The payload. A single object, an array, `null` when a lookup found nothing, or a number for delete counts.            |
-| `info`    | A human-readable message. May be `null` for some list endpoints. Contains a few typos ("retireved", "Succeessfully"). |
-| `success` | Always `true` on this shape.                                                                                          |
-| `status`  | Always `200`. Successful creates and updates also return 200, not 201 or 204.                                         |
-| `name`    | The resource and operation, for example `user create`, `chat many`, `prison remove`.                                  |
+| Field     | Meaning                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------ |
+| `data`    | The payload: an object, an array, or a number (deleted-row count).                                           |
+| `info`    | A human-readable message. `null` on some user endpoints. A few contain typos ("retireved", "Succeessfully"). |
+| `success` | Always `true` on this shape.                                                                                 |
+| `status`  | `201` for creates, `200` for everything else. Mirrors the HTTP status.                                       |
+| `name`    | The resource and operation, for example `user create`, `chat many`, `prison remove`, `prison addRule`.       |
 
-Update responses wrap the database result and echo the body you sent:
+Update responses wrap the affected-row count and echo the body you sent:
 
 ```json
 {
@@ -237,44 +297,41 @@ Update responses wrap the database result and echo the body you sent:
 }
 ```
 
-`updatedRows` is a one-element array holding the number of rows changed. Delete responses put the number of deleted rows directly in `data`.
+Delete responses put the number of deleted rows directly in `data`, and it is always `1` because a missing id is a `404` instead.
 
-### Error responses
+### Errors
 
-There are three error shapes, plus a bare HTML 404 for unknown paths.
+There are two error shapes.
 
 #### Validation errors
 
-Returned with status `400` when the database schema rejects a value on create:
+Status `400`, whenever input fails a rule: a missing required field, a bad email, a bad `status` value, a bad `page` value, and so on. Several problems are reported together.
 
 ```json
 {
 	"success": false,
 	"errors": [
-		"Password must be a minimum of 7 characters.",
-		"Email must be in traditional email format. E.g. x@y.z"
+		"Username must be between 3 and 16 characters.",
+		"Password must be a minimum of 7 characters."
 	]
 }
 ```
 
-#### Controller errors
+#### General errors
 
-Returned with status `400` for anything else that fails inside a handler, including "not found" lookups and internal faults. The `stack` field is a full server stack trace.
+Everything else. `info` is the fixed message for that endpoint; `error`, when present, is the specific reason.
 
 ```json
 {
-	"info": "Error getting chats list",
-	"type": "Error",
-	"error": "User 9999 not found",
-	"stack": "Error: User 9999 not found\n    at modelsService.modelInstanceExists (...)"
+	"success": false,
+	"name": "NotFoundError",
+	"info": "Error getting prison by ID",
+	"status": 404,
+	"error": "Prison 9999 not found"
 }
 ```
 
-`info` is the fixed message for that endpoint. `type` and `error` come from the underlying JavaScript error. Unique-constraint violations (duplicate username or email) arrive in this shape with `"type": "SequelizeUniqueConstraintError"`.
-
-#### Authentication errors
-
-Returned with status `401` when the token is missing, invalid, or expired, and with `400` when login credentials are missing:
+Authentication and authorization failures use the same shape without `error`:
 
 ```json
 {
@@ -285,97 +342,125 @@ Returned with status `401` when the token is missing, invalid, or expired, and w
 }
 ```
 
-Uncaught errors thrown outside a handler's `try` block also use this shape, with the JavaScript error name in `name` and the message in `info`, status `400`.
+Unknown paths return the same shape with status `404` and `"info": "Cannot GET /nope"`, never an HTML page.
 
-#### Unknown routes
+`500` responses carry only a generic `"info": "Internal Server Error"`; the details are logged on the server. Stack traces never appear in responses.
 
-An unmatched path returns Express's default HTML page with status `404`, not JSON.
+### Status codes
 
-### Status codes in practice
-
-| Situation                                | Status | Shape                  |
-| ---------------------------------------- | ------ | ---------------------- |
-| Success (read, create, update, delete)   | 200    | Envelope               |
-| Lookup by id finds nothing (most models) | 200    | Envelope, `data: null` |
-| Lookup by id finds nothing (users)       | 400    | Controller error       |
-| Delete of a nonexistent id               | 200    | Envelope, `data: 0`    |
-| Schema validation failed                 | 400    | Validation error       |
-| Any other handler failure                | 400    | Controller error       |
-| Missing, bad, or expired token           | 401    | Auth error             |
-| Unknown path                             | 404    | HTML                   |
-
-There is no 404 for missing records and no 500 for server faults. Check `success` and inspect `data`.
+| Situation                                                                                             | Status |
+| ----------------------------------------------------------------------------------------------------- | ------ |
+| Create                                                                                                | 201    |
+| Read, update, delete, login, attach rule                                                              | 200    |
+| Validation failed, bad pagination, unknown role filter                                                | 400    |
+| Duplicate username or email                                                                           | 400    |
+| Referential integrity refused the change (see below)                                                  | 400    |
+| Missing or invalid token, banned or deleted user, wrong password                                      | 401    |
+| Role or ownership does not permit the action                                                          | 403    |
+| No record with that id (read, update, or delete), or unknown parent in a list filter, or unknown path | 404    |
+| Internal fault                                                                                        | 500    |
 
 ### Pagination
 
 List endpoints accept two optional query parameters:
 
-| Parameter   | Default | Meaning                  |
-| ----------- | ------- | ------------------------ |
-| `page`      | 1       | 1-based page number.     |
-| `page_size` | 10      | Number of rows per page. |
+| Parameter   | Default | Rules                  |
+| ----------- | ------- | ---------------------- |
+| `page`      | 1       | Positive integer.      |
+| `page_size` | 10      | Integer from 1 to 100. |
 
-`GET /prison/prisons?page=2&page_size=2` returns prisons 3 and 4. Responses do not include a total count or next-page link; keep requesting until you get fewer rows than `page_size`. Both parameters must be numeric. `page=0` or `page_size=abc` produces a database error rather than a validation message. `GET /chapter/chapters` is not paginated and returns everything.
+`GET /prison/prisons?page=2&page_size=2` returns the third and fourth prisons. Responses do not include a total count; keep requesting until you get fewer rows than `page_size`. Invalid values return a validation error:
+
+```json
+{
+	"success": false,
+	"errors": ["page must be a positive integer.", "page_size must be an integer between 1 and 100."]
+}
+```
+
+`GET /chapter/chapters` is not paginated and returns everything.
 
 ### The `full` parameter
 
-Most read endpoints accept `full=true` to embed related records (a prison's prisoners and rules, a chat's messages, and so on). The string must be exactly `true`; anything else is treated as `false`.
+Most read endpoints accept `full=true` to embed related records. The string must be exactly `true`; anything else is treated as `false`.
 
-At the moment `full=true` is either broken or ineffective on every endpoint, for reasons explained in Known issues 9 and 17. Where it does not error, it adds keys such as `messages: []` or `prison_details: null` that are always empty. It is documented per endpoint below so you know what to expect once the underlying fixes land.
+| Endpoint                     | `full=true` adds                               |
+| ---------------------------- | ---------------------------------------------- |
+| Users (list, by id, by role) | `chats`                                        |
+| Prisons (list, by id)        | `prisoners`, `rules`                           |
+| Prisoners (list, by id)      | `prison_details`                               |
+| Prisoners by prison          | `prison_details`, `chats`                      |
+| Rules (list, by id)          | `prisons`                                      |
+| Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details` |
+| Messages                     | accepted but ignored                           |
+
+Embedded rules and prisons carry a `RulePassthrough` object describing the link (see the prison example below). Embedded users never include the password hash.
+
+### Deletes and referential integrity
+
+Foreign keys are enforced with `RESTRICT`. Deleting a record that other records still reference fails with status `400` and `"name": "SequelizeForeignKeyConstraintError"`:
+
+- A user with chats or messages.
+- A prisoner with chats or messages.
+- A prison with prisoners.
+- A chat with messages, **except** through `DELETE /chat/chat`, which deletes the chat's messages first.
+
+Deleting a rule or a prison removes its rule-to-prison links automatically. Creating or updating a record that points at a nonexistent user, prisoner, chat, or prison fails the same way.
 
 ## Endpoint reference
 
-Status legend: **Works** as documented. **Partial** works for the default case but some options fail (see Known issues). **Broken** fails for every call.
+The **Auth** column says who may call the endpoint: _Public_, _Any_ (any valid token), _Admin or chapter_, _Admin_, _Self or admin_ (your own record, or an admin), _Own_ (any token, but a `user` only sees their own threads).
 
 ### Users
 
-| Method | Path              | Auth   | Status  | Purpose                                  |
-| ------ | ----------------- | ------ | ------- | ---------------------------------------- |
-| POST   | `/auth/user`      | Public | Works   | Register a user                          |
-| POST   | `/auth/login`     | Public | Works   | Log in and receive a token               |
-| GET    | `/auth/users`     | Token  | Broken  | List users, optionally by role           |
-| GET    | `/auth/user`      | Token  | Works   | Get one user by id, email, or username   |
-| PUT    | `/auth/user`      | Token  | Partial | Update a user                            |
-| DELETE | `/auth/user`      | Token  | Works   | Delete a user                            |
-| GET    | `/auth/protected` | Token  | Broken  | Defined in constants, never routed (404) |
+| Method | Path          | Auth          | Purpose                                            |
+| ------ | ------------- | ------------- | -------------------------------------------------- |
+| POST   | `/auth/user`  | Public        | Register (role `user`); admins may set other roles |
+| POST   | `/auth/login` | Public        | Log in and receive a token                         |
+| GET    | `/auth/users` | Admin         | List users, optionally by role                     |
+| GET    | `/auth/user`  | Self or admin | Get one user by id, email, or username             |
+| PUT    | `/auth/user`  | Self or admin | Update a user                                      |
+| DELETE | `/auth/user`  | Self or admin | Delete a user                                      |
+
+#### User fields
+
+| Field      | Rules                                                                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `username` | Required, unique, 3 to 16 characters.                                                                                                  |
+| `password` | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                |
+| `email`    | Required, unique, must look like an email address.                                                                                     |
+| `role`     | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later. |
+| `name`     | Optional display name, 3 to 32 characters.                                                                                             |
+| `bio`      | Optional, 12 to 2400 characters.                                                                                                       |
 
 #### POST /auth/user
-
-Registers an account. No token required.
-
-| Field      | Required | Rules                                                                                                              |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
-| `username` | Yes      | Must be unique. Intended to be 3 to 16 characters, but length is not actually enforced.                            |
-| `password` | Yes      | 7 to 255 characters. Stored as a bcrypt hash and never returned.                                                   |
-| `email`    | Yes      | Must look like an email address and be unique.                                                                     |
-| `role`     | Yes      | One of `admin`, `user`, `chapter`, `banned`. Case-insensitive. Omitting it crashes the request with a `TypeError`. |
-| `name`     | No       | Display name.                                                                                                      |
-| `bio`      | No       | Free text. Intended to be 12 to 2400 characters, but length is not actually enforced.                              |
 
 ```bash
 curl -s -X POST http://localhost:3000/auth/user \
   -H 'Content-Type: application/json' \
-  -d '{"username":"docwriter","password":"longenough","email":"doc@example.com","role":"user","name":"Doc Writer","bio":"Writing documentation for the API"}'
+  -d '{"username":"docwriter","password":"longenough","email":"doc@example.com","name":"Doc Writer","bio":"Writing documentation for the API"}'
 ```
 
 ```json
 {
 	"data": {
-		"id": 42,
+		"id": 43,
+		"username": "docwriter",
+		"role": "user",
 		"email": "doc@example.com",
 		"name": "Doc Writer",
-		"role": "user",
-		"username": "docwriter",
-		"bio": "Writing documentation for the API"
+		"bio": "Writing documentation for the API",
+		"updatedAt": "2026-09-11T18:19:07.993Z",
+		"createdAt": "2026-09-11T18:19:07.993Z"
 	},
 	"info": "Successfully created user.",
 	"success": true,
-	"status": 200,
+	"status": 201,
 	"name": "user create"
 }
 ```
 
-A duplicate username returns a controller error with `"error": "Username already in use."`; a duplicate email returns `"Email address already in use."`. Because this endpoint is public and accepts `role: "admin"`, anyone who can reach the server can create an administrator (Known issues 3).
+A duplicate username or email is a general error with `"error": "Username already in use."` or `"Email address already in use."`. Requesting a role other than `user` without an admin token is a `403`.
 
 #### POST /auth/login
 
@@ -383,31 +468,56 @@ See [Logging in](#logging-in).
 
 #### GET /auth/users
 
-Intended to list users, with optional `role`, `full`, `page`, and `page_size` parameters.
+Admin only. Parameters: `role`, `full`, `page`, `page_size`.
 
-**Broken.** The plain list returns the right number of rows, but every row is an empty object `{}` because the password-stripping step discards all fields (Known issues 5). Filtering by `role` crashes with `Cannot read properties of undefined (reading 'findByPk')` (Known issues 6).
+```bash
+curl -s 'http://localhost:3000/auth/users?role=chapter' -H "Authorization: Bearer $TOKEN"
+```
 
 ```json
-{ "data": [{}, {}], "info": null, "success": true, "status": 200, "name": "user many" }
+{
+	"data": [
+		{
+			"id": 44,
+			"name": "Portland Chapter",
+			"username": "chapter1",
+			"email": "chapter1@example.com",
+			"bio": null,
+			"role": "chapter",
+			"createdAt": "2026-09-11T18:19:08.140Z",
+			"updatedAt": "2026-09-11T18:19:08.140Z"
+		}
+	],
+	"info": null,
+	"success": true,
+	"status": 200,
+	"name": "user many"
+}
 ```
+
+An unknown `role` value is a validation error listing the allowed roles. An empty result is a `200` with an empty array.
 
 #### GET /auth/user
 
-Fetch one user. Supply exactly one of `id`, `email`, or `username`. If more than one is supplied, `id` wins, then `email`, then `username`.
+Supply exactly one of `id`, `email`, or `username`. If more than one is supplied, `id` wins, then `email`, then `username`. Email and username matching is case-sensitive.
+
+A non-admin may only fetch their own record; anything else is a `403`. No parameter at all is a `400`; no match is a `404`.
 
 ```bash
-curl -s 'http://localhost:3000/auth/user?email=user1@example.com' -H "Authorization: Bearer $TOKEN"
+curl -s 'http://localhost:3000/auth/user?id=43' -H "Authorization: Bearer $TOKEN"
 ```
 
 ```json
 {
 	"data": {
-		"id": 1,
-		"email": "user1@example.com",
-		"name": null,
+		"id": 43,
+		"name": "Doc Writer",
+		"username": "docwriter",
+		"email": "doc@example.com",
+		"bio": "Writing documentation for the API",
 		"role": "user",
-		"username": "user1",
-		"bio": null
+		"createdAt": "2026-09-11T18:19:07.993Z",
+		"updatedAt": "2026-09-11T18:19:07.993Z"
 	},
 	"info": null,
 	"success": true,
@@ -416,27 +526,21 @@ curl -s 'http://localhost:3000/auth/user?email=user1@example.com' -H "Authorizat
 }
 ```
 
-The response never includes the password hash, `createdAt`, or `updatedAt`. `full=true` is accepted but has no visible effect, because the embedded `chats` are stripped along with the password.
-
-Failure modes:
-
-- No parameter at all: `400` controller error, `"info": "No ID, username, or email provided."`
-- No matching user: `400` controller error, `"info": "Error getting user by ID."` (or "by email" / "by username").
-- Email lookups are case-sensitive.
+`full=true` adds a `chats` array.
 
 #### PUT /auth/user
 
-Update any user. Body must include `id`; every other field present is written as-is.
+Body must include `id`; every other field present is written. A non-admin may only update their own record and may not include `role`. Changing `password` is supported and re-hashes it.
 
 ```bash
 curl -s -X PUT http://localhost:3000/auth/user \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"id":42,"name":"Doc Writer Updated"}'
+  -d '{"id":43,"name":"Doc Writer Updated"}'
 ```
 
 ```json
 {
-	"data": { "updatedRows": [1], "newUser": { "id": 42, "name": "Doc Writer Updated" } },
+	"data": { "updatedRows": [1], "newUser": { "id": 43, "name": "Doc Writer Updated" } },
 	"info": "Successfully updated user.",
 	"success": true,
 	"status": 200,
@@ -444,31 +548,29 @@ curl -s -X PUT http://localhost:3000/auth/user \
 }
 ```
 
-**Do not update `password` through this endpoint.** Passwords are hashed only on create, so an updated password is stored in plain text and that account can no longer log in (Known issues 8).
+A password sent in the body is not echoed back.
 
 #### DELETE /auth/user
 
-Body: `{"id": 42}`. Returns the number of rows removed in `data`: `1` on success, `0` if no such user existed. Both return status 200.
+Body: `{"id": 43}`. Returns `"data": 1`. A user who still has chats or messages cannot be deleted (see [Deletes and referential integrity](#deletes-and-referential-integrity)).
 
 ### Prisons
 
-| Method | Path              | Auth  | Status  | Purpose                   |
-| ------ | ----------------- | ----- | ------- | ------------------------- |
-| POST   | `/prison/prison`  | Token | Works   | Create a prison           |
-| GET    | `/prison/prisons` | Token | Partial | List prisons              |
-| GET    | `/prison/prison`  | Token | Partial | Get one prison by id      |
-| PUT    | `/prison/prison`  | Token | Works   | Update a prison           |
-| PUT    | `/prison/rule`    | Token | Broken  | Attach a rule to a prison |
-| DELETE | `/prison/prison`  | Token | Works   | Delete a prison           |
+| Method | Path              | Auth             | Purpose                   |
+| ------ | ----------------- | ---------------- | ------------------------- |
+| POST   | `/prison/prison`  | Admin or chapter | Create a prison           |
+| GET    | `/prison/prisons` | Any              | List prisons              |
+| GET    | `/prison/prison`  | Any              | Get one prison by id      |
+| PUT    | `/prison/prison`  | Admin or chapter | Update a prison           |
+| PUT    | `/prison/rule`    | Admin or chapter | Attach a rule to a prison |
+| DELETE | `/prison/prison`  | Admin or chapter | Delete a prison           |
 
 #### Prison fields
 
-| Field        | Type    | Notes                                                                |
-| ------------ | ------- | -------------------------------------------------------------------- |
-| `id`         | integer | Auto-assigned.                                                       |
-| `prisonName` | string  | Required.                                                            |
-| `address`    | object  | Required. Free-form JSON; the seeds use `{"street": "..."}`.         |
-| `deleted`    | boolean | Always `false`. Set on create, never read. Deletes are real deletes. |
+| Field        | Type   | Notes                                                        |
+| ------------ | ------ | ------------------------------------------------------------ |
+| `prisonName` | string | Required.                                                    |
+| `address`    | object | Required. Free-form JSON; the seeds use `{"street": "..."}`. |
 
 #### POST /prison/prison
 
@@ -484,26 +586,19 @@ curl -s -X POST http://localhost:3000/prison/prison \
 		"id": 53,
 		"prisonName": "Doc Prison",
 		"address": { "street": "1 Doc St", "city": "Docville" },
-		"deleted": false,
-		"updatedAt": "2026-09-11T16:40:19.750Z",
-		"createdAt": "2026-09-11T16:40:19.750Z"
+		"updatedAt": "2026-09-11T18:19:08.432Z",
+		"createdAt": "2026-09-11T18:19:08.432Z"
 	},
 	"info": "Successfully created prison",
 	"success": true,
-	"status": 200,
+	"status": 201,
 	"name": "prison create"
 }
 ```
 
-Omitting `prisonName` returns a validation error: `"Prison.prisonName cannot be null"`.
-
 #### GET /prison/prisons
 
 Parameters: `page`, `page_size`, `full`.
-
-```bash
-curl -s 'http://localhost:3000/prison/prisons?page_size=2' -H "Authorization: Bearer $TOKEN"
-```
 
 ```json
 {
@@ -512,17 +607,15 @@ curl -s 'http://localhost:3000/prison/prisons?page_size=2' -H "Authorization: Be
 			"id": 1,
 			"prisonName": "Test Prison",
 			"address": { "street": "123 Fake Street" },
-			"deleted": false,
-			"createdAt": "2026-09-11T16:39:42.350Z",
-			"updatedAt": "2026-09-11T16:39:42.350Z"
+			"createdAt": "2026-09-11T18:18:18.368Z",
+			"updatedAt": "2026-09-11T18:18:18.368Z"
 		},
 		{
 			"id": 2,
 			"prisonName": "Alpha Prison",
 			"address": { "street": "456 Alpha Street" },
-			"deleted": false,
-			"createdAt": "2026-09-11T16:39:42.350Z",
-			"updatedAt": "2026-09-11T16:39:42.350Z"
+			"createdAt": "2026-09-11T18:18:18.369Z",
+			"updatedAt": "2026-09-11T18:18:18.369Z"
 		}
 	],
 	"info": "Successfully retireved prisons list",
@@ -532,51 +625,134 @@ curl -s 'http://localhost:3000/prison/prisons?page_size=2' -H "Authorization: Be
 }
 ```
 
-`full=true` is intended to embed `prisoners` and `rules`. It currently fails with a `SequelizeEagerLoadingError` about the alias `rules` (Known issues 9).
-
 #### GET /prison/prison
 
-Parameters: `id` (required), `full`.
+Parameters: `id` (required), `full`. With `full=true`:
 
-Returns the single prison object in `data`. If no prison has that id, the call still succeeds with `"data": null`. `full=true` fails the same way as the list endpoint.
+```bash
+curl -s 'http://localhost:3000/prison/prison?id=1&full=true' -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+	"data": {
+		"id": 1,
+		"prisonName": "Test Prison",
+		"address": { "street": "123 Fake Street" },
+		"createdAt": "2026-09-11T18:18:18.368Z",
+		"updatedAt": "2026-09-11T18:18:18.368Z",
+		"prisoners": [
+			{
+				"id": 1,
+				"birthName": "John Smith",
+				"chosenName": "Jane Smith",
+				"prison": 1,
+				"inmateID": "1",
+				"releaseDate": "2029-04-05T23:24:24.819Z",
+				"bio": "Test bio here",
+				"status": null,
+				"createdAt": "2026-09-11T18:18:18.391Z",
+				"updatedAt": "2026-09-11T18:18:18.391Z"
+			}
+		],
+		"rules": [
+			{
+				"id": 1,
+				"title": "No pictures",
+				"description": "Letters must be text only, no photographs",
+				"createdAt": "2026-09-11T18:18:18.407Z",
+				"updatedAt": "2026-09-11T18:18:18.407Z",
+				"RulePassthrough": {
+					"createdAt": "2026-09-11T18:19:08.527Z",
+					"updatedAt": "2026-09-11T18:19:08.527Z",
+					"prison": 1,
+					"rule": 1
+				}
+			}
+		]
+	},
+	"info": "Success getting prison by ID",
+	"success": true,
+	"status": 200,
+	"name": "prison one"
+}
+```
+
+No prison with that id is a `404`.
 
 #### PUT /prison/prison
 
-Body: `{"id": 53, "prisonName": "Doc Prison Renamed"}` plus any other fields to change. Returns the update envelope described under [Response envelope](#response-envelope).
+Body: `{"id": 53, "prisonName": "Doc Prison Renamed"}` plus any other fields to change. Returns the update envelope.
 
 #### PUT /prison/rule
 
-Intended to attach an existing rule to a prison with body `{"rule": 1, "prison": 53}`.
+Attach an existing rule to an existing prison. Idempotent: attaching the same pair twice is a no-op.
 
-**Broken.** Fails with `Cannot read properties of undefined (reading '#handleErr')` because the handler was never bound to its controller (Known issues 10). Until it is fixed there is no way to associate rules with prisons.
+```bash
+curl -s -X PUT http://localhost:3000/prison/rule \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"rule":1,"prison":1}'
+```
+
+The response echoes the ids and returns the prison with its prisoners and rules embedded, under the (historically named) `updatedRows` key:
+
+```json
+{
+	"data": {
+		"updatedRows": {
+			"id": 1,
+			"prisonName": "Test Prison",
+			"address": { "street": "123 Fake Street" },
+			"createdAt": "2026-09-11T18:18:18.368Z",
+			"updatedAt": "2026-09-11T18:18:18.368Z",
+			"prisoners": [
+				{ "id": 1, "birthName": "John Smith", "chosenName": "Jane Smith", "prison": 1 }
+			],
+			"rules": [
+				{
+					"id": 1,
+					"title": "No pictures",
+					"description": "Letters must be text only, no photographs"
+				}
+			]
+		},
+		"rule": 1,
+		"prison": 1
+	},
+	"info": "Successfully added rule to prison",
+	"success": true,
+	"status": 200,
+	"name": "prison addRule"
+}
+```
+
+(Embedded objects abbreviated.) An unknown rule or prison id is a `404`. There is no detach endpoint; delete the rule, or delete and recreate it, to remove a link.
 
 #### DELETE /prison/prison
 
-Body: `{"id": 53}`. Returns the count of deleted rows. Prisoners that pointed at the prison are left in place with a dangling `prison` value.
+Body: `{"id": 53}`. Fails with `400` while the prison still has prisoners.
 
 ### Prisoners
 
-| Method | Path                  | Auth  | Status  | Purpose                              |
-| ------ | --------------------- | ----- | ------- | ------------------------------------ |
-| POST   | `/prisoner/prisoner`  | Token | Works   | Create a prisoner                    |
-| GET    | `/prisoner/prisoners` | Token | Partial | List prisoners, optionally by prison |
-| GET    | `/prisoner/prisoner`  | Token | Works   | Get one prisoner by id               |
-| PUT    | `/prisoner/prisoner`  | Token | Works   | Update a prisoner                    |
-| DELETE | `/prisoner/prisoner`  | Token | Works   | Delete a prisoner                    |
+| Method | Path                  | Auth             | Purpose                              |
+| ------ | --------------------- | ---------------- | ------------------------------------ |
+| POST   | `/prisoner/prisoner`  | Admin or chapter | Create a prisoner                    |
+| GET    | `/prisoner/prisoners` | Any              | List prisoners, optionally by prison |
+| GET    | `/prisoner/prisoner`  | Any              | Get one prisoner by id               |
+| PUT    | `/prisoner/prisoner`  | Admin or chapter | Update a prisoner                    |
+| DELETE | `/prisoner/prisoner`  | Admin or chapter | Delete a prisoner                    |
 
 #### Prisoner fields
 
-| Field         | Type     | Notes                                                                                                                    |
-| ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `id`          | integer  | Auto-assigned.                                                                                                           |
-| `birthName`   | string   | Legal name.                                                                                                              |
-| `chosenName`  | string   | Name the person goes by.                                                                                                 |
-| `prison`      | integer  | Id of the prison. Not validated against the prisons table.                                                               |
-| `inmateID`    | string   | Facility-issued identifier. Free text.                                                                                   |
-| `releaseDate` | datetime | ISO-8601 string.                                                                                                         |
-| `bio`         | string   |                                                                                                                          |
-| `status`      | string   | Intended to be one of `pretrial`, `incarcerated`, `free`. Not validated; any string is stored.                           |
-| `prisonId`    | integer  | Appears in responses, always `null`. An artifact of a mismatched association (Known issues 17). Ignore it; use `prison`. |
+| Field         | Type     | Notes                                                                      |
+| ------------- | -------- | -------------------------------------------------------------------------- |
+| `birthName`   | string   | Legal name.                                                                |
+| `chosenName`  | string   | Name the person goes by.                                                   |
+| `prison`      | integer  | Id of an existing prison. A nonexistent id is refused.                     |
+| `inmateID`    | string   | Facility-issued identifier. Free text.                                     |
+| `releaseDate` | datetime | ISO-8601 string.                                                           |
+| `bio`         | string   |                                                                            |
+| `status`      | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`. |
 
 All fields are optional at the database level.
 
@@ -599,12 +775,12 @@ curl -s -X POST http://localhost:3000/prisoner/prisoner \
 		"releaseDate": "2030-01-01T00:00:00.000Z",
 		"bio": "Docs",
 		"status": "incarcerated",
-		"updatedAt": "2026-09-11T16:40:19.880Z",
-		"createdAt": "2026-09-11T16:40:19.880Z"
+		"updatedAt": "2026-09-11T18:19:08.625Z",
+		"createdAt": "2026-09-11T18:19:08.625Z"
 	},
 	"info": "Successfully created prisoner",
 	"success": true,
-	"status": 200,
+	"status": 201,
 	"name": "prisoner create"
 }
 ```
@@ -613,7 +789,11 @@ curl -s -X POST http://localhost:3000/prisoner/prisoner \
 
 Parameters: `prison`, `full`, `page`, `page_size`.
 
-Without `prison`, returns a page of all prisoners. `full=true` adds a `prison_details` key to each row, but it is always `null` (Known issues 17).
+```bash
+curl -s 'http://localhost:3000/prisoner/prisoners?prison=1' -H "Authorization: Bearer $TOKEN"
+```
+
+Returns only prisoners whose `prison` matches. A `prison` id that does not exist is a `404`. Without `prison`, all prisoners are listed. With `full=true` each row gains `prison_details` (and, when filtering by prison, `chats`):
 
 ```json
 {
@@ -627,9 +807,15 @@ Without `prison`, returns a page of all prisoners. `full=true` adds a `prison_de
 			"releaseDate": "2029-04-05T23:24:24.819Z",
 			"bio": "Test bio here",
 			"status": null,
-			"createdAt": "2026-09-11T16:39:42.378Z",
-			"updatedAt": "2026-09-11T16:39:42.378Z",
-			"prisonId": null
+			"createdAt": "2026-09-11T18:18:18.391Z",
+			"updatedAt": "2026-09-11T18:18:18.391Z",
+			"prison_details": {
+				"id": 1,
+				"prisonName": "Test Prison",
+				"address": { "street": "123 Fake Street" },
+				"createdAt": "2026-09-11T18:18:18.368Z",
+				"updatedAt": "2026-09-11T18:18:18.368Z"
+			}
 		}
 	],
 	"info": "Successfully retireved prisoners list",
@@ -639,39 +825,32 @@ Without `prison`, returns a page of all prisoners. `full=true` adds a `prison_de
 }
 ```
 
-**Filtering by prison is broken.** `?prison=1` fails with `Argument passed to findByPk is invalid: false` because the controller passes its arguments in the wrong order (Known issues 11).
-
 #### GET /prisoner/prisoner
 
-Parameters: `id` (required), `full`. Returns the prisoner in `data`, or `"data": null` if not found. `full=true` adds `prison_details: null`.
+Parameters: `id` (required), `full`. Returns the prisoner, or `404`.
 
-#### PUT /prisoner/prisoner
+#### PUT /prisoner/prisoner and DELETE /prisoner/prisoner
 
-Body: `{"id": 41, "chosenName": "Doc Updated"}` plus any other fields.
-
-#### DELETE /prisoner/prisoner
-
-Body: `{"id": 41}`. Returns the deleted-row count. Chats and messages that reference the prisoner are left in place.
+Body `{"id": 41, "chosenName": "Doc Updated"}` and `{"id": 41}` respectively. A prisoner with chats or messages cannot be deleted.
 
 ### Rules
 
-| Method | Path          | Auth  | Status  | Purpose                          |
-| ------ | ------------- | ----- | ------- | -------------------------------- |
-| POST   | `/rule/rule`  | Token | Works   | Create a rule                    |
-| GET    | `/rule/rules` | Token | Partial | List rules, optionally by prison |
-| GET    | `/rule/rule`  | Token | Partial | Get one rule by id               |
-| PUT    | `/rule/rule`  | Token | Works   | Update a rule                    |
-| DELETE | `/rule/rule`  | Token | Works   | Delete a rule                    |
+| Method | Path          | Auth             | Purpose                          |
+| ------ | ------------- | ---------------- | -------------------------------- |
+| POST   | `/rule/rule`  | Admin or chapter | Create a rule                    |
+| GET    | `/rule/rules` | Any              | List rules, optionally by prison |
+| GET    | `/rule/rule`  | Any              | Get one rule by id               |
+| PUT    | `/rule/rule`  | Admin or chapter | Update a rule                    |
+| DELETE | `/rule/rule`  | Admin or chapter | Delete a rule                    |
 
 #### Rule fields
 
-| Field         | Type    | Notes                           |
-| ------------- | ------- | ------------------------------- |
-| `id`          | integer | Auto-assigned.                  |
-| `title`       | string  | Short name, e.g. "No pictures". |
-| `description` | string  | Longer explanation.             |
+| Field         | Type   | Notes                           |
+| ------------- | ------ | ------------------------------- |
+| `title`       | string | Short name, e.g. "No pictures". |
+| `description` | string | Longer explanation.             |
 
-Rules are not tied to a prison at creation. A `prison` field in the create body is silently ignored. The only way to link a rule to a prison is `PUT /prison/rule`, which is currently broken, so in practice rules are a standalone list.
+Rules are created standalone and linked to prisons afterwards with `PUT /prison/rule`. A `prison` field in the create body is ignored.
 
 #### POST /rule/rule
 
@@ -681,85 +860,95 @@ curl -s -X POST http://localhost:3000/rule/rule \
   -d '{"title":"Doc rule","description":"Documented"}'
 ```
 
-```json
-{
-	"data": {
-		"id": 45,
-		"title": "Doc rule",
-		"description": "Documented",
-		"updatedAt": "2026-09-11T16:40:19.956Z",
-		"createdAt": "2026-09-11T16:40:19.956Z"
-	},
-	"info": "Successfully created rule",
-	"success": true,
-	"status": 200,
-	"name": "rule create"
-}
-```
+Returns `201` with the rule.
 
 #### GET /rule/rules
 
-Parameters: `prison`, `page`, `page_size`. `full` is accepted but ignored on the unfiltered list.
-
-The unfiltered list works. `?prison=1` fails with a `SequelizeEagerLoadingError` about the alias `prisons` (Known issues 9).
+Parameters: `prison`, `full`, `page`, `page_size`. `?prison=1` returns the rules attached to prison 1 (`404` if the prison does not exist). `full=true` embeds `prisons` on the unfiltered list.
 
 #### GET /rule/rule
 
-Parameters: `id` (required), `full`. Works without `full`; `full=true` fails with the same alias error.
+Parameters: `id` (required), `full`. With `full=true`:
+
+```json
+{
+	"data": {
+		"id": 1,
+		"title": "No pictures",
+		"description": "Letters must be text only, no photographs",
+		"createdAt": "2026-09-11T18:18:18.407Z",
+		"updatedAt": "2026-09-11T18:18:18.407Z",
+		"prisons": [
+			{
+				"id": 1,
+				"prisonName": "Test Prison",
+				"address": { "street": "123 Fake Street" },
+				"createdAt": "2026-09-11T18:18:18.368Z",
+				"updatedAt": "2026-09-11T18:18:18.368Z",
+				"RulePassthrough": {
+					"createdAt": "2026-09-11T18:19:08.527Z",
+					"updatedAt": "2026-09-11T18:19:08.527Z",
+					"prison": 1,
+					"rule": 1
+				}
+			}
+		]
+	},
+	"info": "Success getting rule by ID",
+	"success": true,
+	"status": 200,
+	"name": "rule one"
+}
+```
 
 #### PUT /rule/rule and DELETE /rule/rule
 
-Body `{"id": 45, ...}` and `{"id": 45}` respectively. Both work.
+Body `{"id": 45, ...}` and `{"id": 45}`. Deleting a rule also removes its links to prisons.
 
 ### Chats
 
-| Method | Path          | Auth  | Status  | Purpose                                     |
-| ------ | ------------- | ----- | ------- | ------------------------------------------- |
-| POST   | `/chat/chat`  | Token | Works   | Create a chat between a user and a prisoner |
-| GET    | `/chat/chats` | Token | Partial | List chats, optionally by user or prisoner  |
-| GET    | `/chat/chat`  | Token | Partial | Get one chat by id or by user + prisoner    |
-| PUT    | `/chat/chat`  | Token | Broken  | Update a chat                               |
-| DELETE | `/chat/chat`  | Token | Works   | Delete a chat and its messages              |
+| Method | Path          | Auth | Purpose                                     |
+| ------ | ------------- | ---- | ------------------------------------------- |
+| POST   | `/chat/chat`  | Own  | Create a chat between a user and a prisoner |
+| GET    | `/chat/chats` | Own  | List chats, optionally by user or prisoner  |
+| GET    | `/chat/chat`  | Own  | Get one chat by id or by user + prisoner    |
+| PUT    | `/chat/chat`  | Own  | Update a chat                               |
+| DELETE | `/chat/chat`  | Own  | Delete a chat and its messages              |
 
 #### Chat fields
 
-| Field        | Type    | Notes                                                                          |
-| ------------ | ------- | ------------------------------------------------------------------------------ |
-| `id`         | integer | Auto-assigned.                                                                 |
-| `user`       | integer | Id of the user.                                                                |
-| `prisoner`   | integer | Id of the prisoner.                                                            |
-| `userId`     | integer | Always `null`. Artifact of a mismatched association (Known issues 17). Ignore. |
-| `prisonerId` | integer | Always `null`. Same.                                                           |
+| Field      | Type    | Notes                       |
+| ---------- | ------- | --------------------------- |
+| `user`     | integer | Id of an existing user.     |
+| `prisoner` | integer | Id of an existing prisoner. |
 
 You usually do not need to create chats by hand. Sending a message with `POST /messaging/message` finds or creates the chat for that user and prisoner pair automatically.
 
 #### POST /chat/chat
 
-Body: `{"user": 1, "prisoner": 2}`. Neither id is checked for existence, and duplicates are not prevented: posting the same pair twice creates two chats (Known issues 18). Prefer letting the messages endpoint create chats.
+Body: `{"user": 1, "prisoner": 9}`. For a `user`-role caller the `user` field is replaced with their own id. Nonexistent ids are refused. Duplicates are not prevented; the message endpoint's find-or-create always uses the oldest chat for a pair, so prefer letting it create chats.
 
 ```json
 {
 	"data": {
 		"id": 41,
 		"user": 1,
-		"prisoner": 2,
-		"updatedAt": "2026-09-11T16:40:20.097Z",
-		"createdAt": "2026-09-11T16:40:20.097Z"
+		"prisoner": 9,
+		"updatedAt": "2026-09-11T18:19:08.795Z",
+		"createdAt": "2026-09-11T18:19:08.795Z"
 	},
 	"info": "Successfully created chat",
 	"success": true,
-	"status": 200,
+	"status": 201,
 	"name": "chat create"
 }
 ```
 
 #### GET /chat/chats
 
-Parameters: `user`, `prisoner`, `full`, `page`, `page_size`. If both `user` and `prisoner` are given, `user` wins and `prisoner` is ignored.
+Parameters: `user`, `prisoner`, `full`, `page`, `page_size`. If both `user` and `prisoner` are given, `user` wins. A `user`-role caller always gets their own chats, and may narrow with `prisoner`. A `user` or `prisoner` id that does not exist is a `404`.
 
-```bash
-curl -s 'http://localhost:3000/chat/chats?user=1' -H "Authorization: Bearer $TOKEN"
-```
+With `full=true`:
 
 ```json
 {
@@ -768,10 +957,42 @@ curl -s 'http://localhost:3000/chat/chats?user=1' -H "Authorization: Bearer $TOK
 			"user": 1,
 			"prisoner": 1,
 			"id": 1,
-			"createdAt": "2026-09-11T16:39:42.422Z",
-			"updatedAt": "2026-09-11T16:39:42.422Z",
-			"prisonerId": null,
-			"userId": null
+			"createdAt": "2026-09-11T18:21:43.400Z",
+			"updatedAt": "2026-09-11T18:21:43.400Z",
+			"messages": [
+				{
+					"id": 1,
+					"chat": 1,
+					"messageText": "Hello",
+					"sender": "user",
+					"prisoner": 1,
+					"user": 1,
+					"createdAt": "2026-09-11T18:21:43.426Z",
+					"updatedAt": "2026-09-11T18:21:43.426Z"
+				}
+			],
+			"user_details": {
+				"id": 1,
+				"name": null,
+				"username": "user2",
+				"email": "user2@example.com",
+				"bio": null,
+				"role": "user",
+				"createdAt": "2026-09-11T18:21:42.870Z",
+				"updatedAt": "2026-09-11T18:21:42.870Z"
+			},
+			"prisoner_details": {
+				"id": 1,
+				"birthName": "John Smith",
+				"chosenName": "Jane Smith",
+				"prison": 1,
+				"inmateID": "1",
+				"releaseDate": "2029-04-05T23:24:24.819Z",
+				"bio": "Test bio here",
+				"status": null,
+				"createdAt": "2026-09-11T18:21:43.370Z",
+				"updatedAt": "2026-09-11T18:21:43.370Z"
+			}
 		}
 	],
 	"info": "Successfully retireved chats list",
@@ -781,16 +1002,12 @@ curl -s 'http://localhost:3000/chat/chats?user=1' -H "Authorization: Bearer $TOK
 }
 ```
 
-Filtering by a user or prisoner that does not exist returns a controller error such as `"error": "User 9999 not found"`.
-
-`full=true` adds `messages`, `user_details`, and `prisoner_details` to each chat, but they are always `[]`, `null`, and `null` (Known issues 17).
-
 #### GET /chat/chat
 
-Two ways to call it:
+Two ways to call it, both returning a single object in `data`:
 
-- By id: `?id=1`. **Returns an array** containing the single chat, not a bare object.
-- By pair: `?user=1&prisoner=1`. Returns a bare object, or `null` if that pair has no chat.
+- By id: `?id=1`.
+- By pair: `?user=1&prisoner=1`. A `user`-role caller may omit `user`; it defaults to their own id.
 
 ```bash
 curl -s 'http://localhost:3000/chat/chat?user=1&prisoner=1' -H "Authorization: Bearer $TOKEN"
@@ -802,10 +1019,8 @@ curl -s 'http://localhost:3000/chat/chat?user=1&prisoner=1' -H "Authorization: B
 		"user": 1,
 		"prisoner": 1,
 		"id": 1,
-		"createdAt": "2026-09-11T16:39:42.422Z",
-		"updatedAt": "2026-09-11T16:39:42.422Z",
-		"prisonerId": null,
-		"userId": null
+		"createdAt": "2026-09-11T18:18:18.429Z",
+		"updatedAt": "2026-09-11T18:18:18.429Z"
 	},
 	"info": "Success getting chat",
 	"success": true,
@@ -814,49 +1029,46 @@ curl -s 'http://localhost:3000/chat/chat?user=1&prisoner=1' -H "Authorization: B
 }
 ```
 
-Failure modes:
-
-- Only one of `user` / `prisoner`, or no parameters: returns `200` with `"data": {}`. The code contains error messages for these cases but never raises them (Known issues 16).
-- `?id=1&full=true`: fails with an alias error (Known issues 14). `?user=1&prisoner=1&full=true` succeeds but the embedded records are empty.
+- No match: `404`.
+- Only one of `user` / `prisoner` (for a non-`user` caller), or no parameters: `400` with `"error": "Both user and prisoner are required."` or `"Provide either id, or both user and prisoner."`.
+- Someone else's chat, as a `user`: `403`.
 
 #### PUT /chat/chat
 
-**Broken.** Any update fails with `SQLITE_ERROR: no such column: chat` (Known issues 15).
+Body: `{"id": 1, "prisoner": 5}` plus any fields. A `user` may not move a chat to another user. Nonexistent ids are refused.
 
 #### DELETE /chat/chat
 
-Body: `{"id": 41}`. Deletes messages whose `chat` matches, then the chat. Returns the number of chats deleted.
+Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data": 1`.
 
 ### Messages
 
-| Method | Path                  | Auth  | Status  | Purpose                                     |
-| ------ | --------------------- | ----- | ------- | ------------------------------------------- |
-| POST   | `/messaging/message`  | Token | Works   | Send a message (creates the chat if needed) |
-| GET    | `/messaging/messages` | Token | Partial | List messages                               |
-| GET    | `/messaging/message`  | Token | Broken  | Get one message by id                       |
-| PUT    | `/messaging/message`  | Token | Partial | Update a message                            |
-| DELETE | `/messaging/message`  | Token | Works   | Delete a message                            |
+| Method | Path                  | Auth | Purpose                                     |
+| ------ | --------------------- | ---- | ------------------------------------------- |
+| POST   | `/messaging/message`  | Own  | Send a message (creates the chat if needed) |
+| GET    | `/messaging/messages` | Own  | List messages                               |
+| GET    | `/messaging/message`  | Own  | Get one message by id                       |
+| PUT    | `/messaging/message`  | Own  | Update a message                            |
+| DELETE | `/messaging/message`  | Own  | Delete a message                            |
 
 #### Message fields
 
-| Field         | Type    | Notes                                                                                      |
-| ------------- | ------- | ------------------------------------------------------------------------------------------ |
-| `id`          | integer | Auto-assigned.                                                                             |
-| `chat`        | integer | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                |
-| `messageText` | string  | The letter body.                                                                           |
-| `sender`      | string  | Required. `user` or `prisoner`.                                                            |
-| `user`        | integer | Required. Id of the user side of the conversation.                                         |
-| `prisoner`    | integer | Required. Id of the prisoner side.                                                         |
-| `chatId`      | integer | Always `null`. Artifact of a mismatched association (Known issues 17). Ignore; use `chat`. |
+| Field         | Type    | Notes                                                                                    |
+| ------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `chat`        | integer | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.              |
+| `messageText` | string  | The letter body.                                                                         |
+| `sender`      | string  | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.       |
+| `user`        | integer | Required. Id of the user side. A `user`-role caller's own id is used regardless of body. |
+| `prisoner`    | integer | Required. Id of the prisoner side.                                                       |
 
 #### POST /messaging/message
 
-This is the main write endpoint of the product. Before the message is saved, the server looks up a chat for the `user` and `prisoner` pair and creates one if none exists, then stores the message under it.
+The main write endpoint of the product. Before the message is saved, the server looks up a chat for the `user` and `prisoner` pair, creates one if none exists, and stores the message under it.
 
 ```bash
 curl -s -X POST http://localhost:3000/messaging/message \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"messageText":"Hello from the docs","sender":"user","prisoner":1,"user":1}'
+  -d '{"messageText":"Hello from the docs","sender":"user","prisoner":1,"user":43}'
 ```
 
 ```json
@@ -866,31 +1078,33 @@ curl -s -X POST http://localhost:3000/messaging/message \
 		"messageText": "Hello from the docs",
 		"sender": "user",
 		"prisoner": 1,
-		"user": 1,
-		"updatedAt": "2026-09-11T16:40:20.201Z",
-		"createdAt": "2026-09-11T16:40:20.201Z",
-		"chat": 1
+		"user": 43,
+		"updatedAt": "2026-09-11T18:19:08.812Z",
+		"createdAt": "2026-09-11T18:19:08.812Z",
+		"chat": 42
 	},
 	"info": "Successfully created message",
 	"success": true,
-	"status": 200,
+	"status": 201,
 	"name": "message create"
 }
 ```
 
-`chat` in the response tells you which thread the message landed in. Sending to a new pair returns a freshly created chat id.
+`chat` in the response tells you which thread the message landed in; here a new chat (42) was created for this pair.
 
 Failure modes:
 
 - `sender` other than `user` / `prisoner`: validation error `"Sender must either be user or prisoner."`
-- Missing `user` or `prisoner`: a controller error with `"error": "WHERE parameter \"user\" has invalid \"undefined\" value"`. The chat lookup runs before validation, so you get a database error instead of the schema's friendlier message.
-- Neither `user` nor `prisoner` is checked for existence.
+- Missing `user` or `prisoner`: validation errors naming the missing fields.
+- A `user` or `prisoner` id that does not exist: `400`, `"name": "SequelizeForeignKeyConstraintError"`.
 
 #### GET /messaging/messages
 
-Parameters: `id`, `chat`, `prisoner`, `user`, `page`, `page_size`, `full`. Filters take precedence in that order; only the first one present is used.
+Parameters: `id`, `chat`, `prisoner`, `user`, `page`, `page_size`. Filters take precedence in that order; only the first one present is used. A filter naming a chat, prisoner, or user that does not exist is a `404`. A `user`-role caller only ever receives their own messages, whatever filter they pass.
 
-The unfiltered list works and is paginated:
+```bash
+curl -s 'http://localhost:3000/messaging/messages?chat=1' -H "Authorization: Bearer $TOKEN"
+```
 
 ```json
 {
@@ -902,9 +1116,8 @@ The unfiltered list works and is paginated:
 			"sender": "user",
 			"prisoner": 1,
 			"user": 1,
-			"createdAt": "2026-09-11T16:39:42.464Z",
-			"updatedAt": "2026-09-11T16:39:42.464Z",
-			"chatId": null
+			"createdAt": "2026-09-11T18:18:18.452Z",
+			"updatedAt": "2026-09-11T18:18:18.452Z"
 		}
 	],
 	"info": "Successfully retireved message list",
@@ -914,43 +1127,42 @@ The unfiltered list works and is paginated:
 }
 ```
 
-**Every filter is effectively broken.** `?chat=1`, `?prisoner=1`, `?user=1`, and `?id=1` all succeed with `"data": []` even when matching rows exist, because the controller shifts its arguments by one and the database ends up skipping the first ten rows (Known issues 12). Filtering by a `chat`, `prisoner`, or `user` id that does not exist correctly returns `"error": "Chat 9999 not found"`.
-
-Until this is fixed, a client that needs a thread's messages should page through the unfiltered list and filter by `chat` on its own side.
-
 #### GET /messaging/message
 
-**Broken.** Fails with `Message.getMessageByID is not a function` (Known issues 13).
+Parameter: `id` (required). Returns the message object, `404` if missing, `403` if it belongs to another user and the caller is a `user`.
 
 #### PUT /messaging/message
 
-Body must include `id`, **and** `user` **and** `prisoner`, because the automatic chat lookup also runs on update. A body such as `{"id": 2, "messageText": "Edited"}` fails with the same `WHERE parameter "user"` error as a create without those fields.
+Body must include `id`; any of `messageText`, `sender`, `user`, `prisoner` may follow. Partial updates work: `{"id": 1, "messageText": "Edited"}` changes only the text. Changing `user` or `prisoner` moves the message to the chat for the new pair, creating it if needed. A `user`-role caller cannot change `user`.
 
-```bash
-curl -s -X PUT http://localhost:3000/messaging/message \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"id":2,"messageText":"Edited via docs","sender":"user","prisoner":2,"user":2}'
+```json
+{
+	"data": { "updatedRows": [1], "newMessage": { "id": 1, "messageText": "Edited" } },
+	"info": "Succeessfully updated message",
+	"success": true,
+	"status": 200,
+	"name": "message update"
+}
 ```
 
 #### DELETE /messaging/message
 
-Body: `{"id": 41}`. Returns the deleted-row count.
+Body: `{"id": 41}`. Returns `"data": 1`.
 
 ### Chapters
 
-| Method | Path                | Auth  | Status | Purpose                       |
-| ------ | ------------------- | ----- | ------ | ----------------------------- |
-| POST   | `/chapter/chapter`  | Token | Works  | Create a chapter              |
-| GET    | `/chapter/chapters` | Token | Works  | List all chapters (no paging) |
-| GET    | `/chapter/chapter`  | Token | Works  | Get one chapter by id         |
-| PUT    | `/chapter/chapter`  | Token | Works  | Update a chapter              |
-| DELETE | `/chapter/chapter`  | Token | Works  | Delete a chapter              |
+| Method | Path                | Auth             | Purpose                       |
+| ------ | ------------------- | ---------------- | ----------------------------- |
+| POST   | `/chapter/chapter`  | Admin or chapter | Create a chapter              |
+| GET    | `/chapter/chapters` | Any              | List all chapters (no paging) |
+| GET    | `/chapter/chapter`  | Any              | Get one chapter by id         |
+| PUT    | `/chapter/chapter`  | Admin or chapter | Update a chapter              |
+| DELETE | `/chapter/chapter`  | Admin or chapter | Delete a chapter              |
 
 #### Chapter fields
 
 | Field             | Type    | Notes                                                          |
 | ----------------- | ------- | -------------------------------------------------------------- |
-| `id`              | integer | Auto-assigned.                                                 |
 | `name`            | string  | Required.                                                      |
 | `location`        | object  | Required. Free-form JSON.                                      |
 | `prisoners`       | object  | Optional JSON blob. Not a relation. Only settable through PUT. |
@@ -973,12 +1185,12 @@ curl -s -X POST http://localhost:3000/chapter/chapter \
 		"id": 2,
 		"name": "Doc Chapter",
 		"location": { "city": "Docville" },
-		"updatedAt": "2026-09-11T16:40:20.277Z",
-		"createdAt": "2026-09-11T16:40:20.277Z"
+		"updatedAt": "2026-09-11T18:19:08.940Z",
+		"createdAt": "2026-09-11T18:19:08.940Z"
 	},
 	"info": "Successfully created chapter",
 	"success": true,
-	"status": 200,
+	"status": 201,
 	"name": "chapter create"
 }
 ```
@@ -997,8 +1209,8 @@ No parameters. Returns every chapter.
 			"prisoners": null,
 			"lettersSent": null,
 			"averageTimeDays": null,
-			"createdAt": "2026-09-11T16:39:42.513Z",
-			"updatedAt": "2026-09-11T16:39:42.513Z"
+			"createdAt": "2026-09-11T18:18:18.468Z",
+			"updatedAt": "2026-09-11T18:18:18.468Z"
 		}
 	],
 	"info": "Successfully retireved chapter list",
@@ -1010,51 +1222,32 @@ No parameters. Returns every chapter.
 
 #### GET /chapter/chapter, PUT /chapter/chapter, DELETE /chapter/chapter
 
-`?id=1` for GET; `{"id": 2, ...}` in the body for PUT and DELETE. All work. A GET for a missing id returns `"data": null`.
+`?id=1` for GET; `{"id": 2, ...}` in the body for PUT and DELETE. A missing id is a `404` on all three.
 
-## Known issues
+## Known quirks
 
-These are the problems a client will run into today. Each number is referenced from the endpoint sections above. File and line references, root causes, and suggested fixes are in the [developer guide](docs/DEVELOPER.md#bug-catalog).
+None of these break anything, but clients should know about them.
 
-1. **Every controller response crashes** with `this.hasOwn is not a function`, status 400. Introduced by an automated lint fix in June 2025. Until this one-line fix lands, no endpoint in this document works. The rest of this list assumes it is fixed.
-2. **Tokens are not checked against the user table.** A token signed with the server's secret is accepted even if the user id inside it does not exist or was deleted.
-3. **Registration is public and accepts `role: "admin"`.**
-4. **Roles are never enforced.** Any valid token can read, create, change, and delete anything, including users.
-5. `GET /auth/users` returns empty objects.
-6. `GET /auth/users?role=...` crashes.
-7. `POST /auth/user` without `role` crashes with a `TypeError` instead of a validation message.
-8. Passwords changed through `PUT /auth/user` are stored unhashed and break login for that account.
-9. `full=true` on prisons, and `?prison=` or `full=true` on rules, fail with an alias error.
-10. `PUT /prison/rule` crashes, so rules cannot be attached to prisons.
-11. `GET /prisoner/prisoners?prison=` fails.
-12. All filters on `GET /messaging/messages` return empty lists.
-13. `GET /messaging/message` crashes.
-14. `GET /chat/chat?id=&full=true` fails with an alias error.
-15. `PUT /chat/chat` fails.
-16. `GET /chat/chat` with incomplete parameters returns success with `{}` instead of an error.
-17. All embedded relations (`full=true`) come back empty or `null` because the associations point at unused `userId` / `prisonerId` / `chatId` / `prisonId` columns instead of the real `user` / `prisoner` / `chat` / `prison` columns. Those unused columns also appear in every response.
-18. Duplicate chats for the same user and prisoner pair can be created.
-19. `GET /auth/protected` is listed in the route constants but returns a 404.
-20. Path-style ids (`/prison/prison/1`) are accepted by the router and then fail. Use query strings.
-21. Non-numeric `page` or `page_size` values cause a database error.
-22. "Not found" is reported inconsistently: `200` with `null` for most lookups, `400` for users, `200` with `0` for deletes.
-23. Error responses use status 400 for everything, including server faults, and include full stack traces.
-24. `status` on prisoners and string lengths on users are not validated even though the schema tries to.
-25. The whole database is wiped and reseeded on every server start.
-26. CORS is hardcoded to `http://localhost:3001`.
+1. Several `info` strings contain typos ("retireved", "Succeessfully") that clients may already match on. They are left as-is for now.
+2. `PUT /prison/rule` returns the prison object under a key named `updatedRows`.
+3. Embedded rules and prisons include a `RulePassthrough` object describing the link row.
+4. `GET /chapter/chapters` is not paginated.
+5. `full=true` is accepted but ignored on message endpoints.
+6. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
+7. There is no endpoint to detach a rule from a prison.
+8. Seeded ids are not stable across databases. Read them from responses.
 
 ## Postman collection
 
-`ABC-3.postman_collection.json` in the repository root predates several changes and needs updating before it is useful:
+`ABC-3.postman_collection.json` in the repository root matches the current API. Import it, then:
 
-- Login requests send `name`; the server expects `username`.
-- Chat requests target `/messaging/chat`; chats now live at `/chat/chat`.
-- Some requests use path ids (`/prisoner/prisoner/1`); use `?id=1` instead.
-- It contains a stale hardcoded JWT variable; replace it with a token from `POST /auth/login`.
+1. Run **Users › Login (seeded admin)**. Its test script stores the token in the `{{jwt}}` collection variable and the admin's id in `{{userId}}`.
+2. Every other request sends `{{jwt}}` as a bearer token automatically.
+3. Ids in request bodies are examples from the seed data; adjust them from list responses.
 
-`ABC-3.postman_collection_old.json` is an even older snapshot kept for reference.
+`ABC-3.postman_collection_old.json` is a historical snapshot and does not match the API.
 
 ## Further reading
 
-- [Developer guide](docs/DEVELOPER.md): architecture, request lifecycle, data model, tooling, and a bug catalog with file and line references.
+- [Developer guide](docs/DEVELOPER.md): architecture, request lifecycle, data model, authorization internals, tooling, and how to add a resource.
 - [GitHub repository](https://github.com/Aye-Bee-See/sqlite-express-api)

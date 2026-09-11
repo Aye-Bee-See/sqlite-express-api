@@ -33,6 +33,12 @@ export default class User extends Model {
 	}
 
 	static associate(models) {
+		this.belongsTo(models.Chapter, {
+			as: 'chapter',
+			foreignKey: 'chapterId',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
 		this.hasMany(models.Chat, {
 			as: 'chats',
 			foreignKey: 'user',
@@ -49,10 +55,9 @@ export default class User extends Model {
 
 	// Create
 
-	static async createUser({ username, password, role, email, name, bio }) {
-		//   const banned = false;
+	static async createUser({ username, password, role, email, name, bio, chapterId }) {
 		return await this.create(
-			{ username, password, role, email, name, bio },
+			{ username, password, role, email, name, bio, chapterId },
 			{ individualHooks: true }
 		);
 	}

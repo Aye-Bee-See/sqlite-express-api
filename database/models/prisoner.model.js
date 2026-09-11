@@ -3,9 +3,51 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
 import Prison from '#models/prison.model.js';
+import Chapter from '#models/chapter.model.js';
+import PrisonerSupport from '#models/prisoner-support.model.js';
 import modelsService from '#models/models.service.js';
 import { NotFoundError } from '#services/HttpError.js';
 import { publishedWhere, PUBLISHED } from '#db/record-status.js';
+
+/** Fields a client may set on create. Everything else is derived or managed. */
+export const PRISONER_FIELDS = [
+	'birthName',
+	'chosenName',
+	'aliases',
+	'prison',
+	'country',
+	'inmateID',
+	'releaseDate',
+	'detainedSince',
+	'sentence',
+	'charges',
+	'estimatedRelease',
+	'bio',
+	'interests',
+	'photoUrl',
+	'supportWebsite',
+	'donationInfo',
+	'status',
+	'statusNotice',
+	'featured',
+	'verifiedBy',
+	'verifiedAt',
+	'verificationNotes',
+	'recordStatus'
+];
+
+/** Columns hidden from anonymous and user-role callers. */
+export const PRISONER_STAFF_ONLY = ['verificationNotes'];
+
+function pick(source, fields) {
+	const out = {};
+	for (const f of fields) {
+		if (source[f] !== undefined) {
+			out[f] = source[f];
+		}
+	}
+	return out;
+}
 
 export default class Prisoner extends Model {
 	static init(sequelize) {
@@ -22,6 +64,18 @@ export default class Prisoner extends Model {
 			onDelete: 'RESTRICT',
 			onUpdate: 'CASCADE'
 		});
+		this.belongsTo(models.Chapter, {
+			as: 'verified_by_group',
+			foreignKey: 'verifiedBy',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsToMany(models.Chapter, {
+			as: 'support_groups',
+			through: models.PrisonerSupport,
+			foreignKey: 'prisoner',
+			otherKey: 'chapter'
+		});
 		this.hasMany(models.Chat, {
 			as: 'chats',
 			foreignKey: 'prisoner',
@@ -36,17 +90,30 @@ export default class Prisoner extends Model {
 		});
 	}
 
+	/** Attribute selection for non-staff readers. */
+	static publicAttributes(publishedOnly) {
+		return publishedOnly ? { attributes: { exclude: PRISONER_STAFF_ONLY } } : {};
+	}
+
 	/**
-	 * Includes for full=true. The prison is embedded (published ones only when
-	 * publishedOnly). Chats are private and are embedded only for staff, and
-	 * only when asked for.
+	 * Includes for full=true: the prison, the supporting groups (with the
+	 * link's description), and, for staff only when asked, chats. Embedded
+	 * records are limited to published ones for non-staff.
 	 */
 	static #includes(publishedOnly, withChats = false) {
+		const publishedOnlyOpts = publishedOnly ? { where: publishedWhere(true), required: false } : {};
 		const includes = [
 			{
 				model: Prison,
 				as: 'prison_details',
-				...(publishedOnly ? { where: publishedWhere(true), required: false } : {})
+				...Prison.publicAttributes(publishedOnly),
+				...publishedOnlyOpts
+			},
+			{
+				model: Chapter,
+				as: 'support_groups',
+				through: { attributes: ['description'] },
+				...publishedOnlyOpts
 			}
 		];
 		if (withChats && !publishedOnly) {
@@ -57,21 +124,8 @@ export default class Prisoner extends Model {
 
 	// Create
 
-	static async createPrisoner({
-		birthName,
-		chosenName,
-		prison,
-		inmateID,
-		releaseDate,
-		bio,
-		status,
-		recordStatus
-	}) {
-		const values = { birthName, chosenName, prison, inmateID, releaseDate, bio, status };
-		if (recordStatus !== undefined) {
-			values.recordStatus = recordStatus;
-		}
-		return await this.create(values);
+	static async createPrisoner(fields) {
+		return await this.create(pick(fields, PRISONER_FIELDS));
 	}
 	/**
 	 *  create multiple prisoners
@@ -108,6 +162,7 @@ export default class Prisoner extends Model {
 		order = [['id', 'ASC']]
 	} = {}) {
 		return await this.findAndCountAll({
+			...this.publicAttributes(publishedOnly),
 			where: { ...where, ...publishedWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly) : [],
 			limit,
@@ -124,6 +179,7 @@ export default class Prisoner extends Model {
 	 */
 	static async getPrisonerByID(id, { full = false, publishedOnly = false } = {}) {
 		return await this.findOne({
+			...this.publicAttributes(publishedOnly),
 			where: { id, ...publishedWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly) : []
 		});
@@ -154,6 +210,7 @@ export default class Prisoner extends Model {
 			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
 		return await this.findAndCountAll({
+			...this.publicAttributes(publishedOnly),
 			where: { ...where, prison: prisonId, ...publishedWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly, true) : [],
 			limit,
@@ -161,6 +218,43 @@ export default class Prisoner extends Model {
 			distinct: true,
 			order
 		});
+	}
+
+	// Support groups
+
+	/**
+	 * Link a support group to a prisoner, or update the link's description.
+	 * @param {number|string} prisonerId
+	 * @param {number|string} chapterId
+	 * @param {string} [description]
+	 * @returns {Promise<Prisoner>} the prisoner with its groups loaded
+	 * @throws {NotFoundError} when either record does not exist
+	 */
+	static async addSupport(prisonerId, chapterId, description) {
+		const [prisoner, chapter] = await Promise.all([
+			this.findByPk(prisonerId),
+			Chapter.findByPk(chapterId)
+		]);
+		if (!prisoner) {
+			throw new NotFoundError('Prisoner ' + prisonerId + ' not found');
+		}
+		if (!chapter) {
+			throw new NotFoundError('Chapter ' + chapterId + ' not found');
+		}
+		await PrisonerSupport.upsert({
+			prisoner: prisoner.id,
+			chapter: chapter.id,
+			description: description ?? null
+		});
+		return await this.getPrisonerByID(prisonerId, { full: true });
+	}
+
+	/**
+	 * Remove a support-group link.
+	 * @returns {Promise<number>} rows removed (0 when there was no link)
+	 */
+	static async removeSupport(prisonerId, chapterId) {
+		return await PrisonerSupport.destroy({ where: { prisoner: prisonerId, chapter: chapterId } });
 	}
 
 	// Update

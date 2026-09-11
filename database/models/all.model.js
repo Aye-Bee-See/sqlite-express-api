@@ -5,6 +5,7 @@ import Prisoner from '#models/prisoner.model.js';
 import Rule from '#models/rule.model.js';
 import User from '#models/user.model.js';
 import Chapter from '#models/chapter.model.js';
+import PrisonerSupport from '#models/prisoner-support.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -53,4 +54,4 @@ Child.belongsToMany(
 )
 */
 
-export { Chat, Chapter, Message, Prison, Prisoner, Rule, User };
+export { Chat, Chapter, Message, Prison, Prisoner, PrisonerSupport, Rule, User };

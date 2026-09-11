@@ -6,7 +6,10 @@
 			"inmateID": "1",
 			"prison": 1,
 			"releaseDate": "2029-04-05T23:24:24.819Z",
-			"bio": "Test bio here"
+			"bio": "Test bio here",
+			"country": "United States",
+			"featured": true,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Alice Johnson",
@@ -14,7 +17,10 @@
 			"inmateID": "2",
 			"prison": 2,
 			"releaseDate": "2030-05-06T23:24:24.819Z",
-			"bio": "Another test bio"
+			"bio": "Another test bio",
+			"country": "United States",
+			"featured": true,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Robert Brown",
@@ -22,7 +28,10 @@
 			"inmateID": "3",
 			"prison": 3,
 			"releaseDate": "2031-06-07T23:24:24.819Z",
-			"bio": "Yet another test bio"
+			"bio": "Yet another test bio",
+			"country": "United States",
+			"featured": true,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Michael Wilson",
@@ -30,7 +39,10 @@
 			"inmateID": "4",
 			"prison": 4,
 			"releaseDate": "2032-07-08T23:24:24.819Z",
-			"bio": "Test bio 4"
+			"bio": "Test bio 4",
+			"country": "United States",
+			"featured": true,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "David Martinez",
@@ -38,7 +50,10 @@
 			"inmateID": "5",
 			"prison": 5,
 			"releaseDate": "2033-08-09T23:24:24.819Z",
-			"bio": "Test bio 5"
+			"bio": "Test bio 5",
+			"country": "United States",
+			"featured": true,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "James Anderson",
@@ -46,7 +61,10 @@
 			"inmateID": "6",
 			"prison": 6,
 			"releaseDate": "2034-09-10T23:24:24.819Z",
-			"bio": "Test bio 6"
+			"bio": "Test bio 6",
+			"country": "United States",
+			"featured": true,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "William Thomas",
@@ -54,7 +72,10 @@
 			"inmateID": "7",
 			"prison": 7,
 			"releaseDate": "2035-10-11T23:24:24.819Z",
-			"bio": "Test bio 7"
+			"bio": "Test bio 7",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Richard Jackson",
@@ -62,7 +83,10 @@
 			"inmateID": "8",
 			"prison": 8,
 			"releaseDate": "2036-11-12T23:24:24.819Z",
-			"bio": "Test bio 8"
+			"bio": "Test bio 8",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Joseph White",
@@ -70,7 +94,10 @@
 			"inmateID": "9",
 			"prison": 9,
 			"releaseDate": "2037-12-13T23:24:24.819Z",
-			"bio": "Test bio 9"
+			"bio": "Test bio 9",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Charles Harris",
@@ -78,7 +105,10 @@
 			"inmateID": "10",
 			"prison": 10,
 			"releaseDate": "2038-01-14T23:24:24.819Z",
-			"bio": "Test bio 10"
+			"bio": "Test bio 10",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Thomas Clark",
@@ -86,7 +116,10 @@
 			"inmateID": "11",
 			"prison": 11,
 			"releaseDate": "2039-02-15T23:24:24.819Z",
-			"bio": "Test bio 11"
+			"bio": "Test bio 11",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Christopher Lewis",
@@ -94,7 +127,10 @@
 			"inmateID": "12",
 			"prison": 12,
 			"releaseDate": "2040-03-16T23:24:24.819Z",
-			"bio": "Test bio 12"
+			"bio": "Test bio 12",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Daniel Walker",
@@ -102,7 +138,10 @@
 			"inmateID": "13",
 			"prison": 13,
 			"releaseDate": "2041-04-17T23:24:24.819Z",
-			"bio": "Test bio 13"
+			"bio": "Test bio 13",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Matthew Hall",
@@ -110,7 +149,10 @@
 			"inmateID": "14",
 			"prison": 14,
 			"releaseDate": "2042-05-18T23:24:24.819Z",
-			"bio": "Test bio 14"
+			"bio": "Test bio 14",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Anthony Allen",
@@ -118,7 +160,10 @@
 			"inmateID": "15",
 			"prison": 15,
 			"releaseDate": "2043-06-19T23:24:24.819Z",
-			"bio": "Test bio 15"
+			"bio": "Test bio 15",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Mark Young",
@@ -126,7 +171,10 @@
 			"inmateID": "16",
 			"prison": 16,
 			"releaseDate": "2044-07-20T23:24:24.819Z",
-			"bio": "Test bio 16"
+			"bio": "Test bio 16",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Donald Hernandez",
@@ -134,7 +182,10 @@
 			"inmateID": "17",
 			"prison": 17,
 			"releaseDate": "2045-08-21T23:24:24.819Z",
-			"bio": "Test bio 17"
+			"bio": "Test bio 17",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Paul King",
@@ -142,7 +193,10 @@
 			"inmateID": "18",
 			"prison": 18,
 			"releaseDate": "2046-09-22T23:24:24.819Z",
-			"bio": "Test bio 18"
+			"bio": "Test bio 18",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Steven Wright",
@@ -150,7 +204,10 @@
 			"inmateID": "19",
 			"prison": 19,
 			"releaseDate": "2047-10-23T23:24:24.819Z",
-			"bio": "Test bio 19"
+			"bio": "Test bio 19",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Kenneth Lopez",
@@ -158,7 +215,10 @@
 			"inmateID": "20",
 			"prison": 20,
 			"releaseDate": "2048-11-24T23:24:24.819Z",
-			"bio": "Test bio 20"
+			"bio": "Test bio 20",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Andrew Hill",
@@ -166,7 +226,10 @@
 			"inmateID": "21",
 			"prison": 21,
 			"releaseDate": "2049-12-25T23:24:24.819Z",
-			"bio": "Test bio 21"
+			"bio": "Test bio 21",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Joshua Scott",
@@ -174,7 +237,10 @@
 			"inmateID": "22",
 			"prison": 22,
 			"releaseDate": "2050-01-26T23:24:24.819Z",
-			"bio": "Test bio 22"
+			"bio": "Test bio 22",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Kevin Green",
@@ -182,7 +248,10 @@
 			"inmateID": "23",
 			"prison": 23,
 			"releaseDate": "2051-02-27T23:24:24.819Z",
-			"bio": "Test bio 23"
+			"bio": "Test bio 23",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Brian Adams",
@@ -190,7 +259,10 @@
 			"inmateID": "24",
 			"prison": 24,
 			"releaseDate": "2052-03-28T23:24:24.819Z",
-			"bio": "Test bio 24"
+			"bio": "Test bio 24",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "George Baker",
@@ -198,7 +270,10 @@
 			"inmateID": "25",
 			"prison": 25,
 			"releaseDate": "2053-04-29T23:24:24.819Z",
-			"bio": "Test bio 25"
+			"bio": "Test bio 25",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Edward Gonzalez",
@@ -206,7 +281,10 @@
 			"inmateID": "26",
 			"prison": 26,
 			"releaseDate": "2054-05-30T23:24:24.819Z",
-			"bio": "Test bio 26"
+			"bio": "Test bio 26",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Frank Moore",
@@ -214,7 +292,10 @@
 			"inmateID": "27",
 			"prison": 27,
 			"releaseDate": "2055-06-01T23:24:24.819Z",
-			"bio": "Test bio 27"
+			"bio": "Test bio 27",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Gary Taylor",
@@ -222,7 +303,10 @@
 			"inmateID": "28",
 			"prison": 28,
 			"releaseDate": "2056-07-02T23:24:24.819Z",
-			"bio": "Test bio 28"
+			"bio": "Test bio 28",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Henry Anderson",
@@ -230,7 +314,10 @@
 			"inmateID": "29",
 			"prison": 29,
 			"releaseDate": "2057-08-03T23:24:24.819Z",
-			"bio": "Test bio 29"
+			"bio": "Test bio 29",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Isaac Thomas",
@@ -238,7 +325,10 @@
 			"inmateID": "30",
 			"prison": 30,
 			"releaseDate": "2058-09-04T23:24:24.819Z",
-			"bio": "Test bio 30"
+			"bio": "Test bio 30",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Jack White",
@@ -246,7 +336,10 @@
 			"inmateID": "31",
 			"prison": 31,
 			"releaseDate": "2059-10-05T23:24:24.819Z",
-			"bio": "Test bio 31"
+			"bio": "Test bio 31",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Kevin Harris",
@@ -254,7 +347,10 @@
 			"inmateID": "32",
 			"prison": 32,
 			"releaseDate": "2060-11-06T23:24:24.819Z",
-			"bio": "Test bio 32"
+			"bio": "Test bio 32",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Larry Martin",
@@ -262,7 +358,10 @@
 			"inmateID": "33",
 			"prison": 33,
 			"releaseDate": "2061-12-07T23:24:24.819Z",
-			"bio": "Test bio 33"
+			"bio": "Test bio 33",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Michael Lee",
@@ -270,7 +369,10 @@
 			"inmateID": "34",
 			"prison": 34,
 			"releaseDate": "2062-01-08T23:24:24.819Z",
-			"bio": "Test bio 34"
+			"bio": "Test bio 34",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Nathan Walker",
@@ -278,7 +380,10 @@
 			"inmateID": "35",
 			"prison": 35,
 			"releaseDate": "2063-02-09T23:24:24.819Z",
-			"bio": "Test bio 35"
+			"bio": "Test bio 35",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Oscar Hall",
@@ -286,7 +391,10 @@
 			"inmateID": "36",
 			"prison": 36,
 			"releaseDate": "2064-03-10T23:24:24.819Z",
-			"bio": "Test bio 36"
+			"bio": "Test bio 36",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Peter Allen",
@@ -294,7 +402,10 @@
 			"inmateID": "37",
 			"prison": 37,
 			"releaseDate": "2065-04-11T23:24:24.819Z",
-			"bio": "Test bio 37"
+			"bio": "Test bio 37",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Quincy Young",
@@ -302,7 +413,10 @@
 			"inmateID": "38",
 			"prison": 38,
 			"releaseDate": "2066-05-12T23:24:24.819Z",
-			"bio": "Test bio 38"
+			"bio": "Test bio 38",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		},
 		{
 			"birthName": "Robert Hernandez",
@@ -310,7 +424,10 @@
 			"inmateID": "39",
 			"prison": 39,
 			"releaseDate": "2067-06-13T23:24:24.819Z",
-			"bio": "Test bio 39"
+			"bio": "Test bio 39",
+			"country": "United States",
+			"featured": false,
+			"interests": ["writing", "solidarity"]
 		},
 		{
 			"birthName": "Samuel King",
@@ -318,7 +435,10 @@
 			"inmateID": "40",
 			"prison": 40,
 			"releaseDate": "2068-07-14T23:24:24.819Z",
-			"bio": "Test bio 40"
+			"bio": "Test bio 40",
+			"country": "United States",
+			"featured": false,
+			"interests": ["art", "history"]
 		}
 	]
 }

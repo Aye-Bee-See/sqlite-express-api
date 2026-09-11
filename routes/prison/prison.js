@@ -61,6 +61,26 @@ class PrisonRoutes {
 			this.#Controller.addRule
 		);
 
+		// Relay groups and rule detachment
+		this.Router.put(
+			prisonEnd.put.addRelay,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			this.#Controller.addRelay
+		);
+		this.Router.delete(
+			prisonEnd.delete.removeRelay,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			this.#Controller.removeRelay
+		);
+		this.Router.delete(
+			prisonEnd.delete.removeRule,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			this.#Controller.removeRule
+		);
+
 		// Delete
 
 		this.Router.delete(

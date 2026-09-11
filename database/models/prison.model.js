@@ -3,8 +3,36 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Rule from '#models/rule.model.js';
+import Chapter from '#models/chapter.model.js';
 import { NotFoundError } from '#services/HttpError.js';
 import { publishedWhere } from '#db/record-status.js';
+
+/** Fields a client may set on create. */
+export const PRISON_FIELDS = [
+	'prisonName',
+	'address',
+	'country',
+	'routing',
+	'scanService',
+	'notes',
+	'verifiedBy',
+	'verifiedAt',
+	'verificationNotes',
+	'recordStatus'
+];
+
+/** Columns hidden from anonymous and user-role callers. */
+export const PRISON_STAFF_ONLY = ['verificationNotes'];
+
+function pick(source, fields) {
+	const out = {};
+	for (const f of fields) {
+		if (source[f] !== undefined) {
+			out[f] = source[f];
+		}
+	}
+	return out;
+}
 
 export default class Prison extends Model {
 	static init(sequelize) {
@@ -27,30 +55,52 @@ export default class Prison extends Model {
 			foreignKey: 'prison',
 			otherKey: 'rule'
 		});
+		this.belongsToMany(models.Chapter, {
+			as: 'relay_groups',
+			through: 'PrisonRelay',
+			foreignKey: 'prison',
+			otherKey: 'chapter'
+		});
+		this.belongsTo(models.Chapter, {
+			as: 'verified_by_group',
+			foreignKey: 'verifiedBy',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+	}
+
+	/** Attribute selection for non-staff readers. */
+	static publicAttributes(publishedOnly) {
+		return publishedOnly ? { attributes: { exclude: PRISON_STAFF_ONLY } } : {};
 	}
 
 	/**
-	 * Includes for full=true. With publishedOnly, embedded prisoners are
-	 * limited to published ones (rules have no status).
+	 * Includes for full=true: prisoners, rules, and relay groups. Embedded
+	 * prisoners and groups are limited to published ones for non-staff
+	 * (rules have no status).
 	 */
 	static #includes(publishedOnly) {
+		const publishedOnlyOpts = publishedOnly ? { where: publishedWhere(true), required: false } : {};
 		return [
 			{
 				model: Prisoner,
 				as: 'prisoners',
-				...(publishedOnly ? { where: publishedWhere(true), required: false } : {})
+				...Prisoner.publicAttributes(publishedOnly),
+				...publishedOnlyOpts
 			},
-			{ model: Rule, as: 'rules' }
+			{ model: Rule, as: 'rules' },
+			{
+				model: Chapter,
+				as: 'relay_groups',
+				through: { attributes: [] },
+				...publishedOnlyOpts
+			}
 		];
 	}
 
 	// Create
-	static async createPrison({ prisonName, address, recordStatus }) {
-		const values = { prisonName, address };
-		if (recordStatus !== undefined) {
-			values.recordStatus = recordStatus;
-		}
-		return await this.create(values);
+	static async createPrison(fields) {
+		return await this.create(pick(fields, PRISON_FIELDS));
 	}
 
 	/**
@@ -88,6 +138,7 @@ export default class Prison extends Model {
 		order = [['id', 'ASC']]
 	} = {}) {
 		return await this.findAndCountAll({
+			...this.publicAttributes(publishedOnly),
 			where: { ...where, ...publishedWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly) : [],
 			limit,
@@ -104,6 +155,7 @@ export default class Prison extends Model {
 	 */
 	static async getPrisonByID(id, { full = false, publishedOnly = false } = {}) {
 		return await this.findOne({
+			...this.publicAttributes(publishedOnly),
 			where: { id, ...publishedWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly) : []
 		});
@@ -115,22 +167,59 @@ export default class Prison extends Model {
 	}
 
 	/**
-	 * Attach an existing rule to an existing prison (idempotent).
-	 * @param {number|string} ruleId
-	 * @param {number|string} prisonId
-	 * @returns {Promise<Prison>} the prison with its rules loaded
-	 * @throws {Error} when either record does not exist
+	 * Load a prison and a related record for a link operation.
+	 * @throws {NotFoundError} when either is missing
 	 */
-	static async addRule(ruleId, prisonId) {
-		const [rule, prison] = await Promise.all([Rule.findByPk(ruleId), this.findByPk(prisonId)]);
-		if (!rule) {
-			throw new NotFoundError('Rule ' + ruleId + ' not found');
+	static async #pair(prisonId, Related, relatedId, label) {
+		const [prison, related] = await Promise.all([
+			this.findByPk(prisonId),
+			Related.findByPk(relatedId)
+		]);
+		if (!related) {
+			throw new NotFoundError(label + ' ' + relatedId + ' not found');
 		}
 		if (!prison) {
 			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
+		return [prison, related];
+	}
+
+	/**
+	 * Attach an existing rule to an existing prison (idempotent).
+	 * @returns {Promise<Prison>} the prison with its relations loaded
+	 */
+	static async addRule(ruleId, prisonId) {
+		const [prison, rule] = await this.#pair(prisonId, Rule, ruleId, 'Rule');
 		await prison.addRule(rule);
 		return await this.getPrisonByID(prisonId, { full: true });
+	}
+
+	/**
+	 * Detach a rule from a prison.
+	 * @returns {Promise<number>} links removed (0 when there was none)
+	 */
+	static async removeRule(ruleId, prisonId) {
+		const [prison, rule] = await this.#pair(prisonId, Rule, ruleId, 'Rule');
+		return await prison.removeRule(rule);
+	}
+
+	/**
+	 * Attach a relay group (chapter) to a prison (idempotent).
+	 * @returns {Promise<Prison>} the prison with its relations loaded
+	 */
+	static async addRelay(chapterId, prisonId) {
+		const [prison, chapter] = await this.#pair(prisonId, Chapter, chapterId, 'Chapter');
+		await prison.addRelay_group(chapter);
+		return await this.getPrisonByID(prisonId, { full: true });
+	}
+
+	/**
+	 * Detach a relay group from a prison.
+	 * @returns {Promise<number>} links removed (0 when there was none)
+	 */
+	static async removeRelay(chapterId, prisonId) {
+		const [prison, chapter] = await this.#pair(prisonId, Chapter, chapterId, 'Chapter');
+		return await prison.removeRelay_group(chapter);
 	}
 
 	// Delete

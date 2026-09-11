@@ -15,8 +15,6 @@ const { Sequelize } = await import('sequelize');
 const db = await import('../database/sql-database.js');
 const { createMigrator, runMigrations, INITIAL_MIGRATION } = await import('../database/migrate.js');
 
-const models = [db.User, db.Prison, db.Prisoner, db.Rule, db.Chat, db.Message, db.Chapter];
-
 before(() => db.ready);
 after(() => db.sequelize.close());
 
@@ -42,8 +40,7 @@ test('boot applies the migrations and records them in SequelizeMeta', async () =
 
 test('the migrated schema matches the models (no drift)', async () => {
 	const qi = db.sequelize.getQueryInterface();
-	const through = db.sequelize.models.RulePassthrough;
-	for (const model of [...models, through]) {
+	for (const model of Object.values(db.sequelize.models)) {
 		const table = model.getTableName();
 		const columns = await qi.describeTable(table);
 		const attributes = model.getAttributes();

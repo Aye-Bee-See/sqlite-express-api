@@ -10,7 +10,7 @@
 	"scripts": {
 		"start": "node index.js",
 		"dev": "nodemon index.js",
-		"test": "node --test test/",
+		"test": "node --test \"test/**/*.test.js\"",
 		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
 		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",
 		"pre-commit": "lint-staged",

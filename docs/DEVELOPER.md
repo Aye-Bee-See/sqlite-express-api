@@ -561,7 +561,7 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 
 ### Tests
 
-`npm test` runs `node --test test/`. There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
+`npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
 
 - `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin, chapter, two users, a prison with two prisoners, a rule).
 - Each test file is its own process, so each gets a fresh in-memory database. Files: `auth`, `authorization`, `directory`, `messaging`, `users` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).

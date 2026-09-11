@@ -61,6 +61,11 @@ class MessageRoutes {
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.update
 		);
+		this.Router.put(
+			messageEnd.put.updateStatus,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.updateStatus
+		);
 		// Delete
 		this.Router.delete(
 			messageEnd.delete.remove,

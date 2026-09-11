@@ -1436,6 +1436,108 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Send Letter With Relay Group And Note",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/message",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "message"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"messageText\": \"Hello from Postman\",\n    \"sender\": \"user\",\n    \"prisoner\": 1,\n    \"user\": \"{{userId}}\",\n    \"relayChapter\": 1,\n    \"relayNote\": \"Two pages, include the photo\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Print Queue (relay group, queued)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/messages?relayChapter=1&status=queued&page=1&page_size=10",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "messages"],
+							"query": [
+								{
+									"key": "relayChapter",
+									"value": "1"
+								},
+								{
+									"key": "status",
+									"value": "queued"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Letter With Status History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/message?id=1&full=true",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "message"],
+							"query": [
+								{
+									"key": "id",
+									"value": "1"
+								},
+								{
+									"key": "full",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Letter Status (printed / mailed)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/status",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "status"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"status\": \"printed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
 				}
 			]
 		},

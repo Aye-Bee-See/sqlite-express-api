@@ -275,7 +275,13 @@ export default class Chat extends Model {
 			chat.setDataValue(
 				'last_message',
 				m
-					? { id: m.id, sender: m.sender, messageText: m.messageText, createdAt: m.createdAt }
+					? {
+							id: m.id,
+							sender: m.sender,
+							messageText: m.messageText,
+							status: m.status,
+							createdAt: m.createdAt
+						}
 					: null
 			);
 		}

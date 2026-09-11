@@ -30,6 +30,7 @@ export const User = Models.User.init(sequelize, Sequelize);
 export const Chapter = Models.Chapter.init(sequelize, Sequelize);
 export const PrisonerSupport = Models.PrisonerSupport.init(sequelize, Sequelize);
 export const ClaimToken = Models.ClaimToken.init(sequelize, Sequelize);
+export const MessageStatus = Models.MessageStatus.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -39,6 +40,7 @@ Chat.associate(Models);
 Rule.associate(Models);
 Chapter.associate(Models);
 ClaimToken.associate(Models);
+MessageStatus.associate(Models);
 
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;

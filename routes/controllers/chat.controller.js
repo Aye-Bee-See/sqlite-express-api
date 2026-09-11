@@ -40,7 +40,7 @@ export default class ChatController extends RouteController {
 	 */
 	async #loadAllowed(scope, id) {
 		const chat = await Chat.getChatByID(id);
-		if (chat && !scope.allows(chat)) {
+		if (chat && !(await scope.allows(chat))) {
 			throw AuthzService.forbidden();
 		}
 		return chat;
@@ -48,8 +48,8 @@ export default class ChatController extends RouteController {
 
 	/**
 	 * List chats within the caller's scope. Filters: user (always the caller
-	 * for user-role accounts; must be in scope for chapters), prisoner, or
-	 * both; none lists everything in scope.
+	 * for user-role accounts; narrowed to the scope for chapters), prisoner,
+	 * or both; none lists everything in scope.
 	 */
 	async getMany(req, res, next) {
 		const { prisoner, user, full, page, page_size } = req.query;
@@ -61,12 +61,9 @@ export default class ChatController extends RouteController {
 			const scope = await threadScope(req);
 			// A user-role caller always lists their own threads, whatever `user` says.
 			const writer = scope.kind === 'own' ? req.user.id : user;
-			if (writer !== undefined && !scope.allowsUser(writer)) {
-				throw AuthzService.forbidden('Writer ' + writer + ' is outside your scope.');
-			}
 			let chats;
 			if (writer !== undefined) {
-				const extra = prisoner !== undefined ? { prisoner } : {};
+				const extra = { ...(prisoner !== undefined ? { prisoner } : {}), ...scope.where };
 				chats = await Chat.readChatsByUser(writer, fullBool, limit, offset, extra);
 			} else if (prisoner !== undefined) {
 				chats = await Chat.readChatsByPrisoner(prisoner, fullBool, limit, offset, scope.where);

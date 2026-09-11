@@ -167,7 +167,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     │   ├── prisoner.model.js
     │   ├── rule.model.js
     │   ├── chat.model.js             Readers accept an extra where-clause for ownership filtering.
-    │   ├── message.model.js          Same; updateMessage re-resolves the chat.
+    │   ├── message.model.js          Same; updateMessage re-resolves the chat; createLetter, resolveRelayChapter, changeStatus, readLetter.
+    │   ├── message-status.model.js   MessageStatus: one row per status change.
     │   └── chapter.model.js
     ├── schemas/
     │   ├── all.schema.js             Schemas class with one static per model.
@@ -175,7 +176,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     ├── hooks/
     │   ├── all.hooks.js              Hooks class; only user and message have hooks.
     │   ├── user.hooks.js             beforeCreate and beforeUpdate: bcrypt-hash the password.
-    │   └── message.hooks.js          beforeValidate: find-or-create the chat for user + prisoner (create only).
+    │   └── message.hooks.js          beforeValidate: default status from sender; find-or-create the chat for user + prisoner (create only).
     └── seeds/
         ├── all.seeds.js              Runs the seed functions in dependency order and prints a one-line summary.
         ├── <model>.seed.js           Reads <model>Seed.json and bulk-creates if the table is empty.
@@ -455,7 +456,8 @@ The policy, as implemented:
 - Banned users are refused at login and at token verification, so `hasRole` never sees them.
 - User management is admin-only, except that anyone may read, update, or delete their own record and non-admins may not change `role`, `chapterId`, or the custody columns. A group's `chapter` account may read, edit (`name`, `email`, `managerNote` only), and delete the group's unclaimed managed writers.
 - Reads of prisons, prisoners, rules, and chapters need no token (`optionalAuthenticate`). Anonymous callers and the `user` role see published records only; staff see everything and may filter by `recordStatus`. `AuthzService.publishedOnly(req)` decides, and `readOptions(req, config)` in `routes/controllers/directory.helpers.js` turns it, plus `q`, `sort`, `recordStatus`, and per-resource exact-match filters, into `{ publishedOnly, where, order }` for the model readers. Each directory controller declares its `READ_CONFIG` (search fields, sort orders, allowed filters) at the top of the file; add to that object to expose a new filter. Writes need `admin` or `chapter`.
-- Chats and messages follow `threadScope(req)` in `routes/services/scope.services.js`: `{ kind: 'all' | 'managed' | 'own', where, allowsUser(id), allows(record) }`. Admins get everything; a `chapter` caller gets `user IN (ids of writers its group manages)`; a `user` gets their own id. Controllers spread `scope.where` **last** into list queries, call `scope.allows(record)` before single-record reads, updates, and deletes, and use `resolveWriter(req, scope, body.user)` on create (user role: self; chapter: a managed writer, or the group's anonymous writer when omitted; admin: as given). Enforced in the controllers because it depends on the record, not just the route.
+- Chats and messages follow `threadScope(req)` in `routes/services/scope.services.js`: `{ kind: 'all' | 'managed' | 'own', where, messageWhere, allowsUser(id), allows(chat) (async), allowsMessage(message) }`. Admins get everything; a `chapter` caller gets `user IN (ids of writers its group manages)` **or** `relayChapter = its group` (for chats: chats holding such a message, via a literal subquery); a `user` gets their own id. Controllers spread `scope.where` / `scope.messageWhere` **last** into list queries, call `allows` / `allowsMessage` before single-record reads, updates, and deletes, and use `resolveWriter(req, scope, body.user, { sender, prisoner })` on create (user role: self; chapter: a managed writer, the group's anonymous writer when omitted, or an independent writer only for a `prisoner` reply on a thread the group relays; admin: as given). Enforced in the controllers because it depends on the record, not just the route.
+- Letter lifecycle (`database/letter-status.js`, `Message.createLetter` / `changeStatus`, `MessageController.updateStatus`): every message has `status`; letters start `queued`, replies `received`; `PUT /messaging/status` moves queued to printed to mailed for admins or the letter's `relayChapter`; `MessageStatus` rows record every change. `Message.resolveRelayChapter(prisonerId, requested, callerChapter)` validates an explicit group against the facility's relay groups (`Prisoner.relayGroupsFor`) and otherwise defaults to the caller's group, then the single relay group, then none unless the facility is `relay_only`. Non-admins may edit or delete a letter only while `isOpen(status)`.
 - Managed writers (`user.controller.js`, `User.createManagedWriter` and friends, `ClaimToken`): a group creates an account with `managedBy` set; the local strategy refuses login while `managedBy && !claimedAt`; `POST /auth/claim` sets credentials, `claimedAt`, `claimedFrom`, and clears `managedBy`, after which the group is out of scope. `User.anonymousWriterFor(chapterId)` find-or-creates the one account with `anonymousForChapter = chapterId`. `managerNote` is stripped from every response except to admins and the managing group (`#stripPassword(user, req)` in the user controller).
 
 To change the policy, edit the route files (which roles guard which routes) and the two controllers (ownership). `requireRole` is deliberately dumb so that the policy stays visible in the route definitions.
@@ -485,7 +487,7 @@ Tables: `User` (explicit `tableName`), `Prisons`, `Prisoners`, `Rules`, `Chats`,
 | PrisonerSupport | `prisoner` + `chapter` (composite PK, FKs CASCADE), `description` TEXT                                                                                                                                                                                                                                                                                                                                                                             | none                                                                                                                                 |
 | PrisonRelay     | `prison` + `chapter` (composite PK, FKs CASCADE)                                                                                                                                                                                                                                                                                                                                                                                                   | none                                                                                                                                 |
 
-The foreign-key columns are declared as plain integers in the schemas; the `references` and `ON DELETE` clauses come from the associations below. `recordStatus` is defined once in `database/record-status.js` and spread into the three schemas. Value lists and the array/object validators for the directory fields live in `database/validators.js`. `PrisonerSupport` is a real model (it carries `description`); `PrisonRelay` and `RulePassthrough` are string-named through tables.
+The foreign-key columns are declared as plain integers in the schemas; the `references` and `ON DELETE` clauses come from the associations below. `recordStatus` is defined once in `database/record-status.js` and spread into the three schemas. The letter lifecycle (statuses, allowed transitions, `initialStatusFor`, `isOpen`) lives in `database/letter-status.js`. Value lists and the array/object validators for the directory fields live in `database/validators.js`. `PrisonerSupport` is a real model (it carries `description`); `PrisonRelay` and `RulePassthrough` are string-named through tables.
 
 ### Associations
 
@@ -499,6 +501,9 @@ Declared in each model's `associate(models)`. Every pair uses the column the sch
 | `Message.belongsTo(Chat, { as: 'chat_details', foreignKey: 'chat' })`                                                                                        | `Messages.chat`                    |
 | `Message.belongsTo(User, { as: 'user_details', foreignKey: 'user' })`                                                                                        | `Messages.user`                    |
 | `Message.belongsTo(Prisoner, { as: 'prisoner_details', foreignKey: 'prisoner' })`                                                                            | `Messages.prisoner`                |
+| `Message.belongsTo(Chapter, { as: 'relay_group', foreignKey: 'relayChapter', onDelete: 'SET NULL' })`                                                        | `Messages.relayChapter`            |
+| `Message.belongsTo(User, { as: 'status_changed_by', foreignKey: 'statusChangedBy', onDelete: 'SET NULL' })`                                                  | `Messages.statusChangedBy`         |
+| `Message.hasMany(MessageStatus, { as: 'status_history', foreignKey: 'message', onDelete: 'CASCADE' })`                                                       | `MessageStatuses.message`          |
 | `User.hasMany(Chat, { as: 'chats', foreignKey: 'user' })`                                                                                                    | `Chats.user`                       |
 | `User.hasMany(Message, { as: 'messages', foreignKey: 'user' })`                                                                                              | `Messages.user`                    |
 | `Prisoner.belongsTo(Prison, { as: 'prison_details', foreignKey: 'prison' })`                                                                                 | `Prisoners.prison`                 |
@@ -549,7 +554,7 @@ Worth knowing:
 Registered through `database/hooks/all.hooks.js`:
 
 - **User `beforeCreate`** and **`beforeUpdate`**: replace `password` with `bcrypt.hash(password, 10)`. The update hook only runs when `record.changed('password')`, so unrelated updates do not re-hash the hash. It fires for `User.updateUser` because that call passes `individualHooks: true`.
-- **Message `beforeValidate`** (`message.hooks.js:15`): calls `Chat.findOrCreateChat(user, prisoner)` and writes the chat id onto the instance. Skipped when either id is missing so the schema's `notNull` messages surface. Only effective on create; see `updateMessage` above.
+- **Message `beforeValidate`**: on a new record, sets `status` from the sender (`received` for a prisoner reply, `queued` for a letter unless a valid outgoing status was given, so seeds and backfills work); then calls `Chat.findOrCreateChat(user, prisoner)` and writes the chat id onto the instance. Skipped when either id is missing so the schema's `notNull` messages surface. Only effective on create; see `updateMessage` above.
 
 ### Deletion semantics
 
@@ -616,7 +621,7 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 `npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
 
 - `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin; a Chapter record `group` with a `chapter`-role member and an unclaimed managed `writer`; two independent users `alice` and `bob`; a prison with two prisoners; a rule).
-- Each test file is its own process, so each gets a fresh in-memory database. Files: `auth`, `authorization`, `directory`, `directory-fields`, `messaging`, `migrations`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
+- Each test file is its own process, so each gets a fresh in-memory database. Files: `auth`, `authorization`, `directory`, `directory-fields`, `letters`, `messaging`, `migrations`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
 - Seeded data is not used by the tests; fixtures are created explicitly, so tests never depend on seed ids.
 - CI (`.github/workflows/test.yml`) runs `npm ci`, ESLint, and the suite on Node 22 and 24 for every pull request and push to `main`.
 
@@ -690,10 +695,10 @@ Known gaps, roughly in the order they are worth tackling:
 
 1. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
 2. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
-3. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
+3. **Message `full=true`** on the single read embeds `relay_group` and `status_history`; on lists it is still ignored. `chat_details` / `user_details` / `prisoner_details` includes are a few lines if clients want them.
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
 5. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
-6. **Relay-scoped threads.** Chapter accounts now see only their managed writers' threads. Once letter routing exists (a letter's relay group), threads relayed through a group should join `threadScope()` for that group; until then an independent user's letter is visible to admins only. Directory writes are still open to every chapter account.
+6. **Attachments and retention.** Scans of prisoner replies and letter enclosures need an `Attachments` table, a data directory, and multipart uploads (a new dependency); planned as its own pull request. Retention (purging `mailed` letters after a window, then `VACUUM`) is a scheduled job to add once the product decides the window. Directory writes are still open to every chapter account.
 7. **Rate limiting and request logging.** None.
 8. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
 9. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.

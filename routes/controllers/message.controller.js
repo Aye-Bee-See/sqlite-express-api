@@ -2,15 +2,21 @@ import Message from '#models/message.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
+import ValidationError from '#services/ValidationError.js';
+import { isOpen, LETTER_STATUSES } from '#db/letter-status.js';
 
 /**
- * Message controller.
+ * Message (letter) controller.
  *
  * Visibility follows threadScope(): users see their own messages, chapters
- * see messages of writers their group manages, admins see everything. A
- * user-role caller always sends as themselves and as the user side; a
- * chapter sends as a writer it manages (or its anonymous writer) and may
- * record either side.
+ * see messages of writers their group manages plus letters the group
+ * relays, admins see everything. A user-role caller always sends as
+ * themselves and as the user side; a chapter sends as a writer it manages
+ * (or its anonymous writer) and may record either side.
+ *
+ * Lifecycle: letters start `queued`; the relay group moves them to
+ * `printed` and `mailed` through updateStatus. Replies are `received`.
+ * Non-admins may edit or delete a letter only while it is still open.
  */
 export default class MessageController extends RouteController {
 	constructor() {
@@ -23,6 +29,7 @@ export default class MessageController extends RouteController {
 		this.getMany = this.getMany.bind(this);
 		this.getOne = this.getOne.bind(this);
 		this.update = this.update.bind(this);
+		this.updateStatus = this.updateStatus.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
 
@@ -42,16 +49,44 @@ export default class MessageController extends RouteController {
 	 */
 	async #loadAllowed(scope, id) {
 		const message = await Message.getMessageByID(id);
-		if (message && !scope.allows(message)) {
+		if (message && !scope.allowsMessage(message)) {
 			throw AuthzService.forbidden();
 		}
 		return message;
 	}
 
+	/** Route a 403 to the error middleware; render anything else here. */
+	#fail(res, next, err, condition) {
+		if (err && err.status === 403) {
+			return next(err);
+		}
+		const errorVar = !(err instanceof Error) ? new Error(err) : err;
+		this.#handleErr(res, errorVar, condition);
+	}
+
 	/**
-	 * List messages. Exactly one filter is applied, in precedence order: id,
-	 * chat, prisoner, user; with no filter, everything in the caller's scope.
-	 * Paginated with page and page_size.
+	 * Optional list filters on top of the scope: `status` and `relayChapter`.
+	 * @throws {ValidationError} for an unknown status
+	 */
+	#listFilters(query) {
+		const filters = {};
+		if (query.status !== undefined) {
+			if (!LETTER_STATUSES.includes(query.status)) {
+				throw new ValidationError('Status must be one of ' + LETTER_STATUSES.join(', ') + '.');
+			}
+			filters.status = query.status;
+		}
+		if (query.relayChapter !== undefined) {
+			filters.relayChapter = query.relayChapter;
+		}
+		return filters;
+	}
+
+	/**
+	 * List messages. Exactly one selector is applied, in precedence order: id,
+	 * chat, prisoner, user; with none, everything in the caller's scope.
+	 * `status` and `relayChapter` narrow any of those. Paginated with page
+	 * and page_size.
 	 */
 	async getMany(req, res, next) {
 		const { id, chat, prisoner, user, page, page_size } = req.query;
@@ -60,75 +95,79 @@ export default class MessageController extends RouteController {
 
 		try {
 			const scope = await threadScope(req);
+			const where = { ...this.#listFilters(req.query), ...scope.messageWhere };
 			let messages;
 			if (id !== undefined) {
-				messages = await Message.readMessageById(id, limit, offset, scope.where);
+				messages = await Message.readMessageById(id, limit, offset, where);
 			} else if (chat !== undefined) {
-				messages = await Message.readMessagesByChat(chat, limit, offset, scope.where);
+				messages = await Message.readMessagesByChat(chat, limit, offset, where);
 			} else if (prisoner !== undefined) {
-				messages = await Message.readMessagesByPrisoner(prisoner, limit, offset, scope.where);
+				messages = await Message.readMessagesByPrisoner(prisoner, limit, offset, where);
 			} else if (user !== undefined) {
 				// A user-role caller always lists their own messages, whatever `user` says.
 				const writer = scope.kind === 'own' ? req.user.id : user;
-				if (!scope.allowsUser(writer)) {
-					throw AuthzService.forbidden('Writer ' + writer + ' is outside your scope.');
-				}
-				messages = await Message.readMessagesByUser(writer, limit, offset);
+				messages = await Message.readMessagesByUser(writer, limit, offset, where);
 			} else {
-				messages = await Message.readAllMessages(limit, offset, scope.where);
+				messages = await Message.readAllMessages(limit, offset, where);
 			}
 			this.handlePage(res, messages, limits);
 		} catch (err) {
-			if (err && err.status === 403) {
-				return next(err);
-			}
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
+			this.#fail(res, next, err);
 		}
 	}
 
-	// get one message
-
+	/** Get one message by id; `full=true` embeds the relay group and status history. */
 	async getOne(req, res, next) {
-		const { id } = req.query;
+		const { id, full } = req.query;
 		try {
 			const scope = await threadScope(req);
 			const message = await this.#loadAllowed(scope, id);
-			this.#handleSuccess(res, this.requireFound(message, 'Message ' + id));
+			this.requireFound(message, 'Message ' + id);
+			this.#handleSuccess(res, full === 'true' ? await Message.readLetter(id) : message);
 		} catch (err) {
-			if (err && err.status === 403) {
-				return next(err);
-			}
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
+			this.#fail(res, next, err);
 		}
 	}
 
-	// Create
+	/**
+	 * Send a letter (sender `user`) or record a reply (sender `prisoner`).
+	 * Body: messageText, sender, prisoner, user?, relayChapter?, relayNote?.
+	 * The relay group is resolved from the facility's relay groups when not
+	 * given; see Message.resolveRelayChapter.
+	 */
 	async create(req, res, next) {
-		const { messageText, prisoner } = req.body;
+		const { messageText, prisoner, relayChapter, relayNote } = req.body;
 		try {
 			const scope = await threadScope(req);
-			const user = await resolveWriter(req, scope, req.body.user);
 			const sender = scope.kind === 'own' ? 'user' : req.body.sender;
-			const message = await Message.createMessage({ messageText, sender, prisoner, user });
+			const user = await resolveWriter(req, scope, req.body.user, { sender, prisoner });
+			const message = await Message.createLetter(
+				{ messageText, sender, prisoner, user, relayChapter, relayNote },
+				{ callerChapter: AuthzService.chapterOf(req), changedBy: req.user.id }
+			);
 			this.#handleSuccess(res, message);
 		} catch (err) {
-			if (err && err.status === 403) {
-				return next(err);
-			}
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
+			this.#fail(res, next, err);
 		}
 	}
 
-	// Update
+	/**
+	 * Edit a message. Status fields are not editable here (see updateStatus);
+	 * non-admins may only edit a letter that is still open and may not move
+	 * it to a writer outside their scope.
+	 */
 	async update(req, res, next) {
 		const newMessage = { ...req.body };
+		for (const field of ['status', 'statusChangedAt', 'statusChangedBy']) {
+			delete newMessage[field];
+		}
 		try {
 			const scope = await threadScope(req);
 			if (scope.kind !== 'all') {
-				await this.#loadAllowed(scope, newMessage.id);
+				const current = await this.#loadAllowed(scope, newMessage.id);
+				if (current && !isOpen(current.status)) {
+					throw AuthzService.forbidden('A ' + current.status + ' letter can no longer be edited.');
+				}
 				if (scope.kind === 'own') {
 					newMessage.user = req.user.id;
 				} else if (newMessage.user !== undefined && !scope.allowsUser(newMessage.user)) {
@@ -137,32 +176,60 @@ export default class MessageController extends RouteController {
 					);
 				}
 			}
+			if (newMessage.relayChapter !== undefined) {
+				const current = await Message.getMessageByID(newMessage.id);
+				if (current) {
+					newMessage.relayChapter = await Message.resolveRelayChapter(
+						newMessage.prisoner ?? current.prisoner,
+						newMessage.relayChapter,
+						AuthzService.chapterOf(req)
+					);
+				}
+			}
 			const updatedRows = await Message.updateMessage(newMessage);
 			this.requireAffected(updatedRows, 'Message ' + newMessage.id);
 			this.#handleSuccess(res, { updatedRows, newMessage });
 		} catch (err) {
-			if (err && err.status === 403) {
-				return next(err);
-			}
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
+			this.#fail(res, next, err);
 		}
 	}
 
-	// Delete
+	/**
+	 * PUT /messaging/status { id, status }: move a letter along its
+	 * lifecycle. Admins, or the group that relays the letter.
+	 */
+	async updateStatus(req, res, next) {
+		const { id, status } = req.body;
+		try {
+			const message = this.requireFound(await Message.getMessageByID(id), 'Message ' + id);
+			const chapterId = AuthzService.chapterOf(req);
+			const mayChange =
+				AuthzService.isAdmin(req) || (chapterId && message.relayChapter === chapterId);
+			if (!mayChange) {
+				throw AuthzService.forbidden(
+					'Only the relay group or an admin can change a letter status.'
+				);
+			}
+			const updated = await Message.changeStatus(message, status, req.user.id);
+			this.#handleSuccess(res, updated);
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/** Delete a message. Non-admins may only delete a letter that is still open. */
 	async remove(req, res, next) {
 		const { id } = req.body;
 		try {
 			const scope = await threadScope(req);
-			await this.#loadAllowed(scope, id);
+			const current = await this.#loadAllowed(scope, id);
+			if (current && scope.kind !== 'all' && !isOpen(current.status)) {
+				throw AuthzService.forbidden('A ' + current.status + ' letter can no longer be deleted.');
+			}
 			const deletedRows = await Message.deleteMessage(id);
 			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Message ' + id));
 		} catch (err) {
-			if (err && err.status === 403) {
-				return next(err);
-			}
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
+			this.#fail(res, next, err);
 		}
 	}
 }

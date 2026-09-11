@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { LETTER_STATUSES } from '#db/letter-status.js';
 
 const messageSchema = {
 	chat: {
@@ -49,6 +50,32 @@ const messageSchema = {
 				msg: 'Prisoner ID must not be null.'
 			}
 		}
+	},
+	/** Lifecycle: queued -> printed -> mailed for letters; received for replies. */
+	status: {
+		type: DataTypes.STRING,
+		allowNull: false,
+		defaultValue: 'queued',
+		validate: {
+			isIn: {
+				args: [LETTER_STATUSES],
+				msg: 'Status must be one of ' + LETTER_STATUSES.join(', ') + '.'
+			}
+		}
+	},
+	/** The group that prints and mails this letter (one of the facility's relay groups). */
+	relayChapter: {
+		type: DataTypes.INTEGER
+	},
+	/** Instructions for the relay group; never shown to the prisoner. */
+	relayNote: {
+		type: DataTypes.TEXT
+	},
+	statusChangedAt: {
+		type: DataTypes.DATE
+	},
+	statusChangedBy: {
+		type: DataTypes.INTEGER
 	},
 	user: {
 		type: DataTypes.INTEGER,

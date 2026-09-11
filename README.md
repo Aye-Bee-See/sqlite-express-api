@@ -26,7 +26,7 @@ This README is written for people who **use** the API: front-end developers, int
 | **Prisoner**       | An incarcerated person that users can write to. Belongs to one prison. Stores birth name, chosen name, inmate ID, release date, a bio, and a status.                                                                                                           |
 | **Rule**           | A mail rule a prison enforces, such as "No pictures". A rule can be attached to many prisons and a prison can have many rules.                                                                                                                                 |
 | **Chat**           | A thread between exactly one user and one prisoner. Chats are created automatically the first time a message is sent between a pair, and can also be created directly.                                                                                         |
-| **Message**        | One letter or text within a chat. `sender` is either `user` or `prisoner`.                                                                                                                                                                                     |
+| **Message**        | One letter or text within a chat. `sender` is either `user` or `prisoner`. A letter has a lifecycle `status` (`queued`, `printed`, `mailed`; replies are `received`) and a relay group that prints and mails it; see [Letter lifecycle](#letter-lifecycle).    |
 | **Managed writer** | A `user` account a group created for someone who writes through it (for example at a letter-writing night). The group sends letters on the writer's behalf until the writer claims the account with a one-time token; see [Managed writers](#managed-writers). |
 | **Chapter**        | A local chapter of the partner non-profit. Has a name, a JSON `location`, and some statistics fields. Note that chapter _accounts_ are users with the `chapter` role; the Chapter resource describes the organisation itself.                                  |
 
@@ -213,6 +213,7 @@ A token whose user has since been deleted or banned is rejected with `401`.
 | Attach a rule to a prison                                  | No                    | Yes                               | Yes     |
 | Read, create, update, delete chats and messages            | **Own threads only**  | **Managed writers' threads only** | All     |
 | Send a message as the prisoner side (`sender: prisoner`)   | No (forced to `user`) | Yes                               | Yes     |
+| Move a letter to `printed` / `mailed`                      | No                    | As its relay group                | Yes     |
 | Create managed writers, issue claim tokens                 | No                    | Own group                         | Yes     |
 | Read, edit, delete a group's unclaimed managed writers     | No                    | Own group                         | Yes     |
 | Read own user record; update or delete own account         | Yes                   | Yes                               | Yes     |
@@ -227,7 +228,7 @@ A token whose user has since been deleted or banned is rejected with `401`.
 
 Every refusal is a `403` with the general error shape.
 
-A `chapter` account is scoped to its group. It sees the threads of the writers its group manages (see [Managed writers](#managed-writers)), can send letters for them and transcribe prisoner replies, and sees nothing else. A `chapter` account that is not yet a member of a group (no `chapterId`) has no threads at all and cannot create writers; an admin puts it in a group with `PUT /auth/user`. Threads relayed through a group by mail routing will join this scope once letter routing exists.
+A `chapter` account is scoped to its group. It sees the threads of the writers its group manages (see [Managed writers](#managed-writers)) and the threads holding letters its group relays (see [Letter lifecycle](#letter-lifecycle)), can send letters for its writers and transcribe prisoner replies on either, and sees nothing else. A `chapter` account that is not yet a member of a group (no `chapterId`) has no threads at all and cannot create writers; an admin puts it in a group with `PUT /auth/user`.
 
 ### Creating accounts with other roles
 
@@ -1135,7 +1136,7 @@ Body `{"id": 45, ...}` and `{"id": 45}`. Deleting a rule also removes its links 
 | PUT    | `/chat/chat`  | Scoped | Update a chat                               |
 | DELETE | `/chat/chat`  | Scoped | Delete a chat and its messages              |
 
-"Scoped" means: a `user` sees and acts on their own threads; a `chapter` account on the threads of the writers its group manages; an admin on everything. Reading, updating, or deleting a thread outside the scope is a `403`.
+"Scoped" means: a `user` sees and acts on their own threads; a `chapter` account on the threads of the writers its group manages and on threads holding a letter its group relays; an admin on everything. Reading, updating, or deleting a thread outside the scope is a `403`.
 
 #### Chat fields
 
@@ -1173,7 +1174,7 @@ Parameters: `user`, `prisoner`, `full`, `page`, `page_size`. `user` and `prisone
 Chats are ordered by most recent message first; chats with no messages come last. Every row carries two extra fields for inbox views:
 
 - `lastMessageAt`: timestamp of the newest message, or `null`.
-- `last_message`: `{ id, sender, messageText, createdAt }` of the newest message, or `null`. `sender` tells you the direction (`user` means sent, `prisoner` means received).
+- `last_message`: `{ id, sender, messageText, status, createdAt }` of the newest message, or `null`. `sender` tells you the direction (`user` means sent, `prisoner` means received).
 
 ```json
 {
@@ -1287,25 +1288,53 @@ Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data":
 
 ### Messages
 
-| Method | Path                  | Auth   | Purpose                                     |
-| ------ | --------------------- | ------ | ------------------------------------------- |
-| POST   | `/messaging/message`  | Scoped | Send a message (creates the chat if needed) |
-| GET    | `/messaging/messages` | Scoped | List messages                               |
-| GET    | `/messaging/message`  | Scoped | Get one message by id                       |
-| PUT    | `/messaging/message`  | Scoped | Update a message                            |
-| DELETE | `/messaging/message`  | Scoped | Delete a message                            |
+| Method | Path                  | Auth                 | Purpose                                             |
+| ------ | --------------------- | -------------------- | --------------------------------------------------- |
+| POST   | `/messaging/message`  | Scoped               | Send a message (creates the chat if needed)         |
+| GET    | `/messaging/messages` | Scoped               | List messages                                       |
+| GET    | `/messaging/message`  | Scoped               | Get one message by id                               |
+| PUT    | `/messaging/message`  | Scoped               | Update a message (while still queued, unless admin) |
+| PUT    | `/messaging/status`   | Relay group or admin | Move a letter to `printed` or `mailed`              |
+| DELETE | `/messaging/message`  | Scoped               | Delete a message (while still queued, unless admin) |
 
-The scope is the same as for chats: own messages for a `user`, the group's managed writers' messages for a `chapter` account, everything for an admin.
+The scope is the same as for chats: own messages for a `user`; the group's managed writers' messages plus the letters the group relays for a `chapter` account; everything for an admin.
+
+#### Letter lifecycle
+
+Every message carries a `status`:
+
+| Status     | Meaning                                             | Set by                                                 |
+| ---------- | --------------------------------------------------- | ------------------------------------------------------ |
+| `queued`   | Written, waiting for the relay group to print it    | The server, on every new letter (`sender: user`)       |
+| `printed`  | Printed by the relay group                          | `PUT /messaging/status` by the relay group or an admin |
+| `mailed`   | In the post                                         | Same, from `printed` only                              |
+| `received` | A prisoner reply, transcribed or scanned by a group | The server, on every reply (`sender: prisoner`)        |
+
+Moves are forward only: `queued` to `printed` to `mailed`. Anything else, including moving a reply, is a `409` with `"name": "LetterStatusError"`. Every change is recorded: `statusChangedAt` and `statusChangedBy` on the message, and a history you can read with `full=true` on `GET /messaging/message`.
+
+While a letter is `queued` its writer may still edit or delete it. Once printed, only an admin can. Replies stay editable by whoever can see them.
+
+**Relay group.** `relayChapter` names the group that prints and mails the letter. It must be one of the facility's relay groups (see [PUT /prison/relay](#put-prisonrelay-and-delete-prisonrelay)). When the body omits it, the server picks one:
+
+1. the caller's own group, if a `chapter` account is sending and its group relays for that facility;
+2. otherwise the facility's only relay group, if it has exactly one;
+3. otherwise none, unless the facility's `routing` is `relay_only`, in which case the letter is refused with a validation error telling the writer to choose a group (or that the facility has no relay group yet).
+
+A relay group sees the letter and its whole thread, can record the prisoner's reply on it, and is the only group that can move its status. It cannot write new letters as an independent writer.
 
 #### Message fields
 
-| Field         | Type    | Notes                                                                                                                                                                                                                    |
-| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `chat`        | integer | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                                                                                                                                              |
-| `messageText` | string  | The letter body.                                                                                                                                                                                                         |
-| `sender`      | string  | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.                                                                                                                                       |
-| `user`        | integer | Id of the user side. A `user`-role caller's own id is used regardless of body. A `chapter` account may name one of its group's managed writers, or omit it to send as the group's anonymous writer. Required for admins. |
-| `prisoner`    | integer | Required. Id of the prisoner side.                                                                                                                                                                                       |
+| Field                                | Type    | Notes                                                                                                                                                                                                                    |
+| ------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `chat`                               | integer | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                                                                                                                                              |
+| `messageText`                        | string  | The letter body.                                                                                                                                                                                                         |
+| `sender`                             | string  | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.                                                                                                                                       |
+| `user`                               | integer | Id of the user side. A `user`-role caller's own id is used regardless of body. A `chapter` account may name one of its group's managed writers, or omit it to send as the group's anonymous writer. Required for admins. |
+| `status`                             | string  | Read-only here; see [Letter lifecycle](#letter-lifecycle). Change it with `PUT /messaging/status`.                                                                                                                       |
+| `relayChapter`                       | integer | Group that prints and mails the letter. Optional; resolved from the facility's relay groups when omitted, validated against them when given.                                                                             |
+| `relayNote`                          | string  | Optional instructions for the relay group (page count, language, "include the photo"). Never part of the letter.                                                                                                         |
+| `statusChangedAt`, `statusChangedBy` |         | Read-only. When the status last changed and which account changed it.                                                                                                                                                    |
+| `prisoner`                           | integer | Required. Id of the prisoner side.                                                                                                                                                                                       |
 
 #### POST /messaging/message
 
@@ -1343,10 +1372,11 @@ Failure modes:
 - `sender` other than `user` / `prisoner`: validation error `"Sender must either be user or prisoner."`
 - Missing `user` or `prisoner`: validation errors naming the missing fields.
 - A `user` or `prisoner` id that does not exist: `400`, `"name": "SequelizeForeignKeyConstraintError"`.
+- A `relayChapter` that does not relay for the facility, or a `relay_only` facility with no resolvable group: validation error (see [Letter lifecycle](#letter-lifecycle)).
 
 #### GET /messaging/messages
 
-Parameters: `id`, `chat`, `prisoner`, `user`, `page`, `page_size`. Filters take precedence in that order; only the first one present is used. A filter naming a chat, prisoner, or user that does not exist is a `404`. A `user`-role caller only ever receives their own messages, whatever filter they pass; a `chapter` account only its group's managed writers' messages, and a `user` filter outside that set is a `403`.
+Parameters: `id`, `chat`, `prisoner`, `user`, `status`, `relayChapter`, `page`, `page_size`. The selectors `id`, `chat`, `prisoner`, `user` take precedence in that order; only the first one present is used. `status` and `relayChapter` narrow whichever selection results, so a group's print queue is `?relayChapter=<its id>&status=queued`. A filter naming a chat, prisoner, or user that does not exist is a `404`; an unknown `status` is a validation error. A `user`-role caller only ever receives their own messages, whatever filter they pass; a `chapter` account only messages within its scope.
 
 ```bash
 curl -s 'http://localhost:3000/messaging/messages?chat=1' -H "Authorization: Bearer $TOKEN"
@@ -1375,11 +1405,34 @@ curl -s 'http://localhost:3000/messaging/messages?chat=1' -H "Authorization: Bea
 
 #### GET /messaging/message
 
-Parameter: `id` (required). Returns the message object, `404` if missing, `403` if it belongs to another user and the caller is a `user`.
+Parameters: `id` (required), `full`. Returns the message object, `404` if missing, `403` if it is outside the caller's scope. With `full=true` the response also embeds `relay_group` (`{ id, name }` or `null`) and `status_history`, oldest first:
+
+```json
+{
+	"status_history": [
+		{
+			"id": 7,
+			"message": 41,
+			"fromStatus": null,
+			"toStatus": "queued",
+			"changedBy": 43,
+			"createdAt": "…"
+		},
+		{
+			"id": 9,
+			"message": 41,
+			"fromStatus": "queued",
+			"toStatus": "printed",
+			"changedBy": 5,
+			"createdAt": "…"
+		}
+	]
+}
+```
 
 #### PUT /messaging/message
 
-Body must include `id`; any of `messageText`, `sender`, `user`, `prisoner` may follow. Partial updates work: `{"id": 1, "messageText": "Edited"}` changes only the text. Changing `user` or `prisoner` moves the message to the chat for the new pair, creating it if needed. A `user`-role caller cannot change `user`.
+Body must include `id`; any of `messageText`, `sender`, `user`, `prisoner`, `relayChapter`, `relayNote` may follow. Partial updates work: `{"id": 1, "messageText": "Edited"}` changes only the text. Changing `user` or `prisoner` moves the message to the chat for the new pair, creating it if needed. A `relayChapter` is validated as on create. `status` and the status timestamps are ignored here; use `PUT /messaging/status`. A `user`-role caller cannot change `user`. Once a letter is `printed` or `mailed`, only an admin may update it; anyone else gets a `403`.
 
 ```json
 {
@@ -1391,9 +1444,23 @@ Body must include `id`; any of `messageText`, `sender`, `user`, `prisoner` may f
 }
 ```
 
+#### PUT /messaging/status
+
+Body: `{"id": 41, "status": "printed"}`. Allowed for admins and for `chapter` accounts whose group is the letter's `relayChapter`; anyone else gets a `403`. Returns the message with `relay_group` and `status_history` embedded (the `full=true` shape). A move the lifecycle does not allow is a `409`:
+
+```json
+{
+	"success": false,
+	"name": "LetterStatusError",
+	"info": "Error updating letter status.",
+	"status": 409,
+	"error": "A mailed letter cannot move to printed."
+}
+```
+
 #### DELETE /messaging/message
 
-Body: `{"id": 41}`. Returns `"data": 1`.
+Body: `{"id": 41}`. Returns `"data": 1`. Once a letter is `printed` or `mailed`, only an admin may delete it.
 
 ### Chapters
 

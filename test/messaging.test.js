@@ -105,7 +105,7 @@ test('admins read everything; chapters only their managed writers', async () => 
 	// alice is independent: the group cannot see or write to her threads.
 	assert.equal((await get('/messaging/message?id=' + messageId, chapter)).status, 403);
 	assert.deepEqual((await get('/messaging/messages?page_size=100', chapter)).body.data, []);
-	assert.equal((await get('/messaging/messages?user=' + f.alice.id, chapter)).status, 403);
+	assert.deepEqual((await get('/messaging/messages?user=' + f.alice.id, chapter)).body.data, []);
 	const spoof = await post(
 		'/messaging/message',
 		{ messageText: 'From inside', sender: 'prisoner', prisoner: f.prisoner1.id, user: f.alice.id },

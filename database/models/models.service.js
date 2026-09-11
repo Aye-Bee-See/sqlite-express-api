@@ -5,6 +5,7 @@ import Prisoner from '#models/prisoner.model.js';
 import Rule from '#models/rule.model.js';
 import User from '#models/user.model.js';
 import Chapter from '#models/chapter.model.js';
+import MessageStatus from '#models/message-status.model.js';
 import { NotFoundError } from '#services/HttpError.js';
 
 export default class modelsService {
@@ -36,6 +37,9 @@ export default class modelsService {
 				break;
 			case 'User':
 				model = User;
+				break;
+			case 'MessageStatus':
+				model = MessageStatus;
 				break;
 			case 'Chapter':
 				model = Chapter;

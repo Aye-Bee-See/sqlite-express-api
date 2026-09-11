@@ -69,7 +69,7 @@ class PrisonRoutes {
 		);
 		// Add Rule
 		this.Router.put(
-			prisonEnd.put.rule,
+			prisonEnd.put.addRule,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.addRule

@@ -14,8 +14,24 @@ export default class Prisoner extends Model {
 		});
 	}
 	static associate(models) {
-		this.belongsTo(models.Prison, { as: 'prison_details', foreignKey: 'prisonId' });
-		this.hasMany(models.Chat, { as: 'chats', foreignKey: 'prisonerId' });
+		this.belongsTo(models.Prison, {
+			as: 'prison_details',
+			foreignKey: 'prison',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.Chat, {
+			as: 'chats',
+			foreignKey: 'prisoner',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.Message, {
+			as: 'messages',
+			foreignKey: 'prisoner',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
 	}
 
 	// Create
@@ -60,8 +76,7 @@ export default class Prisoner extends Model {
 				include: [
 					{
 						model: Prison,
-						as: 'prison_details',
-						key: 'prison_key'
+						as: 'prison_details'
 					}
 				]
 			};

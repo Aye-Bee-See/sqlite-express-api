@@ -56,7 +56,7 @@ const endpoints = {
 		},
 		put: {
 			update: '/prison',
-			rule: '/rule'
+			addRule: '/rule'
 		},
 		delete: {
 			remove: '/prison'
@@ -316,8 +316,8 @@ const messages = {
 				success: { condition: { par: 'Succeessfully updated prison' } },
 				error: { condition: { par: 'Error updating prison.' } }
 			},
-			rule: {
-				success: { condition: { par: 'Succeessfully added rule prison' } },
+			addRule: {
+				success: { condition: { par: 'Successfully added rule to prison' } },
 				error: { condition: { par: 'Error adding rule to prison.' } }
 			}
 		},

@@ -15,9 +15,24 @@ export default class Chat extends Model {
 		});
 	}
 	static associate(models) {
-		this.belongsTo(models.Prisoner, { as: 'prisoner_details', foreignKey: 'prisonerId' });
-		this.belongsTo(models.User, { as: 'user_details', foreignKey: 'userId' });
-		this.hasMany(models.Message, { as: 'messages', foreignKey: 'chatId' });
+		this.belongsTo(models.Prisoner, {
+			as: 'prisoner_details',
+			foreignKey: 'prisoner',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.User, {
+			as: 'user_details',
+			foreignKey: 'user',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.Message, {
+			as: 'messages',
+			foreignKey: 'chat',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
 	}
 
 	// Create
@@ -54,8 +69,7 @@ export default class Chat extends Model {
 				include: [
 					{
 						model: Message,
-						as: 'messages',
-						key: 'chat_key'
+						as: 'messages'
 					},
 					{
 						model: User,
@@ -112,8 +126,7 @@ export default class Chat extends Model {
 				include: [
 					{
 						model: Message,
-						as: 'messages',
-						key: 'chat_key'
+						as: 'messages'
 					},
 					{
 						model: User,
@@ -152,8 +165,7 @@ export default class Chat extends Model {
 				include: [
 					{
 						model: Message,
-						as: 'messages',
-						key: 'chat_key'
+						as: 'messages'
 					},
 					{
 						model: User,
@@ -177,8 +189,7 @@ export default class Chat extends Model {
 				include: [
 					{
 						model: Message,
-						as: 'messages',
-						key: 'chat_key'
+						as: 'messages'
 					},
 					{
 						model: User,
@@ -197,9 +208,15 @@ export default class Chat extends Model {
 		}
 	}
 
+	/**
+	 * Get one chat by id.
+	 * @param {number|string} id
+	 * @param {boolean} full include messages and user/prisoner details
+	 * @returns {Promise<Chat|null>}
+	 */
 	static async readChatById(id, full) {
 		if (full) {
-			return await this.findAll({
+			return await this.findOne({
 				where: { id: id },
 				include: [
 					{
@@ -208,16 +225,16 @@ export default class Chat extends Model {
 					},
 					{
 						model: User,
-						as: 'user'
+						as: 'user_details'
 					},
 					{
 						model: Prisoner,
-						as: 'prisoner'
+						as: 'prisoner_details'
 					}
 				]
 			});
 		} else {
-			return await this.findAll({
+			return await this.findOne({
 				where: { id: id }
 			});
 		}

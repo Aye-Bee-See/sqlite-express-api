@@ -12,7 +12,24 @@ export default class Message extends Model {
 		});
 	}
 	static associate(models) {
-		this.belongsTo(models.Chat, { as: 'chat_details', foreignKey: 'chatId' });
+		this.belongsTo(models.Chat, {
+			as: 'chat_details',
+			foreignKey: 'chat',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.User, {
+			as: 'user_details',
+			foreignKey: 'user',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.Prisoner, {
+			as: 'prisoner_details',
+			foreignKey: 'prisoner',
+			onDelete: 'RESTRICT',
+			onUpdate: 'CASCADE'
+		});
 		// this.belongsTo(models.Prisoner, { through: "Chat", foreignKey: 'prisoner', sourceKey: 'id' });
 		// this.belongsTo(models.User, { through: "Chat", foreignKey: 'user', sourceKey: 'id' });
 	}

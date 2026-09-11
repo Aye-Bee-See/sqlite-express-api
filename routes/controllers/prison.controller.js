@@ -18,6 +18,7 @@ export default class PrisonController extends RouteController {
 		this.update = this.update.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
+		this.addRule = this.addRule.bind(this);
 
 		this.#handleErr = super.handleErr;
 		this.#handleSuccess = super.handleSuccess;

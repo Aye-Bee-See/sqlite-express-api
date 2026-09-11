@@ -44,12 +44,19 @@ export default class authService {
 		{ usernameField: 'username', passwordField: 'password' },
 		authService.#verify
 	);
-	static authorize = new JwtStrategy(authService.#jwtOptions, (jwt_payload, next) => {
-		let user = User.getUser({ id: jwt_payload.id });
-		if (user) {
-			next(null, user);
-		} else {
-			next(null, false);
+	static authorize = new JwtStrategy(authService.#jwtOptions, async (jwt_payload, next) => {
+		try {
+			if (jwt_payload?.id === undefined || jwt_payload.id === null) {
+				return next(null, false);
+			}
+			const user = await User.getUser({ id: jwt_payload.id });
+			if (user) {
+				return next(null, user);
+			}
+			return next(null, false);
+		} catch (err) {
+			const errVar = !(err instanceof Error) ? new Error(err) : err;
+			return next(errVar);
 		}
 	});
 }

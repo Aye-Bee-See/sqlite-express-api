@@ -1,28 +1,25 @@
-import { Sequelize } from 'sequelize';
+import { sequelize, Sequelize } from './connection.js';
 import * as Models from '#models/all.model.js';
-import { dbReset, dbSeed, dbLogging, dbStorage, quietBoot } from '#constants';
+import { dbReset, dbSeed, quietBoot } from '#constants';
 
+import { runMigrations } from './migrate.js';
 import { createSeeds } from './seeds/all.seeds.js';
 import { ensureAdmin } from './bootstrap-admin.js';
 
 /**
- * SQLite through Sequelize. The database is a single file, `database.sqlite`,
- * resolved relative to the process working directory, so start the server
- * from the repository root.
+ * Model initialisation and boot-time database setup.
+ *
+ * The schema is owned by the migrations in database/migrations/; models
+ * describe the same columns for the ORM. The test suite checks the two agree.
  *
  * Environment (see .env.example):
- * - DB_RESET=true   drop and recreate every table on boot (default: keep data)
+ * - DB_RESET=true   drop every table and replay all migrations (data is lost)
  * - DB_SEED=false   skip loading the seed files (default: seed empty tables)
  * - DB_LOGGING=true print every SQL statement (default: quiet)
- * - DB_STORAGE=path  SQLite file to use; ':memory:' for tests (default: database.sqlite)
+ * - DB_STORAGE=path SQLite file to use; ':memory:' for tests (default: database.sqlite)
  */
-const config = {
-	dialect: 'sqlite',
-	storage: dbStorage,
-	logging: dbLogging ? console.log : false
-};
 
-export const sequelize = new Sequelize(config);
+export { sequelize };
 
 export const Chat = Models.Chat.init(sequelize, Sequelize);
 export const Message = Models.Message.init(sequelize, Sequelize);
@@ -40,19 +37,19 @@ Chat.associate(Models);
 Rule.associate(Models);
 Chapter.associate(Models);
 
-/**
- * Create tables (dropping them first when DB_RESET is set), load seed data
- * unless DB_SEED is false, then make sure an admin account exists.
- * Resolves once the database is ready to serve requests.
- */
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;
 
+/**
+ * Migrate (dropping everything first when DB_RESET is set), load seed data
+ * unless DB_SEED is false, then make sure an admin account exists.
+ * Resolves once the database is ready to serve requests.
+ */
 export const ready = (async () => {
 	if (dbReset) {
-		warn('DB_RESET is set: dropping and recreating every table.');
+		warn('DB_RESET is set: dropping every table and replaying all migrations.');
 	}
-	await sequelize.sync({ force: dbReset });
+	await runMigrations(sequelize, { reset: dbReset, log });
 	if (dbSeed) {
 		await createSeeds();
 	} else {

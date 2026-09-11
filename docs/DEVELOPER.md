@@ -57,7 +57,7 @@ Notes:
 - The database is created and seeded on first boot and persists afterwards. `DB_RESET=true npm start` wipes it.
 - To get an admin token, log in as the seeded `admin` / `abcpassword`, or set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` in `.env`.
 
-`npm test` runs the suite against an in-memory database in a couple of seconds and needs no `.env`. See [Tests](#tests).
+`npm test` runs the suite against an in-memory database in a couple of seconds and needs no `.env`. See [Tests](#tests). Schema changes are migrations; see [Migrations](#migrations).
 
 ## Architecture overview
 
@@ -74,7 +74,10 @@ app.js                            Express app, global middleware, /health, JSON 
     database/models/<resource>.model.js            Sequelize Model subclass with static CRUD helpers
       database/schemas/<resource>.schema.js          Column definitions and validators
       database/hooks/<resource>.hooks.js             Lifecycle hooks (password hashing, chat lookup)
-  database/sql-database.js         Creates the Sequelize instance, inits models, syncs, seeds, bootstraps an admin
+  database/connection.js           The Sequelize instance (shared by the app and the migration CLI)
+  database/migrate.js              Umzug migrator: runMigrations() at boot, CLI for npm run migrate*
+  database/migrations/*.js         Schema history; the initial one reproduces the pre-migration sync() schema
+  database/sql-database.js         Inits models, runs migrations, seeds, bootstraps an admin
   database/bootstrap-admin.js      ensureAdmin()
 routes/constants.js                Every path string and every success/error message
 routes/services/error.services.js  Final Express error handler
@@ -149,7 +152,10 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   ├── message/message.js
 │   └── chapter/chapter.js
 └── database/
-    ├── sql-database.js               Sequelize instance; init + associate models; sync; seed; ensureAdmin; exports `ready`.
+    ├── connection.js                 The Sequelize instance; no models, so the CLI can import it alone.
+    ├── migrate.js                    createMigrator(), runMigrations() (reset + adoption logic), CLI entry point.
+    ├── migrations/                   <timestamp>.<name>.js files exporting up/down; applied ones recorded in SequelizeMeta.
+    ├── sql-database.js               Init + associate models; runMigrations; seed; ensureAdmin; exports `ready`.
     ├── bootstrap-admin.js            ensureAdmin(): creates the ADMIN_* account when it does not exist.
     ├── models/
     │   ├── all.model.js              Re-exports every model; has a comment explaining Sequelize associations.
@@ -206,7 +212,7 @@ Each alias lists several extension fallbacks. Include the `.js` extension in imp
 | `adminPassword` | `ADMIN_PASSWORD` | none                    | `bootstrap-admin.js`                                                  |
 | `adminEmail`    | `ADMIN_EMAIL`    | none                    | `bootstrap-admin.js`                                                  |
 | `corsOrigins`   | `CORS_ORIGIN`    | `http://localhost:3001` | `index.js`; comma-separated, trimmed, empties dropped.                |
-| `dbReset`       | `DB_RESET`       | `false`                 | `sql-database.js`: `sync({ force })`.                                 |
+| `dbReset`       | `DB_RESET`       | `false`                 | `sql-database.js`: drop all tables and replay every migration.        |
 | `dbSeed`        | `DB_SEED`        | `true`                  | `sql-database.js`: whether to run `createSeeds()`.                    |
 | `dbLogging`     | `DB_LOGGING`     | `false`                 | `sql-database.js`: Sequelize `logging`.                               |
 | `dbStorage`     | `DB_STORAGE`     | `database.sqlite`       | `sql-database.js`: SQLite file, or `:memory:`.                        |
@@ -226,12 +232,31 @@ The database is set up as a side effect of importing `database/sql-database.js`,
    - creates the Sequelize instance (`logging` from `DB_LOGGING`);
    - calls `Model.init(sequelize, Sequelize)` for all seven models (each reads its schema and hooks);
    - calls `associate(Models)` on all seven;
-   - starts the async chain exported as `ready` (`sql-database.js:47`): `sequelize.sync({ force: dbReset })`, then `createSeeds()` unless `DB_SEED=false`, then `ensureAdmin()`, then logs `Database ready.` A failure anywhere is logged as `Database setup failed:`.
+   - starts the async chain exported as `ready`: `runMigrations()` (dropping everything first when `DB_RESET` is set), then `createSeeds()` unless `DB_SEED=false`, then `ensureAdmin()`, then logs `Database ready.` A failure anywhere is logged as `Database setup failed:`.
 4. `createApp()` mounts `/health`, the routers, the JSON 404 catch-all, and `ErrorService.handler`; `index.js` then calls `app.listen(PORT)` and logs `Ready to serve requests.` when `ready` resolves.
 
 Requests are accepted before `ready` resolves. `GET /health` returns 503 until then and 200 afterwards, so deployment tooling and the test helper can wait on it.
 
-Without `DB_RESET`, `sync()` creates missing tables and leaves existing ones alone. It does **not** alter existing tables when a schema changes; after changing a schema in development, boot once with `DB_RESET=true` or delete `database.sqlite`. There is no migration tooling (see [Open items](#open-items)).
+Without `DB_RESET`, pending migrations are applied to whatever is already there, so an existing database is upgraded in place. `sequelize.sync()` is no longer used anywhere.
+
+### Migrations
+
+The schema is owned by the files in `database/migrations/`, run by [Umzug](https://github.com/sequelize/umzug) with `SequelizeStorage` (applied names live in the `SequelizeMeta` table). The models describe the same columns for the ORM, and `test/migrations.test.js` fails if the two disagree on column names, nullability, or primary keys.
+
+| Command                                             | Effect                                                                      |
+| --------------------------------------------------- | --------------------------------------------------------------------------- |
+| `npm run migrate`                                   | Apply pending migrations to the database named by `.env`                    |
+| `npm run migrate:down`                              | Revert the most recent one                                                  |
+| `npm run migrate:status`                            | List pending, then applied                                                  |
+| `npm run migrate:create -- --name add-something.js` | Create `database/migrations/<timestamp>.add-something.js` from the template |
+
+Rules:
+
+- Every migration exports `async up({ context: queryInterface })` and `async down(...)`, and `down` must genuinely revert `up`; the test suite reverts and re-applies the whole history.
+- Never edit an applied migration; add a new one. The initial migration is frozen: it reproduces exactly what `sequelize.sync()` used to create, which is what lets `runMigrations()` adopt a pre-migration database by recording that migration as applied (it checks for tables and an empty `SequelizeMeta`).
+- Change the model and its schema file in the same commit as the migration, and run `npm test` to prove they match.
+- SQLite cannot alter most column properties in place. Umzug's `queryInterface.changeColumn` works for simple cases; for anything else, create a new table, copy, drop, rename, inside the migration.
+- `DB_RESET=true` is the escape hatch in development; it drops everything and replays the history.
 
 ### Admin bootstrap
 
@@ -582,7 +607,7 @@ When adding a feature, add a test in the matching file; when fixing a bug, add t
 
 Using a hypothetical `Letter` resource (a printed, mailed artifact):
 
-1. **Schema.** Create `database/schemas/letter.schema.js` exporting a column object with validators under `validate`. Add `static letter = letterSchema` to `database/schemas/all.schema.js`.
+1. **Schema and migration.** Create `database/schemas/letter.schema.js` exporting a column object with validators under `validate`, and add `static letter = letterSchema` to `database/schemas/all.schema.js`. Then `npm run migrate:create -- --name create-letters.js` and write the `createTable` / `dropTable` pair; `npm test` will tell you if the model and the table disagree.
 2. **Hooks (optional).** Create `database/hooks/letter.hooks.js` and register it in `database/hooks/all.hooks.js`. Models read `Hooks.<name> || null`.
 3. **Model.** Create `database/models/letter.model.js` with `static init`, `static associate`, and the static CRUD helpers. Declare associations with `foreignKey` set to the column your schema defines, an explicit `as`, and an explicit `onDelete`. Add it to `database/models/all.model.js` and to the `switch` in `models.service.js`.
 4. **Wire it up.** In `database/sql-database.js`, add `export const Letter = Models.Letter.init(sequelize, Sequelize);` and `Letter.associate(Models);`.
@@ -606,7 +631,7 @@ Using a hypothetical `Letter` resource (a printed, mailed artifact):
 - **Models return Sequelize instances.** `res.json` serializes them through `toJSON`. Update helpers return `[affectedCount]`.
 - **`full` is a string.** Compare `full === 'true'`.
 - **Errors are returned, not thrown, by `modelInstanceExists`.** Check `instanceof Error` and throw yourself.
-- **Schema changes need a reset in development.** `sync()` does not alter existing tables.
+- **Schema changes are migrations.** Model, schema file, and migration change together; `npm test` checks they agree.
 - **The database file is relative to cwd.** Start the server from the repo root.
 
 ## History: what was fixed in 2026
@@ -636,15 +661,14 @@ The codebase was idle from June 2025 to September 2026. The first thing the revi
 
 Known gaps, roughly in the order they are worth tackling:
 
-1. **Schema migrations.** `sync()` cannot alter tables. Adopt Sequelize CLI or Umzug before the schema changes in production.
-2. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
-3. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
-4. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
-5. **Chapter list pagination.** `GET /chapter/chapters` returns everything.
-6. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
-7. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
-8. **Chapter-scoped data.** Chapter accounts currently see and edit everything; if chapters should only handle their own region's letters, that needs a relation between Chapter and users or prisons and a filter like the user ownership one.
-9. **Rate limiting and request logging.** None.
-10. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
-11. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
-12. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.
+1. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
+2. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
+3. **Message `full=true`** is accepted and ignored; an include for `chat_details` / `user_details` / `prisoner_details` is a few lines now that the associations exist.
+4. **Chapter list pagination.** `GET /chapter/chapters` returns everything.
+5. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
+6. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
+7. **Chapter-scoped data.** Chapter accounts currently see and edit everything; if chapters should only handle their own region's letters, that needs a relation between Chapter and users or prisons and a filter like the user ownership one.
+8. **Rate limiting and request logging.** None.
+9. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
+10. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
+11. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.

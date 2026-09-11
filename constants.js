@@ -9,7 +9,8 @@ const {
 	CORS_ORIGIN,
 	DB_RESET,
 	DB_SEED,
-	DB_LOGGING
+	DB_LOGGING,
+	DB_STORAGE
 } = process.env;
 
 /**
@@ -51,3 +52,7 @@ export {
 export const dbReset = envBool(DB_RESET, false);
 export const dbSeed = envBool(DB_SEED, true);
 export const dbLogging = envBool(DB_LOGGING, false);
+/** True under `node --test`; boot-time chatter is suppressed. */
+export const quietBoot = process.env.NODE_ENV === 'test';
+/** SQLite file path, or ':memory:' for a throwaway in-process database (tests). */
+export const dbStorage = DB_STORAGE || 'database.sqlite';

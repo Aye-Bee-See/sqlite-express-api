@@ -67,7 +67,7 @@ cp .env.example .env
 | `ADMIN_PASSWORD` | No       | none                    | Password for that account, at least 7 characters.                                                                                 |
 | `ADMIN_EMAIL`    | No       | none                    | Email for that account.                                                                                                           |
 | `CORS_ORIGIN`    | No       | `http://localhost:3001` | Browser origins allowed by CORS, comma-separated.                                                                                 |
-| `DB_RESET`       | No       | `false`                 | `true` drops and recreates every table on boot. All data is lost.                                                                 |
+| `DB_RESET`       | No       | `false`                 | `true` drops every table and replays all migrations on boot. All data is lost.                                                    |
 | `DB_SEED`        | No       | `true`                  | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                             |
 | `DB_LOGGING`     | No       | `false`                 | `true` prints every SQL statement.                                                                                                |
 | `DB_STORAGE`     | No       | `database.sqlite`       | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                        |
@@ -107,6 +107,8 @@ The suite runs against an in-memory database and needs no `.env`. It takes a cou
 ### Data persistence
 
 Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
+
+Schema changes ship as migrations and are applied automatically on boot, so pulling a new version and starting the server upgrades an existing database in place. A database created before migrations existed is adopted on first boot (you will see `Existing database adopted` once).
 
 ### CORS
 

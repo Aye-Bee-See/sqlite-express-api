@@ -11,6 +11,10 @@
 		"start": "node index.js",
 		"dev": "nodemon index.js",
 		"test": "node --test \"test/**/*.test.js\"",
+		"migrate": "node database/migrate.js up",
+		"migrate:down": "node database/migrate.js down",
+		"migrate:status": "node database/migrate.js pending && node database/migrate.js executed",
+		"migrate:create": "node database/migrate.js create",
 		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
 		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",
 		"pre-commit": "lint-staged",
@@ -34,7 +38,8 @@
 		"passport-jwt": "^4.0.1",
 		"passport-local": "^1.0.0",
 		"sequelize": "^6.37.2",
-		"sqlite3": "^5.1.7"
+		"sqlite3": "^5.1.7",
+		"umzug": "^3.8.3"
 	},
 	"imports": {
 		"#/*": [

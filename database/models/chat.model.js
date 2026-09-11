@@ -72,7 +72,23 @@ export default class Chat extends Model {
 		return await Chat.findAll(filters);
 	}
 
-	static async readChatsByUser(id, full, limit, offset = 0) {
+	/**
+	 * Get a single chat by primary key, without associations.
+	 * @param {number|string} id
+	 * @returns {Promise<Chat|null>}
+	 */
+	static async getChatByID(id) {
+		return await this.findByPk(id);
+	}
+
+	/**
+	 * @param {number|string} id user id
+	 * @param {boolean} full include messages and user/prisoner details
+	 * @param {number} limit
+	 * @param {number} offset
+	 * @param {object} extraWhere additional column filters merged into the where clause
+	 */
+	static async readChatsByUser(id, full, limit, offset = 0, extraWhere = {}) {
 		/* 
          * TODO:
          *
@@ -88,11 +104,11 @@ export default class Chat extends Model {
 		}
 		let filters = { limit, offset };
 		let options = {
-			where: { user: id }
+			where: { ...extraWhere, user: id }
 		};
 		if (full) {
 			options = {
-				where: { user: id },
+				where: { ...extraWhere, user: id },
 				include: [
 					{
 						model: Message,

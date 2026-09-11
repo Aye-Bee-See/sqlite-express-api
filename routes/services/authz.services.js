@@ -59,6 +59,30 @@ export default class AuthzService {
 	}
 
 	/**
+	 * Is the caller limited to records they own? True for the plain "user"
+	 * role; admins and chapters may see every chat and message.
+	 * @param {object} req
+	 * @returns {boolean}
+	 */
+	static ownOnly(req) {
+		return AuthzService.hasRole(req, AuthzService.USER);
+	}
+
+	/**
+	 * Does a chat or message record belong to the caller? Both models keep
+	 * the owning user's id in a `user` column.
+	 * @param {object} req
+	 * @param {object} record A Sequelize instance or plain object with `user`.
+	 * @returns {boolean}
+	 */
+	static ownsRecord(req, record) {
+		if (!req.user || !record) {
+			return false;
+		}
+		return String(record.user) === String(req.user.id);
+	}
+
+	/**
 	 * Does the request target the caller's own user record?
 	 *
 	 * Mirrors UserController.getOne precedence: id, then email, then username.

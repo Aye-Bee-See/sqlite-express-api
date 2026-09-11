@@ -42,8 +42,8 @@ export default class Message extends Model {
 	}
 
 	// Read
-	static async readAllMessages(limit, offset = 0) {
-		let filters = { limit, offset };
+	static async readAllMessages(limit, offset = 0, extraWhere = {}) {
+		let filters = { limit, offset, where: { ...extraWhere } };
 		return await Message.findAll(filters);
 	}
 
@@ -56,49 +56,49 @@ export default class Message extends Model {
 		return await this.findByPk(id);
 	}
 
-	static async readMessageById(id, limit, offset = 0) {
+	static async readMessageById(id, limit, offset = 0, extraWhere = {}) {
 		let filters = { limit, offset };
 		let options = {
-			where: { id: id }
+			where: { id: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
 		return await Message.findAll(filters);
 	}
 
-	static async readMessagesByChat(id, limit, offset = 0) {
+	static async readMessagesByChat(id, limit, offset = 0, extraWhere = {}) {
 		const exists = await modelsService.modelInstanceExists('Chat', id);
 		if (exists instanceof Error) {
 			throw exists;
 		}
 		let filters = { limit, offset };
 		let options = {
-			where: { chat: id }
+			where: { chat: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
 		return await Message.findAll(filters);
 	}
 
-	static async readMessagesByPrisoner(id, limit, offset = 0) {
+	static async readMessagesByPrisoner(id, limit, offset = 0, extraWhere = {}) {
 		const exists = await modelsService.modelInstanceExists('Prisoner', id);
 		if (exists instanceof Error) {
 			throw exists;
 		}
 		let filters = { limit, offset };
 		let options = {
-			where: { prisoner: id }
+			where: { prisoner: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
 		return await Message.findAll(filters);
 	}
 
-	static async readMessagesByUser(id, limit, offset = 0) {
+	static async readMessagesByUser(id, limit, offset = 0, extraWhere = {}) {
 		const exists = await modelsService.modelInstanceExists('User', id);
 		if (exists instanceof Error) {
 			throw exists;
 		}
 		let filters = { limit, offset };
 		let options = {
-			where: { user: id }
+			where: { user: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
 		return await Message.findAll(filters);

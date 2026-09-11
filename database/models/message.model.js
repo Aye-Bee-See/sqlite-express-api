@@ -47,6 +47,15 @@ export default class Message extends Model {
 		return await Message.findAll(filters);
 	}
 
+	/**
+	 * Get a single message by primary key.
+	 * @param {number|string} id
+	 * @returns {Promise<Message|null>}
+	 */
+	static async getMessageByID(id) {
+		return await this.findByPk(id);
+	}
+
 	static async readMessageById(id, limit, offset = 0) {
 		let filters = { limit, offset };
 		let options = {

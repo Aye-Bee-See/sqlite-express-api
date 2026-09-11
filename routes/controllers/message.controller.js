@@ -27,102 +27,31 @@ export default class MessageController extends RouteController {
 	#handleErr;
 	#handleLimits;
 
+	/**
+	 * List messages. Exactly one filter is applied, chosen in this order of
+	 * precedence: id, chat, prisoner, user. With no filter, all messages are
+	 * listed. All variants are paginated with page and page_size.
+	 *
+	 * The `full` flag is accepted for symmetry with other resources but the
+	 * message model has no working eager-load yet, so it is ignored here.
+	 */
 	async getMany(req, res) {
 		const { id, chat, prisoner, user, page, page_size } = req.query;
-
 		const { limit, offset } = this.#handleLimits(page, page_size);
 
-		//const {id, chat, prisoner, user} = req.query;
-
-		const opval = id ? 1 : chat ? 2 : prisoner ? 3 : user ? 4 : 0;
-		switch (opval) {
-			case 1: {
-				this.getMessagesById(req, res);
-				break;
-			}
-			case 2: {
-				this.getMessagesByChat(req, res);
-				break;
-			}
-			case 3: {
-				this.getMessagesByPrisoner(req, res);
-				break;
-			}
-			case 4: {
-				this.getMessagesByUser(req, res);
-				break;
-			}
-			default: {
-				try {
-					const messages = await Message.readAllMessages(limit, offset);
-					console.group('***************messages**********************');
-					console.log(messages);
-					console.groupEnd();
-					this.#handleSuccess(res, messages);
-				} catch (err) {
-					const errorVar = !(err instanceof Error) ? new Error(err) : err;
-					this.#handleErr(res, errorVar);
-				}
-				break;
-			}
-		}
-	}
-
-	async getMessagesById(req, res) {
-		const { id, full, page, page_size } = req.query;
-		const limit = page_size || 10;
-		const list_start = page - 1 || 0;
-		const offset = list_start * limit;
-		const fullBool = full === 'true';
-
 		try {
-			const messages = await Message.readMessageById(id, fullBool, limit, offset);
-			this.#handleSuccess(res, messages);
-		} catch (err) {
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
-		}
-	}
-	async getMessagesByChat(req, res) {
-		const { chat, full, page, page_size } = req.query;
-		const limit = page_size || 10;
-		const list_start = page - 1 || 0;
-		const offset = list_start * limit;
-		const fullBool = full === 'true';
-		try {
-			const messages = await Message.readMessagesByChat(chat, fullBool, limit, offset);
-			this.#handleSuccess(res, messages);
-		} catch (err) {
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
-		}
-	}
-
-	async getMessagesByPrisoner(req, res) {
-		const { prisoner, full, page, page_size } = req.query;
-		const limit = page_size || 10;
-		const list_start = page - 1 || 0;
-		const offset = list_start * limit;
-		const fullBool = full === 'true';
-
-		try {
-			const messages = await Message.readMessagesByPrisoner(prisoner, fullBool, limit, offset);
-			this.#handleSuccess(res, messages);
-		} catch (err) {
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
-		}
-	}
-
-	async getMessagesByUser(req, res) {
-		const { user, full, page, page_size } = req.query;
-		const limit = page_size || 10;
-		const list_start = page - 1 || 0;
-		const offset = list_start * limit;
-		const fullBool = full === 'true';
-
-		try {
-			const messages = await Message.readMessagesByUser(user, fullBool, limit, offset);
+			let messages;
+			if (id !== undefined) {
+				messages = await Message.readMessageById(id, limit, offset);
+			} else if (chat !== undefined) {
+				messages = await Message.readMessagesByChat(chat, limit, offset);
+			} else if (prisoner !== undefined) {
+				messages = await Message.readMessagesByPrisoner(prisoner, limit, offset);
+			} else if (user !== undefined) {
+				messages = await Message.readMessagesByUser(user, limit, offset);
+			} else {
+				messages = await Message.readAllMessages(limit, offset);
+			}
 			this.#handleSuccess(res, messages);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -133,10 +62,9 @@ export default class MessageController extends RouteController {
 	// get one message
 
 	async getOne(req, res) {
-		const { id, full } = req.query;
-		const fullBool = full === 'true';
+		const { id } = req.query;
 		try {
-			const message = await Message.getMessageByID(id, fullBool);
+			const message = await Message.getMessageByID(id);
 			this.#handleSuccess(res, message);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;

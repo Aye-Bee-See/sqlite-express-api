@@ -75,24 +75,26 @@ test('the migrated schema matches the models (no drift)', async () => {
 
 test('a database built by sync() before migrations existed is adopted, not re-created', async () => {
 	const legacy = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
-	const qi = legacy.getQueryInterface();
-	// Build the pre-migration schema the way sync() would: from the model attributes.
-	for (const model of [db.User, db.Prison, db.Prisoner, db.Rule, db.Chat, db.Message, db.Chapter]) {
-		await qi.createTable(model.getTableName(), model.getAttributes());
-	}
-	await qi.createTable('RulePassthrough', db.sequelize.models.RulePassthrough.getAttributes());
+	// Reproduce a sync()-era database: the initial schema with no migration ledger.
+	await createMigrator(legacy, { quiet: true }).up({ to: INITIAL_MIGRATION });
+	await legacy.query('DELETE FROM SequelizeMeta');
 	await legacy.query(
 		"INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('Keep me', '{}', datetime('now'), datetime('now'))"
 	);
+	const later = (await createMigrator(legacy, { quiet: true }).pending())
+		.map((m) => m.name)
+		.filter((n) => n !== INITIAL_MIGRATION);
 
 	const messages = [];
 	const applied = await runMigrations(legacy, { log: (m) => messages.push(m) });
-	assert.deepEqual(applied, []);
+	assert.deepEqual(applied, later);
 	assert.ok(messages.some((m) => m.includes('adopted')));
 	const executed = (await createMigrator(legacy, { quiet: true }).executed()).map((m) => m.name);
-	assert.deepEqual(executed, [INITIAL_MIGRATION]);
-	const [rows] = await legacy.query('SELECT prisonName FROM Prisons');
+	assert.equal(executed[0], INITIAL_MIGRATION);
+	assert.deepEqual(executed.slice(1), later);
+	const [rows] = await legacy.query('SELECT prisonName, recordStatus FROM Prisons');
 	assert.equal(rows[0].prisonName, 'Keep me');
+	assert.equal(rows[0].recordStatus, 'published');
 
 	// Running again is a no-op.
 	assert.deepEqual(await runMigrations(legacy, { quiet: true }), []);
@@ -101,11 +103,13 @@ test('a database built by sync() before migrations existed is adopted, not re-cr
 
 test('reset drops everything and replays the history', async () => {
 	const fresh = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
-	assert.deepEqual(await runMigrations(fresh, { quiet: true }), [INITIAL_MIGRATION]);
+	const history = (await createMigrator(fresh, { quiet: true }).pending()).map((m) => m.name);
+	assert.equal(history[0], INITIAL_MIGRATION);
+	assert.deepEqual(await runMigrations(fresh, { quiet: true }), history);
 	await fresh.query(
 		"INSERT INTO Rules (title, description, createdAt, updatedAt) VALUES ('t', 'd', datetime('now'), datetime('now'))"
 	);
-	assert.deepEqual(await runMigrations(fresh, { reset: true, quiet: true }), [INITIAL_MIGRATION]);
+	assert.deepEqual(await runMigrations(fresh, { reset: true, quiet: true }), history);
 	const [rows] = await fresh.query('SELECT COUNT(*) AS n FROM Rules');
 	assert.equal(rows[0].n, 0);
 	await fresh.close();

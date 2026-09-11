@@ -59,6 +59,25 @@ export default class AuthzService {
 	}
 
 	/**
+	 * Admins and chapters: may see unpublished directory records and everyone's threads.
+	 * @param {object} req
+	 * @returns {boolean}
+	 */
+	static isStaff(req) {
+		return AuthzService.hasRole(req, AuthzService.ADMIN, AuthzService.CHAPTER);
+	}
+
+	/**
+	 * Should directory reads be limited to published records? True for
+	 * anonymous callers and the plain user role.
+	 * @param {object} req
+	 * @returns {boolean}
+	 */
+	static publishedOnly(req) {
+		return !AuthzService.isStaff(req);
+	}
+
+	/**
 	 * Is the caller limited to records they own? True for the plain "user"
 	 * role; admins and chapters may see every chat and message.
 	 * @param {object} req

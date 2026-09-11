@@ -4,6 +4,7 @@ import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Rule from '#models/rule.model.js';
 import { NotFoundError } from '#services/HttpError.js';
+import { publishedWhere } from '#db/record-status.js';
 
 export default class Prison extends Model {
 	static init(sequelize) {
@@ -28,31 +29,30 @@ export default class Prison extends Model {
 		});
 	}
 
-	// Create
-	static async createPrison({ prisonName, address }) {
-		return await this.create({ prisonName, address });
+	/**
+	 * Includes for full=true. With publishedOnly, embedded prisoners are
+	 * limited to published ones (rules have no status).
+	 */
+	static #includes(publishedOnly) {
+		return [
+			{
+				model: Prisoner,
+				as: 'prisoners',
+				...(publishedOnly ? { where: publishedWhere(true), required: false } : {})
+			},
+			{ model: Rule, as: 'rules' }
+		];
 	}
 
-	static async getAllPrisons(full, limit, offset = 0) {
-		let filters = { limit, offset };
-		let options;
-		if (full) {
-			options = {
-				include: [
-					{
-						model: Prisoner,
-						as: 'prisoners'
-					},
-					{
-						model: Rule,
-						as: 'rules'
-					}
-				]
-			};
+	// Create
+	static async createPrison({ prisonName, address, recordStatus }) {
+		const values = { prisonName, address };
+		if (recordStatus !== undefined) {
+			values.recordStatus = recordStatus;
 		}
-		filters = { ...filters, ...options };
-		return await Prison.findAll(filters);
+		return await this.create(values);
 	}
+
 	/**
 	 *  create multiple prisons
 	 *
@@ -73,26 +73,39 @@ export default class Prison extends Model {
 	}
 
 	// Read
-	static async getPrisonByID(id, full) {
-		if (full) {
-			return await this.findOne({
-				include: [
-					{
-						model: Prisoner,
-						as: 'prisoners'
-					},
-					{
-						model: Rule,
-						as: 'rules'
-					}
-				],
-				where: { id: id }
-			});
-		} else {
-			return await this.findOne({
-				where: { id: id }
-			});
-		}
+
+	/**
+	 * One page of prisons.
+	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean, where?: object}} options
+	 * @returns {Promise<{rows: Prison[], count: number}>}
+	 */
+	static async getAllPrisons({
+		full = false,
+		limit,
+		offset = 0,
+		publishedOnly = false,
+		where = {}
+	} = {}) {
+		return await this.findAndCountAll({
+			where: { ...where, ...publishedWhere(publishedOnly) },
+			include: full ? this.#includes(publishedOnly) : [],
+			limit,
+			offset,
+			distinct: true,
+			order: [['id', 'ASC']]
+		});
+	}
+
+	/**
+	 * @param {number|string} id
+	 * @param {{full?: boolean, publishedOnly?: boolean}} options
+	 * @returns {Promise<Prison|null>} null when missing, or unpublished and publishedOnly
+	 */
+	static async getPrisonByID(id, { full = false, publishedOnly = false } = {}) {
+		return await this.findOne({
+			where: { id, ...publishedWhere(publishedOnly) },
+			include: full ? this.#includes(publishedOnly) : []
+		});
 	}
 
 	// Update
@@ -116,7 +129,7 @@ export default class Prison extends Model {
 			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
 		await prison.addRule(rule);
-		return await this.getPrisonByID(prisonId, true);
+		return await this.getPrisonByID(prisonId, { full: true });
 	}
 
 	// Delete

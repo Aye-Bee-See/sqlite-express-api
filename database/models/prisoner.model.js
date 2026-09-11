@@ -4,6 +4,8 @@ import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
 import Prison from '#models/prison.model.js';
 import modelsService from '#models/models.service.js';
+import { NotFoundError } from '#services/HttpError.js';
+import { publishedWhere, PUBLISHED } from '#db/record-status.js';
 
 export default class Prisoner extends Model {
 	static init(sequelize) {
@@ -34,6 +36,25 @@ export default class Prisoner extends Model {
 		});
 	}
 
+	/**
+	 * Includes for full=true. The prison is embedded (published ones only when
+	 * publishedOnly). Chats are private and are embedded only for staff, and
+	 * only when asked for.
+	 */
+	static #includes(publishedOnly, withChats = false) {
+		const includes = [
+			{
+				model: Prison,
+				as: 'prison_details',
+				...(publishedOnly ? { where: publishedWhere(true), required: false } : {})
+			}
+		];
+		if (withChats && !publishedOnly) {
+			includes.push({ model: Chat, as: 'chats' });
+		}
+		return includes;
+	}
+
 	// Create
 
 	static async createPrisoner({
@@ -43,9 +64,14 @@ export default class Prisoner extends Model {
 		inmateID,
 		releaseDate,
 		bio,
-		status
+		status,
+		recordStatus
 	}) {
-		return await this.create({ birthName, chosenName, prison, inmateID, releaseDate, bio, status });
+		const values = { birthName, chosenName, prison, inmateID, releaseDate, bio, status };
+		if (recordStatus !== undefined) {
+			values.recordStatus = recordStatus;
+		}
+		return await this.create(values);
 	}
 	/**
 	 *  create multiple prisoners
@@ -68,68 +94,65 @@ export default class Prisoner extends Model {
 
 	// Read
 
-	static async getAllPrisoners(full, limit, offset = 0) {
-		let filters = { limit, offset };
-		let options;
-		if (full) {
-			options = {
-				include: [
-					{
-						model: Prison,
-						as: 'prison_details'
-					}
-				]
-			};
-		}
-		filters = { ...filters, ...options };
-		return await Prisoner.findAll(filters);
-	}
-
-	static async getPrisonerByID(id, full) {
-		if (full) {
-			return await this.findOne({
-				include: [
-					{
-						model: Prison,
-						as: 'prison_details'
-					}
-				],
-				where: { id: id }
-			});
-		} else {
-			return await this.findOne({
-				where: { id: id }
-			});
-		}
+	/**
+	 * One page of prisoners.
+	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean, where?: object}} options
+	 * @returns {Promise<{rows: Prisoner[], count: number}>}
+	 */
+	static async getAllPrisoners({
+		full = false,
+		limit,
+		offset = 0,
+		publishedOnly = false,
+		where = {}
+	} = {}) {
+		return await this.findAndCountAll({
+			where: { ...where, ...publishedWhere(publishedOnly) },
+			include: full ? this.#includes(publishedOnly) : [],
+			limit,
+			offset,
+			distinct: true,
+			order: [['id', 'ASC']]
+		});
 	}
 
 	/**
-	 * List prisoners held at one prison.
-	 * @param {number|string} prisonId
-	 * @param {boolean} full include prison details and each prisoner's chats
-	 * @param {number} limit
-	 * @param {number} offset
-	 * @throws {Error} when the prison does not exist
+	 * @param {number|string} id
+	 * @param {{full?: boolean, publishedOnly?: boolean}} options
+	 * @returns {Promise<Prisoner|null>}
 	 */
-	static async getPrisonersByPrison(prisonId, full, limit, offset = 0) {
-		const exists = await modelsService.modelInstanceExists('Prison', prisonId);
-		if (exists instanceof Error) {
-			throw exists;
+	static async getPrisonerByID(id, { full = false, publishedOnly = false } = {}) {
+		return await this.findOne({
+			where: { id, ...publishedWhere(publishedOnly) },
+			include: full ? this.#includes(publishedOnly) : []
+		});
+	}
+
+	/**
+	 * One page of the prisoners held at one prison.
+	 * @param {number|string} prisonId
+	 * @param {{full?: boolean, limit?: number, offset?: number, publishedOnly?: boolean}} options
+	 * @throws {NotFoundError} when the prison does not exist, or is unpublished and publishedOnly
+	 */
+	static async getPrisonersByPrison(
+		prisonId,
+		{ full = false, limit, offset = 0, publishedOnly = false } = {}
+	) {
+		const prison = await modelsService.modelInstanceExists('Prison', prisonId);
+		if (prison instanceof Error) {
+			throw prison;
 		}
-		let filters = { limit, offset, where: { prison: prisonId } };
-		if (full) {
-			filters.include = [
-				{
-					model: Prison,
-					as: 'prison_details'
-				},
-				{
-					model: Chat,
-					as: 'chats'
-				}
-			];
+		if (publishedOnly && prison.recordStatus !== PUBLISHED) {
+			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
-		return await Prisoner.findAll(filters);
+		return await this.findAndCountAll({
+			where: { prison: prisonId, ...publishedWhere(publishedOnly) },
+			include: full ? this.#includes(publishedOnly, true) : [],
+			limit,
+			offset,
+			distinct: true,
+			order: [['id', 'ASC']]
+		});
 	}
 
 	// Update

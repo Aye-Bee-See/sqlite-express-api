@@ -62,7 +62,7 @@ test('login rejects a missing field with 400', async () => {
 });
 
 test('a protected route rejects a missing token', async () => {
-	const res = await get('/prison/prisons');
+	const res = await get('/chat/chats');
 	assert.equal(res.status, 401);
 	assert.deepEqual(res.body, {
 		success: false,

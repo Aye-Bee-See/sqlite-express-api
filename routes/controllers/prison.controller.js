@@ -1,5 +1,6 @@
 import Prison from '#models/prison.model.js';
 import RouteController from '#rtControllers/route.controller.js';
+import { readOptions } from '#rtControllers/directory.helpers.js';
 
 export default class PrisonController extends RouteController {
 	constructor() {
@@ -24,14 +25,21 @@ export default class PrisonController extends RouteController {
 	#handleSuccess;
 	#handleErr;
 	#handleLimits;
+
+	/** List prisons: page, page_size, full, and (staff only) recordStatus. */
 	async getMany(req, res) {
 		const { full, page, page_size } = req.query;
-		const { limit, offset } = this.#handleLimits(page, page_size);
-		const fullBool = full === 'true';
-
+		const limits = this.#handleLimits(page, page_size);
+		const { publishedOnly, where } = readOptions(req);
 		try {
-			const prisons = await Prison.getAllPrisons(fullBool, limit, offset);
-			this.#handleSuccess(res, prisons);
+			const result = await Prison.getAllPrisons({
+				full: full === 'true',
+				limit: limits.limit,
+				offset: limits.offset,
+				publishedOnly,
+				where
+			});
+			this.handlePage(res, result, limits);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -42,9 +50,9 @@ export default class PrisonController extends RouteController {
 
 	async getOne(req, res) {
 		const { id, full } = req.query;
-		const fullBool = full === 'true';
+		const { publishedOnly } = readOptions(req);
 		try {
-			const prison = await Prison.getPrisonByID(id, fullBool);
+			const prison = await Prison.getPrisonByID(id, { full: full === 'true', publishedOnly });
 			this.#handleSuccess(res, this.requireFound(prison, 'Prison ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -53,9 +61,9 @@ export default class PrisonController extends RouteController {
 	}
 	// Create
 	async create(req, res) {
-		const { prisonName, address } = req.body;
+		const { prisonName, address, recordStatus } = req.body;
 		try {
-			const prison = await Prison.createPrison({ prisonName, address });
+			const prison = await Prison.createPrison({ prisonName, address, recordStatus });
 			this.#handleSuccess(res, prison);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -90,6 +98,7 @@ export default class PrisonController extends RouteController {
 	}
 
 	// Delete
+
 	async remove(req, res) {
 		const { id } = req.body;
 		try {

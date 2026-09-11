@@ -39,13 +39,13 @@ class PrisonerRoutes {
 
 		this.Router.get(
 			prisonerEnd.get.many,
-			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.optionalAuthenticate,
 			this.#Controller.getMany
 		);
 
 		this.Router.get(
 			prisonerEnd.get.one,
-			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.optionalAuthenticate,
 			this.#Controller.getOne
 		);
 

@@ -43,7 +43,7 @@ export default class RouteController {
 	 * page_size may not exceed MAX_PAGE_SIZE.
 	 * @param {string|number|undefined} page 1-based page number
 	 * @param {string|number|undefined} page_size rows per page
-	 * @returns {{limit: number, offset: number}}
+	 * @returns {{limit: number, offset: number, page: number, pageSize: number}}
 	 * @throws {ValidationError} for non-numeric, fractional, zero, negative, or oversized values
 	 */
 	handleLimits(page, page_size) {
@@ -62,7 +62,23 @@ export default class RouteController {
 		if (errors.length > 0) {
 			throw new ValidationError(errors);
 		}
-		return { limit: sizeNum, offset: (pageNum - 1) * sizeNum };
+		return { limit: sizeNum, offset: (pageNum - 1) * sizeNum, page: pageNum, pageSize: sizeNum };
+	}
+
+	/**
+	 * Send one page of a list: `data` is the rows, and `total`, `page`, and
+	 * `page_size` are added to the envelope so clients can paginate.
+	 * @param {object} res
+	 * @param {{rows: object[], count: number}} result from findAndCountAll
+	 * @param {{page: number, pageSize: number}} limits from handleLimits
+	 * @param {string} [condition]
+	 */
+	handlePage(res, result, limits, condition = 'par') {
+		this.handleSuccess(res, result.rows, condition, {
+			total: result.count,
+			page: limits.page,
+			page_size: limits.pageSize
+		});
 	}
 	/*	#formatMessagesList(messagesList) {
 		let formattedList = {};
@@ -86,7 +102,7 @@ export default class RouteController {
 		return stack;
 	}
 
-	handleSuccess(res, outObj = {}, condition = 'par') {
+	handleSuccess(res, outObj = {}, condition = 'par', extra = {}) {
 		const ctrlMsg = msgConstants[this.controllerName];
 		const stack = this.#findStack(res);
 		const callerName = stack.name.substr(6);
@@ -101,7 +117,8 @@ export default class RouteController {
 			info: ctrlMsg[method][msgRef].success.condition[condition],
 			success: true,
 			status,
-			name: this.controllerName + ' ' + msgRef
+			name: this.controllerName + ' ' + msgRef,
+			...extra
 		};
 
 		res.status(status).json(message);

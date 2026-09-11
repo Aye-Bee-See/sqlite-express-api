@@ -143,12 +143,14 @@ The numeric `id` a seeded account receives is **not** guaranteed to match its po
 
 ### Public routes
 
-Only two routes work without a token:
+These work without a token:
 
 - `POST /auth/user` registers an account. It always gets the `user` role.
 - `POST /auth/login` returns a token.
+- Every **GET** on prisons, prisoners, rules, and chapters (the public directory). Anonymous callers see only records whose `recordStatus` is `published`; see [Record status](#record-status).
+- `GET /health`.
 
-Everything else requires a bearer token.
+Everything else, including every write, requires a bearer token. A token that is present but invalid is rejected with `401` even on public routes.
 
 ### Logging in
 
@@ -203,7 +205,8 @@ A token whose user has since been deleted or banned is rejected with `401`.
 
 | Action                                                     | `user`                | `chapter` | `admin` |
 | ---------------------------------------------------------- | --------------------- | --------- | ------- |
-| Read prisons, prisoners, rules, chapters                   | Yes                   | Yes       | Yes     |
+| Read published prisons, prisoners, rules, chapters         | Yes (and anonymous)   | Yes       | Yes     |
+| Read draft and pending directory records                   | No                    | Yes       | Yes     |
 | Create, update, delete prisons, prisoners, rules, chapters | No                    | Yes       | Yes     |
 | Attach a rule to a prison                                  | No                    | Yes       | Yes     |
 | Read, create, update, delete chats and messages            | **Own threads only**  | All       | All     |
@@ -310,6 +313,23 @@ Update responses wrap the affected-row count and echo the body you sent:
 
 Delete responses put the number of deleted rows directly in `data`, and it is always `1` because a missing id is a `404` instead.
 
+List responses add three fields beside `data`:
+
+```json
+{
+	"data": [{ "id": 3 }, { "id": 4 }],
+	"info": "Successfully retireved prisons list",
+	"success": true,
+	"status": 200,
+	"name": "prison many",
+	"total": 52,
+	"page": 2,
+	"page_size": 2
+}
+```
+
+`total` is the number of rows that match the request across all pages (after any visibility or filter rules), so the last page number is `Math.ceil(total / page_size)`.
+
 ### Errors
 
 There are two error shapes.
@@ -380,7 +400,7 @@ List endpoints accept two optional query parameters:
 | `page`      | 1       | Positive integer.      |
 | `page_size` | 10      | Integer from 1 to 100. |
 
-`GET /prison/prisons?page=2&page_size=2` returns the third and fourth prisons. Responses do not include a total count; keep requesting until you get fewer rows than `page_size`. Invalid values return a validation error:
+`GET /prison/prisons?page=2&page_size=2` returns the third and fourth prisons. Every list response includes `total`, `page`, and `page_size` (see [Response envelope](#response-envelope)). Invalid values return a validation error:
 
 ```json
 {
@@ -389,23 +409,34 @@ List endpoints accept two optional query parameters:
 }
 ```
 
-`GET /chapter/chapters` is not paginated and returns everything.
+All list endpoints are paginated, including `GET /chapter/chapters`.
+
+### Record status
+
+Prisons, prisoners, and chapters carry a `recordStatus` of `draft`, `pending`, or `published`. It controls visibility:
+
+| Caller                    | Sees                                                                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Anonymous, or role `user` | Published records only. A draft or pending record is a `404` by id, absent from lists, absent from `full=true` embeds, and its dependents (`?prison=` filters) are `404`s too. |
+| Role `chapter` or `admin` | Everything. Add `?recordStatus=draft` (or `pending`, `published`) to a list to filter.                                                                                         |
+
+New records default to `published` until the moderation workflow exists. Staff can pass `recordStatus` on create or update to make a record `draft` or `pending`. Rules have no status of their own; they are visible wherever the prison they are attached to is.
 
 ### The `full` parameter
 
 Most read endpoints accept `full=true` to embed related records. The string must be exactly `true`; anything else is treated as `false`.
 
-| Endpoint                     | `full=true` adds                               |
-| ---------------------------- | ---------------------------------------------- |
-| Users (list, by id, by role) | `chats`                                        |
-| Prisons (list, by id)        | `prisoners`, `rules`                           |
-| Prisoners (list, by id)      | `prison_details`                               |
-| Prisoners by prison          | `prison_details`, `chats`                      |
-| Rules (list, by id)          | `prisons`                                      |
-| Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details` |
-| Messages                     | accepted but ignored                           |
+| Endpoint                     | `full=true` adds                                      |
+| ---------------------------- | ----------------------------------------------------- |
+| Users (list, by id, by role) | `chats`                                               |
+| Prisons (list, by id)        | `prisoners`, `rules`                                  |
+| Prisoners (list, by id)      | `prison_details`                                      |
+| Prisoners by prison          | `prison_details`, plus `chats` for staff callers only |
+| Rules (list, by id)          | `prisons`                                             |
+| Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details`        |
+| Messages                     | accepted but ignored                                  |
 
-Embedded rules and prisons carry a `RulePassthrough` object describing the link (see the prison example below). Embedded users never include the password hash.
+Embedded rules and prisons carry a `RulePassthrough` object describing the link (see the prison example below). Embedded users never include the password hash. For anonymous and `user`-role callers, embedded prisoners and prisons are limited to published ones, and chats are never embedded.
 
 ### Deletes and referential integrity
 
@@ -420,7 +451,7 @@ Deleting a rule or a prison removes its rule-to-prison links automatically. Crea
 
 ## Endpoint reference
 
-The **Auth** column says who may call the endpoint: _Public_, _Any_ (any valid token), _Admin or chapter_, _Admin_, _Self or admin_ (your own record, or an admin), _Own_ (any token, but a `user` only sees their own threads).
+The **Auth** column says who may call the endpoint: _Public_ (no token needed; directory reads show published records only without a staff token), _Any_ (any valid token), _Admin or chapter_, _Admin_, _Self or admin_ (your own record, or an admin), _Own_ (any token, but a `user` only sees their own threads).
 
 ### Users
 
@@ -570,18 +601,19 @@ Body: `{"id": 43}`. Returns `"data": 1`. A user who still has chats or messages 
 | Method | Path              | Auth             | Purpose                   |
 | ------ | ----------------- | ---------------- | ------------------------- |
 | POST   | `/prison/prison`  | Admin or chapter | Create a prison           |
-| GET    | `/prison/prisons` | Any              | List prisons              |
-| GET    | `/prison/prison`  | Any              | Get one prison by id      |
+| GET    | `/prison/prisons` | Public           | List prisons              |
+| GET    | `/prison/prison`  | Public           | Get one prison by id      |
 | PUT    | `/prison/prison`  | Admin or chapter | Update a prison           |
 | PUT    | `/prison/rule`    | Admin or chapter | Attach a rule to a prison |
 | DELETE | `/prison/prison`  | Admin or chapter | Delete a prison           |
 
 #### Prison fields
 
-| Field        | Type   | Notes                                                        |
-| ------------ | ------ | ------------------------------------------------------------ |
-| `prisonName` | string | Required.                                                    |
-| `address`    | object | Required. Free-form JSON; the seeds use `{"street": "..."}`. |
+| Field          | Type   | Notes                                                                                          |
+| -------------- | ------ | ---------------------------------------------------------------------------------------------- |
+| `prisonName`   | string | Required.                                                                                      |
+| `recordStatus` | string | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status). |
+| `address`      | object | Required. Free-form JSON; the seeds use `{"street": "..."}`.                                   |
 
 #### POST /prison/prison
 
@@ -609,7 +641,7 @@ curl -s -X POST http://localhost:3000/prison/prison \
 
 #### GET /prison/prisons
 
-Parameters: `page`, `page_size`, `full`.
+Parameters: `page`, `page_size`, `full`, and (staff) `recordStatus`.
 
 ```json
 {
@@ -748,22 +780,23 @@ Body: `{"id": 53}`. Fails with `400` while the prison still has prisoners.
 | Method | Path                  | Auth             | Purpose                              |
 | ------ | --------------------- | ---------------- | ------------------------------------ |
 | POST   | `/prisoner/prisoner`  | Admin or chapter | Create a prisoner                    |
-| GET    | `/prisoner/prisoners` | Any              | List prisoners, optionally by prison |
-| GET    | `/prisoner/prisoner`  | Any              | Get one prisoner by id               |
+| GET    | `/prisoner/prisoners` | Public           | List prisoners, optionally by prison |
+| GET    | `/prisoner/prisoner`  | Public           | Get one prisoner by id               |
 | PUT    | `/prisoner/prisoner`  | Admin or chapter | Update a prisoner                    |
 | DELETE | `/prisoner/prisoner`  | Admin or chapter | Delete a prisoner                    |
 
 #### Prisoner fields
 
-| Field         | Type     | Notes                                                                      |
-| ------------- | -------- | -------------------------------------------------------------------------- |
-| `birthName`   | string   | Legal name.                                                                |
-| `chosenName`  | string   | Name the person goes by.                                                   |
-| `prison`      | integer  | Id of an existing prison. A nonexistent id is refused.                     |
-| `inmateID`    | string   | Facility-issued identifier. Free text.                                     |
-| `releaseDate` | datetime | ISO-8601 string.                                                           |
-| `bio`         | string   |                                                                            |
-| `status`      | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`. |
+| Field          | Type     | Notes                                                                      |
+| -------------- | -------- | -------------------------------------------------------------------------- |
+| `birthName`    | string   | Legal name.                                                                |
+| `chosenName`   | string   | Name the person goes by.                                                   |
+| `prison`       | integer  | Id of an existing prison. A nonexistent id is refused.                     |
+| `inmateID`     | string   | Facility-issued identifier. Free text.                                     |
+| `releaseDate`  | datetime | ISO-8601 string.                                                           |
+| `bio`          | string   |                                                                            |
+| `status`       | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`. |
+| `recordStatus` | string   | `draft`, `pending`, or `published` (default). Staff only.                  |
 
 All fields are optional at the database level.
 
@@ -798,13 +831,13 @@ curl -s -X POST http://localhost:3000/prisoner/prisoner \
 
 #### GET /prisoner/prisoners
 
-Parameters: `prison`, `full`, `page`, `page_size`.
+Parameters: `prison`, `full`, `page`, `page_size`, and (staff) `recordStatus`.
 
 ```bash
 curl -s 'http://localhost:3000/prisoner/prisoners?prison=1' -H "Authorization: Bearer $TOKEN"
 ```
 
-Returns only prisoners whose `prison` matches. A `prison` id that does not exist is a `404`. Without `prison`, all prisoners are listed. With `full=true` each row gains `prison_details` (and, when filtering by prison, `chats`):
+Returns only prisoners whose `prison` matches. A `prison` id that does not exist (or is not published, for non-staff) is a `404`. Without `prison`, all prisoners are listed. With `full=true` each row gains `prison_details` (and, for staff filtering by prison, `chats`):
 
 ```json
 {
@@ -849,8 +882,8 @@ Body `{"id": 41, "chosenName": "Doc Updated"}` and `{"id": 41}` respectively. A 
 | Method | Path          | Auth             | Purpose                          |
 | ------ | ------------- | ---------------- | -------------------------------- |
 | POST   | `/rule/rule`  | Admin or chapter | Create a rule                    |
-| GET    | `/rule/rules` | Any              | List rules, optionally by prison |
-| GET    | `/rule/rule`  | Any              | Get one rule by id               |
+| GET    | `/rule/rules` | Public           | List rules, optionally by prison |
+| GET    | `/rule/rule`  | Public           | Get one rule by id               |
 | PUT    | `/rule/rule`  | Admin or chapter | Update a rule                    |
 | DELETE | `/rule/rule`  | Admin or chapter | Delete a rule                    |
 
@@ -1162,13 +1195,13 @@ Body: `{"id": 41}`. Returns `"data": 1`.
 
 ### Chapters
 
-| Method | Path                | Auth             | Purpose                       |
-| ------ | ------------------- | ---------------- | ----------------------------- |
-| POST   | `/chapter/chapter`  | Admin or chapter | Create a chapter              |
-| GET    | `/chapter/chapters` | Any              | List all chapters (no paging) |
-| GET    | `/chapter/chapter`  | Any              | Get one chapter by id         |
-| PUT    | `/chapter/chapter`  | Admin or chapter | Update a chapter              |
-| DELETE | `/chapter/chapter`  | Admin or chapter | Delete a chapter              |
+| Method | Path                | Auth             | Purpose               |
+| ------ | ------------------- | ---------------- | --------------------- |
+| POST   | `/chapter/chapter`  | Admin or chapter | Create a chapter      |
+| GET    | `/chapter/chapters` | Public           | List chapters         |
+| GET    | `/chapter/chapter`  | Public           | Get one chapter by id |
+| PUT    | `/chapter/chapter`  | Admin or chapter | Update a chapter      |
+| DELETE | `/chapter/chapter`  | Admin or chapter | Delete a chapter      |
 
 #### Chapter fields
 
@@ -1179,6 +1212,7 @@ Body: `{"id": 41}`. Returns `"data": 1`.
 | `prisoners`       | object  | Optional JSON blob. Not a relation. Only settable through PUT. |
 | `lettersSent`     | string  | Optional. Only settable through PUT.                           |
 | `averageTimeDays` | integer | Optional. Only settable through PUT.                           |
+| `recordStatus`    | string  | `draft`, `pending`, or `published` (default). Staff only.      |
 
 The create handler only reads `name` and `location`; the other three fields must be added with a follow-up PUT.
 
@@ -1208,7 +1242,7 @@ curl -s -X POST http://localhost:3000/chapter/chapter \
 
 #### GET /chapter/chapters
 
-No parameters. Returns every chapter.
+Parameters: `page`, `page_size`, and (staff) `recordStatus`.
 
 ```json
 {
@@ -1242,11 +1276,10 @@ None of these break anything, but clients should know about them.
 1. Several `info` strings contain typos ("retireved", "Succeessfully") that clients may already match on. They are left as-is for now.
 2. `PUT /prison/rule` returns the prison object under a key named `updatedRows`.
 3. Embedded rules and prisons include a `RulePassthrough` object describing the link row.
-4. `GET /chapter/chapters` is not paginated.
-5. `full=true` is accepted but ignored on message endpoints.
-6. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
-7. There is no endpoint to detach a rule from a prison.
-8. Seeded ids are not stable across databases. Read them from responses.
+4. `full=true` is accepted but ignored on message endpoints.
+5. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
+6. There is no endpoint to detach a rule from a prison.
+7. Seeded ids are not stable across databases. Read them from responses.
 
 ## Postman collection
 

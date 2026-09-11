@@ -1,8 +1,14 @@
 import 'dotenv/config';
 
-//console.log(process.env);
 const environ = process.env;
-const { JWT_SECRET, PORT, REDIS_SECRET } = process.env;
-//console.log(environ);
+const { JWT_SECRET, PORT, REDIS_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_EMAIL } = process.env;
 
-export { environ, JWT_SECRET as secretOrKey, PORT as sysPort, REDIS_SECRET as redisSecret };
+export {
+	environ,
+	JWT_SECRET as secretOrKey,
+	PORT as sysPort,
+	REDIS_SECRET as redisSecret,
+	ADMIN_USERNAME as adminUsername,
+	ADMIN_PASSWORD as adminPassword,
+	ADMIN_EMAIL as adminEmail
+};

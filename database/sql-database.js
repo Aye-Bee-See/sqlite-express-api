@@ -2,6 +2,7 @@ import { Sequelize } from 'sequelize';
 import * as Models from '#models/all.model.js';
 
 import { createSeeds } from './seeds/all.seeds.js';
+import { ensureAdmin } from './bootstrap-admin.js';
 
 const config = {
 	database: 'users_db',
@@ -29,6 +30,14 @@ Chat.associate(Models);
 Rule.associate(Models);
 Chapter.associate(Models);
 
-sequelize.sync({ force: true }).then(async () => {
-	return await createSeeds();
-});
+sequelize
+	.sync({ force: true })
+	.then(async () => {
+		return await createSeeds();
+	})
+	.then(async () => {
+		return await ensureAdmin();
+	})
+	.catch((err) => {
+		console.error('Database setup failed:', err);
+	});

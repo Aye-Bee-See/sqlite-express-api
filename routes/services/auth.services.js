@@ -23,7 +23,7 @@ export default class authService {
 		let user;
 
 		try {
-			user = (await User.getUser({ username })) || false;
+			user = (await User.getUserWithPassword({ username })) || false;
 			if (user && user.role !== 'banned') {
 				const match = (await bcrypt.compare(password, user.password)) || false;
 				if (match) {

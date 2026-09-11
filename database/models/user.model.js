@@ -10,7 +10,12 @@ export default class User extends Model {
 			sequelize,
 			hooks: Hooks.user || null,
 			modelName: 'User',
-			tableName: 'User'
+			tableName: 'User',
+			// Never select the password hash unless a caller opts in with
+			// User.scope('withPassword'). This also covers every include of User
+			// from other models (chat.user_details and so on).
+			defaultScope: { attributes: { exclude: ['password'] } },
+			scopes: { withPassword: { attributes: { include: ['password'] } } }
 		});
 	}
 
@@ -103,6 +108,15 @@ export default class User extends Model {
 			];
 		}
 		return await User.findAll(filters);
+	}
+
+	/**
+	 * Look up a user including the password hash, for credential checks only.
+	 * @param {object} where column filters, e.g. { username }
+	 * @returns {Promise<User|null>}
+	 */
+	static async getUserWithPassword(where) {
+		return await this.scope('withPassword').findOne({ where });
 	}
 
 	static async getUser(obj, full) {
@@ -201,7 +215,13 @@ export default class User extends Model {
 	 * @returns {Promise<[number]>} affected row count
 	 */
 	static async updateUser(user) {
-		return await this.update({ ...user }, { where: { id: user.id }, individualHooks: true });
+		// With individualHooks, Sequelize also returns the affected instances
+		// (password hash included); only ever hand back the count.
+		const [count] = await this.update(
+			{ ...user },
+			{ where: { id: user.id }, individualHooks: true }
+		);
+		return [count];
 	}
 
 	static async banUser(userId) {

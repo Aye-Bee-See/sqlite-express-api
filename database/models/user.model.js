@@ -182,8 +182,14 @@ export default class User extends Model {
 
 	// Update
 
+	/**
+	 * Update a user by id. Runs per-instance hooks so a changed password is
+	 * hashed by the beforeUpdate hook before it is written.
+	 * @param {object} user fields to change, including `id`
+	 * @returns {Promise<[number]>} affected row count
+	 */
 	static async updateUser(user) {
-		return await this.update({ ...user }, { where: { id: user.id } });
+		return await this.update({ ...user }, { where: { id: user.id }, individualHooks: true });
 	}
 
 	static async banUser(userId) {

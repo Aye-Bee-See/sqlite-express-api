@@ -196,7 +196,10 @@ export default class UserController extends RouteController {
 		}
 		try {
 			const updatedRows = await User.updateUser(newUser);
-			this.#handleSuccess(res, { updatedRows, newUser });
+			// Never echo a password, plain or hashed, back to the client.
+			const { password, ...echoed } = newUser;
+			void password;
+			this.#handleSuccess(res, { updatedRows, newUser: echoed });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

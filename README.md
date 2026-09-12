@@ -227,6 +227,17 @@ curl -s http://localhost:3000/prison/prisons \
 
 A token whose user has since been deleted or banned is rejected with `401`.
 
+### Signing out and revoking tokens
+
+Tokens last a week, and each one carries an id, so a token can be ended early:
+
+- `POST /auth/logout` with the token to end: that token stops working immediately; the account's other devices are unaffected. With `{"everywhere": true}` every token for the account stops working. The response says which happened.
+- `POST /auth/revoke` `{"user": 43}` (admin): every token for that account stops working, without banning it. The account can log in again straight away. Use it for a lost phone or a shared computer.
+- Changing a password (`PUT /auth/user`) ends every existing session for that account. When the account holder changes their own, the response carries a fresh `token` so they stay signed in; an admin reset carries none.
+- Finishing recovery (`POST /auth/recover`) ends every existing session.
+
+A revoked token gets `401` like any bad token. Logged-out token ids are kept only until the token would have expired anyway, then dropped. Tokens issued before this feature existed have no id and can only be ended with `everywhere`, a revocation, or a password change.
+
 ### What each role can do
 
 | Action                                                           | `user`                | `chapter`                         | `admin` |
@@ -244,6 +255,7 @@ A token whose user has since been deleted or banned is rejected with `401`.
 | Read, edit, delete a group's unclaimed managed writers           | No                    | Own group                         | Yes     |
 | Read own user record; update or delete own account               | Yes                   | Yes                               | Yes     |
 | Read, update, delete other users; list users                     | No                    | No                                | Yes     |
+| Revoke every session of another account                          | No                    | No                                | Yes     |
 | Change a role, or create a non-`user` account                    | No                    | No                                | Yes     |
 
 "Own threads" means chats whose `user` is the caller's id, and messages whose `user` is the caller's id. For a `user`:
@@ -523,6 +535,8 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 | ------ | -------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
 | POST   | `/auth/user`         | Public                | Register (role `user`); admins may set other roles                                            |
 | POST   | `/auth/login`        | Public                | Log in and receive a token                                                                    |
+| POST   | `/auth/logout`       | Any                   | End this token, or every token for the account with `{\"everywhere\": true}`                  |
+| POST   | `/auth/revoke`       | Admin                 | End every token for an account without banning it                                             |
 | GET    | `/auth/users`        | Admin                 | List users, optionally by role                                                                |
 | GET    | `/auth/user`         | Self or admin         | Get one user by id, email, or username; a group may read its unclaimed writers                |
 | PUT    | `/auth/user`         | Self or admin         | Update a user; a group may edit its unclaimed writers' name, email, note                      |

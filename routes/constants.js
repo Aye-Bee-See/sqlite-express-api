@@ -9,6 +9,8 @@ const endpoints = {
 		post: {
 			create: '/user',
 			login: '/login',
+			logout: '/logout',
+			revoke: '/revoke',
 			createWriter: '/writer',
 			createToken: '/writer/token',
 			claim: '/claim'
@@ -255,6 +257,19 @@ const messages = {
 			login: {
 				success: { condition: { par: 'Login success.' } },
 				error: { condition: { par: 'No such user or associated password found.' } }
+			},
+			logout: {
+				success: {
+					condition: {
+						par: 'Signed out. This token no longer works.',
+						everywhere: 'Signed out everywhere. Every token for this account no longer works.'
+					}
+				},
+				error: { condition: { par: 'Error signing out.' } }
+			},
+			revoke: {
+				success: { condition: { par: 'Every token for this account no longer works.' } },
+				error: { condition: { par: 'Error revoking sessions.' } }
 			},
 			createWriter: {
 				success: { condition: { par: 'Successfully created managed writer.' } },

@@ -135,7 +135,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 ├── routes/
 │   ├── constants.js                  endpoints{} (paths) and messages{} (strings) for every resource.
 │   ├── services/
-│   │   ├── auth.services.js          LocalStrategy, JwtStrategy, JWT creation; registers both strategies with passport.
+│   │   ├── auth.services.js          LocalStrategy, JwtStrategy, JWT creation (jti, issued), tokenLive() revocation check; registers both strategies with passport.
 │   │   ├── authz.services.js         requireRole, requireSelfOrAdmin, requireGroupMember, optionalAuthenticate, chapterOf, activeChapterOf, groupRefusal, mayManageUser, refusalFor, forbidden(), unauthorized().
 │   │   ├── scope.services.js         threadScope(req) and resolveWriter(): who may see and write which chats and messages.
 │   │   ├── error.services.js         ErrorService.handler, the final error middleware.
@@ -184,6 +184,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     │   ├── attachment.model.js       Attachment: attach (encrypt + store + row), readBytes (decrypt), withFile, listForMessage, remove, purgeForMessages.
     │   ├── letter-key.model.js       LetterKey: content-key envelopes; server mode (issueServerKey, contentKeysFor, encryptFields, decryptRows) and e2e (validateEnvelopes, issueEnvelopes, envelopeMap, envelopesFor, canRead).
     │   ├── org-member-key.model.js   OrgMemberKey: the group private key sealed per member.
+    │   ├── revoked-token.model.js    RevokedToken: logged-out token ids until they expire; revoke, isRevoked, sweep.
     │   ├── chapter.model.js
     │   ├── submission.model.js       Submission: RESOURCES registry (fields, submittable, create/update), propose, revise, approve, reject, withdraw, currentValues, pendingCounts.
     │   └── audit-log.model.js        AuditLog: record, list (newest first). Append-only, no updatedAt.
@@ -443,9 +444,13 @@ Missing `username` or `password` never reaches the verify function; passport-loc
 
 ### Token creation
 
+Each token's payload carries `id`, `jti` (16 random bytes, hex), `issued` (milliseconds; finer than the standard `iat`), and the legacy `expiry`; `jwt.sign` adds `iat` and `exp` (one week). `authService.issueToken(user)` makes one outside the login flow (after a self password change), and `authService.tokenPayload(req)` decodes the bearer token of a request that already passed the strategy.
+
 `#createJWT` (`auth.services.js:13`) signs `{ id: user.id, expiry }` with `expiresIn: '1w'` (HS256). The custom `expiry` claim in milliseconds duplicates the standard `exp`; only `exp` is checked. The login response returns `{ token, expires }`.
 
 ### Token verification (`JwtStrategy`)
+
+After the signature and expiry, `authService.tokenLive(payload, user)` refuses a token whose `jti` is in `RevokedTokens` (single logout) or whose `issued` is earlier than `User.sessionsRevokedAt` (logout everywhere, admin `POST /auth/revoke`, any password change, recovery finish; set by `User.revokeSessions`). A pre-feature token with neither `issued` nor `iat` counts as older than any revocation. `RevokedToken.sweep()` drops ids whose token has expired; it runs at boot and on every logout. This is the "denylist with a TTL" that Redis would provide, kept in SQLite because the table never holds more than a week of logouts.
 
 `authService.authorize` (`auth.services.js:46`). `passport-jwt` verifies the signature and expiry first. The callback is `async`: it rejects a payload without an `id` claim, awaits `User.getUser({ id })`, and rejects a missing or banned user (`auth.services.js:52`). On success `req.user` is the User instance loaded through the default scope, so it never carries the password hash. Lookup errors are passed to passport as errors rather than escaping.
 
@@ -675,7 +680,7 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 `npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
 
 - `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `upload()` (multipart via `FormData`) and `getBytes()` (raw download), a per-process temporary `UPLOAD_DIR` (removed by `stopServer()`) with a 64 KiB `UPLOAD_MAX_BYTES`, a fixed test `ENCRYPTION_KEY`, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin; an active Chapter record `group` with a `chapter`-role member and an unclaimed managed `writer`; two independent users `alice` and `bob`; a prison with two prisoners; a rule).
-- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `e2e`, `encryption`, `groups`, `letters`, `messaging`, `migrations`, `moderation`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
+- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `e2e`, `encryption`, `groups`, `letters`, `messaging`, `migrations`, `moderation`, `sessions`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
 - Seeded data is not used by the tests; fixtures are created explicitly, so tests never depend on seed ids.
 - CI (`.github/workflows/test.yml`) runs `npm ci`, ESLint, and the suite on Node 22 and 24 for every pull request and push to `main`.
 
@@ -751,7 +756,7 @@ Known gaps, roughly in the order they are worth tackling:
 2. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
 3. **Message `full=true`** on the single read embeds `relay_group` and `status_history`; on lists it is still ignored. `chat_details` / `user_details` / `prisoner_details` includes are a few lines if clients want them.
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
-5. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
+5. **Token refresh.** Logout and revocation exist; there is still no refresh, so a week-long token simply expires and the client logs in again.
 6. **Key rotation and e2e follow-ups.** No script re-wraps the server envelopes under a new `ENCRYPTION_KEY` yet (unwrap with the old key, wrap with the new, update `keyLabel`). In e2e mode: rate limiting on the recovery endpoints, a way for a group to rotate its keypair (re-seal every envelope it holds), and group-only envelopes for anonymous-writer letters whose account has no keys.
 7. **Moderation follow-ups.** Anonymous corrections from the public footer (a submission with no `submittedBy`, rate-limited), group invitations with vouching, site settings, and email or in-app notification of decisions to submitters.
 8. **Retention and storage.** Purging `mailed` letters (and their attachment files) after a window, then `VACUUM`, is a scheduled job to add once the product decides the window. Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes are still open to every chapter account.

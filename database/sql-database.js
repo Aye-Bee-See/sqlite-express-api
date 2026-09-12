@@ -37,6 +37,7 @@ export const LetterKey = Models.LetterKey.init(sequelize, Sequelize);
 export const Submission = Models.Submission.init(sequelize, Sequelize);
 export const AuditLog = Models.AuditLog.init(sequelize, Sequelize);
 export const OrgMemberKey = Models.OrgMemberKey.init(sequelize, Sequelize);
+export const RevokedToken = Models.RevokedToken.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -52,6 +53,7 @@ LetterKey.associate(Models);
 Submission.associate(Models);
 AuditLog.associate(Models);
 OrgMemberKey.associate(Models);
+RevokedToken.associate(Models);
 
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;
@@ -74,6 +76,7 @@ export const ready = (async () => {
 		log('DB_SEED is false: skipping seed data.');
 	}
 	await ensureAdmin();
+	await RevokedToken.sweep();
 	if (crypto.isE2E()) {
 		const leftover = await LetterKey.count({ where: { readerType: 'server' } });
 		if (leftover > 0) {

@@ -289,6 +289,7 @@ export default class KeysController extends RouteController {
 					'RecoveryError'
 				);
 			}
+			await User.revokeSessions(user.id);
 			await audit(null, 'user.recover', 'user', user.id);
 			this.#handleSuccess(res, { user: user.id, username: user.username });
 		} catch (err) {

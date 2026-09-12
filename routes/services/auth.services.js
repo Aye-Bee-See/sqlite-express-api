@@ -1,7 +1,8 @@
 import { ExtractJwt, Strategy as JwtStrategy } from 'passport-jwt';
 import { Strategy as LocalStrategy } from 'passport-local';
 import jwt from 'jsonwebtoken';
-import { User } from '#db/sql-database.js';
+import { User, RevokedToken } from '#db/sql-database.js';
+import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import passport from 'passport';
 import { secretOrKey } from '#constants';
@@ -14,9 +15,48 @@ export default class authService {
 		const now = Date.now();
 		const weekInMilliseconds = 6.048e8;
 		const expiryDateMs = now + weekInMilliseconds;
-		let payload = { id: user.id, expiry: expiryDateMs };
-		let token = jwt.sign(payload, secretOrKey, { expiresIn: '1w' });
+		// jti lets one token be logged out; issued (milliseconds, finer than the
+		// standard iat) lets sessionsRevokedAt invalidate everything issued before
+		// an instant while a token issued just after it still passes.
+		const payload = {
+			id: user.id,
+			expiry: expiryDateMs,
+			issued: now,
+			jti: randomBytes(16).toString('hex')
+		};
+		const token = jwt.sign(payload, secretOrKey, { expiresIn: '1w' });
 		return { token, expires: expiryDateMs };
+	}
+
+	/** A fresh token for a user (after a password change). */
+	static issueToken(user) {
+		return authService.#createJWT(user);
+	}
+
+	/** The decoded payload of the bearer token on a request that already passed the JWT strategy. */
+	static tokenPayload(req) {
+		const raw = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+		return raw ? jwt.decode(raw) : null;
+	}
+
+	/**
+	 * Is this token still good for this user? False once its id was logged
+	 * out or the account's sessions were revoked after it was issued.
+	 */
+	static async tokenLive(payload, user) {
+		if (payload.jti && (await RevokedToken.isRevoked(payload.jti))) {
+			return false;
+		}
+		if (!user.sessionsRevokedAt) {
+			return true;
+		}
+		const issued =
+			typeof payload.issued === 'number'
+				? payload.issued
+				: typeof payload.iat === 'number'
+					? payload.iat * 1000
+					: 0; // a token from before this check: treated as older than any revocation
+		return issued >= user.sessionsRevokedAt.getTime();
 	}
 
 	static async #verify(username, password, done) {
@@ -49,7 +89,7 @@ export default class authService {
 				return next(null, false);
 			}
 			const user = await User.getUser({ id: jwt_payload.id });
-			if (user && user.role !== 'banned') {
+			if (user && user.role !== 'banned' && (await authService.tokenLive(jwt_payload, user))) {
 				return next(null, user);
 			}
 			return next(null, false);

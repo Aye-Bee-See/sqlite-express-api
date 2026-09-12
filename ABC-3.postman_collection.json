@@ -462,12 +462,12 @@
 					"response": []
 				},
 				{
-					"name": "Search Prisons (country, routing, q, sort)",
+					"name": "Search Prisons (country, routing, relay, q, sort)",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/prison/prisons?country=United%20States&routing=direct&q=alpha&sort=name",
+							"raw": "localhost:3000/prison/prisons?country=United States&routing=direct&q=alpha&sort=name&relay=true",
 							"host": ["localhost"],
 							"path": ["prison", "prisons"],
 							"port": "3000",
@@ -487,6 +487,10 @@
 								{
 									"key": "sort",
 									"value": "name"
+								},
+								{
+									"key": "relay",
+									"value": "true"
 								}
 							]
 						}
@@ -1660,12 +1664,12 @@
 					"response": []
 				},
 				{
-					"name": "Search Chapters (country, service, q)",
+					"name": "Search Chapters (country, service, networkRole, accountStatus, q)",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/chapter/chapters?country=United%20States&service=letter_collection&q=abc",
+							"raw": "localhost:3000/chapter/chapters?country=United States&service=letter_collection&q=abc&networkRole=relay&accountStatus=active",
 							"host": ["localhost"],
 							"path": ["chapter", "chapters"],
 							"port": "3000",
@@ -1681,6 +1685,14 @@
 								{
 									"key": "q",
 									"value": "abc"
+								},
+								{
+									"key": "networkRole",
+									"value": "relay"
+								},
+								{
+									"key": "accountStatus",
+									"value": "active"
 								}
 							]
 						}
@@ -1762,6 +1774,29 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"id\": 2\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Activate Group (admin)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/chapter/chapter",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["chapter", "chapter"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"accountStatus\": \"active\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"

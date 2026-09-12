@@ -17,6 +17,8 @@ export const CHAPTER_FIELDS = [
 	'socialLinks',
 	'services',
 	'announcement',
+	'networkRole',
+	'accountStatus',
 	'vouchedBy',
 	'lettersSent',
 	'averageTimeDays',

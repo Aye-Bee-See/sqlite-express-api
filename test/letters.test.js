@@ -32,7 +32,11 @@ before(async () => {
 	admin = { token: f.admin.token };
 	chapter = { token: f.chapter.token };
 	alice = { token: f.alice.token };
-	const otherGroup = await Chapter.createChapter({ name: 'Other Group', location: {} });
+	const otherGroup = await Chapter.createChapter({
+		name: 'Other Group',
+		location: {},
+		accountStatus: 'active'
+	});
 	const other = await makeUser({ role: 'chapter', username: 'otherchapter' });
 	await User.update({ chapterId: otherGroup.id }, { where: { id: other.id } });
 	otherChapter = { token: other.token, group: otherGroup };

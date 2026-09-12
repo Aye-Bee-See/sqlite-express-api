@@ -41,7 +41,7 @@ export default class ChatController extends RouteController {
 	async #loadAllowed(scope, id) {
 		const chat = await Chat.getChatByID(id);
 		if (chat && !(await scope.allows(chat))) {
-			throw AuthzService.forbidden();
+			throw scope.deny();
 		}
 		return chat;
 	}
@@ -100,7 +100,7 @@ export default class ChatController extends RouteController {
 				chat = await Chat.readChatById(id, full);
 			} else if (user !== undefined && prisoner !== undefined) {
 				if (!scope.allowsUser(user)) {
-					throw AuthzService.forbidden();
+					throw scope.deny();
 				}
 				chat = await Chat.readChatByUserAndPrisoner(user, prisoner, full);
 			} else if (user !== undefined || prisoner !== undefined) {

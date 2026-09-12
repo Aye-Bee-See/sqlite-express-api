@@ -184,7 +184,11 @@ export async function makeUser(overrides = {}) {
  */
 export async function makeFixtures() {
 	const admin = await makeUser({ role: 'admin', username: 'admin' });
-	const group = await Chapter.createChapter({ name: 'Fixture Group', location: {} });
+	const group = await Chapter.createChapter({
+		name: 'Fixture Group',
+		location: {},
+		accountStatus: 'active'
+	});
 	const chapter = await makeUser({ role: 'chapter', username: 'chapter' });
 	await User.update({ chapterId: group.id }, { where: { id: chapter.id } });
 	chapter.user = await User.findByPk(chapter.id);

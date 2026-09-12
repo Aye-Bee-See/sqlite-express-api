@@ -59,9 +59,9 @@ export default class UserController extends RouteController {
 		return plain;
 	}
 
-	#handlePass(res, user, type, req) {
-		if (user && !AuthzService.mayManageUser(req, user)) {
-			throw AuthzService.forbidden();
+	async #handlePass(res, user, type, req) {
+		if (user && !(await AuthzService.mayManageUser(req, user))) {
+			throw await AuthzService.refusalFor(req);
 		}
 		if (user) {
 			const strippedPassword = this.#stripPassword(user, req);
@@ -134,7 +134,7 @@ export default class UserController extends RouteController {
 			case 'id':
 				try {
 					const user = await User.getUserByID(id, fullBool);
-					this.#handlePass(res, user, type, req);
+					await this.#handlePass(res, user, type, req);
 				} catch (err) {
 					if (err && err.status === 403) {
 						return next(err);
@@ -146,7 +146,7 @@ export default class UserController extends RouteController {
 			case 'mail':
 				try {
 					const user = await User.getUserByEmail(email, fullBool);
-					this.#handlePass(res, user, type, req);
+					await this.#handlePass(res, user, type, req);
 				} catch (err) {
 					if (err && err.status === 403) {
 						return next(err);
@@ -158,7 +158,7 @@ export default class UserController extends RouteController {
 			case 'name':
 				try {
 					const user = await User.getUserByUsername(username, fullBool);
-					this.#handlePass(res, user, type, req);
+					await this.#handlePass(res, user, type, req);
 				} catch (err) {
 					if (err && err.status === 403) {
 						return next(err);
@@ -220,8 +220,8 @@ export default class UserController extends RouteController {
 			if (!AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req)) {
 				// A chapter editing one of its unclaimed writers: limited fields.
 				const target = await User.findByPk(newUser.id);
-				if (!AuthzService.mayManageUser(req, target)) {
-					return next(AuthzService.forbidden());
+				if (!(await AuthzService.mayManageUser(req, target))) {
+					return next(await AuthzService.refusalFor(req));
 				}
 				const allowed = ['id', 'name', 'email', 'managerNote'];
 				const extra = Object.keys(newUser).filter((k) => !allowed.includes(k));
@@ -262,8 +262,8 @@ export default class UserController extends RouteController {
 		try {
 			if (!AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req)) {
 				const target = await User.findByPk(id);
-				if (target && !AuthzService.mayManageUser(req, target)) {
-					return next(AuthzService.forbidden());
+				if (target && !(await AuthzService.mayManageUser(req, target))) {
+					return next(await AuthzService.refusalFor(req));
 				}
 			}
 			const deletedRows = await User.deleteUser(id);

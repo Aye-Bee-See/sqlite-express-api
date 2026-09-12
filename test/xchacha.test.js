@@ -15,7 +15,6 @@ import {
 	uploadDir
 } from './helpers.js';
 import * as crypto from '../services/crypto.js';
-import { createMigrator } from '../database/migrate.js';
 
 const MIGRATION = '2026.09.13T02.00.00.xchacha.js';
 let f;
@@ -85,10 +84,11 @@ test('the migration converts secretbox-era letters, notes, files, and envelopes,
 	// Before conversion the API cannot read it (wrong cipher).
 	assert.equal((await get('/messaging/message?id=' + messageId, alice)).status, 500);
 
-	const migrator = createMigrator(sequelize, { quiet: true });
-	// Forget that the migration ran (the rows above are pre-migration data), then apply it.
-	await sequelize.query('DELETE FROM SequelizeMeta WHERE name = ?', { replacements: [MIGRATION] });
-	await migrator.up({ to: MIGRATION });
+	// Run this migration's own up() over the pre-migration rows (umzug would
+	// also revert the migrations that came after it).
+	const migration = await import('../database/migrations/' + MIGRATION);
+	const context = sequelize.getQueryInterface();
+	await migration.up({ context });
 
 	const read = await get('/messaging/message?id=' + messageId, alice);
 	assert.equal(read.status, 200, JSON.stringify(read.body));
@@ -108,7 +108,7 @@ test('the migration converts secretbox-era letters, notes, files, and envelopes,
 	);
 
 	// Rolling back restores secretbox output that the new cipher cannot read; re-applying fixes it again.
-	await migrator.down({ to: MIGRATION });
+	await migration.down({ context });
 	const [[legacyRow]] = await sequelize.query(
 		'SELECT ciphertext, nonce FROM Messages WHERE id = ' + messageId
 	);
@@ -119,7 +119,7 @@ test('the migration converts secretbox-era letters, notes, files, and envelopes,
 		crypto.legacy.decrypt(legacyRow.ciphertext, legacyRow.nonce, legacyKey).toString(),
 		'From the old days'
 	);
-	await migrator.up({ to: MIGRATION });
+	await migration.up({ context });
 	assert.equal(
 		(await get('/messaging/message?id=' + messageId, alice)).body.data.messageText,
 		'From the old days'

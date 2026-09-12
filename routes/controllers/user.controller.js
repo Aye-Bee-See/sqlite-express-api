@@ -9,6 +9,7 @@ import KeysController from '#rtControllers/keys.controller.js';
 import authService from '#rtServices/auth.services.js';
 import RevokedToken from '#models/revoked-token.model.js';
 import { KEY_COLUMNS, KEY_INPUT } from '#models/user.model.js';
+import { retentionMaxDays } from '#constants';
 import * as crypto from '#services/crypto.js';
 import Chapter from '#models/chapter.model.js';
 
@@ -237,6 +238,21 @@ export default class UserController extends RouteController {
 				return next(AuthzService.forbidden('Only an admin can change ' + field + '.'));
 			}
 		}
+		if (newUser.retentionDays !== undefined && newUser.retentionDays !== null) {
+			const days = Number(newUser.retentionDays);
+			if (!Number.isInteger(days) || days < 0) {
+				return next(
+					new ValidationError('retentionDays must be a whole number of days (0 keeps forever).')
+				);
+			}
+			if (retentionMaxDays !== null && (days === 0 || days > retentionMaxDays)) {
+				return next(
+					new ValidationError(
+						'retentionDays cannot exceed the site maximum of ' + retentionMaxDays + ' days.'
+					)
+				);
+			}
+		}
 		if (newUser.sessionsRevokedAt !== undefined) {
 			// Server-controlled: set through logout, POST /auth/revoke, or a password change.
 			return next(
@@ -284,7 +300,15 @@ export default class UserController extends RouteController {
 				}
 				// A managing group may also prepare an unclaimed writer for end-to-end
 				// mode: set the keypair it generated (public key once, its sealed copy).
-				const allowed = ['id', 'name', 'email', 'managerNote', 'publicKey', 'orgWrappedPrivateKey'];
+				const allowed = [
+					'id',
+					'name',
+					'email',
+					'managerNote',
+					'retentionDays',
+					'publicKey',
+					'orgWrappedPrivateKey'
+				];
 				if (newUser.publicKey !== undefined) {
 					if (!crypto.isPublicKey(newUser.publicKey)) {
 						return next(
@@ -311,7 +335,7 @@ export default class UserController extends RouteController {
 				if (extra.length > 0) {
 					return next(
 						AuthzService.forbidden(
-							'A managing chapter may only change name, email, and managerNote (not ' +
+							'A managing chapter may only change name, email, managerNote, and retentionDays (not ' +
 								extra.join(', ') +
 								').'
 						)

@@ -130,7 +130,8 @@ const endpoints = {
 	message: {
 		get: {
 			many: '/messages',
-			one: '/message'
+			one: '/message',
+			retention: '/retention'
 		},
 		post: {
 			create: '/message',
@@ -569,6 +570,10 @@ const messages = {
 			getAttachment: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading attachment.' } }
+			},
+			retention: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading retention settings.' } }
 			}
 		},
 		post: {

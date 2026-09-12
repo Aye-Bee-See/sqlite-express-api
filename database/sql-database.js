@@ -6,6 +6,7 @@ import { runMigrations } from './migrate.js';
 import { createSeeds } from './seeds/all.seeds.js';
 import { ensureAdmin } from './bootstrap-admin.js';
 import * as crypto from '#services/crypto.js';
+import { runRetention } from './retention.js';
 
 /**
  * Model initialisation and boot-time database setup.
@@ -57,6 +58,8 @@ RevokedToken.associate(Models);
 
 /** How often expired revocations are cleared while the server runs. */
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+/** How often the retention purge runs while the server runs. */
+const RETENTION_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;
@@ -97,6 +100,11 @@ export const ready = (async () => {
 			);
 		}
 	}
+	await runRetention({ log });
+	setInterval(
+		() => runRetention({ log }).catch((err) => console.error('[retention] run failed', err)),
+		RETENTION_INTERVAL_MS
+	).unref();
 	log('Database ready.');
 })().catch((err) => {
 	console.error('Database setup failed:', err);

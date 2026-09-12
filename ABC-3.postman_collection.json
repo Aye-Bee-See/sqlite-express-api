@@ -501,6 +501,29 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Set My Retention Window (days; 0 = forever, null = default)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/user",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "user"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"{{userId}}\",\n    \"retentionDays\": 30\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -1741,6 +1764,43 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"message\": 1,\n    \"readerType\": \"chapter\",\n    \"readerId\": 2,\n    \"wrappedKey\": \"<content key sealed to the partner>\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Retention Rules For Me",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/retention",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "retention"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Pin A Mailed Letter (keep)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/message",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "message"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"keep\": true\n}",
 							"options": {
 								"raw": {
 									"language": "json"

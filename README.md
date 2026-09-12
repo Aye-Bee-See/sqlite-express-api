@@ -119,15 +119,19 @@ Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and 
 
 Letters are never stored in the clear. Each message gets its own random content key; the body, the relay note, and every attachment file are encrypted with it (XChaCha20-Poly1305), and the content key is stored wrapped, once per reader, in the `LetterKeys` table.
 
-Today the API runs in `server` mode: the only reader is the server, and the content keys are wrapped with `ENCRYPTION_KEY`. The API therefore decrypts letters for authorised callers, and the request and response shapes are exactly what this document describes (`messageText`, `relayNote`, plain file downloads). What this protects against is a copied database file or upload directory: without the key they hold ciphertext only. It does not protect against someone with the running server and its key.
+There are two modes, chosen by `ENCRYPTION_MODE`:
 
-The storage shape is the one the browser-side design (`e2e` mode) uses. Moving to it later means giving readers public keys and re-wrapping each content key to them; letter bodies are never re-encrypted. Until then `ENCRYPTION_MODE=e2e` is refused at boot.
+- **`server`** (the default): the only reader is the server, and the content keys are wrapped with `ENCRYPTION_KEY`. The API decrypts letters for authorised callers, and the request and response shapes are exactly what this document describes (`messageText`, `relayNote`, plain file downloads). This protects a copied database file or upload directory, which hold ciphertext only. It does not protect against someone with the running server and its key.
+- **`e2e`**: readers hold the keys. Every account and every group has an X25519 keypair; the browser encrypts each letter with a fresh content key and seals that key to each reader's public key (the _envelopes_). The server stores ciphertext and envelopes, returns each caller the envelopes they can open, and never sees a password-derived key, a recovery code, or an unwrapped private key. `messageText` and `relayNote` are always `null`; clients send and receive `ciphertext` and `nonce` instead, and attachment files travel as ciphertext. See [End-to-end mode](#end-to-end-mode).
+
+The storage shape is the same in both modes, so switching is a re-wrap of content keys, never a re-encryption of letters. The step-by-step procedure, with its checks and its rollback limits, is in [docs/E2E-MIGRATION.md](docs/E2E-MIGRATION.md). In short: once readers have public keys, `npm run encryption:rewrap` seals every server-held content key to its readers (writer, relay group, managing group), reports letters whose readers still lack keys, and with `--drop-server-keys` removes the server envelopes it no longer needs. Then set `ENCRYPTION_MODE=e2e` and restart; boot warns while any server envelope remains.
 
 Operational rules:
 
 - Generate the key once with `npm run keygen`, put it in `.env`, and back it up somewhere other than the server. Migrations, seeds, and the first boot all need it.
 - Every server envelope records a fingerprint of the key that wrapped it. A letter wrapped under a different key is refused with a `500` and `"name": "EncryptionKeyError"` rather than served as garbage.
-- Key rotation (re-wrapping the envelopes under a new key) is not scripted yet.
+- Key rotation (re-wrapping the server envelopes under a new key) is not scripted yet.
+- In `e2e` mode the plaintext seed letters are skipped, since only a browser can encrypt.
 
 Schema changes ship as migrations and are applied automatically on boot, so pulling a new version and starting the server upgrades an existing database in place. A database created before migrations existed is adopted on first boot (you will see `Existing database adopted` once).
 
@@ -515,20 +519,29 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 ### Users
 
-| Method | Path                 | Auth          | Purpose                                                                        |
-| ------ | -------------------- | ------------- | ------------------------------------------------------------------------------ |
-| POST   | `/auth/user`         | Public        | Register (role `user`); admins may set other roles                             |
-| POST   | `/auth/login`        | Public        | Log in and receive a token                                                     |
-| GET    | `/auth/users`        | Admin         | List users, optionally by role                                                 |
-| GET    | `/auth/user`         | Self or admin | Get one user by id, email, or username; a group may read its unclaimed writers |
-| PUT    | `/auth/user`         | Self or admin | Update a user; a group may edit its unclaimed writers' name, email, note       |
-| DELETE | `/auth/user`         | Self or admin | Delete a user; a group may delete its unclaimed writers                        |
-| POST   | `/auth/writer`       | Group         | Create a managed writer under the caller's group                               |
-| GET    | `/auth/writers`      | Group         | List the group's managed writers (admins: all, or `?chapter=`)                 |
-| POST   | `/auth/writer/token` | Group         | Generate or regenerate a writer's claim token                                  |
-| DELETE | `/auth/writer/token` | Group         | Revoke a writer's claim token                                                  |
-| GET    | `/auth/claim`        | Public        | Check a claim token                                                            |
-| POST   | `/auth/claim`        | Public        | Claim a managed account                                                        |
+| Method | Path                 | Auth                  | Purpose                                                                                       |
+| ------ | -------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| POST   | `/auth/user`         | Public                | Register (role `user`); admins may set other roles                                            |
+| POST   | `/auth/login`        | Public                | Log in and receive a token                                                                    |
+| GET    | `/auth/users`        | Admin                 | List users, optionally by role                                                                |
+| GET    | `/auth/user`         | Self or admin         | Get one user by id, email, or username; a group may read its unclaimed writers                |
+| PUT    | `/auth/user`         | Self or admin         | Update a user; a group may edit its unclaimed writers' name, email, note                      |
+| DELETE | `/auth/user`         | Self or admin         | Delete a user; a group may delete its unclaimed writers                                       |
+| POST   | `/auth/writer`       | Group                 | Create a managed writer under the caller's group                                              |
+| GET    | `/auth/writers`      | Group                 | List the group's managed writers (admins: all, or `?chapter=`)                                |
+| POST   | `/auth/writer/token` | Group                 | Generate or regenerate a writer's claim token                                                 |
+| DELETE | `/auth/writer/token` | Group                 | Revoke a writer's claim token                                                                 |
+| GET    | `/auth/claim`        | Public                | Check a claim token                                                                           |
+| POST   | `/auth/claim`        | Public                | Claim a managed account                                                                       |
+| GET    | `/auth/keys`         | Any                   | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
+| PUT    | `/auth/keys`         | Any                   | Set the public key once; re-wrap the private key (password change, recovery code)             |
+| GET    | `/auth/public-key`   | Any                   | A user's or group's public key, to seal an envelope to                                        |
+| GET    | `/auth/recover`      | Public                | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
+| POST   | `/auth/recover`      | Public                | Finish recovery with the opened challenge and a re-wrapped key                                |
+| PUT    | `/auth/chapter-keys` | Group member or admin | Give a group its keypair (once) and the first member the wrapped group key                    |
+| PUT    | `/auth/member-key`   | Key holder or admin   | Hand the wrapped group key to a member                                                        |
+| DELETE | `/auth/member-key`   | Key holder or admin   | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
+| GET    | `/auth/member-keys`  | Group member or admin | Which members hold the group key                                                              |
 
 #### User fields
 
@@ -760,6 +773,56 @@ An unknown or revoked token is a `404`; a used or expired one is a `410`, and `i
 #### POST /auth/claim
 
 Public. Body: `{"token": "…", "username": "sam", "password": "longenough", "email": "sam@example.com"}`. `username` and `password` follow the [user field rules](#user-fields); `email` is optional and replaces a placeholder address. On success (`201`) the account is independent: `managedBy` is `null`, `claimedAt` and `claimedFrom` are set, the token is marked used, and the writer can log in. Validation failures (a short password, a taken username) leave the token usable.
+
+### End-to-end mode
+
+Everything in this section applies only when `ENCRYPTION_MODE=e2e`. The primitives are libsodium's: X25519 keypairs, sealed boxes for envelopes and wrapped keys, XChaCha20-Poly1305 for bodies and files. The server never runs a key derivation; the client chooses one (the design recommends Argon2id) and stores its salt and parameters beside each wrapped key as opaque `kdfSalt` / `kdfParams`.
+
+#### Account keys
+
+Register with the key fields (`publicKey`, `wrappedPrivateKey`, `kdfSalt`, `kdfParams`, `recoveryWrappedPrivateKey`, `recoverySalt`, `recoveryKdfParams`) or set them afterwards with `PUT /auth/keys`. The public key can be set once and never changes; every envelope is sealed to it. Login returns the caller's key bundle under `keys`, and `GET /auth/keys` returns it again:
+
+```json
+{
+	"publicKey": "…",
+	"wrappedPrivateKey": "…",
+	"kdfSalt": "…",
+	"kdfParams": { "kdf": "argon2id", "opslimit": 2, "memlimit": 67108864 },
+	"hasRecovery": true,
+	"orgKey": {
+		"chapterId": 1,
+		"chapterName": "Portland ABC",
+		"chapterPublicKey": "…",
+		"wrappedOrgPrivateKey": "…"
+	}
+}
+```
+
+User records never carry wrapped keys; only `publicKey` is visible, and `GET /auth/public-key?user=` or `?chapter=` fetches one to seal to. `PUT /auth/user` refuses key fields (use `PUT /auth/keys`), and in e2e mode a password change through it must carry `wrappedPrivateKey`, `kdfSalt`, and `kdfParams` re-wrapped under the new password; an admin cannot reset the password of an account that has keys (recovery is the path).
+
+#### Group keys
+
+A group's first member calls `PUT /auth/chapter-keys` with the group's new `publicKey` and the group private key sealed to their own public key (`wrappedOrgPrivateKey`); an admin may do it naming the member with `user`. From then on any member holding the group key hands it to another member with `PUT /auth/member-key` (sealing it to that member's public key). `DELETE /auth/member-key` stops the hand-out but cannot revoke a key a member already opened, and the last holder cannot be removed; both need group key rotation, which is not built yet. The first member must already have a public key of their own. `GET /auth/member-keys?chapter=` lists who holds it. A member reads letters addressed to the group by opening `orgKey.wrappedOrgPrivateKey` from their bundle, then the group's envelope.
+
+#### Sending and reading letters
+
+`POST /messaging/message` takes `ciphertext`, `nonce`, optional `relayNoteCiphertext` and `relayNoteNonce`, and `envelopes`. The server checks the readers: the writer (always required, except for a group's anonymous writer), the relay group (required when the letter has one), the group managing the writer, and any active relay group of the facility. Anything else is a `400`. `messageText` is refused.
+
+Ciphertext and nonce always travel as a pair, for the body and for the relay note. In e2e mode a letter's `user`, `prisoner`, and `relayChapter` cannot change after sending, because the envelopes fix its readers; forward instead. Every read returns `ciphertext`, `nonce`, and `envelopes` filtered to the caller: a writer gets their own; a group member gets the group's, plus the envelopes of unclaimed writers the group manages (it holds their sealed keys); admins get them all but can open none. `last_message` on chat rows carries the same, and a thread's embedded messages are limited to the ones the caller holds an envelope for (a group that was forwarded one letter does not receive the rest of the thread's ciphertext). Editing a queued letter means sending new `ciphertext` and `nonce` under the same content key.
+
+`POST /messaging/envelope { message, readerType, readerId, wrappedKey }` lets a current reader forward the letter to one more permitted reader, typically a partner relay group: `201`, `400` for a reader the letter may not have, `403` for a caller without an envelope, `409` if that reader already has one. In server mode this endpoint is a `409`.
+
+#### Attachments
+
+Encrypt the file with the letter's content key and upload the ciphertext with a `nonce` form field; the declared type describes the plaintext and is not sniffed. Downloads return the ciphertext as `application/octet-stream` with an `X-Encrypted: e2e` header, and every attachment row carries its `nonce`.
+
+#### Managed writers and claiming
+
+The group's browser generates the writer's keypair: `POST /auth/writer` requires `publicKey` and `orgWrappedPrivateKey` (the private key sealed to the group), and `GET /auth/writers` returns `orgWrappedPrivateKey` to the managing group so it can read and print for the writer. The browser also makes the claim token: `POST /auth/writer/token` takes `tokenHash` (SHA-256 hex of the upper-cased token), `claimWrappedPrivateKey`, `claimSalt`, and `claimKdfParams`; the response has no token, because the server never learns it. `GET /auth/claim?token=` returns that material with the writer's `publicKey`, and `POST /auth/claim` requires the private key re-wrapped under the new password and a recovery code. Claiming clears the group's sealed copy; the group keeps the envelopes it already holds on letters it relayed.
+
+#### Recovery
+
+`GET /auth/recover?username=` returns the recovery-wrapped private key and a random challenge sealed to the account's public key, valid ten minutes and single use. The browser unwraps the key with the recovery code, opens the challenge, and calls `POST /auth/recover` with `username`, the opened `challenge` (base64), the new `password`, and the private key re-wrapped under it (optionally a new recovery pair). A wrong or stale challenge is a `401`. Only the holder of the recovery code can complete this; the server learns nothing.
 
 ### Prisons
 
@@ -1355,17 +1418,20 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 
 #### Message fields
 
-| Field                                | Type    | Notes                                                                                                                                                                                                                    |
-| ------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `chat`                               | integer | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                                                                                                                                              |
-| `messageText`                        | string  | The letter body. Stored encrypted; see [Encryption](#encryption).                                                                                                                                                        |
-| `sender`                             | string  | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.                                                                                                                                       |
-| `user`                               | integer | Id of the user side. A `user`-role caller's own id is used regardless of body. A `chapter` account may name one of its group's managed writers, or omit it to send as the group's anonymous writer. Required for admins. |
-| `status`                             | string  | Read-only here; see [Letter lifecycle](#letter-lifecycle). Change it with `PUT /messaging/status`.                                                                                                                       |
-| `relayChapter`                       | integer | Group that prints and mails the letter. Optional; resolved from the facility's relay groups when omitted, validated against them when given.                                                                             |
-| `relayNote`                          | string  | Optional instructions for the relay group (page count, language, "include the photo"). Never part of the letter.                                                                                                         |
-| `statusChangedAt`, `statusChangedBy` |         | Read-only. When the status last changed and which account changed it.                                                                                                                                                    |
-| `prisoner`                           | integer | Required. Id of the prisoner side.                                                                                                                                                                                       |
+| Field                                   | Type     | Notes                                                                                                                                                                                                                    |
+| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `chat`                                  | integer  | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                                                                                                                                              |
+| `messageText`                           | string   | The letter body. Stored encrypted; see [Encryption](#encryption).                                                                                                                                                        |
+| `ciphertext`, `nonce`                   | string   | End-to-end mode only: the encrypted body and its nonce (base64), sent by the client and returned on every read.                                                                                                          |
+| `relayNoteCiphertext`, `relayNoteNonce` | string   | End-to-end mode only: the relay note, encrypted with the same content key.                                                                                                                                               |
+| `envelopes`                             | object[] | End-to-end mode only. On create: `[{ readerType, readerId, wrappedKey }]`, the letter's content key sealed to each reader. On reads: the envelopes this caller can open.                                                 |
+| `sender`                                | string   | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.                                                                                                                                       |
+| `user`                                  | integer  | Id of the user side. A `user`-role caller's own id is used regardless of body. A `chapter` account may name one of its group's managed writers, or omit it to send as the group's anonymous writer. Required for admins. |
+| `status`                                | string   | Read-only here; see [Letter lifecycle](#letter-lifecycle). Change it with `PUT /messaging/status`.                                                                                                                       |
+| `relayChapter`                          | integer  | Group that prints and mails the letter. Optional; resolved from the facility's relay groups when omitted, validated against them when given.                                                                             |
+| `relayNote`                             | string   | Optional instructions for the relay group (page count, language, "include the photo"). Never part of the letter.                                                                                                         |
+| `statusChangedAt`, `statusChangedBy`    |          | Read-only. When the status last changed and which account changed it.                                                                                                                                                    |
+| `prisoner`                              | integer  | Required. Id of the prisoner side.                                                                                                                                                                                       |
 
 #### POST /messaging/message
 
@@ -1747,4 +1813,5 @@ Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest
 ## Further reading
 
 - [Developer guide](docs/DEVELOPER.md): architecture, request lifecycle, data model, authorization internals, tooling, and how to add a resource.
+- [Switching to end-to-end encryption](docs/E2E-MIGRATION.md): the operator checklist for moving from `server` to `e2e` mode.
 - [GitHub repository](https://github.com/Aye-Bee-See/sqlite-express-api)

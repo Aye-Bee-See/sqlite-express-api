@@ -15,7 +15,10 @@ export default class Attachment extends Model {
 			sequelize,
 			modelName: 'Attachment',
 			tableName: 'Attachments',
-			defaultScope: { attributes: { exclude: ['storedName', 'nonce'] } },
+			// Clients need the nonce only when they decrypt the file themselves.
+			defaultScope: {
+				attributes: { exclude: crypto.isE2E() ? ['storedName'] : ['storedName', 'nonce'] }
+			},
 			scopes: { withStoredName: {} }
 		});
 	}
@@ -40,10 +43,23 @@ export default class Attachment extends Model {
 	 * @param {{message: number, buffer: Buffer, mimeType: string, originalName?: string, uploadedBy?: number|null}} file
 	 * @returns {Promise<Attachment>} the row without storedName
 	 */
-	static async attach({ message, buffer, mimeType, originalName, uploadedBy = null }) {
-		const key = await LetterKey.contentKeyFor(message);
-		const { ciphertext, nonce } = crypto.encrypt(buffer, key);
-		const storedName = await storeFile(Buffer.from(crypto.decode(ciphertext)), mimeType);
+	static async attach({
+		message,
+		buffer,
+		mimeType,
+		originalName,
+		uploadedBy = null,
+		nonce: given
+	}) {
+		let bytes = buffer;
+		let nonce = given || null;
+		if (!crypto.isE2E()) {
+			const key = await LetterKey.contentKeyFor(message);
+			const encrypted = crypto.encrypt(buffer, key);
+			bytes = Buffer.from(crypto.decode(encrypted.ciphertext));
+			nonce = encrypted.nonce;
+		}
+		const storedName = await storeFile(bytes, mimeType);
 		try {
 			const row = await this.create({
 				message,
@@ -75,6 +91,10 @@ export default class Attachment extends Model {
 				return null;
 			}
 			throw err;
+		}
+		if (crypto.isE2E()) {
+			// Ciphertext in, ciphertext out; the browser holds the content key.
+			return stored;
 		}
 		const key = await LetterKey.contentKeyFor(row.message);
 		return crypto.decrypt(crypto.encode(stored), row.nonce, key);

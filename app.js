@@ -11,6 +11,7 @@ import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
 import ChapterRoutes from '#routes/chapter/chapter.js';
 import ModerationRoutes from '#routes/moderation/moderation.js';
+import KeysRoutes from '#routes/keys/keys.js';
 import ErrorService from '#rtServices/error.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
 import { NotFoundError } from '#services/HttpError.js';
@@ -53,6 +54,7 @@ export function createApp() {
 	});
 
 	app.use('/auth', authRouter.Router);
+	app.use('/auth', KeysRoutes.Router);
 	app.use('/prison', prisonRoutes.Router);
 	app.use('/prisoner', PrisonerRoutes.Router);
 	app.use('/rule', RuleRoutes.Router);

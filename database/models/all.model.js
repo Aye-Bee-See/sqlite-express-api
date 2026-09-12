@@ -12,6 +12,7 @@ import Attachment from '#models/attachment.model.js';
 import LetterKey from '#models/letter-key.model.js';
 import Submission from '#models/submission.model.js';
 import AuditLog from '#models/audit-log.model.js';
+import OrgMemberKey from '#models/org-member-key.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -69,6 +70,7 @@ export {
 	LetterKey,
 	Message,
 	MessageStatus,
+	OrgMemberKey,
 	Prison,
 	Prisoner,
 	PrisonerSupport,

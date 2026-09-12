@@ -1,0 +1,39 @@
+import express from 'express';
+import { default as passport } from 'passport';
+import { keysEnd } from '#routes/constants.js';
+import { default as keysCtrlr } from '#rtControllers/keys.controller.js';
+
+/** Key material routes, mounted under /auth beside the user routes. */
+class KeysRoutes {
+	static Router;
+	static #Controller;
+
+	static {
+		this.#Controller = new keysCtrlr();
+		this.Router = express.Router();
+		this.#router();
+	}
+
+	static #router() {
+		const authenticate = passport.authenticate('UsrJStrat', {
+			session: false,
+			failWithError: true
+		});
+
+		this.Router.get(keysEnd.get.one, authenticate, this.#Controller.getOne);
+		this.Router.put(keysEnd.put.update, authenticate, this.#Controller.update);
+		this.Router.get(keysEnd.get.publicKey, authenticate, this.#Controller.publicKey);
+
+		// Recovery is public: the recovery code is the credential.
+		this.Router.get(keysEnd.get.recoverChallenge, this.#Controller.recoverChallenge);
+		this.Router.post(keysEnd.post.create, this.#Controller.create);
+
+		// Group keys
+		this.Router.put(keysEnd.put.chapterKeys, authenticate, this.#Controller.chapterKeys);
+		this.Router.put(keysEnd.put.putMemberKey, authenticate, this.#Controller.putMemberKey);
+		this.Router.delete(keysEnd.delete.remove, authenticate, this.#Controller.remove);
+		this.Router.get(keysEnd.get.many, authenticate, this.#Controller.getMany);
+	}
+}
+
+export default KeysRoutes;

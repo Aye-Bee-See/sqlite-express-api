@@ -2,6 +2,8 @@ import { Op, literal } from 'sequelize';
 import AuthzService from '#rtServices/authz.services.js';
 import User from '#models/user.model.js';
 import Message from '#models/message.model.js';
+import LetterKey from '#models/letter-key.model.js';
+import * as crypto from '#services/crypto.js';
 
 /**
  * Which chats and messages a caller may see and act on.
@@ -19,7 +21,7 @@ import Message from '#models/message.model.js';
  * @property {object} messageWhere  where-clause fragment for Message queries; spread it LAST
  * @property {(userId: number|string) => boolean} allowsUser  may the caller act as / list this writer?
  * @property {(record: {user: number}) => Promise<boolean>} allows  may the caller see this chat?
- * @property {(record: {user: number, relayChapter?: number}) => boolean} allowsMessage
+ * @property {(record: {user: number, relayChapter?: number}) => Promise<boolean>} allowsMessage
  * @property {number[]} [writerIds]  managed scope only
  * @property {number|null} [chapterId] managed scope only (null when the group is not active)
  * @property {() => Error} deny  the 403 to throw when a record is out of scope: for an
@@ -31,8 +33,23 @@ function relayedChatIds(chapterId) {
 	return literal(
 		'(SELECT DISTINCT `chat` FROM `Messages` WHERE `Messages`.`relayChapter` = ' +
 			Number(chapterId) +
+			(crypto.isE2E() ? ' OR `Messages`.`id` IN ' + envelopedMessageIdsSql(chapterId) : '') +
 			')'
 	);
+}
+
+/** e2e: SQL for the ids of letters the group holds an envelope for. */
+function envelopedMessageIdsSql(chapterId) {
+	return (
+		"(SELECT `message` FROM `LetterKeys` WHERE `readerType` = 'chapter' AND `readerId` = " +
+		Number(chapterId) +
+		')'
+	);
+}
+
+/** e2e: letters the group holds an envelope for (a partner forwarded them). */
+function envelopedMessageIds(chapterId) {
+	return literal(envelopedMessageIdsSql(chapterId));
 }
 
 /**
@@ -47,7 +64,7 @@ export async function threadScope(req) {
 			messageWhere: {},
 			allowsUser: () => true,
 			allows: async () => true,
-			allowsMessage: () => true,
+			allowsMessage: async () => true,
 			deny: () => AuthzService.forbidden()
 		};
 	}
@@ -64,7 +81,13 @@ export async function threadScope(req) {
 			where: {
 				[Op.or]: [{ user: userIn }, { id: { [Op.in]: relayedChatIds(chapterId || -1) } }]
 			},
-			messageWhere: { [Op.or]: [{ user: userIn }, { relayChapter: chapterId || -1 }] },
+			messageWhere: {
+				[Op.or]: [
+					{ user: userIn },
+					{ relayChapter: chapterId || -1 },
+					...(crypto.isE2E() ? [{ id: { [Op.in]: envelopedMessageIds(chapterId || -1) } }] : [])
+				]
+			},
 			allowsUser: (userId) => allowed.has(String(userId)),
 			allows: async (chat) => {
 				if (!chat) {
@@ -77,14 +100,35 @@ export async function threadScope(req) {
 					return false;
 				}
 				const relayed = await Message.count({
-					where: { chat: chat.id, relayChapter: chapterId }
+					where: {
+						chat: chat.id,
+						[Op.or]: [
+							{ relayChapter: chapterId },
+							...(crypto.isE2E() ? [{ id: { [Op.in]: envelopedMessageIds(chapterId) } }] : [])
+						]
+					}
 				});
 				return relayed > 0;
 			},
-			allowsMessage: (message) =>
-				Boolean(message) &&
-				(allowed.has(String(message.user)) ||
-					(Boolean(chapterId) && message.relayChapter === chapterId)),
+			allowsMessage: async (message) => {
+				if (!message) {
+					return false;
+				}
+				if (
+					allowed.has(String(message.user)) ||
+					(Boolean(chapterId) && message.relayChapter === chapterId)
+				) {
+					return true;
+				}
+				if (!crypto.isE2E() || !chapterId) {
+					return false;
+				}
+				return (
+					(await LetterKey.count({
+						where: { message: message.id, readerType: 'chapter', readerId: chapterId }
+					})) > 0
+				);
+			},
 			deny: () => refusal || AuthzService.forbidden()
 		};
 	}
@@ -96,7 +140,7 @@ export async function threadScope(req) {
 		messageWhere: { user: req.user.id },
 		allowsUser: (userId) => String(userId) === self,
 		allows: async (chat) => isSelf(chat),
-		allowsMessage: isSelf,
+		allowsMessage: async (message) => isSelf(message),
 		deny: () => AuthzService.forbidden()
 	};
 }

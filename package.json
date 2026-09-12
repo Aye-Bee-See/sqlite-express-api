@@ -16,6 +16,7 @@
 		"migrate:status": "node database/migrate.js pending && node database/migrate.js executed",
 		"migrate:create": "node database/migrate.js create",
 		"keygen": "node services/keygen.js",
+		"encryption:rewrap": "node database/rewrap-e2e.js",
 		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
 		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",
 		"pre-commit": "lint-staged",

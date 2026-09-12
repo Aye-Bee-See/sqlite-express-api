@@ -2,6 +2,7 @@ import Chat from '#models/chat.model.js';
 import { initialStatusFor } from '#db/letter-status.js';
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
+import ValidationError from '#services/ValidationError.js';
 
 /** Content keys of instances being created, until afterCreate stores the envelope. */
 const pendingKeys = new WeakMap();
@@ -40,6 +41,13 @@ export default {
 	 * kept until afterCreate has the row id to attach the server envelope to.
 	 */
 	beforeCreate: (instance) => {
+		if (crypto.isE2E()) {
+			// The browser encrypted the body; the server stores what it was given.
+			if (!instance.getDataValue('ciphertext') || !instance.getDataValue('nonce')) {
+				throw new ValidationError('End-to-end mode: send ciphertext and nonce, not messageText.');
+			}
+			return;
+		}
 		const key = crypto.generateContentKey();
 		pendingKeys.set(instance, key);
 		const columns = LetterKey.encryptFields(key, {
@@ -56,6 +64,10 @@ export default {
 		pendingKeys.delete(instance);
 		if (key) {
 			await LetterKey.issueServerKey(instance.id, key);
+		}
+		if (crypto.isE2E()) {
+			instance.setDataValue('messageText', null);
+			instance.setDataValue('relayNote', null);
 		}
 		LetterKey.stripCipher(instance);
 	},

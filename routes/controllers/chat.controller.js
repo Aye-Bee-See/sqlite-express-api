@@ -3,6 +3,8 @@ import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import { HttpError } from '#services/HttpError.js';
+import LetterKey from '#models/letter-key.model.js';
+import * as crypto from '#services/crypto.js';
 
 /**
  * Chat controller.
@@ -47,6 +49,46 @@ export default class ChatController extends RouteController {
 	}
 
 	/**
+	 * e2e: attach the caller's envelopes to embedded and latest messages, and
+	 * hide ciphertext the caller holds no envelope for (a group that was
+	 * forwarded one letter must not receive the rest of the thread).
+	 */
+	async #e2eEnvelopes(chats, req, scope) {
+		if (!crypto.isE2E() || chats.length === 0) {
+			return;
+		}
+		const reader = {
+			userId: req.user.id,
+			chapterId: scope.chapterId || null,
+			writerIds: scope.writerIds || [],
+			all: scope.kind === 'all'
+		};
+		const embedded = chats.flatMap((c) => c.messages || []);
+		const last = chats.map((c) => c.getDataValue('last_message')).filter(Boolean);
+		const ids = [...embedded.map((m) => m.id), ...last.map((m) => m.id)];
+		const map = await LetterKey.envelopeMap(ids, reader);
+		for (const chat of chats) {
+			if (chat.messages) {
+				const readable = chat.messages.filter(
+					(m) => reader.all || (map.get(m.id) || []).length > 0
+				);
+				for (const m of readable) {
+					m.setDataValue('envelopes', map.get(m.id) || []);
+				}
+				chat.setDataValue('messages', readable);
+			}
+		}
+		for (const m of last) {
+			m.envelopes = map.get(m.id) || [];
+			if (!reader.all && m.envelopes.length === 0) {
+				for (const field of ['ciphertext', 'nonce', 'relayNoteCiphertext', 'relayNoteNonce']) {
+					m[field] = null;
+				}
+			}
+		}
+	}
+
+	/**
 	 * List chats within the caller's scope. Filters: user (always the caller
 	 * for user-role accounts; narrowed to the scope for chapters), prisoner,
 	 * or both; none lists everything in scope.
@@ -71,6 +113,7 @@ export default class ChatController extends RouteController {
 				chats = await Chat.readAllChats(fullBool, limit, offset, scope.where);
 			}
 			await Chat.attachLastMessages(chats.rows);
+			await this.#e2eEnvelopes(chats.rows, req, scope);
 			this.handlePage(res, chats, limits);
 		} catch (err) {
 			if (err && err.status === 403) {
@@ -110,7 +153,9 @@ export default class ChatController extends RouteController {
 				condition = 'empty';
 				throw new HttpError(400, 'Provide either id, or both user and prisoner.');
 			}
-			this.#handleSuccess(res, this.requireFound(chat, 'Chat'));
+			this.requireFound(chat, 'Chat');
+			await this.#e2eEnvelopes([chat], req, scope);
+			this.#handleSuccess(res, chat);
 		} catch (err) {
 			if (err && err.status === 403) {
 				return next(err);

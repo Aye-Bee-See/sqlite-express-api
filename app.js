@@ -2,7 +2,7 @@ import express from 'express';
 import passport from 'passport';
 import { default as bodyParser } from 'body-parser';
 import cors from 'cors';
-import { corsOrigins } from '#constants';
+import { encryptionMode, corsOrigins } from '#constants';
 import { default as authRouter } from '#routes/user/user.js';
 import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
@@ -50,7 +50,10 @@ export function createApp() {
 		databaseReady = true;
 	});
 	app.get('/health', (req, res) => {
-		res.status(databaseReady ? 200 : 503).json({ status: databaseReady ? 'ok' : 'starting' });
+		// encryptionMode lets a client refuse to post plaintext to an e2e server.
+		res
+			.status(databaseReady ? 200 : 503)
+			.json({ status: databaseReady ? 'ok' : 'starting', encryptionMode });
 	});
 
 	app.use('/auth', authRouter.Router);

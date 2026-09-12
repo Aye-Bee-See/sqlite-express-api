@@ -287,6 +287,12 @@ export default class UserController extends RouteController {
 								'End-to-end mode: send wrappedPrivateKey, kdfSalt, and kdfParams re-wrapped under the new password.'
 							);
 						}
+						// Same shape rules as PUT /auth/keys, so a re-wrap cannot store unusable metadata.
+						KeysController.keyFields({
+							wrappedPrivateKey: newUser.wrappedPrivateKey,
+							kdfSalt: newUser.kdfSalt,
+							kdfParams: newUser.kdfParams
+						});
 					}
 				} else if (keyFields.length > 0) {
 					throw new ValidationError('Set keys through PUT /auth/keys, not here.');
@@ -526,8 +532,8 @@ export default class UserController extends RouteController {
 						throw new ValidationError('End-to-end mode: ' + field + ' is required.');
 					}
 				}
-				if (!claimKdfParams || typeof claimKdfParams !== 'object') {
-					throw new ValidationError('End-to-end mode: claimKdfParams must be an object.');
+				if (!crypto.isKdfParams(claimKdfParams)) {
+					throw new ValidationError('End-to-end mode: claimKdfParams ' + crypto.KDF_PARAMS_HINT);
 				}
 				const { expiresAt } = await ClaimToken.issueFromClient(
 					writer.id,

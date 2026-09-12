@@ -173,6 +173,26 @@ export const legacy = {
 	}
 };
 
+/**
+ * The agreed shape for key-derivation parameters stored beside a wrapped
+ * key: an object naming the KDF, e.g.
+ * { "kdf": "argon2id", "alg": 2, "opslimit": 2, "memlimit": 67108864 }.
+ * The server never derives keys; it only checks the shape so two clients
+ * cannot write something the other cannot read.
+ */
+export function isKdfParams(value) {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		!Array.isArray(value) &&
+		typeof value.kdf === 'string' &&
+		value.kdf.trim() !== ''
+	);
+}
+
+export const KDF_PARAMS_HINT =
+	'must be an object naming the KDF, e.g. { "kdf": "argon2id", "alg": 2, "opslimit": 2, "memlimit": 67108864 }.';
+
 /** Is this a plausible base64 X25519 public key? */
 export function isPublicKey(value) {
 	try {

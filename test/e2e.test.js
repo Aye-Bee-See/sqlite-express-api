@@ -67,6 +67,34 @@ after(stopServer);
 
 // ---- account keys ----------------------------------------------------------
 
+test('health announces the encryption mode', async () => {
+	const res = await get('/health');
+	assert.deepEqual(res.body, { status: 'ok', encryptionMode: 'e2e' });
+});
+
+test('kdfParams must name the KDF, on registration, key updates, and password re-wraps', async () => {
+	const { fields } = client.accountKeys('kdfpass', 'RECOVERY');
+	const bad = await post('/auth/user', {
+		username: 'kdfless',
+		password: 'kdfpass',
+		email: 'k@example.com',
+		...fields,
+		kdfParams: { opslimit: 2 }
+	});
+	assert.equal(bad.status, 400);
+	assert.match(bad.body.errors[0], /kdfParams must be an object naming the KDF/);
+	assert.equal((await put('/auth/keys', { ...fields, recoveryKdfParams: [] }, alice)).status, 400);
+	assert.equal((await put('/auth/keys', { ...fields, kdfParams: { kdf: '' } }, alice)).status, 400);
+	// A password re-wrap through the user update follows the same rule.
+	const rewrap = await put(
+		'/auth/user',
+		{ id: f.alice.id, password: 'alicepass2', wrappedPrivateKey: 'x', kdfSalt: 'y', kdfParams: {} },
+		alice
+	);
+	assert.equal(rewrap.status, 400);
+	assert.match(rewrap.body.errors[0], /kdfParams must be an object naming the KDF/);
+});
+
 test('registration and key bundles', async () => {
 	const { privateKey, fields } = client.accountKeys('carolpass', 'RECOVERY-carol');
 	const reg = await post('/auth/user', {
@@ -449,6 +477,19 @@ test('claiming moves the keypair to the writer; the group loses its copy', async
 	const wrapped = client.wrapPrivateKey(writerKeys.privateKey, token, 'claim');
 	const bad = await post('/auth/writer/token', { writer: writer.id }, member);
 	assert.equal(bad.status, 400);
+	const badKdf = await post(
+		'/auth/writer/token',
+		{
+			writer: writer.id,
+			tokenHash: client.hashToken(token),
+			claimWrappedPrivateKey: wrapped.claimWrappedPrivateKey,
+			claimSalt: wrapped.claimSalt,
+			claimKdfParams: { opslimit: 2 }
+		},
+		member
+	);
+	assert.equal(badKdf.status, 400);
+	assert.match(badKdf.body.errors[0], /claimKdfParams must be an object naming the KDF/);
 	const issued = await post(
 		'/auth/writer/token',
 		{

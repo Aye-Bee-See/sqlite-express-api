@@ -67,8 +67,8 @@ export default class KeysController extends RouteController {
 			}
 		}
 		for (const field of ['kdfParams', 'recoveryKdfParams']) {
-			if (out[field] !== undefined && (typeof out[field] !== 'object' || out[field] === null)) {
-				throw new ValidationError(field + ' must be an object.');
+			if (out[field] !== undefined && !crypto.isKdfParams(out[field])) {
+				throw new ValidationError(field + ' ' + crypto.KDF_PARAMS_HINT);
 			}
 		}
 		const wrapped = ['wrappedPrivateKey', 'kdfSalt', 'kdfParams'];

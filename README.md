@@ -101,7 +101,7 @@ Created admin account "bootadmin" (id 42).
 Database ready.
 ```
 
-The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting"}` until the database is ready and `200 {"status":"ok"}` afterwards; it needs no token.
+The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting","encryptionMode":"server"}` until the database is ready and `200 {"status":"ok","encryptionMode":"server"}` afterwards; it needs no token. `encryptionMode` is `server` or `e2e`, so a client can tell which letter contract to speak before it posts anything.
 
 ### Running the tests
 
@@ -520,7 +520,7 @@ Most read endpoints accept `full=true` to embed related records. The string must
 | Users (list, by id, by role) | `chats`                                                                                                                                                                                                       |
 | Prisons (list, by id)        | `prisoners`, `rules`, `relay_groups`                                                                                                                                                                          |
 | Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`). Without `full`, list rows still carry a small `prison_details` (`id`, `prisonName`, `country`, `routing`) for "Held at" lines |
-| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only                                                                                                                                       |
+| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only. Without `full`, rows carry the same small `prison_details` summary as the main list                                                  |
 | Rules (list, by id)          | `prisons`                                                                                                                                                                                                     |
 | Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons`                                                                                                                            |
 | Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details`                                                                                                                                                                |
@@ -805,7 +805,7 @@ Public. Body: `{"token": "…", "username": "sam", "password": "longenough", "em
 
 ### End-to-end mode
 
-Everything in this section applies only when `ENCRYPTION_MODE=e2e`. The primitives are libsodium's: X25519 keypairs, sealed boxes (`crypto_box_seal`) for envelopes and wrapped keys, XChaCha20-Poly1305 (`crypto_aead_xchacha20poly1305_ietf`, no associated data; not `crypto_secretbox`, which is XSalsa20) for bodies and files. The server never runs a key derivation; the client chooses one (the design recommends Argon2id) and stores its salt and parameters beside each wrapped key as opaque `kdfSalt` / `kdfParams`.
+Everything in this section applies only when `ENCRYPTION_MODE=e2e`. The primitives are libsodium's: X25519 keypairs, sealed boxes (`crypto_box_seal`) for envelopes and wrapped keys, XChaCha20-Poly1305 (`crypto_aead_xchacha20poly1305_ietf`, no associated data; not `crypto_secretbox`, which is XSalsa20) for bodies and files. The server never runs a key derivation; the client chooses one (the design recommends Argon2id) and stores its salt and parameters beside each wrapped key as `kdfSalt` / `kdfParams`. The parameters are opaque to the server except for their shape: an object with a string `kdf` naming the function, otherwise a `400`. The agreed schema, shared by the web and Android clients so an account made on one unlocks on the other, is `{ "kdf": "argon2id", "alg": 2, "opslimit": 2, "memlimit": 67108864 }`: `alg` is libsodium's algorithm id (Argon2id 1.3 is 2) so a future library default cannot silently change how an old key was wrapped, and the costs are stored per account so they can be raised later without touching existing accounts. The same shape applies to `recoveryKdfParams` and `claimKdfParams`.
 
 #### Account keys
 
@@ -816,7 +816,7 @@ Register with the key fields (`publicKey`, `wrappedPrivateKey`, `kdfSalt`, `kdfP
 	"publicKey": "…",
 	"wrappedPrivateKey": "…",
 	"kdfSalt": "…",
-	"kdfParams": { "kdf": "argon2id", "opslimit": 2, "memlimit": 67108864 },
+	"kdfParams": { "kdf": "argon2id", "alg": 2, "opslimit": 2, "memlimit": 67108864 },
 	"hasRecovery": true,
 	"orgKey": {
 		"chapterId": 1,

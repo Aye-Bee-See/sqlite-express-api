@@ -19,6 +19,9 @@ import { encryptionKey, encryptionMode, ENCRYPTION_MODES } from '#constants';
 
 export const ready = sodium.ready;
 
+/** True when the browser holds the keys and the server only stores ciphertext. */
+export const isE2E = () => encryptionMode === 'e2e';
+
 const B64 = () => sodium.base64_variants.ORIGINAL;
 
 export const encode = (bytes) => sodium.to_base64(bytes, B64());
@@ -35,10 +38,9 @@ export function assertConfigured() {
 				'").'
 		);
 	}
-	if (encryptionMode === 'e2e') {
-		throw new Error('ENCRYPTION_MODE=e2e is not implemented yet; use server.');
+	if (encryptionMode === 'server') {
+		masterKey();
 	}
-	masterKey();
 }
 
 let cachedMaster;
@@ -112,7 +114,37 @@ export function unwrapForServer(wrapped) {
 	return sodium.crypto_secretbox_open_easy(bytes.subarray(n), bytes.subarray(0, n), masterKey());
 }
 
+/** Is this a plausible base64 X25519 public key? */
+export function isPublicKey(value) {
+	try {
+		return typeof value === 'string' && decode(value).length === sodium.crypto_box_PUBLICKEYBYTES;
+	} catch {
+		return false;
+	}
+}
+
+/** Random bytes, base64. */
+export function randomToken(bytes = 32) {
+	return encode(sodium.randombytes_buf(bytes));
+}
+
+/** SHA-256 hex of a base64 value, for storing challenges and secrets. */
+export function fingerprint(base64) {
+	return createHash('sha256').update(String(base64)).digest('hex');
+}
+
 /** Seal bytes to an X25519 public key (for e2e readers). */
 export function sealTo(publicKey, bytes) {
 	return encode(sodium.crypto_box_seal(bytes, decode(publicKey)));
+}
+
+/** Open a sealed box with a keypair (tests and tooling only; the API never holds private keys). */
+export function openSealed(sealed, publicKey, privateKey) {
+	return sodium.crypto_box_seal_open(decode(sealed), decode(publicKey), decode(privateKey));
+}
+
+/** A fresh X25519 keypair as base64 (tests and tooling only). */
+export function keypair() {
+	const kp = sodium.crypto_box_keypair();
+	return { publicKey: encode(kp.publicKey), privateKey: encode(kp.privateKey) };
 }

@@ -21,6 +21,25 @@ const endpoints = {
 			revokeToken: '/writer/token'
 		}
 	},
+	keys: {
+		get: {
+			one: '/keys',
+			many: '/member-keys',
+			publicKey: '/public-key',
+			recoverChallenge: '/recover'
+		},
+		post: {
+			create: '/recover'
+		},
+		put: {
+			update: '/keys',
+			chapterKeys: '/chapter-keys',
+			putMemberKey: '/member-key'
+		},
+		delete: {
+			remove: '/member-key'
+		}
+	},
 	rule: {
 		get: {
 			many: '/rules',
@@ -112,7 +131,8 @@ const endpoints = {
 			one: '/message'
 		},
 		post: {
-			create: '/message'
+			create: '/message',
+			createEnvelope: '/envelope'
 		},
 		put: {
 			update: '/message',
@@ -421,6 +441,52 @@ const messages = {
 			}
 		}
 	},
+	keys: {
+		get: {
+			one: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading keys.' } }
+			},
+			many: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing member keys.' } }
+			},
+			publicKey: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading public key.' } }
+			},
+			recoverChallenge: {
+				success: { condition: { par: 'Open the challenge with your recovered private key.' } },
+				error: { condition: { par: 'Error starting recovery.' } }
+			}
+		},
+		post: {
+			create: {
+				success: { condition: { par: 'Password reset. You can now sign in.' } },
+				error: { condition: { par: 'Error finishing recovery.' } }
+			}
+		},
+		put: {
+			update: {
+				success: { condition: { par: 'Keys saved.' } },
+				error: { condition: { par: 'Error saving keys.' } }
+			},
+			chapterKeys: {
+				success: { condition: { par: 'Group keys set.' } },
+				error: { condition: { par: 'Error setting group keys.' } }
+			},
+			putMemberKey: {
+				success: { condition: { par: 'Member key saved.' } },
+				error: { condition: { par: 'Error saving member key.' } }
+			}
+		},
+		delete: {
+			remove: {
+				success: { condition: { par: 'Member key removed.' } },
+				error: { condition: { par: 'Error removing member key.' } }
+			}
+		}
+	},
 	moderation: {
 		get: {
 			many: {
@@ -498,6 +564,10 @@ const messages = {
 			createAttachment: {
 				success: { condition: { par: 'Attachment uploaded.' } },
 				error: { condition: { par: 'Error uploading attachment.' } }
+			},
+			createEnvelope: {
+				success: { condition: { par: 'Reader added.' } },
+				error: { condition: { par: 'Error adding reader.' } }
 			}
 		},
 		put: {
@@ -636,7 +706,8 @@ export const {
 	message: messageMsg,
 	chat: chatMsg,
 	chapter: chapterMsg,
-	moderation: moderationMsg
+	moderation: moderationMsg,
+	keys: keysMsg
 } = messages;
 
 /***********Messages***********/
@@ -649,5 +720,6 @@ export const {
 	message: messageEnd,
 	chat: chatEnd,
 	chapter: chapterEnd,
-	moderation: moderationEnd
+	moderation: moderationEnd,
+	keys: keysEnd
 } = endpoints;

@@ -5,9 +5,11 @@ import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import ValidationError from '#services/ValidationError.js';
 import { isOpen, LETTER_STATUSES } from '#db/letter-status.js';
 import Attachment from '#models/attachment.model.js';
-import { NotFoundError } from '#services/HttpError.js';
+import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { sniffType } from '#services/files.js';
 import { audit } from '#rtServices/audit.services.js';
+import LetterKey from '#models/letter-key.model.js';
+import * as crypto from '#services/crypto.js';
 
 /**
  * Message (letter) controller.
@@ -34,6 +36,7 @@ export default class MessageController extends RouteController {
 		this.getOne = this.getOne.bind(this);
 		this.update = this.update.bind(this);
 		this.updateStatus = this.updateStatus.bind(this);
+		this.createEnvelope = this.createEnvelope.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
 		this.createAttachment = this.createAttachment.bind(this);
@@ -57,10 +60,25 @@ export default class MessageController extends RouteController {
 	 */
 	async #loadAllowed(scope, id) {
 		const message = await Message.getMessageByID(id);
-		if (message && !scope.allowsMessage(message)) {
+		if (message && !(await scope.allowsMessage(message))) {
 			throw scope.deny();
 		}
 		return message;
+	}
+
+	/** Who is reading, for envelope lookups (e2e mode). */
+	#reader(req, scope) {
+		return {
+			userId: req.user.id,
+			chapterId: scope.chapterId || null,
+			writerIds: scope.writerIds || [],
+			all: scope.kind === 'all'
+		};
+	}
+
+	/** In e2e mode, attach the caller's envelopes to message rows. */
+	async #withEnvelopes(rows, req, scope) {
+		return await LetterKey.envelopesFor(rows, this.#reader(req, scope));
 	}
 
 	/** Route a 403 to the error middleware; render anything else here. */
@@ -118,6 +136,7 @@ export default class MessageController extends RouteController {
 			} else {
 				messages = await Message.readAllMessages(limit, offset, where);
 			}
+			await this.#withEnvelopes(messages.rows, req, scope);
 			this.handlePage(res, messages, limits);
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -131,7 +150,9 @@ export default class MessageController extends RouteController {
 			const scope = await threadScope(req);
 			const message = await this.#loadAllowed(scope, id);
 			this.requireFound(message, 'Message ' + id);
-			this.#handleSuccess(res, full === 'true' ? await Message.readLetter(id) : message);
+			const row = full === 'true' ? await Message.readLetter(id) : message;
+			await this.#withEnvelopes([row], req, scope);
+			this.#handleSuccess(res, row);
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -149,10 +170,25 @@ export default class MessageController extends RouteController {
 			const scope = await threadScope(req);
 			const sender = scope.kind === 'own' ? 'user' : req.body.sender;
 			const user = await resolveWriter(req, scope, req.body.user, { sender, prisoner });
-			const message = await Message.createLetter(
-				{ messageText, sender, prisoner, user, relayChapter, relayNote },
-				{ callerChapter: scope.chapterId || null, changedBy: req.user.id }
-			);
+			const fields = { sender, prisoner, user, relayChapter };
+			if (crypto.isE2E()) {
+				const { ciphertext, nonce, relayNoteCiphertext, relayNoteNonce } = req.body;
+				Object.assign(fields, { ciphertext, nonce, relayNoteCiphertext, relayNoteNonce });
+				if (messageText !== undefined) {
+					fields.messageText = messageText;
+				}
+				if (relayNote !== undefined) {
+					fields.relayNote = relayNote;
+				}
+			} else {
+				Object.assign(fields, { messageText, relayNote });
+			}
+			const message = await Message.createLetter(fields, {
+				callerChapter: scope.chapterId || null,
+				changedBy: req.user.id,
+				envelopes: req.body.envelopes
+			});
+			await this.#withEnvelopes([message], req, scope);
 			this.#handleSuccess(res, message);
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -224,7 +260,39 @@ export default class MessageController extends RouteController {
 			const from = message.status;
 			const updated = await Message.changeStatus(message, status, req.user.id);
 			await audit(req, 'letter.status', 'message', updated.id, { from, to: status });
+			await this.#withEnvelopes([updated], req, await threadScope(req));
 			this.#handleSuccess(res, updated);
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * POST /messaging/envelope { message, readerType, readerId, wrappedKey }
+	 * (e2e): a current reader hands the content key to one more permitted
+	 * reader, for example a partner relay group.
+	 */
+	async createEnvelope(req, res, next) {
+		const { message: messageId, readerType, readerId, wrappedKey } = req.body;
+		try {
+			if (!crypto.isE2E()) {
+				throw new HttpError(
+					409,
+					'Envelopes are managed by the server in server mode.',
+					'EncryptionModeError'
+				);
+			}
+			const scope = await threadScope(req);
+			const message = await this.#attachableMessage(req, scope, messageId, { forWrite: false });
+			if (!(await LetterKey.canRead(message.id, this.#reader(req, scope)))) {
+				throw AuthzService.forbidden('Only a current reader of the letter can add a reader.');
+			}
+			const envelope = await Message.addEnvelope(message, { readerType, readerId, wrappedKey });
+			await audit(req, 'letter.envelope', 'message', message.id, {
+				readerType: envelope.readerType,
+				readerId: envelope.readerId
+			});
+			this.#handleSuccess(res, envelope);
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -264,18 +332,29 @@ export default class MessageController extends RouteController {
 			}
 			const scope = await threadScope(req);
 			const message = await this.#attachableMessage(req, scope, messageId, { forWrite: true });
-			const mimeType = sniffType(req.file.buffer);
-			if (!mimeType || mimeType !== req.file.mimetype) {
-				throw new ValidationError(
-					'The file content does not match its type ' + req.file.mimetype + '.'
-				);
+			let mimeType = req.file.mimetype;
+			let nonce;
+			if (crypto.isE2E()) {
+				// The bytes are ciphertext; the declared type describes the plaintext.
+				nonce = req.body.nonce;
+				if (typeof nonce !== 'string' || nonce === '') {
+					throw new ValidationError('End-to-end mode: send the file nonce in a "nonce" field.');
+				}
+			} else {
+				mimeType = sniffType(req.file.buffer);
+				if (!mimeType || mimeType !== req.file.mimetype) {
+					throw new ValidationError(
+						'The file content does not match its type ' + req.file.mimetype + '.'
+					);
+				}
 			}
 			const attachment = await Attachment.attach({
 				message: message.id,
 				buffer: req.file.buffer,
 				mimeType,
 				originalName: req.file.originalname,
-				uploadedBy: req.user.id
+				uploadedBy: req.user.id,
+				nonce
 			});
 			this.#handleSuccess(res, attachment);
 		} catch (err) {
@@ -313,7 +392,13 @@ export default class MessageController extends RouteController {
 				/[^\w.\-() ]+/g,
 				'_'
 			);
-			res.setHeader('Content-Type', attachment.mimeType);
+			res.setHeader(
+				'Content-Type',
+				crypto.isE2E() ? 'application/octet-stream' : attachment.mimeType
+			);
+			if (crypto.isE2E()) {
+				res.setHeader('X-Encrypted', 'e2e');
+			}
 			res.setHeader('Content-Length', bytes.length);
 			res.setHeader('Content-Disposition', 'attachment; filename="' + safeName + '"');
 			res.send(bytes);

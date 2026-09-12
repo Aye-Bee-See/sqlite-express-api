@@ -19,6 +19,7 @@ export const CHAPTER_FIELDS = [
 	'announcement',
 	'networkRole',
 	'accountStatus',
+	'publicKey',
 	'vouchedBy',
 	'lettersSent',
 	'averageTimeDays',

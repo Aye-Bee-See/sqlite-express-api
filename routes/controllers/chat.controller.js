@@ -3,6 +3,8 @@ import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import { HttpError } from '#services/HttpError.js';
+import LetterKey from '#models/letter-key.model.js';
+import * as crypto from '#services/crypto.js';
 
 /**
  * Chat controller.
@@ -71,6 +73,21 @@ export default class ChatController extends RouteController {
 				chats = await Chat.readAllChats(fullBool, limit, offset, scope.where);
 			}
 			await Chat.attachLastMessages(chats.rows);
+			if (crypto.isE2E()) {
+				const last = chats.rows.map((c) => c.getDataValue('last_message')).filter(Boolean);
+				const map = await LetterKey.envelopeMap(
+					last.map((m) => m.id),
+					{
+						userId: req.user.id,
+						chapterId: scope.chapterId || null,
+						writerIds: scope.writerIds || [],
+						all: scope.kind === 'all'
+					}
+				);
+				for (const m of last) {
+					m.envelopes = map.get(m.id) || [];
+				}
+			}
 			this.handlePage(res, chats, limits);
 		} catch (err) {
 			if (err && err.status === 403) {

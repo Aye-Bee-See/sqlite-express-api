@@ -12,6 +12,7 @@ import attachmentSchema from '#schemas/attachment.schema.js';
 import letterKeySchema from '#schemas/letter-key.schema.js';
 import submissionSchema from '#schemas/submission.schema.js';
 import auditLogSchema from '#schemas/audit-log.schema.js';
+import orgMemberKeySchema from '#schemas/org-member-key.schema.js';
 
 export default class Schemas {
 	static chat = chatSchema;
@@ -28,4 +29,5 @@ export default class Schemas {
 	static letterKey = letterKeySchema;
 	static submission = submissionSchema;
 	static auditLog = auditLogSchema;
+	static orgMemberKey = orgMemberKeySchema;
 }

@@ -36,6 +36,7 @@ export const Attachment = Models.Attachment.init(sequelize, Sequelize);
 export const LetterKey = Models.LetterKey.init(sequelize, Sequelize);
 export const Submission = Models.Submission.init(sequelize, Sequelize);
 export const AuditLog = Models.AuditLog.init(sequelize, Sequelize);
+export const OrgMemberKey = Models.OrgMemberKey.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -50,6 +51,7 @@ Attachment.associate(Models);
 LetterKey.associate(Models);
 Submission.associate(Models);
 AuditLog.associate(Models);
+OrgMemberKey.associate(Models);
 
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;
@@ -72,6 +74,16 @@ export const ready = (async () => {
 		log('DB_SEED is false: skipping seed data.');
 	}
 	await ensureAdmin();
+	if (crypto.isE2E()) {
+		const leftover = await LetterKey.count({ where: { readerType: 'server' } });
+		if (leftover > 0) {
+			warn(
+				'ENCRYPTION_MODE=e2e but ' +
+					leftover +
+					' letter(s) still carry a server envelope; run `npm run encryption:rewrap` once readers have keys.'
+			);
+		}
+	}
 	log('Database ready.');
 })().catch((err) => {
 	console.error('Database setup failed:', err);

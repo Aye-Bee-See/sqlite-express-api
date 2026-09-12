@@ -59,6 +59,35 @@ export default class ClaimToken extends Model {
 	}
 
 	/**
+	 * e2e mode: the group's browser generated the token, hashed it, and
+	 * wrapped the writer's private key with a key derived from it; the
+	 * server stores the hash and the wrapped key and never sees the token.
+	 * @param {number} userId
+	 * @param {{tokenHash: string, claimWrappedPrivateKey: string, claimSalt: string, claimKdfParams: object}} material
+	 * @param {number|null} createdBy
+	 * @returns {Promise<{expiresAt: Date}>}
+	 */
+	static async issueFromClient(userId, material, createdBy = null) {
+		await this.destroy({ where: { userId, usedAt: null } });
+		const expiresAt = new Date(Date.now() + CLAIM_TOKEN_TTL_MS);
+		await this.create({
+			userId,
+			tokenHash: material.tokenHash,
+			expiresAt,
+			createdBy,
+			claimWrappedPrivateKey: material.claimWrappedPrivateKey,
+			claimSalt: material.claimSalt,
+			claimKdfParams: material.claimKdfParams
+		});
+		return { expiresAt };
+	}
+
+	/** The hash a client must send for a token, so browsers and server agree. */
+	static hashFor(token) {
+		return hashToken(token);
+	}
+
+	/**
 	 * Revoke the writer's unused token, if any.
 	 * @returns {Promise<number>} tokens removed
 	 */

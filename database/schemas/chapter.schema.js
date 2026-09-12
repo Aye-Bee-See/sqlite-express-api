@@ -46,6 +46,10 @@ const chapterSchema = {
 	announcement: {
 		type: DataTypes.TEXT
 	},
+	/** X25519 public key of the group (e2e mode), base64. */
+	publicKey: {
+		type: DataTypes.STRING
+	},
 	/** collecting, relay, or both. */
 	networkRole: {
 		type: DataTypes.STRING,

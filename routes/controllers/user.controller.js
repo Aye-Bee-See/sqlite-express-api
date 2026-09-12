@@ -5,6 +5,9 @@ import { HttpError, NotFoundError } from '#services/HttpError.js';
 import ClaimToken from '#models/claim-token.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { audit } from '#rtServices/audit.services.js';
+import KeysController from '#rtControllers/keys.controller.js';
+import { KEY_COLUMNS } from '#models/user.model.js';
+import * as crypto from '#services/crypto.js';
 import Chapter from '#models/chapter.model.js';
 
 export default class UserController extends RouteController {
@@ -48,6 +51,10 @@ export default class UserController extends RouteController {
 	#stripPassword(userObject, req) {
 		const plain = typeof userObject.toJSON === 'function' ? userObject.toJSON() : { ...userObject };
 		delete plain.password;
+		// Key material only travels through GET /auth/keys and the claim and recovery flows.
+		for (const column of KEY_COLUMNS) {
+			delete plain[column];
+		}
 		// The internal note is for the managing chapter and admins only.
 		const managerCanSee =
 			req &&
@@ -189,7 +196,17 @@ export default class UserController extends RouteController {
 			);
 		}
 		try {
-			const user = await User.createUser({ username, password, role, email, name, bio, chapterId });
+			const keys = KeysController.keyFields(req.body);
+			const user = await User.createUser({
+				username,
+				password,
+				role,
+				email,
+				name,
+				bio,
+				chapterId,
+				...keys
+			});
 			const strippedPassword = this.#stripPassword(user, req);
 			this.#handleSuccess(res, strippedPassword);
 		} catch (err) {
@@ -311,11 +328,28 @@ export default class UserController extends RouteController {
 			if (!chapter) {
 				throw new NotFoundError('Chapter ' + chapterId + ' not found');
 			}
+			const keys = {};
+			if (crypto.isE2E()) {
+				// The group's browser generated the writer's keypair and sealed the
+				// private key to the group, so the group can read and print for them.
+				if (!crypto.isPublicKey(req.body.publicKey)) {
+					throw new ValidationError('End-to-end mode: publicKey (base64 X25519) is required.');
+				}
+				if (
+					typeof req.body.orgWrappedPrivateKey !== 'string' ||
+					req.body.orgWrappedPrivateKey === ''
+				) {
+					throw new ValidationError('End-to-end mode: orgWrappedPrivateKey is required.');
+				}
+				keys.publicKey = req.body.publicKey;
+				keys.orgWrappedPrivateKey = req.body.orgWrappedPrivateKey;
+			}
 			const writer = await User.createManagedWriter({
 				name: name.trim(),
 				email,
 				managerNote,
-				chapterId
+				chapterId,
+				...keys
 			});
 			await audit(req, 'writer.create', 'user', writer.id, { chapterId });
 			this.#handleSuccess(res, this.#stripPassword(writer, req));
@@ -342,8 +376,14 @@ export default class UserController extends RouteController {
 				q
 			});
 			const rows = [];
+			const orgKeys = crypto.isE2E()
+				? await User.orgWrappedKeysFor(result.rows.map((w) => w.id))
+				: null;
 			for (const writer of result.rows) {
 				const plain = this.#stripPassword(writer, req);
+				if (orgKeys) {
+					plain.orgWrappedPrivateKey = orgKeys.get(writer.id) || null;
+				}
 				const active = await ClaimToken.activeFor(writer.id);
 				plain.claimToken = active ? { expiresAt: active.expiresAt } : null;
 				rows.push(plain);
@@ -368,6 +408,32 @@ export default class UserController extends RouteController {
 			}
 			if (!this.#manages(req, writer)) {
 				return next(AuthzService.forbidden('Your group does not manage this writer.'));
+			}
+			if (crypto.isE2E()) {
+				// The browser made the token; the server only ever holds its hash.
+				const { tokenHash, claimWrappedPrivateKey, claimSalt, claimKdfParams } = req.body;
+				if (typeof tokenHash !== 'string' || !/^[0-9a-f]{64}$/.test(tokenHash)) {
+					throw new ValidationError(
+						'End-to-end mode: tokenHash (SHA-256 hex of the upper-cased token) is required.'
+					);
+				}
+				for (const [field, value] of [
+					['claimWrappedPrivateKey', claimWrappedPrivateKey],
+					['claimSalt', claimSalt]
+				]) {
+					if (typeof value !== 'string' || value === '') {
+						throw new ValidationError('End-to-end mode: ' + field + ' is required.');
+					}
+				}
+				if (!claimKdfParams || typeof claimKdfParams !== 'object') {
+					throw new ValidationError('End-to-end mode: claimKdfParams must be an object.');
+				}
+				const { expiresAt } = await ClaimToken.issueFromClient(
+					writer.id,
+					{ tokenHash, claimWrappedPrivateKey, claimSalt, claimKdfParams },
+					req.user.id
+				);
+				return this.#handleSuccess(res, { writer: writer.id, expiresAt });
 			}
 			const { token, expiresAt } = await ClaimToken.issue(writer.id, req.user.id);
 			this.#handleSuccess(res, { writer: writer.id, token, expiresAt });
@@ -422,11 +488,20 @@ export default class UserController extends RouteController {
 		try {
 			const { record, writer } = await this.#validClaim(req.query.token);
 			const chapter = await Chapter.findByPk(writer.managedBy);
-			this.#handleSuccess(res, {
+			const info = {
 				writer: { id: writer.id, name: writer.name },
 				chapter: chapter ? { id: chapter.id, name: chapter.name } : null,
 				expiresAt: record.expiresAt
-			});
+			};
+			if (crypto.isE2E()) {
+				Object.assign(info, {
+					publicKey: writer.publicKey,
+					claimWrappedPrivateKey: record.claimWrappedPrivateKey,
+					claimSalt: record.claimSalt,
+					claimKdfParams: record.claimKdfParams
+				});
+			}
+			this.#handleSuccess(res, info);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar, errorVar.condition || 'par');
@@ -441,7 +516,22 @@ export default class UserController extends RouteController {
 		const { token, username, password, email } = req.body;
 		try {
 			const { record, writer } = await this.#validClaim(token);
-			await User.claim(writer, { username, password, email });
+			let keys = {};
+			if (crypto.isE2E()) {
+				// The browser unwrapped the key with the token and re-wrapped it
+				// under the new password and a recovery code; the keypair stays.
+				keys = KeysController.keyFields(req.body);
+				if (keys.wrappedPrivateKey === undefined || keys.recoveryWrappedPrivateKey === undefined) {
+					throw new ValidationError(
+						'End-to-end mode: send wrappedPrivateKey, kdfSalt, kdfParams, recoveryWrappedPrivateKey, recoverySalt, and recoveryKdfParams.'
+					);
+				}
+				if (keys.publicKey !== undefined && keys.publicKey !== writer.publicKey) {
+					throw new HttpError(409, 'The public key cannot change on claim.', 'KeyChangeError');
+				}
+				delete keys.publicKey;
+			}
+			await User.claim(writer, { username, password, email, keys });
 			record.usedAt = new Date();
 			await record.save();
 			await audit(null, 'writer.claim', 'user', writer.id, { claimedFrom: writer.managedBy });
@@ -458,7 +548,13 @@ export default class UserController extends RouteController {
 		if (req.isAuthenticated()) {
 			const token = req.authInfo.token;
 			const user = this.#stripPassword(req.user, req);
-			this.#handleSuccess(res, { user, token });
+			// The login lookup bypasses the default scope; key material is only
+			// handed out as the bundle, and only in end-to-end mode.
+			for (const column of KEY_COLUMNS) {
+				delete user[column];
+			}
+			const keys = crypto.isE2E() ? await KeysController.keyBundle(req.user.id) : undefined;
+			this.#handleSuccess(res, { user, token, ...(keys ? { keys } : {}) });
 		} else {
 			this.#handleErr(res);
 		}

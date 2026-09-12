@@ -6,6 +6,8 @@ import Chat from '#models/chat.model.js';
 import MessageStatus from '#models/message-status.model.js';
 import Attachment from '#models/attachment.model.js';
 import LetterKey from '#models/letter-key.model.js';
+import User from '#models/user.model.js';
+import * as crypto from '#services/crypto.js';
 import Prisoner from '#models/prisoner.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
@@ -114,13 +116,30 @@ export default class Message extends Model {
 	 * @param {object} message fields for createMessage
 	 * @param {{callerChapter?: number|null, changedBy?: number|null}} context
 	 */
-	static async createLetter(message, { callerChapter = null, changedBy = null } = {}) {
+	static async createLetter(message, { callerChapter = null, changedBy = null, envelopes } = {}) {
 		const relayChapter = await this.resolveRelayChapter(
 			message.prisoner,
 			message.relayChapter,
 			callerChapter
 		);
 		const status = initialStatusFor(message.sender);
+		let clean = null;
+		if (crypto.isE2E()) {
+			if (message.messageText !== undefined || message.relayNote !== undefined) {
+				throw new ValidationError(
+					'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.'
+				);
+			}
+			const writer = await User.findByPk(message.user);
+			if (!writer) {
+				throw new ValidationError('User ' + message.user + ' does not exist.');
+			}
+			const allowed = await this.allowedReaders(
+				{ prisoner: message.prisoner, relayChapter },
+				writer
+			);
+			clean = LetterKey.validateEnvelopes(envelopes, allowed, { writer, relayChapter });
+		}
 		const created = await this.create({
 			...message,
 			relayChapter,
@@ -128,8 +147,61 @@ export default class Message extends Model {
 			statusChangedAt: new Date(),
 			statusChangedBy: changedBy
 		});
+		if (clean) {
+			await LetterKey.issueEnvelopes(created.id, clean);
+		}
 		await MessageStatus.record(created.id, null, created.status, changedBy);
 		return created;
+	}
+
+	/**
+	 * Who may hold an envelope for a letter: its writer; the relay group;
+	 * the group managing the writer; and every active relay group of the
+	 * facility (so a relay can forward to a partner).
+	 * @returns {Promise<{users: Set<number>, chapters: Set<number>}>}
+	 */
+	static async allowedReaders(message, writer) {
+		const users = new Set([Number(writer.id)]);
+		const chapters = new Set();
+		if (message.relayChapter) {
+			chapters.add(Number(message.relayChapter));
+		}
+		if (writer.managedBy) {
+			chapters.add(Number(writer.managedBy));
+		}
+		const prisoner = await Prisoner.findByPk(message.prisoner);
+		if (prisoner) {
+			const { relayIds } = await Prisoner.relayGroupsFor(prisoner);
+			for (const id of relayIds) {
+				chapters.add(Number(id));
+			}
+		}
+		return { users, chapters };
+	}
+
+	/**
+	 * e2e: add an envelope for one more reader (forwarding to a partner group).
+	 * @throws {ValidationError} for a reader the letter may not have; 409 when it already exists
+	 */
+	static async addEnvelope(message, envelope) {
+		const writer = await User.findByPk(message.user);
+		const allowed = await this.allowedReaders(message, writer);
+		const [clean] = LetterKey.validateEnvelopes([envelope], allowed, {
+			writer: { ...writer.get(), anonymousForChapter: true },
+			relayChapter: null
+		});
+		const existing = await LetterKey.findOne({
+			where: { message: message.id, readerType: clean.readerType, readerId: clean.readerId }
+		});
+		if (existing) {
+			throw new HttpError(
+				409,
+				'Reader ' + clean.readerType + ' ' + clean.readerId + ' already has an envelope.',
+				'EnvelopeError'
+			);
+		}
+		await LetterKey.issueEnvelopes(message.id, [clean]);
+		return clean;
 	}
 
 	/**
@@ -275,6 +347,11 @@ export default class Message extends Model {
 	 */
 	static async updateMessage(message) {
 		const values = { ...message };
+		if (crypto.isE2E() && (values.messageText !== undefined || values.relayNote !== undefined)) {
+			throw new ValidationError(
+				'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.'
+			);
+		}
 		if (values.messageText !== undefined || values.relayNote !== undefined) {
 			// Static updates skip instance hooks, so re-encrypt here with the letter's key.
 			const key = await LetterKey.contentKeyFor(message.id);

@@ -1634,6 +1634,52 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Send Encrypted Letter (e2e)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/message",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "message"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sender\": \"user\",\n    \"prisoner\": 1,\n    \"relayChapter\": 1,\n    \"ciphertext\": \"<base64>\",\n    \"nonce\": \"<base64>\",\n    \"relayNoteCiphertext\": \"<base64>\",\n    \"relayNoteNonce\": \"<base64>\",\n    \"envelopes\": [\n        {\n            \"readerType\": \"user\",\n            \"readerId\": \"{{userId}}\",\n            \"wrappedKey\": \"<content key sealed to me>\"\n        },\n        {\n            \"readerType\": \"chapter\",\n            \"readerId\": 1,\n            \"wrappedKey\": \"<content key sealed to the relay group>\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Forward Letter To A Partner Group (e2e)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/envelope",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "envelope"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": 1,\n    \"readerType\": \"chapter\",\n    \"readerId\": 2,\n    \"wrappedKey\": \"<content key sealed to the partner>\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -2091,6 +2137,206 @@
 								{
 									"key": "page_size",
 									"value": "50"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Keys (end-to-end mode)",
+			"item": [
+				{
+					"name": "My Key Bundle",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/keys",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "keys"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Set Or Re-wrap My Keys",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/keys",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "keys"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"publicKey\": \"<base64 X25519 public key>\",\n    \"wrappedPrivateKey\": \"<wrapped>\",\n    \"kdfSalt\": \"<base64>\",\n    \"kdfParams\": {\n        \"kdf\": \"argon2id\",\n        \"opslimit\": 2,\n        \"memlimit\": 67108864\n    },\n    \"recoveryWrappedPrivateKey\": \"<wrapped>\",\n    \"recoverySalt\": \"<base64>\",\n    \"recoveryKdfParams\": {\n        \"kdf\": \"argon2id\",\n        \"opslimit\": 2,\n        \"memlimit\": 67108864\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Public Key Of A User Or Group",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/public-key?user=1",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "public-key"],
+							"query": [
+								{
+									"key": "user",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Start Recovery (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/recover?username=writer",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "recover"],
+							"query": [
+								{
+									"key": "username",
+									"value": "writer"
+								}
+							]
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Finish Recovery (public)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/recover",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "recover"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"writer\",\n    \"challenge\": \"<opened challenge, base64>\",\n    \"password\": \"newpassword\",\n    \"wrappedPrivateKey\": \"<wrapped>\",\n    \"kdfSalt\": \"<base64>\",\n    \"kdfParams\": {\n        \"kdf\": \"argon2id\",\n        \"opslimit\": 2,\n        \"memlimit\": 67108864\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Set Group Keys (first member)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/chapter-keys",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "chapter-keys"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"chapter\": 1,\n    \"publicKey\": \"<base64 group public key>\",\n    \"wrappedOrgPrivateKey\": \"<group private key sealed to me>\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Hand Group Key To A Member",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/member-key",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "member-key"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"chapter\": 1,\n    \"user\": 2,\n    \"wrappedOrgPrivateKey\": \"<group private key sealed to them>\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Take Group Key Back",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/member-key",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "member-key"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"chapter\": 1,\n    \"user\": 2\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Who Holds The Group Key",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/member-keys?chapter=1",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "member-keys"],
+							"query": [
+								{
+									"key": "chapter",
+									"value": "1"
 								}
 							]
 						}

@@ -93,6 +93,43 @@ const userSchema = {
 		type: DataTypes.TEXT
 	},
 
+	// End-to-end key material (opaque to the server; see services/crypto.js).
+	/** X25519 public key, base64. Public. */
+	publicKey: {
+		type: DataTypes.STRING
+	},
+	/** Private key wrapped with the password-derived key. */
+	wrappedPrivateKey: {
+		type: DataTypes.TEXT
+	},
+	kdfSalt: {
+		type: DataTypes.STRING
+	},
+	kdfParams: {
+		type: DataTypes.JSON
+	},
+	/** Private key wrapped with the recovery-code-derived key. */
+	recoveryWrappedPrivateKey: {
+		type: DataTypes.TEXT
+	},
+	recoverySalt: {
+		type: DataTypes.STRING
+	},
+	recoveryKdfParams: {
+		type: DataTypes.JSON
+	},
+	/** Managed writers: private key sealed to the managing group, until claimed. */
+	orgWrappedPrivateKey: {
+		type: DataTypes.TEXT
+	},
+	/** Recovery challenge in flight: hash of the sealed nonce, and when it lapses. */
+	recoveryChallengeHash: {
+		type: DataTypes.STRING
+	},
+	recoveryChallengeExpiresAt: {
+		type: DataTypes.DATE
+	},
+
 	role: {
 		type: DataTypes.STRING,
 		allowNull: false,

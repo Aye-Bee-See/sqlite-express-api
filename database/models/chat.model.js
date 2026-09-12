@@ -3,6 +3,7 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Message from '#models/message.model.js';
 import Attachment from '#models/attachment.model.js';
+import * as crypto from '#services/crypto.js';
 import Prisoner from '#models/prisoner.model.js';
 import User from '#models/user.model.js';
 import modelsService from '#models/models.service.js';
@@ -280,6 +281,9 @@ export default class Chat extends Model {
 							id: m.id,
 							sender: m.sender,
 							messageText: m.messageText,
+							...(crypto.isE2E()
+								? { ciphertext: m.getDataValue('ciphertext'), nonce: m.getDataValue('nonce') }
+								: {}),
 							status: m.status,
 							createdAt: m.createdAt
 						}

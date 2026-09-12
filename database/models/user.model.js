@@ -18,6 +18,30 @@ function searchWhere(q) {
 	};
 }
 
+/** Key columns hidden from every read except GET /auth/keys and the recovery flow. */
+export const KEY_COLUMNS = [
+	'wrappedPrivateKey',
+	'kdfSalt',
+	'kdfParams',
+	'recoveryWrappedPrivateKey',
+	'recoverySalt',
+	'recoveryKdfParams',
+	'orgWrappedPrivateKey',
+	'recoveryChallengeHash',
+	'recoveryChallengeExpiresAt'
+];
+
+/** Fields a client may supply to set up an account's keys. */
+export const KEY_INPUT = [
+	'publicKey',
+	'wrappedPrivateKey',
+	'kdfSalt',
+	'kdfParams',
+	'recoveryWrappedPrivateKey',
+	'recoverySalt',
+	'recoveryKdfParams'
+];
+
 export default class User extends Model {
 	static init(sequelize) {
 		return super.init(Schemas.user, {
@@ -28,8 +52,11 @@ export default class User extends Model {
 			// Never select the password hash unless a caller opts in with
 			// User.scope('withPassword'). This also covers every include of User
 			// from other models (chat.user_details and so on).
-			defaultScope: { attributes: { exclude: ['password'] } },
-			scopes: { withPassword: { attributes: { include: ['password'] } } }
+			defaultScope: { attributes: { exclude: ['password', ...KEY_COLUMNS] } },
+			scopes: {
+				withKeys: { attributes: { exclude: ['password'] } },
+				withPassword: { attributes: { include: ['password'] } }
+			}
 		});
 	}
 
@@ -74,11 +101,39 @@ export default class User extends Model {
 
 	// Create
 
-	static async createUser({ username, password, role, email, name, bio, chapterId }) {
+	static async createUser({ username, password, role, email, name, bio, chapterId, ...rest }) {
+		const keys = {};
+		for (const field of KEY_INPUT) {
+			if (rest[field] !== undefined) {
+				keys[field] = rest[field];
+			}
+		}
 		return await this.create(
-			{ username, password, role, email, name, bio, chapterId },
+			{ username, password, role, email, name, bio, chapterId, ...keys },
 			{ individualHooks: true }
 		);
+	}
+
+	/**
+	 * e2e: the group-sealed private keys of managed writers, by writer id, so
+	 * the managing group can read and print for them.
+	 * @param {number[]} ids
+	 * @returns {Promise<Map<number, string|null>>}
+	 */
+	static async orgWrappedKeysFor(ids) {
+		if (ids.length === 0) {
+			return new Map();
+		}
+		const rows = await this.scope('withKeys').findAll({
+			where: { id: ids },
+			attributes: ['id', 'orgWrappedPrivateKey']
+		});
+		return new Map(rows.map((r) => [r.id, r.orgWrappedPrivateKey]));
+	}
+
+	/** One account with its key material (never through the default scope). */
+	static async getUserWithKeys(where) {
+		return await this.scope('withKeys').findOne({ where });
 	}
 
 	/**
@@ -265,7 +320,14 @@ export default class User extends Model {
 	 * anyway), and a placeholder email unless one is given.
 	 * @param {{name: string, email?: string, managerNote?: string, chapterId: number}} fields
 	 */
-	static async createManagedWriter({ name, email, managerNote, chapterId }) {
+	static async createManagedWriter({
+		name,
+		email,
+		managerNote,
+		chapterId,
+		publicKey = null,
+		orgWrappedPrivateKey = null
+	}) {
 		// 'writer-' plus 8 hex characters fits the 16-character username limit.
 		const tag = randomBytes(4).toString('hex');
 		const cleanEmail = typeof email === 'string' && email.trim() !== '' ? email.trim() : null;
@@ -279,7 +341,9 @@ export default class User extends Model {
 				managedBy: chapterId,
 				claimedAt: null,
 				claimedFrom: null,
-				managerNote: managerNote || null
+				managerNote: managerNote || null,
+				publicKey,
+				orgWrappedPrivateKey
 			},
 			{ individualHooks: true }
 		);
@@ -343,13 +407,16 @@ export default class User extends Model {
 	 * @param {{username: string, password: string, email?: string}} credentials
 	 * @returns {Promise<[number]>} affected row count
 	 */
-	static async claim(user, { username, password, email }) {
+	static async claim(user, { username, password, email, keys = {} }) {
 		const values = {
 			username,
 			password,
 			claimedAt: new Date(),
 			claimedFrom: user.managedBy,
-			managedBy: null
+			managedBy: null,
+			// The group's copy of the private key goes with custody.
+			orgWrappedPrivateKey: null,
+			...keys
 		};
 		if (typeof email === 'string' && email.trim() !== '') {
 			values.email = email.trim();

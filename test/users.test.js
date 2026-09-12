@@ -37,6 +37,7 @@ test('user list returns full rows without hashes and paginates', async () => {
 		'managedBy',
 		'managerNote',
 		'name',
+		'publicKey',
 		'role',
 		'updatedAt',
 		'username'

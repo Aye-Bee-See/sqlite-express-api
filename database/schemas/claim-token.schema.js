@@ -24,6 +24,16 @@ const claimTokenSchema = {
 	},
 	createdBy: {
 		type: DataTypes.INTEGER
+	},
+	/** e2e mode: the writer's private key wrapped with a key derived from the token. */
+	claimWrappedPrivateKey: {
+		type: DataTypes.TEXT
+	},
+	claimSalt: {
+		type: DataTypes.STRING
+	},
+	claimKdfParams: {
+		type: DataTypes.JSON
 	}
 };
 

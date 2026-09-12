@@ -130,6 +130,7 @@ export default class Message extends Model {
 					'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.'
 				);
 			}
+			Message.requireCipherPairs(message, { bodyRequired: true });
 			const writer = await User.findByPk(message.user);
 			if (!writer) {
 				throw new ValidationError('User ' + message.user + ' does not exist.');
@@ -152,6 +153,39 @@ export default class Message extends Model {
 		}
 		await MessageStatus.record(created.id, null, created.status, changedBy);
 		return created;
+	}
+
+	/**
+	 * e2e: ciphertext and nonce travel as pairs (body and relay note), and a
+	 * pair is either absent or two non-empty strings.
+	 * @throws {ValidationError}
+	 */
+	static requireCipherPairs(fields, { bodyRequired }) {
+		const pair = (a, b, label, required) => {
+			const given = [fields[a], fields[b]].filter((v) => v !== undefined);
+			if (given.length === 0) {
+				if (required) {
+					throw new ValidationError('End-to-end mode: ' + a + ' and ' + b + ' are required.');
+				}
+				return;
+			}
+			const ok =
+				given.length === 2 && given.every((v) => (typeof v === 'string' && v !== '') || v === null);
+			const bothNull = fields[a] === null && fields[b] === null;
+			if (!ok || (bothNull && required) || (fields[a] === null) !== (fields[b] === null)) {
+				throw new ValidationError(
+					'End-to-end mode: send ' +
+						a +
+						' and ' +
+						b +
+						' together' +
+						(label ? ' for the ' + label : '') +
+						'.'
+				);
+			}
+		};
+		pair('ciphertext', 'nonce', 'body', bodyRequired);
+		pair('relayNoteCiphertext', 'relayNoteNonce', 'relay note', false);
 	}
 
 	/**
@@ -347,10 +381,28 @@ export default class Message extends Model {
 	 */
 	static async updateMessage(message) {
 		const values = { ...message };
-		if (crypto.isE2E() && (values.messageText !== undefined || values.relayNote !== undefined)) {
-			throw new ValidationError(
-				'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.'
-			);
+		if (crypto.isE2E()) {
+			if (values.messageText !== undefined || values.relayNote !== undefined) {
+				throw new ValidationError(
+					'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.'
+				);
+			}
+			// The reader set is fixed by the envelopes; moving a letter would strand them.
+			const current = await this.findByPk(message.id);
+			for (const field of ['user', 'prisoner', 'relayChapter']) {
+				if (values[field] === undefined) {
+					continue;
+				}
+				if (current && String(values[field]) !== String(current[field])) {
+					throw new ValidationError(
+						'End-to-end mode: ' +
+							field +
+							' cannot change; add a reader with POST /messaging/envelope.'
+					);
+				}
+				delete values[field];
+			}
+			Message.requireCipherPairs(values, { bodyRequired: false });
 		}
 		if (values.messageText !== undefined || values.relayNote !== undefined) {
 			// Static updates skip instance hooks, so re-encrypt here with the letter's key.

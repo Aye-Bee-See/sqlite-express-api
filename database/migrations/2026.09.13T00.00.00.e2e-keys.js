@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { withForeignKeysOff } from '../migration-helpers.js';
 
 /**
  * Key material for end-to-end mode. Accounts get an X25519 public key and
@@ -57,11 +58,14 @@ export async function up({ context: queryInterface }) {
 
 export async function down({ context: queryInterface }) {
 	await queryInterface.dropTable('OrgMemberKeys');
-	for (const name of Object.keys(CLAIM_COLUMNS).reverse()) {
-		await queryInterface.removeColumn('ClaimTokens', name);
-	}
-	await queryInterface.removeColumn('Chapters', 'publicKey');
-	for (const name of Object.keys(USER_COLUMNS).reverse()) {
-		await queryInterface.removeColumn('User', name);
-	}
+	// Column removal rebuilds the table; keep the rows that reference it.
+	await withForeignKeysOff(queryInterface, async () => {
+		for (const name of Object.keys(CLAIM_COLUMNS).reverse()) {
+			await queryInterface.removeColumn('ClaimTokens', name);
+		}
+		await queryInterface.removeColumn('Chapters', 'publicKey');
+		for (const name of Object.keys(USER_COLUMNS).reverse()) {
+			await queryInterface.removeColumn('User', name);
+		}
+	});
 }

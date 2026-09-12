@@ -161,7 +161,19 @@ export default class KeysController extends RouteController {
 			) {
 				throw new ValidationError('Send publicKey together with the first wrapped private key.');
 			}
-			await User.update(fields, { where: { id: req.user.id } });
+			const where = { id: req.user.id };
+			if (fields.publicKey !== undefined && !user.publicKey) {
+				// First set: only if nobody set it in the meantime.
+				where.publicKey = null;
+			}
+			const [count] = await User.update(fields, { where });
+			if (count === 0) {
+				throw new HttpError(
+					409,
+					'The public key was set by another request; reload your keys.',
+					'KeyChangeError'
+				);
+			}
 			await audit(req, 'user.keys', 'user', req.user.id, { fields: Object.keys(fields) });
 			this.#handleSuccess(res, await KeysController.keyBundle(req.user.id));
 		} catch (err) {
@@ -261,10 +273,22 @@ export default class KeysController extends RouteController {
 				throw new HttpError(409, 'The public key cannot change during recovery.', 'KeyChangeError');
 			}
 			delete fields.publicKey;
-			await User.update(
+			// Consume the challenge atomically: a second request with the same
+			// challenge finds it already cleared.
+			const [count] = await User.update(
 				{ ...fields, password, recoveryChallengeHash: null, recoveryChallengeExpiresAt: null },
-				{ where: { id: user.id }, individualHooks: true }
+				{
+					where: { id: user.id, recoveryChallengeHash: user.recoveryChallengeHash },
+					individualHooks: true
+				}
 			);
+			if (count === 0) {
+				throw new HttpError(
+					401,
+					'Recovery challenge is missing, wrong, or expired.',
+					'RecoveryError'
+				);
+			}
 			await audit(null, 'user.recover', 'user', user.id);
 			this.#handleSuccess(res, { user: user.id, username: user.username });
 		} catch (err) {
@@ -318,7 +342,27 @@ export default class KeysController extends RouteController {
 					'User ' + memberId + ' is not a member of chapter ' + chapter.id + '.'
 				);
 			}
-			await chapter.update({ publicKey });
+			if (!member.publicKey) {
+				throw new HttpError(
+					409,
+					'User ' +
+						memberId +
+						' has no public key yet; the first holder needs one to open the group key.',
+					'KeyChangeError'
+				);
+			}
+			// Bootstrap once: the write succeeds only while the key is still unset.
+			const [count] = await Chapter.update(
+				{ publicKey },
+				{ where: { id: chapter.id, publicKey: null } }
+			);
+			if (count === 0) {
+				throw new HttpError(
+					409,
+					'This group already has a public key; add members with /auth/member-key.',
+					'KeyChangeError'
+				);
+			}
 			await OrgMemberKey.put({
 				chapterId: chapter.id,
 				userId: member.id,
@@ -377,13 +421,26 @@ export default class KeysController extends RouteController {
 		}
 	}
 
-	/** DELETE /auth/member-key { chapter, user } (remove). */
+	/**
+	 * DELETE /auth/member-key { chapter, user } (remove): stop handing the group
+	 * key to this member. It does not revoke a key the member already opened;
+	 * that needs group key rotation, which is not built yet.
+	 */
 	async remove(req, res, next) {
 		const { chapter: chapterId, user: userId } = req.body;
 		try {
 			if (!(await this.#keyHolder(req, chapterId))) {
 				throw AuthzService.forbidden(
 					'Only a member holding the group key, or an admin, can remove members.'
+				);
+			}
+			const holders = await OrgMemberKey.count({ where: { chapterId } });
+			const target = await OrgMemberKey.forMember(chapterId, userId);
+			if (target && holders <= 1) {
+				throw new HttpError(
+					409,
+					'This is the last holder of the group key; removing it would lock the group out (key rotation is not available yet).',
+					'KeyChangeError'
 				);
 			}
 			const removed = await OrgMemberKey.remove(chapterId, userId);

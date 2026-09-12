@@ -6,7 +6,7 @@ import ClaimToken from '#models/claim-token.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { audit } from '#rtServices/audit.services.js';
 import KeysController from '#rtControllers/keys.controller.js';
-import { KEY_COLUMNS } from '#models/user.model.js';
+import { KEY_COLUMNS, KEY_INPUT } from '#models/user.model.js';
 import * as crypto from '#services/crypto.js';
 import Chapter from '#models/chapter.model.js';
 
@@ -234,7 +234,39 @@ export default class UserController extends RouteController {
 			}
 		}
 		try {
-			if (!AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req)) {
+			const custody = !AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req);
+			if (!custody) {
+				// Key material has its own endpoint with the immutability checks.
+				const keyFields = [...KEY_INPUT, 'orgWrappedPrivateKey'].filter(
+					(f) => newUser[f] !== undefined
+				);
+				const rewrap = ['wrappedPrivateKey', 'kdfSalt', 'kdfParams'];
+				const stray = keyFields.filter((f) => !rewrap.includes(f));
+				if (stray.length > 0) {
+					throw new ValidationError(
+						'Set keys through PUT /auth/keys, not here (' + stray.join(', ') + ').'
+					);
+				}
+				if (crypto.isE2E() && newUser.password !== undefined) {
+					// A new password means a new wrapping of the private key.
+					const target = await User.findByPk(newUser.id, { attributes: ['id', 'publicKey'] });
+					if (target && target.publicKey) {
+						if (!AuthzService.targetsSelf(req)) {
+							throw new ValidationError(
+								'End-to-end mode: only the account holder can change this password (the private key is wrapped under it); use recovery.'
+							);
+						}
+						if (rewrap.some((f) => newUser[f] === undefined)) {
+							throw new ValidationError(
+								'End-to-end mode: send wrappedPrivateKey, kdfSalt, and kdfParams re-wrapped under the new password.'
+							);
+						}
+					}
+				} else if (keyFields.length > 0) {
+					throw new ValidationError('Set keys through PUT /auth/keys, not here.');
+				}
+			}
+			if (custody) {
 				// A chapter editing one of its unclaimed writers: limited fields.
 				const target = await User.findByPk(newUser.id);
 				if (!(await AuthzService.mayManageUser(req, target))) {

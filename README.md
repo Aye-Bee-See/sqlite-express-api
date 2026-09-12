@@ -519,29 +519,29 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 ### Users
 
-| Method | Path                 | Auth                  | Purpose                                                                           |
-| ------ | -------------------- | --------------------- | --------------------------------------------------------------------------------- |
-| POST   | `/auth/user`         | Public                | Register (role `user`); admins may set other roles                                |
-| POST   | `/auth/login`        | Public                | Log in and receive a token                                                        |
-| GET    | `/auth/users`        | Admin                 | List users, optionally by role                                                    |
-| GET    | `/auth/user`         | Self or admin         | Get one user by id, email, or username; a group may read its unclaimed writers    |
-| PUT    | `/auth/user`         | Self or admin         | Update a user; a group may edit its unclaimed writers' name, email, note          |
-| DELETE | `/auth/user`         | Self or admin         | Delete a user; a group may delete its unclaimed writers                           |
-| POST   | `/auth/writer`       | Group                 | Create a managed writer under the caller's group                                  |
-| GET    | `/auth/writers`      | Group                 | List the group's managed writers (admins: all, or `?chapter=`)                    |
-| POST   | `/auth/writer/token` | Group                 | Generate or regenerate a writer's claim token                                     |
-| DELETE | `/auth/writer/token` | Group                 | Revoke a writer's claim token                                                     |
-| GET    | `/auth/claim`        | Public                | Check a claim token                                                               |
-| POST   | `/auth/claim`        | Public                | Claim a managed account                                                           |
-| GET    | `/auth/keys`         | Any                   | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)   |
-| PUT    | `/auth/keys`         | Any                   | Set the public key once; re-wrap the private key (password change, recovery code) |
-| GET    | `/auth/public-key`   | Any                   | A user's or group's public key, to seal an envelope to                            |
-| GET    | `/auth/recover`      | Public                | Start password recovery: recovery-wrapped key plus a sealed challenge             |
-| POST   | `/auth/recover`      | Public                | Finish recovery with the opened challenge and a re-wrapped key                    |
-| PUT    | `/auth/chapter-keys` | Group member or admin | Give a group its keypair (once) and the first member the wrapped group key        |
-| PUT    | `/auth/member-key`   | Key holder or admin   | Hand the wrapped group key to a member                                            |
-| DELETE | `/auth/member-key`   | Key holder or admin   | Take it back                                                                      |
-| GET    | `/auth/member-keys`  | Group member or admin | Which members hold the group key                                                  |
+| Method | Path                 | Auth                  | Purpose                                                                                       |
+| ------ | -------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| POST   | `/auth/user`         | Public                | Register (role `user`); admins may set other roles                                            |
+| POST   | `/auth/login`        | Public                | Log in and receive a token                                                                    |
+| GET    | `/auth/users`        | Admin                 | List users, optionally by role                                                                |
+| GET    | `/auth/user`         | Self or admin         | Get one user by id, email, or username; a group may read its unclaimed writers                |
+| PUT    | `/auth/user`         | Self or admin         | Update a user; a group may edit its unclaimed writers' name, email, note                      |
+| DELETE | `/auth/user`         | Self or admin         | Delete a user; a group may delete its unclaimed writers                                       |
+| POST   | `/auth/writer`       | Group                 | Create a managed writer under the caller's group                                              |
+| GET    | `/auth/writers`      | Group                 | List the group's managed writers (admins: all, or `?chapter=`)                                |
+| POST   | `/auth/writer/token` | Group                 | Generate or regenerate a writer's claim token                                                 |
+| DELETE | `/auth/writer/token` | Group                 | Revoke a writer's claim token                                                                 |
+| GET    | `/auth/claim`        | Public                | Check a claim token                                                                           |
+| POST   | `/auth/claim`        | Public                | Claim a managed account                                                                       |
+| GET    | `/auth/keys`         | Any                   | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
+| PUT    | `/auth/keys`         | Any                   | Set the public key once; re-wrap the private key (password change, recovery code)             |
+| GET    | `/auth/public-key`   | Any                   | A user's or group's public key, to seal an envelope to                                        |
+| GET    | `/auth/recover`      | Public                | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
+| POST   | `/auth/recover`      | Public                | Finish recovery with the opened challenge and a re-wrapped key                                |
+| PUT    | `/auth/chapter-keys` | Group member or admin | Give a group its keypair (once) and the first member the wrapped group key                    |
+| PUT    | `/auth/member-key`   | Key holder or admin   | Hand the wrapped group key to a member                                                        |
+| DELETE | `/auth/member-key`   | Key holder or admin   | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
+| GET    | `/auth/member-keys`  | Group member or admin | Which members hold the group key                                                              |
 
 #### User fields
 
@@ -798,17 +798,17 @@ Register with the key fields (`publicKey`, `wrappedPrivateKey`, `kdfSalt`, `kdfP
 }
 ```
 
-User records never carry wrapped keys; only `publicKey` is visible, and `GET /auth/public-key?user=` or `?chapter=` fetches one to seal to.
+User records never carry wrapped keys; only `publicKey` is visible, and `GET /auth/public-key?user=` or `?chapter=` fetches one to seal to. `PUT /auth/user` refuses key fields (use `PUT /auth/keys`), and in e2e mode a password change through it must carry `wrappedPrivateKey`, `kdfSalt`, and `kdfParams` re-wrapped under the new password; an admin cannot reset the password of an account that has keys (recovery is the path).
 
 #### Group keys
 
-A group's first member calls `PUT /auth/chapter-keys` with the group's new `publicKey` and the group private key sealed to their own public key (`wrappedOrgPrivateKey`); an admin may do it naming the member with `user`. From then on any member holding the group key hands it to another member with `PUT /auth/member-key` (sealing it to that member's public key) and takes it back with `DELETE`. `GET /auth/member-keys?chapter=` lists who holds it. A member reads letters addressed to the group by opening `orgKey.wrappedOrgPrivateKey` from their bundle, then the group's envelope.
+A group's first member calls `PUT /auth/chapter-keys` with the group's new `publicKey` and the group private key sealed to their own public key (`wrappedOrgPrivateKey`); an admin may do it naming the member with `user`. From then on any member holding the group key hands it to another member with `PUT /auth/member-key` (sealing it to that member's public key). `DELETE /auth/member-key` stops the hand-out but cannot revoke a key a member already opened, and the last holder cannot be removed; both need group key rotation, which is not built yet. The first member must already have a public key of their own. `GET /auth/member-keys?chapter=` lists who holds it. A member reads letters addressed to the group by opening `orgKey.wrappedOrgPrivateKey` from their bundle, then the group's envelope.
 
 #### Sending and reading letters
 
 `POST /messaging/message` takes `ciphertext`, `nonce`, optional `relayNoteCiphertext` and `relayNoteNonce`, and `envelopes`. The server checks the readers: the writer (always required, except for a group's anonymous writer), the relay group (required when the letter has one), the group managing the writer, and any active relay group of the facility. Anything else is a `400`. `messageText` is refused.
 
-Every read returns `ciphertext`, `nonce`, and `envelopes` filtered to the caller: a writer gets their own; a group member gets the group's, plus the envelopes of unclaimed writers the group manages (it holds their sealed keys); admins get them all but can open none. `last_message` on chat rows carries the same. Editing a queued letter means sending new `ciphertext` and `nonce` under the same content key.
+Ciphertext and nonce always travel as a pair, for the body and for the relay note. In e2e mode a letter's `user`, `prisoner`, and `relayChapter` cannot change after sending, because the envelopes fix its readers; forward instead. Every read returns `ciphertext`, `nonce`, and `envelopes` filtered to the caller: a writer gets their own; a group member gets the group's, plus the envelopes of unclaimed writers the group manages (it holds their sealed keys); admins get them all but can open none. `last_message` on chat rows carries the same, and a thread's embedded messages are limited to the ones the caller holds an envelope for (a group that was forwarded one letter does not receive the rest of the thread's ciphertext). Editing a queued letter means sending new `ciphertext` and `nonce` under the same content key.
 
 `POST /messaging/envelope { message, readerType, readerId, wrappedKey }` lets a current reader forward the letter to one more permitted reader, typically a partner relay group: `201`, `400` for a reader the letter may not have, `403` for a caller without an envelope, `409` if that reader already has one. In server mode this endpoint is a `409`.
 

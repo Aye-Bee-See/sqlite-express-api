@@ -25,7 +25,7 @@ export async function rewrapForE2E({
 	crypto.masterKey();
 	const { Message, LetterKey, User, Chapter } = Models;
 	const serverRows = await LetterKey.findAll({ where: { readerType: 'server' } });
-	const report = { letters: serverRows.length, sealed: 0, skipped: [], dropped: 0 };
+	const report = { letters: serverRows.length, sealed: 0, skipped: [], dropped: 0, writerOnly: [] };
 	for (const row of serverRows) {
 		const message = await Message.findByPk(row.message);
 		if (!message) {
@@ -79,9 +79,18 @@ export async function rewrapForE2E({
 		}
 		if (missing.length > 0) {
 			report.skipped.push({ message: message.id, missing });
-		} else if (dropServerKeys && !dryRun) {
-			await row.destroy();
-			report.dropped += 1;
+		} else {
+			if (chapterIds.size === 0 && writer && !writer.anonymousForChapter) {
+				// Only the writer can open this letter after the switch; a relay
+				// can still be added by forwarding, but nobody else can print it.
+				report.writerOnly.push(message.id);
+			}
+			if (dropServerKeys) {
+				if (!dryRun) {
+					await row.destroy();
+				}
+				report.dropped += 1;
+			}
 		}
 	}
 	log(
@@ -92,8 +101,18 @@ export async function rewrapForE2E({
 			' letter(s); ' +
 			report.skipped.length +
 			' letter(s) still need reader keys' +
-			(dropServerKeys ? '; dropped ' + report.dropped + ' server envelope(s).' : '.')
+			(dropServerKeys
+				? '; ' + (dryRun ? 'would drop ' : 'dropped ') + report.dropped + ' server envelope(s).'
+				: '.')
 	);
+	if (report.writerOnly.length > 0) {
+		log(
+			'  ' +
+				report.writerOnly.length +
+				' letter(s) have no relay or managing group and will be readable by the writer only: ' +
+				report.writerOnly.join(', ')
+		);
+	}
 	for (const item of report.skipped) {
 		log('  letter ' + item.message + ': no public key for ' + item.missing.join(', '));
 	}

@@ -282,7 +282,12 @@ export default class Chat extends Model {
 							sender: m.sender,
 							messageText: m.messageText,
 							...(crypto.isE2E()
-								? { ciphertext: m.getDataValue('ciphertext'), nonce: m.getDataValue('nonce') }
+								? {
+										ciphertext: m.getDataValue('ciphertext'),
+										nonce: m.getDataValue('nonce'),
+										relayNoteCiphertext: m.getDataValue('relayNoteCiphertext'),
+										relayNoteNonce: m.getDataValue('relayNoteNonce')
+									}
 								: {}),
 							status: m.status,
 							createdAt: m.createdAt

@@ -291,10 +291,8 @@ export default class LetterKey extends Model {
 
 	/** Does this reader hold an envelope (or a managed writer's) for the message? */
 	static async canRead(messageId, reader) {
-		if (reader.all) {
-			return true;
-		}
-		const map = await this.envelopeMap([messageId], reader);
+		// Admins see every envelope but can open none: not a reader for forwarding.
+		const map = await this.envelopeMap([messageId], { ...reader, all: false });
 		return (map.get(Number(messageId)) || []).length > 0;
 	}
 }

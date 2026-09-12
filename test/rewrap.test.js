@@ -73,6 +73,14 @@ test('server-mode letters are re-wrapped to readers who have keys; the rest are 
 		0,
 		'dry run writes nothing'
 	);
+	const dryDrop = await rewrapForE2E({
+		dryRun: true,
+		dropServerKeys: true,
+		log: (l) => logged.push(l)
+	});
+	assert.equal(dryDrop.dropped, 1, 'a dry run counts what it would drop');
+	assert.equal(await LetterKey.count({ where: { readerType: 'server' } }), 2, 'and drops nothing');
+	assert.ok(logged.some((l) => l.includes('would drop 1')));
 
 	const report = await rewrapForE2E({ log: (l) => logged.push(l) });
 	assert.equal(report.sealed, 3);

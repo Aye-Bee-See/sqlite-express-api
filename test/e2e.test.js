@@ -603,3 +603,179 @@ test('editing keeps the content key: the writer re-encrypts under it', async () 
 		'Dear friend, revised.'
 	);
 });
+
+// ---- review follow-ups (regressions) ------------------------------------------
+
+test('cipher fields travel in pairs and the reader set is fixed after sending', async () => {
+	const readers = [
+		{ readerType: 'user', readerId: f.alice.id, publicKey: keys.alice.publicKey },
+		{ readerType: 'chapter', readerId: f.group.id, publicKey: groupKeys.publicKey }
+	];
+	const { fields } = client.encryptLetter('Pairs', readers, 'note');
+	const halfNote = await post(
+		'/messaging/message',
+		{
+			...fields,
+			relayNoteNonce: undefined,
+			sender: 'user',
+			prisoner: f.prisoner1.id,
+			relayChapter: f.group.id
+		},
+		alice
+	);
+	assert.equal(halfNote.status, 400);
+	assert.match(halfNote.body.errors[0], /relayNoteCiphertext and relayNoteNonce together/);
+	const halfBody = await put('/messaging/message', { id: letter.id, ciphertext: 'AAAA' }, alice);
+	assert.equal(halfBody.status, 400);
+	assert.match(halfBody.body.errors[0], /ciphertext and nonce together/);
+	const moved = await put(
+		'/messaging/message',
+		{ id: letter.id, relayChapter: partnerGroup.id },
+		alice
+	);
+	assert.equal(moved.status, 400);
+	assert.match(moved.body.errors[0], /relayChapter cannot change/);
+	const same = await put('/messaging/message', { id: letter.id, relayChapter: f.group.id }, alice);
+	assert.equal(same.status, 200, 'restating the current value is not a change');
+});
+
+test('admins are not cryptographic readers and cannot forward', async () => {
+	const res = await post(
+		'/messaging/envelope',
+		{ message: letter.id, readerType: 'chapter', readerId: f.group.id, wrappedKey: 'x' },
+		admin
+	);
+	assert.equal(res.status, 403);
+});
+
+test('keys never travel through the generic chapter and user updates', async () => {
+	const other = client.keypair();
+	assert.equal(
+		(await put('/chapter/chapter', { id: f.group.id, publicKey: other.publicKey }, member)).status,
+		403
+	);
+	assert.equal(
+		(await put('/chapter/chapter', { id: f.group.id, publicKey: other.publicKey }, admin)).status,
+		403
+	);
+	assert.equal(
+		(
+			await post(
+				'/chapter/chapter',
+				{ name: 'Keyed', location: {}, publicKey: other.publicKey },
+				admin
+			)
+		).status,
+		403
+	);
+	assert.equal(
+		(await get('/chapter/chapter?id=' + f.group.id)).body.data.publicKey,
+		groupKeys.publicKey
+	);
+
+	const stray = await put('/auth/user', { id: f.alice.id, publicKey: other.publicKey }, alice);
+	assert.equal(stray.status, 400);
+	assert.match(stray.body.errors[0], /PUT \/auth\/keys/);
+	assert.equal((await put('/auth/user', { id: f.alice.id, recoverySalt: 'x' }, admin)).status, 400);
+
+	// A password change must re-wrap the private key, and only the holder can do it.
+	const bare = await put('/auth/user', { id: f.alice.id, password: 'alicenewpass' }, alice);
+	assert.equal(bare.status, 400);
+	assert.match(bare.body.errors[0], /re-wrapped under the new password/);
+	assert.equal(
+		(await put('/auth/user', { id: f.alice.id, password: 'adminreset' }, admin)).status,
+		400
+	);
+	const pw = client.wrapPrivateKey(keys.alice.privateKey, 'alicenewpass', '');
+	const ok = await put(
+		'/auth/user',
+		{
+			id: f.alice.id,
+			password: 'alicenewpass',
+			wrappedPrivateKey: pw.WrappedPrivateKey,
+			kdfSalt: pw.Salt,
+			kdfParams: pw.KdfParams
+		},
+		alice
+	);
+	assert.equal(ok.status, 200, JSON.stringify(ok.body));
+	const loginRes = await post('/auth/login', { username: 'alice', password: 'alicenewpass' });
+	assert.equal(loginRes.status, 200);
+	assert.equal(
+		client.unwrapPrivateKey(
+			loginRes.body.data.keys.wrappedPrivateKey,
+			'alicenewpass',
+			loginRes.body.data.keys.kdfSalt,
+			loginRes.body.data.keys.kdfParams
+		),
+		keys.alice.privateKey
+	);
+	alice = { token: loginRes.body.data.token.token };
+});
+
+test('group key bootstrap needs a keyed first member, and the last holder stays', async () => {
+	const bare = await makeUser({ role: 'chapter', username: 'bareorg' });
+	const bareGroup = await Chapter.createChapter({
+		name: 'Bare Group',
+		location: {},
+		accountStatus: 'active'
+	});
+	await User.update({ chapterId: bareGroup.id }, { where: { id: bare.id } });
+	const kp = client.keypair();
+	const res = await put(
+		'/auth/chapter-keys',
+		{ chapter: bareGroup.id, publicKey: kp.publicKey, wrappedOrgPrivateKey: 'x' },
+		{ token: bare.token }
+	);
+	assert.equal(res.status, 409);
+	assert.match(res.body.error, /no public key yet/);
+	assert.equal((await Chapter.findByPk(bareGroup.id)).publicKey, null, 'nothing half-set');
+
+	const last = await del('/auth/member-key', { chapter: f.group.id, user: member.id }, admin);
+	assert.equal(last.status, 409);
+	assert.match(last.body.error, /last holder/);
+	assert.ok(
+		await (
+			await import('../database/models/org-member-key.model.js')
+		).default.forMember(f.group.id, member.id)
+	);
+});
+
+test('a forwarded group sees only the letters it holds envelopes for', async () => {
+	// A second letter in the same thread, not forwarded to the partner.
+	const { fields } = client.encryptLetter('Second, private', [
+		{ readerType: 'user', readerId: f.alice.id, publicKey: keys.alice.publicKey },
+		{ readerType: 'chapter', readerId: f.group.id, publicKey: groupKeys.publicKey }
+	]);
+	const second = await post(
+		'/messaging/message',
+		{ ...fields, sender: 'user', prisoner: f.prisoner1.id, relayChapter: f.group.id },
+		alice
+	);
+	assert.equal(second.status, 201);
+	assert.equal(second.body.data.chat, letter.chat);
+
+	const thread = await get('/chat/chat?id=' + letter.chat + '&full=true', partnerMember);
+	assert.equal(thread.status, 200);
+	assert.deepEqual(
+		thread.body.data.messages.map((m) => m.id),
+		[letter.id]
+	);
+	assert.equal(thread.body.data.messages[0].envelopes.length, 1);
+	const list = await get('/messaging/messages?chat=' + letter.chat, partnerMember);
+	assert.deepEqual(
+		list.body.data.map((m) => m.id),
+		[letter.id]
+	);
+
+	const inbox = await get('/chat/chats', partnerMember);
+	const row = inbox.body.data.find((c) => c.id === letter.chat);
+	assert.ok(row, 'the chat is still listed');
+	assert.equal(row.last_message.id, second.body.data.id);
+	assert.equal(row.last_message.ciphertext, null, 'no ciphertext without an envelope');
+	assert.deepEqual(row.last_message.envelopes, []);
+
+	const own = await get('/chat/chat?id=' + letter.chat + '&full=true', alice);
+	assert.equal(own.body.data.messages.length, 2);
+	assert.ok(own.body.data.messages.every((m) => m.envelopes.length === 1));
+});

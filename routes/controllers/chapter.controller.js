@@ -53,6 +53,11 @@ export default class chapterController extends RouteController {
 	#handleLimits;
 
 	async create(req, res, next) {
+		if (req.body.publicKey !== undefined) {
+			return next(
+				AuthzService.forbidden('A group public key is set once, through PUT /auth/chapter-keys.')
+			);
+		}
 		if (req.body.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can set a group's account status."));
 		}
@@ -109,6 +114,11 @@ export default class chapterController extends RouteController {
 
 	async update(req, res, next) {
 		const newChapter = req.body;
+		if (newChapter.publicKey !== undefined) {
+			return next(
+				AuthzService.forbidden('A group public key is set once, through PUT /auth/chapter-keys.')
+			);
+		}
 		if (newChapter.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can set a group's account status."));
 		}

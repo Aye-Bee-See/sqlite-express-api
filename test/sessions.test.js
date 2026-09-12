@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
 	startServer,
 	stopServer,
+	api,
 	get,
 	post,
 	put,
@@ -137,4 +138,28 @@ test('expired revocations are swept', async () => {
 	assert.ok(removed >= 1);
 	assert.equal(await RevokedToken.isRevoked('old-token'), false);
 	assert.equal(await RevokedToken.isRevoked('live-token'), true);
+});
+
+test('logout works without a request body', async () => {
+	const u = await makeUser({ username: 'bodyless' });
+	const res = await api('POST', '/auth/logout', { token: u.token });
+	assert.equal(res.status, 200, JSON.stringify(res.body));
+	assert.equal((await me({ token: u.token, id: u.id })).status, 401);
+});
+
+test('the revocation marker cannot be cleared through the user update', async () => {
+	const u = await makeUser({ username: 'sneaky' });
+	const a = { token: u.token, id: u.id };
+	await post('/auth/revoke', { user: u.id }, admin);
+	const b = { token: await login('sneaky', u.password), id: u.id };
+	const clear = await put('/auth/user', { id: u.id, sessionsRevokedAt: null }, b);
+	assert.equal(clear.status, 403);
+	assert.match(clear.body.info, /cannot be set directly/);
+	assert.equal(
+		(await put('/auth/user', { id: u.id, sessionsRevokedAt: '2000-01-01T00:00:00.000Z' }, admin))
+			.status,
+		403
+	);
+	assert.equal((await me(a)).status, 401, 'the old token stays revoked');
+	assert.equal((await me(b)).status, 200);
 });

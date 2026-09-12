@@ -55,6 +55,9 @@ AuditLog.associate(Models);
 OrgMemberKey.associate(Models);
 RevokedToken.associate(Models);
 
+/** How often expired revocations are cleared while the server runs. */
+const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;
 
@@ -77,6 +80,13 @@ export const ready = (async () => {
 	}
 	await ensureAdmin();
 	await RevokedToken.sweep();
+	// Expired logout entries are also swept on every logout; this covers a
+	// server that runs for days without one. unref() keeps it from holding
+	// the process open (tests, one-off scripts).
+	setInterval(
+		() => RevokedToken.sweep().catch((err) => console.error('[sessions] sweep failed', err)),
+		SWEEP_INTERVAL_MS
+	).unref();
 	if (crypto.isE2E()) {
 		const leftover = await LetterKey.count({ where: { readerType: 'server' } });
 		if (leftover > 0) {

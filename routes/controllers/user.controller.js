@@ -237,6 +237,12 @@ export default class UserController extends RouteController {
 				return next(AuthzService.forbidden('Only an admin can change ' + field + '.'));
 			}
 		}
+		if (newUser.sessionsRevokedAt !== undefined) {
+			// Server-controlled: set through logout, POST /auth/revoke, or a password change.
+			return next(
+				AuthzService.forbidden('sessionsRevokedAt cannot be set directly; use POST /auth/revoke.')
+			);
+		}
 		try {
 			const custody = !AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req);
 			if (!custody) {
@@ -618,7 +624,8 @@ export default class UserController extends RouteController {
 	 * and can only be signed out everywhere.
 	 */
 	async logout(req, res) {
-		const everywhere = req.body.everywhere === true || req.body.everywhere === 'true';
+		const body = req.body || {};
+		const everywhere = body.everywhere === true || body.everywhere === 'true';
 		try {
 			const payload = authService.tokenPayload(req) || {};
 			let condition = 'par';

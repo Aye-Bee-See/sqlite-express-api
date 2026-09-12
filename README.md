@@ -535,7 +535,7 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 | ------ | -------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
 | POST   | `/auth/user`         | Public                | Register (role `user`); admins may set other roles                                            |
 | POST   | `/auth/login`        | Public                | Log in and receive a token                                                                    |
-| POST   | `/auth/logout`       | Any                   | End this token, or every token for the account with `{\"everywhere\": true}`                  |
+| POST   | `/auth/logout`       | Any                   | End this token, or every token for the account with `{"everywhere": true}`                    |
 | POST   | `/auth/revoke`       | Admin                 | End every token for an account without banning it                                             |
 | GET    | `/auth/users`        | Admin                 | List users, optionally by role                                                                |
 | GET    | `/auth/user`         | Self or admin         | Get one user by id, email, or username; a group may read its unclaimed writers                |

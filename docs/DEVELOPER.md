@@ -345,7 +345,7 @@ export default PrisonRoutes;
 - Every route except `POST /auth/user` and `POST /auth/login` starts with `passport.authenticate('UsrJStrat', { session: false, failWithError: true })`. `failWithError` routes auth failures into the JSON error handler.
 - Write routes on prisons, prisoners, rules, and chapters add `AuthzService.requireRole(ADMIN, CHAPTER)`. User routes use `requireRole(ADMIN)` for the list and `requireSelfOrAdmin` for get, update, and delete. Registration uses `optionalAuthenticate` so an admin token can unlock other roles while anonymous callers still get through. Chat and message routes have no route-level gate; ownership is enforced inside their controllers.
 - The controller method passed as the final handler must be a bound function whose `name` is `bound <method>`; see the next section.
-- Strategies are registered once at the bottom of `auth.services.js` (`auth.services.js:66`), not per route file.
+- Strategies are registered once at the bottom of `auth.services.js`, not per route file.
 
 ### Mounts
 
@@ -435,7 +435,7 @@ The README documents the shapes from the client's point of view. Where they come
 `authService.login` is a `passport-local` strategy with `usernameField: 'username'`. Its verify function:
 
 1. `User.getUserWithPassword({ username })`, the one query in the codebase that selects the password hash (see [User scopes](#user-scopes)).
-2. Refuses users whose role is `banned` (`auth.services.js:27`).
+2. Refuses users whose role is `banned`, and unclaimed managed writers.
 3. `bcrypt.compare(password, user.password)`.
 4. On match, builds a token with `#createJWT(user)` and calls `done(null, user, { token })`. The third argument becomes `req.authInfo`, which the route enables with `authInfo: true` and the controller reads.
 5. Otherwise `done(null, false)`, which with `failWithError` becomes a 401.
@@ -446,15 +446,15 @@ Missing `username` or `password` never reaches the verify function; passport-loc
 
 Each token's payload carries `id`, `jti` (16 random bytes, hex), `issued` (milliseconds; finer than the standard `iat`), and the legacy `expiry`; `jwt.sign` adds `iat` and `exp` (one week). `authService.issueToken(user)` makes one outside the login flow (after a self password change), and `authService.tokenPayload(req)` decodes the bearer token of a request that already passed the strategy.
 
-`#createJWT` (`auth.services.js:13`) signs `{ id: user.id, expiry }` with `expiresIn: '1w'` (HS256). The custom `expiry` claim in milliseconds duplicates the standard `exp`; only `exp` is checked. The login response returns `{ token, expires }`.
+`#createJWT` in `auth.services.js` signs that payload with `expiresIn: '1w'` (HS256). The custom `expiry` claim in milliseconds duplicates the standard `exp`; only `exp` is checked for expiry. The login response returns `{ token, expires }` (plus `keys` in e2e mode).
 
 ### Token verification (`JwtStrategy`)
 
-After the signature and expiry, `authService.tokenLive(payload, user)` refuses a token whose `jti` is in `RevokedTokens` (single logout) or whose `issued` is earlier than `User.sessionsRevokedAt` (logout everywhere, admin `POST /auth/revoke`, any password change, recovery finish; set by `User.revokeSessions`). A pre-feature token with neither `issued` nor `iat` counts as older than any revocation. `RevokedToken.sweep()` drops ids whose token has expired; it runs at boot and on every logout. This is the "denylist with a TTL" that Redis would provide, kept in SQLite because the table never holds more than a week of logouts.
+After the signature and expiry, `authService.tokenLive(payload, user)` refuses a token whose `jti` is in `RevokedTokens` (single logout) or whose `issued` is earlier than `User.sessionsRevokedAt` (logout everywhere, admin `POST /auth/revoke`, any password change, recovery finish; set by `User.revokeSessions`). A pre-feature token with neither `issued` nor `iat` counts as older than any revocation. `RevokedToken.sweep()` drops ids whose token has expired; it runs at boot, on every logout, and every hour. This is the "denylist with a TTL" that Redis would provide, kept in SQLite because the table never holds more than a week of logouts.
 
-`authService.authorize` (`auth.services.js:46`). `passport-jwt` verifies the signature and expiry first. The callback is `async`: it rejects a payload without an `id` claim, awaits `User.getUser({ id })`, and rejects a missing or banned user (`auth.services.js:52`). On success `req.user` is the User instance loaded through the default scope, so it never carries the password hash. Lookup errors are passed to passport as errors rather than escaping.
+`authService.authorize` is the strategy. `passport-jwt` verifies the signature and expiry first. The callback is `async`: it rejects a payload without an `id` claim, awaits `User.getUser({ id })`, rejects a missing or banned user, then applies `tokenLive`. On success `req.user` is the User instance loaded through the default scope, so it never carries the password hash or key material. Lookup errors are passed to passport as errors rather than escaping.
 
-Consequences: a deleted user's tokens stop working immediately; banning a user revokes their existing tokens; there is still no logout or refresh, and a compromised token is valid until it expires.
+Consequences: a deleted user's tokens stop working immediately; banning a user revokes their existing tokens; a logged-out token, or any token issued before a revocation, password change, or recovery, is refused; a compromised token that nobody notices is valid until it expires (one week), since there is no refresh to shorten that window. `sessionsRevokedAt` cannot be written through `PUT /auth/user`; only `User.revokeSessions` sets it. Expired denylist rows are swept at boot, on every logout, and hourly by an unref'd timer in `sql-database.js`.
 
 ## Authorization internals
 

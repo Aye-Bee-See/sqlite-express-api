@@ -73,6 +73,12 @@ class MessageRoutes {
 			this.#Controller.createEnvelope
 		);
 
+		this.Router.get(
+			messageEnd.get.retention,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.retention
+		);
+
 		// Attachments
 		const authenticate = passport.authenticate('UsrJStrat', {
 			session: false,

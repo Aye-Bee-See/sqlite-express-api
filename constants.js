@@ -14,7 +14,9 @@ const {
 	UPLOAD_DIR,
 	UPLOAD_MAX_BYTES,
 	ENCRYPTION_MODE,
-	ENCRYPTION_KEY
+	ENCRYPTION_KEY,
+	RETENTION_DEFAULT_DAYS,
+	RETENTION_MAX_DAYS
 } = process.env;
 
 /**
@@ -74,5 +76,20 @@ export const ENCRYPTION_MODES = ['server', 'e2e'];
 export const encryptionMode = ENCRYPTION_MODE || 'server';
 /** Base64 of 32 random bytes; required in `server` mode. `npm run keygen` makes one. */
 export const encryptionKey = ENCRYPTION_KEY || '';
+/**
+ * Retention: days a writer's letters and replies stay after mailing when
+ * the writer has not chosen a window (0 = forever), and an optional cap on
+ * what a writer may choose (unset = no cap).
+ */
+function envDays(value, fallback, { min = 0 } = {}) {
+	if (value === undefined || value === '') {
+		return fallback;
+	}
+	const n = Number(value);
+	return Number.isInteger(n) && n >= min ? n : fallback;
+}
+export const retentionDefaultDays = envDays(RETENTION_DEFAULT_DAYS, 90);
+// A cap of 0 would read as "forever" (the sentinel), so the cap starts at 1 day.
+export const retentionMaxDays = envDays(RETENTION_MAX_DAYS, null, { min: 1 });
 export const uploadMaxBytes =
 	UPLOAD_MAX_BYTES && Number(UPLOAD_MAX_BYTES) > 0 ? Number(UPLOAD_MAX_BYTES) : 10 * 1024 * 1024;

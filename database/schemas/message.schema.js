@@ -87,6 +87,12 @@ const messageSchema = {
 	statusChangedAt: {
 		type: DataTypes.DATE
 	},
+	/** Pinned: exempt from the retention purge. */
+	keep: {
+		type: DataTypes.BOOLEAN,
+		allowNull: false,
+		defaultValue: false
+	},
 	statusChangedBy: {
 		type: DataTypes.INTEGER
 	},

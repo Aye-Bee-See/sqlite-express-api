@@ -167,6 +167,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     ├── migration-helpers.js          withForeignKeysOff(): guards SQLite table rebuilds against cascading deletes. Separate from migrate.js to avoid a circular import.
     ├── letter-status.js              Letter lifecycle statuses and transitions.
     ├── rewrap-e2e.js                 `npm run encryption:rewrap`: seal server-held content keys to readers before switching to e2e.
+    ├── retention.js                  runRetention(), purgeIfUnpinned(), windowFor(): purge mailed letters and replies past the writer's window.
+    ├── retention-cli.js              `npm run retention [-- --dry-run]`: awaits `ready`, then runs the purge (separate file: sql-database.js imports retention.js).
     ├── migrations/                   <timestamp>.<name>.js files exporting up/down; applied ones recorded in SequelizeMeta.
     ├── sql-database.js               Init + associate models; runMigrations; seed; ensureAdmin; exports `ready`.
     ├── bootstrap-admin.js            ensureAdmin(): creates the ADMIN_* account when it does not exist.
@@ -226,23 +228,25 @@ Each alias lists several extension fallbacks. Include the `.js` extension in imp
 
 `constants.js` calls `dotenv/config` and exports:
 
-| Export           | Env var            | Default                        | Used by                                                                                           |
-| ---------------- | ------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `secretOrKey`    | `JWT_SECRET`       | none                           | `auth.services.js` to sign and verify tokens. Login fails without it.                             |
-| `sysPort`        | `PORT`             | none                           | `index.js` `app.listen`. Unset means a random free port.                                          |
-| `adminUsername`  | `ADMIN_USERNAME`   | none                           | `bootstrap-admin.js`                                                                              |
-| `adminPassword`  | `ADMIN_PASSWORD`   | none                           | `bootstrap-admin.js`                                                                              |
-| `adminEmail`     | `ADMIN_EMAIL`      | none                           | `bootstrap-admin.js`                                                                              |
-| `corsOrigins`    | `CORS_ORIGIN`      | `http://localhost:3001`        | `index.js`; comma-separated, trimmed, empties dropped.                                            |
-| `dbReset`        | `DB_RESET`         | `false`                        | `sql-database.js`: drop all tables and replay every migration.                                    |
-| `dbSeed`         | `DB_SEED`          | `true`                         | `sql-database.js`: whether to run `createSeeds()`.                                                |
-| `dbLogging`      | `DB_LOGGING`       | `false`                        | `sql-database.js`: Sequelize `logging`.                                                           |
-| `dbStorage`      | `DB_STORAGE`       | `database.sqlite`              | `sql-database.js`: SQLite file, or `:memory:`.                                                    |
-| `quietBoot`      | `NODE_ENV=test`    | `false`                        | Suppresses boot-time console output under the test runner.                                        |
-| `uploadDir`      | `UPLOAD_DIR`       | `uploads`                      | `services/files.js`: where attachment files are written.                                          |
-| `uploadMaxBytes` | `UPLOAD_MAX_BYTES` | `10485760`                     | `upload.services.js`: multer file size limit.                                                     |
-| `encryptionMode` | `ENCRYPTION_MODE`  | `server`                       | `services/crypto.js`: `server` (API holds the key) or `e2e` (browsers hold the keys).             |
-| `encryptionKey`  | `ENCRYPTION_KEY`   | none (required in server mode) | `services/crypto.js`: base64 32-byte key that wraps content keys; the rewrap script needs it too. |
+| Export                 | Env var                  | Default                        | Used by                                                                                           |
+| ---------------------- | ------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `secretOrKey`          | `JWT_SECRET`             | none                           | `auth.services.js` to sign and verify tokens. Login fails without it.                             |
+| `sysPort`              | `PORT`                   | none                           | `index.js` `app.listen`. Unset means a random free port.                                          |
+| `adminUsername`        | `ADMIN_USERNAME`         | none                           | `bootstrap-admin.js`                                                                              |
+| `adminPassword`        | `ADMIN_PASSWORD`         | none                           | `bootstrap-admin.js`                                                                              |
+| `adminEmail`           | `ADMIN_EMAIL`            | none                           | `bootstrap-admin.js`                                                                              |
+| `corsOrigins`          | `CORS_ORIGIN`            | `http://localhost:3001`        | `index.js`; comma-separated, trimmed, empties dropped.                                            |
+| `dbReset`              | `DB_RESET`               | `false`                        | `sql-database.js`: drop all tables and replay every migration.                                    |
+| `dbSeed`               | `DB_SEED`                | `true`                         | `sql-database.js`: whether to run `createSeeds()`.                                                |
+| `dbLogging`            | `DB_LOGGING`             | `false`                        | `sql-database.js`: Sequelize `logging`.                                                           |
+| `dbStorage`            | `DB_STORAGE`             | `database.sqlite`              | `sql-database.js`: SQLite file, or `:memory:`.                                                    |
+| `quietBoot`            | `NODE_ENV=test`          | `false`                        | Suppresses boot-time console output under the test runner.                                        |
+| `uploadDir`            | `UPLOAD_DIR`             | `uploads`                      | `services/files.js`: where attachment files are written.                                          |
+| `uploadMaxBytes`       | `UPLOAD_MAX_BYTES`       | `10485760`                     | `upload.services.js`: multer file size limit.                                                     |
+| `retentionDefaultDays` | `RETENTION_DEFAULT_DAYS` | `90`                           | `database/retention.js`: window when the writer chose none; 0 = forever.                          |
+| `retentionMaxDays`     | `RETENTION_MAX_DAYS`     | none                           | Cap on any writer's choice, including forever.                                                    |
+| `encryptionMode`       | `ENCRYPTION_MODE`        | `server`                       | `services/crypto.js`: `server` (API holds the key) or `e2e` (browsers hold the keys).             |
+| `encryptionKey`        | `ENCRYPTION_KEY`         | none (required in server mode) | `services/crypto.js`: base64 32-byte key that wraps content keys; the rewrap script needs it too. |
 
 The three `db*` values go through `envBool` (`constants.js:22`), which accepts `true/false`, `1/0`, `yes/no`, `on/off` in any case and otherwise returns the default. `NODE_ENV=development` is read directly by the two error renderers to decide whether 500 responses include the underlying message and stack.
 
@@ -593,6 +597,10 @@ Worth knowing:
 - A `keyLabel` that does not match the running key raises `EncryptionKeyError` (500) instead of returning garbage.
 - `sql-database.js` awaits `crypto.ready` and calls `assertConfigured()` before migrations, so a missing or malformed key fails the boot with a plain message. The encryption migration converts existing plaintext rows and files and needs the key too.
 
+### Retention
+
+`database/retention.js` exports `windowFor(writer)` (the writer's `retentionDays`, else the default, capped; `null` means keep forever) and `runRetention({ dryRun, now, log })`. The run selects messages with status `mailed` or `received` and `keep = false`, resolves each writer's window, and deletes those whose `statusChangedAt` is older than it with `purgeIfUnpinned`: a conditional `destroy` (`keep = false` and still mailed or received at that instant, so a pin made after the snapshot wins) after listing the attachment files, which are unlinked once the row is gone (envelope and history rows cascade). Runs in one process never overlap (`runRetention` reuses an in-flight run); a concurrent manual run in another process only ever double-counts nothing, because each deletion is conditional. A cap of `0` is refused (it would read as the forever sentinel). Chats emptied by the run are destroyed, one `retention.run` audit entry records the counts, and `VACUUM` follows so freed pages leave the file. `sql-database.js` runs it at boot and every six hours on an unref'd timer; `npm run retention [-- --dry-run]` runs it by hand. `PUT /auth/user` validates `retentionDays` (whole number, not negative, within the cap) and lets a managing group set it for its unclaimed and anonymous writers; `PUT /messaging/message` accepts `{ id, keep }` on a mailed letter from anyone in scope, the one edit allowed after mailing.
+
 ### End-to-end mode
 
 `crypto.isE2E()` switches the same code paths to browser-held keys:
@@ -680,7 +688,7 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 `npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
 
 - `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `upload()` (multipart via `FormData`) and `getBytes()` (raw download), a per-process temporary `UPLOAD_DIR` (removed by `stopServer()`) with a 64 KiB `UPLOAD_MAX_BYTES`, a fixed test `ENCRYPTION_KEY`, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin; an active Chapter record `group` with a `chapter`-role member and an unclaimed managed `writer`; two independent users `alice` and `bob`; a prison with two prisoners; a rule).
-- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `e2e`, `encryption`, `groups`, `letters`, `messaging`, `migrations`, `moderation`, `sessions`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
+- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `e2e`, `encryption`, `groups`, `letters`, `messaging`, `migrations`, `moderation`, `retention`, `sessions`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
 - Seeded data is not used by the tests; fixtures are created explicitly, so tests never depend on seed ids.
 - CI (`.github/workflows/test.yml`) runs `npm ci`, ESLint, and the suite on Node 22 and 24 for every pull request and push to `main`.
 
@@ -759,7 +767,7 @@ Known gaps, roughly in the order they are worth tackling:
 5. **Token refresh.** Logout and revocation exist; there is still no refresh, so a week-long token simply expires and the client logs in again.
 6. **Key rotation and e2e follow-ups.** No script re-wraps the server envelopes under a new `ENCRYPTION_KEY` yet (unwrap with the old key, wrap with the new, update `keyLabel`). In e2e mode: rate limiting on the recovery endpoints, a way for a group to rotate its keypair (re-seal every envelope it holds), and group-only envelopes for anonymous-writer letters whose account has no keys.
 7. **Moderation follow-ups.** Anonymous corrections from the public footer (a submission with no `submittedBy`, rate-limited), group invitations with vouching, site settings, and email or in-app notification of decisions to submitters.
-8. **Retention and storage.** Purging `mailed` letters (and their attachment files) after a window, then `VACUUM`, is a scheduled job to add once the product decides the window. Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes are still open to every chapter account.
+8. **Storage.** Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes to facilities and prisoners are still open to every active chapter account (groups may only edit their own group record).
 9. **Rate limiting and request logging.** None.
 10. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
 11. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.

@@ -93,6 +93,14 @@ const userSchema = {
 		type: DataTypes.TEXT
 	},
 
+	/** Days a writer's letters stay after mailing; null = site default, 0 = forever. */
+	retentionDays: {
+		type: DataTypes.INTEGER,
+		validate: {
+			isInt: { args: true, msg: 'retentionDays must be a whole number of days.' },
+			min: { args: [0], msg: 'retentionDays cannot be negative (0 means keep forever).' }
+		}
+	},
 	/** Tokens issued before this instant are refused (logout everywhere, revocation, password change). */
 	sessionsRevokedAt: {
 		type: DataTypes.DATE

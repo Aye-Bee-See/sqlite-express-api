@@ -60,23 +60,25 @@ Copy `.env.example` to `.env` and edit it. `.env` is git-ignored.
 cp .env.example .env
 ```
 
-| Variable           | Required | Default                 | Purpose                                                                                                                               |
-| ------------------ | -------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `JWT_SECRET`       | Yes      | none                    | Secret used to sign and verify login tokens. Login fails without it.                                                                  |
-| `PORT`             | Yes      | none                    | TCP port to listen on.                                                                                                                |
-| `ADMIN_USERNAME`   | No       | none                    | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.     |
-| `ADMIN_PASSWORD`   | No       | none                    | Password for that account, at least 7 characters.                                                                                     |
-| `ADMIN_EMAIL`      | No       | none                    | Email for that account.                                                                                                               |
-| `CORS_ORIGIN`      | No       | `http://localhost:3001` | Browser origins allowed by CORS, comma-separated.                                                                                     |
-| `DB_RESET`         | No       | `false`                 | `true` drops every table and replays all migrations on boot. All data is lost.                                                        |
-| `DB_SEED`          | No       | `true`                  | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                 |
-| `DB_LOGGING`       | No       | `false`                 | `true` prints every SQL statement.                                                                                                    |
-| `DB_STORAGE`       | No       | `database.sqlite`       | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                            |
-| `UPLOAD_DIR`       | No       | `uploads`               | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database. |
-| `UPLOAD_MAX_BYTES` | No       | `10485760`              | Largest accepted upload (10 MiB).                                                                                                     |
-| `ENCRYPTION_MODE`  | No       | `server`                | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                              |
-| `ENCRYPTION_KEY`   | Yes      | none                    | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.        |
-| `NODE_ENV`         | No       | none                    | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                            |
+| Variable                 | Required | Default                 | Purpose                                                                                                                                            |
+| ------------------------ | -------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JWT_SECRET`             | Yes      | none                    | Secret used to sign and verify login tokens. Login fails without it.                                                                               |
+| `PORT`                   | Yes      | none                    | TCP port to listen on.                                                                                                                             |
+| `ADMIN_USERNAME`         | No       | none                    | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                  |
+| `ADMIN_PASSWORD`         | No       | none                    | Password for that account, at least 7 characters.                                                                                                  |
+| `ADMIN_EMAIL`            | No       | none                    | Email for that account.                                                                                                                            |
+| `CORS_ORIGIN`            | No       | `http://localhost:3001` | Browser origins allowed by CORS, comma-separated.                                                                                                  |
+| `DB_RESET`               | No       | `false`                 | `true` drops every table and replays all migrations on boot. All data is lost.                                                                     |
+| `DB_SEED`                | No       | `true`                  | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                              |
+| `DB_LOGGING`             | No       | `false`                 | `true` prints every SQL statement.                                                                                                                 |
+| `DB_STORAGE`             | No       | `database.sqlite`       | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                         |
+| `UPLOAD_DIR`             | No       | `uploads`               | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.              |
+| `UPLOAD_MAX_BYTES`       | No       | `10485760`              | Largest accepted upload (10 MiB).                                                                                                                  |
+| `ENCRYPTION_MODE`        | No       | `server`                | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                           |
+| `ENCRYPTION_KEY`         | Yes      | none                    | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                     |
+| `RETENTION_DEFAULT_DAYS` | No       | `90`                    | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention). |
+| `RETENTION_MAX_DAYS`     | No       | none                    | Caps what a writer may choose, including \"forever\".                                                                                              |
+| `NODE_ENV`               | No       | none                    | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                         |
 
 ### Start
 
@@ -114,6 +116,18 @@ The suite runs against an in-memory database and needs no `.env`. It takes a cou
 Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
 
 Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and are referenced by rows in the `Attachments` table; back up both together. Deleting a message or chat through the API removes its files.
+
+### Retention
+
+Letters do not stay forever. Once a letter has been `mailed` (or a prisoner reply recorded) for longer than the writer's window, the API deletes it, with its attachments, envelopes, and status history, and removes a chat left empty. Queued and printed letters are never touched, and neither is a letter the writer pinned with `keep: true`. Every run that deletes something writes one `retention.run` entry to the audit log with the counts, then compacts the database file so the deleted pages do not linger.
+
+The window is per writer: `retentionDays` on the account, else `RETENTION_DEFAULT_DAYS` (90). `0` means forever. `RETENTION_MAX_DAYS`, when set, caps every choice including forever. A writer's window covers the prisoner replies in their threads, since they sit in the writer's account. A managing group sets the window for its unclaimed managed writers and for its anonymous writer through `PUT /auth/user`, the same way it edits their names. `GET /messaging/retention` tells a client the default, the cap, and the caller's effective window.
+
+The job runs when the API boots and every six hours. To preview what a run would remove:
+
+```bash
+npm run retention -- --dry-run
+```
 
 ### Encryption
 
@@ -559,19 +573,20 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 #### User fields
 
-| Field                      | Rules                                                                                                                                                                              |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `username`                 | Required, unique, 3 to 16 characters.                                                                                                                                              |
-| `password`                 | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                                                            |
-| `email`                    | Required, unique, must look like an email address.                                                                                                                                 |
-| `role`                     | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later.                                             |
-| `name`                     | Optional display name, 3 to 32 characters.                                                                                                                                         |
-| `bio`                      | Optional, 12 to 2400 characters.                                                                                                                                                   |
-| `managedBy`                | Id of the group holding this account in custody (a managed writer). `null` for independent accounts and once claimed. Admin-only to set directly.                                  |
-| `claimedAt`, `claimedFrom` | When the writer claimed the account and from which group; both `null` until then. Read-only.                                                                                       |
-| `anonymousForChapter`      | Set on the one anonymous-writer account each group gets; see [Managed writers](#managed-writers). Read-only.                                                                       |
-| `managerNote`              | Free-text note the managing group keeps about a writer. Returned only to admins and to the managing group; absent from every other response.                                       |
-| `chapterId`                | Id of the chapter (group) this account belongs to. Only an admin can set it, on create or update; anyone else's value is ignored on registration and refused with `403` on update. |
+| Field                      | Rules                                                                                                                                                                                                                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `username`                 | Required, unique, 3 to 16 characters.                                                                                                                                                                                                                                            |
+| `password`                 | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                                                                                                                                                          |
+| `email`                    | Required, unique, must look like an email address.                                                                                                                                                                                                                               |
+| `role`                     | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later.                                                                                                                                           |
+| `name`                     | Optional display name, 3 to 32 characters.                                                                                                                                                                                                                                       |
+| `bio`                      | Optional, 12 to 2400 characters.                                                                                                                                                                                                                                                 |
+| `managedBy`                | Id of the group holding this account in custody (a managed writer). `null` for independent accounts and once claimed. Admin-only to set directly.                                                                                                                                |
+| `claimedAt`, `claimedFrom` | When the writer claimed the account and from which group; both `null` until then. Read-only.                                                                                                                                                                                     |
+| `anonymousForChapter`      | Set on the one anonymous-writer account each group gets; see [Managed writers](#managed-writers). Read-only.                                                                                                                                                                     |
+| `managerNote`              | Free-text note the managing group keeps about a writer. Returned only to admins and to the managing group; absent from every other response.                                                                                                                                     |
+| `retentionDays`            | How long this writer's letters and replies stay after mailing, in days; `null` means the site default and `0` means forever (unless the site caps it). Set by the account holder, or by the managing group for its unclaimed and anonymous writers. See [Retention](#retention). |
+| `chapterId`                | Id of the chapter (group) this account belongs to. Only an admin can set it, on create or update; anyone else's value is ignored on registration and refused with `403` on update.                                                                                               |
 
 #### POST /auth/user
 
@@ -1392,18 +1407,19 @@ Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data":
 
 ### Messages
 
-| Method | Path                     | Auth                 | Purpose                                             |
-| ------ | ------------------------ | -------------------- | --------------------------------------------------- |
-| POST   | `/messaging/message`     | Scoped               | Send a message (creates the chat if needed)         |
-| GET    | `/messaging/messages`    | Scoped               | List messages                                       |
-| GET    | `/messaging/message`     | Scoped               | Get one message by id                               |
-| PUT    | `/messaging/message`     | Scoped               | Update a message (while still queued, unless admin) |
-| PUT    | `/messaging/status`      | Relay group or admin | Move a letter to `printed` or `mailed`              |
-| DELETE | `/messaging/message`     | Scoped               | Delete a message (while still queued, unless admin) |
-| POST   | `/messaging/attachment`  | Scoped               | Upload a file to a message (multipart)              |
-| GET    | `/messaging/attachments` | Scoped               | List a message's attachments                        |
-| GET    | `/messaging/attachment`  | Scoped               | Download one attachment                             |
-| DELETE | `/messaging/attachment`  | Scoped               | Delete one attachment                               |
+| Method | Path                     | Auth                 | Purpose                                                       |
+| ------ | ------------------------ | -------------------- | ------------------------------------------------------------- |
+| POST   | `/messaging/message`     | Scoped               | Send a message (creates the chat if needed)                   |
+| GET    | `/messaging/messages`    | Scoped               | List messages                                                 |
+| GET    | `/messaging/message`     | Scoped               | Get one message by id                                         |
+| PUT    | `/messaging/message`     | Scoped               | Update a message (while still queued, unless admin)           |
+| PUT    | `/messaging/status`      | Relay group or admin | Move a letter to `printed` or `mailed`                        |
+| DELETE | `/messaging/message`     | Scoped               | Delete a message (while still queued, unless admin)           |
+| POST   | `/messaging/attachment`  | Scoped               | Upload a file to a message (multipart)                        |
+| GET    | `/messaging/attachments` | Scoped               | List a message's attachments                                  |
+| GET    | `/messaging/attachment`  | Scoped               | Download one attachment                                       |
+| GET    | `/messaging/retention`   | Any                  | The retention rules and the window that applies to the caller |
+| DELETE | `/messaging/attachment`  | Scoped               | Delete one attachment                                         |
 
 The scope is the same as for chats: own messages for a `user`; the group's managed writers' messages plus the letters the group relays for a `chapter` account; everything for an admin.
 
@@ -1445,6 +1461,7 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 | `relayChapter`                          | integer  | Group that prints and mails the letter. Optional; resolved from the facility's relay groups when omitted, validated against them when given.                                                                             |
 | `relayNote`                             | string   | Optional instructions for the relay group (page count, language, "include the photo"). Never part of the letter.                                                                                                         |
 | `statusChangedAt`, `statusChangedBy`    |          | Read-only. When the status last changed and which account changed it.                                                                                                                                                    |
+| `keep`                                  | boolean  | Pinned: exempt from retention. The only field a writer may change on a mailed letter.                                                                                                                                    |
 | `prisoner`                              | integer  | Required. Id of the prisoner side.                                                                                                                                                                                       |
 
 #### POST /messaging/message

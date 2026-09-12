@@ -10,6 +10,9 @@ import { sniffType } from '#services/files.js';
 import { audit } from '#rtServices/audit.services.js';
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
+import User from '#models/user.model.js';
+import { retentionDefaultDays, retentionMaxDays } from '#constants';
+import { windowFor } from '#db/retention.js';
 
 /**
  * Message (letter) controller.
@@ -37,6 +40,7 @@ export default class MessageController extends RouteController {
 		this.update = this.update.bind(this);
 		this.updateStatus = this.updateStatus.bind(this);
 		this.createEnvelope = this.createEnvelope.bind(this);
+		this.retention = this.retention.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
 		this.createAttachment = this.createAttachment.bind(this);
@@ -209,7 +213,9 @@ export default class MessageController extends RouteController {
 			const scope = await threadScope(req);
 			if (scope.kind !== 'all') {
 				const current = await this.#loadAllowed(scope, newMessage.id);
-				if (current && !isOpen(current.status)) {
+				// Pinning (keep) is the one edit allowed on a mailed letter.
+				const onlyKeep = Object.keys(newMessage).every((k) => ['id', 'keep'].includes(k));
+				if (current && !isOpen(current.status) && !onlyKeep) {
 					throw AuthzService.forbidden('A ' + current.status + ' letter can no longer be edited.');
 				}
 				if (scope.kind === 'own') {
@@ -293,6 +299,25 @@ export default class MessageController extends RouteController {
 				readerId: envelope.readerId
 			});
 			this.#handleSuccess(res, envelope);
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * GET /messaging/retention: the site's retention rules and the window
+	 * that applies to the caller.
+	 */
+	async retention(req, res, next) {
+		try {
+			const me = await User.findByPk(req.user.id, { attributes: ['id', 'retentionDays'] });
+			this.#handleSuccess(res, {
+				defaultDays: retentionDefaultDays,
+				maxDays: retentionMaxDays,
+				chosenDays: me ? me.retentionDays : null,
+				effectiveDays: windowFor(me),
+				coversReplies: true
+			});
 		} catch (err) {
 			this.#fail(res, next, err);
 		}

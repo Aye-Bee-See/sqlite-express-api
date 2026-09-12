@@ -121,7 +121,8 @@ export async function rewrapForE2E({
 
 if (import.meta.url === new URL(process.argv[1], 'file://').href) {
 	const args = new Set(process.argv.slice(2));
-	await import('./sql-database.js');
+	const db = await import('./sql-database.js');
+	await db.ready;
 	await rewrapForE2E({
 		dropServerKeys: args.has('--drop-server-keys'),
 		dryRun: args.has('--dry-run')

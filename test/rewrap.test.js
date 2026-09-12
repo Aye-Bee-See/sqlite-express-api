@@ -128,3 +128,59 @@ test('server-mode letters are re-wrapped to readers who have keys; the rest are 
 		409
 	);
 });
+
+test('a managing group can prepare an unclaimed writer for the switch', async () => {
+	const other = await (
+		await import('./helpers.js')
+	).makeUser({ role: 'chapter', username: 'elsewhere' });
+	const writerKeys = client.keypair();
+	const body = {
+		id: f.writer.id,
+		publicKey: writerKeys.publicKey,
+		orgWrappedPrivateKey: client.seal(
+			groupKeys.publicKey,
+			Buffer.from(writerKeys.privateKey, 'base64')
+		)
+	};
+	assert.equal((await put('/auth/user', body, { token: other.token })).status, 403);
+	assert.equal(
+		(await put('/auth/user', { id: f.writer.id, publicKey: 'nope' }, member)).status,
+		400
+	);
+	const res = await put('/auth/user', body, member);
+	assert.equal(res.status, 200, JSON.stringify(res.body));
+	const again = await put(
+		'/auth/user',
+		{ id: f.writer.id, publicKey: client.keypair().publicKey },
+		member
+	);
+	assert.equal(again.status, 409);
+	const stored = await (await import('./helpers.js')).User.getUserWithKeys({ id: f.writer.id });
+	assert.equal(stored.publicKey, writerKeys.publicKey);
+	assert.equal(
+		Buffer.from(
+			client.open(stored.orgWrappedPrivateKey, groupKeys.publicKey, groupKeys.privateKey)
+		).toString('base64'),
+		writerKeys.privateKey
+	);
+	// Letters the group sent for this writer now re-wrap to the writer too.
+	const sent = (
+		await post(
+			'/messaging/message',
+			{
+				messageText: 'For the held writer',
+				sender: 'user',
+				prisoner: f.prisoner1.id,
+				user: f.writer.id
+			},
+			member
+		)
+	).body.data;
+	const report = await rewrapForE2E({ log: () => {} });
+	assert.equal(report.skipped.filter((s) => s.message === sent.id).length, 0);
+	assert.ok(
+		await LetterKey.findOne({
+			where: { message: sent.id, readerType: 'user', readerId: f.writer.id }
+		})
+	);
+});

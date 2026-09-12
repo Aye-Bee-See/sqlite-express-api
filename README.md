@@ -124,7 +124,7 @@ There are two modes, chosen by `ENCRYPTION_MODE`:
 - **`server`** (the default): the only reader is the server, and the content keys are wrapped with `ENCRYPTION_KEY`. The API decrypts letters for authorised callers, and the request and response shapes are exactly what this document describes (`messageText`, `relayNote`, plain file downloads). This protects a copied database file or upload directory, which hold ciphertext only. It does not protect against someone with the running server and its key.
 - **`e2e`**: readers hold the keys. Every account and every group has an X25519 keypair; the browser encrypts each letter with a fresh content key and seals that key to each reader's public key (the _envelopes_). The server stores ciphertext and envelopes, returns each caller the envelopes they can open, and never sees a password-derived key, a recovery code, or an unwrapped private key. `messageText` and `relayNote` are always `null`; clients send and receive `ciphertext` and `nonce` instead, and attachment files travel as ciphertext. See [End-to-end mode](#end-to-end-mode).
 
-The storage shape is the same in both modes, so switching is a re-wrap of content keys, never a re-encryption of letters: once readers have public keys, `npm run encryption:rewrap` seals every server-held content key to its readers (writer, relay group, managing group), reports letters whose readers still lack keys, and with `--drop-server-keys` removes the server envelopes it no longer needs. Then set `ENCRYPTION_MODE=e2e` and restart; boot warns while any server envelope remains.
+The storage shape is the same in both modes, so switching is a re-wrap of content keys, never a re-encryption of letters. The step-by-step procedure, with its checks and its rollback limits, is in [docs/E2E-MIGRATION.md](docs/E2E-MIGRATION.md). In short: once readers have public keys, `npm run encryption:rewrap` seals every server-held content key to its readers (writer, relay group, managing group), reports letters whose readers still lack keys, and with `--drop-server-keys` removes the server envelopes it no longer needs. Then set `ENCRYPTION_MODE=e2e` and restart; boot warns while any server envelope remains.
 
 Operational rules:
 
@@ -1813,4 +1813,5 @@ Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest
 ## Further reading
 
 - [Developer guide](docs/DEVELOPER.md): architecture, request lifecycle, data model, authorization internals, tooling, and how to add a resource.
+- [Switching to end-to-end encryption](docs/E2E-MIGRATION.md): the operator checklist for moving from `server` to `e2e` mode.
 - [GitHub repository](https://github.com/Aye-Bee-See/sqlite-express-api)

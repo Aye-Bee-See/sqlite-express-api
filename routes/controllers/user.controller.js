@@ -240,7 +240,31 @@ export default class UserController extends RouteController {
 				if (!(await AuthzService.mayManageUser(req, target))) {
 					return next(await AuthzService.refusalFor(req));
 				}
-				const allowed = ['id', 'name', 'email', 'managerNote'];
+				// A managing group may also prepare an unclaimed writer for end-to-end
+				// mode: set the keypair it generated (public key once, its sealed copy).
+				const allowed = ['id', 'name', 'email', 'managerNote', 'publicKey', 'orgWrappedPrivateKey'];
+				if (newUser.publicKey !== undefined) {
+					if (!crypto.isPublicKey(newUser.publicKey)) {
+						return next(
+							new ValidationError('publicKey must be a base64 X25519 public key (32 bytes).')
+						);
+					}
+					if (target.publicKey && target.publicKey !== newUser.publicKey) {
+						return next(
+							new HttpError(
+								409,
+								'The writer already has a public key; it cannot change.',
+								'KeyChangeError'
+							)
+						);
+					}
+				}
+				if (
+					newUser.orgWrappedPrivateKey !== undefined &&
+					typeof newUser.orgWrappedPrivateKey !== 'string'
+				) {
+					return next(new ValidationError('orgWrappedPrivateKey must be a string.'));
+				}
 				const extra = Object.keys(newUser).filter((k) => !allowed.includes(k));
 				if (extra.length > 0) {
 					return next(

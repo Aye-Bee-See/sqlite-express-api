@@ -140,6 +140,21 @@ export default class Prisoner extends Model {
 		return { prison, relayIds: groups.map((g) => g.id) };
 	}
 
+	/**
+	 * A light facility summary for list rows ("Held at ..."), so cards need no
+	 * extra request. full=true replaces it with the complete include.
+	 */
+	static #facilitySummary(publishedOnly) {
+		return [
+			{
+				model: Prison,
+				as: 'prison_details',
+				attributes: ['id', 'prisonName', 'country', 'routing'],
+				...(publishedOnly ? { where: publishedWhere(true), required: false } : {})
+			}
+		];
+	}
+
 	// Create
 
 	static async createPrisoner(fields) {
@@ -182,7 +197,7 @@ export default class Prisoner extends Model {
 		return await this.findAndCountAll({
 			...this.publicAttributes(publishedOnly),
 			where: { ...where, ...publishedWhere(publishedOnly) },
-			include: full ? this.#includes(publishedOnly) : [],
+			include: full ? this.#includes(publishedOnly) : this.#facilitySummary(publishedOnly),
 			limit,
 			offset,
 			distinct: true,
@@ -231,7 +246,9 @@ export default class Prisoner extends Model {
 		return await this.findAndCountAll({
 			...this.publicAttributes(publishedOnly),
 			where: { ...where, prison: prisonId, ...publishedWhere(publishedOnly) },
-			include: full ? this.#includes(publishedOnly, withChats) : [],
+			include: full
+				? this.#includes(publishedOnly, withChats)
+				: this.#facilitySummary(publishedOnly),
 			limit,
 			offset,
 			distinct: true,

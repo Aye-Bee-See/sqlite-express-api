@@ -99,10 +99,22 @@ export default class chapterController extends RouteController {
 		}
 	}
 
+	/** Non-admins may only change or delete the group they belong to. */
+	#ownGroupOnly(req, id) {
+		if (AuthzService.isAdmin(req) || String(AuthzService.chapterOf(req)) === String(id)) {
+			return null;
+		}
+		return AuthzService.forbidden('A group may only edit its own record.');
+	}
+
 	async update(req, res, next) {
 		const newChapter = req.body;
 		if (newChapter.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can set a group's account status."));
+		}
+		const refusal = this.#ownGroupOnly(req, newChapter.id);
+		if (refusal) {
+			return next(refusal);
 		}
 		try {
 			const updatedRows = await Chapter.updateChapter(newChapter);
@@ -115,8 +127,12 @@ export default class chapterController extends RouteController {
 		}
 	}
 
-	async remove(req, res) {
+	async remove(req, res, next) {
 		const { id } = req.body;
+		const refusal = this.#ownGroupOnly(req, id);
+		if (refusal) {
+			return next(refusal);
+		}
 		try {
 			const deletedRows = await Chapter.deleteChapter(id);
 			this.requireAffected(deletedRows, 'Chapter ' + id);

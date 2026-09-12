@@ -21,7 +21,9 @@ import Message from '#models/message.model.js';
  * @property {(record: {user: number}) => Promise<boolean>} allows  may the caller see this chat?
  * @property {(record: {user: number, relayChapter?: number}) => boolean} allowsMessage
  * @property {number[]} [writerIds]  managed scope only
- * @property {number|null} [chapterId] managed scope only
+ * @property {number|null} [chapterId] managed scope only (null when the group is not active)
+ * @property {() => Error} deny  the 403 to throw when a record is out of scope: for an
+ *   inactive or missing group it explains that, otherwise it is a plain refusal
  */
 
 /** Ids of chats that hold at least one letter relayed by the group. */
@@ -45,11 +47,13 @@ export async function threadScope(req) {
 			messageWhere: {},
 			allowsUser: () => true,
 			allows: async () => true,
-			allowsMessage: () => true
+			allowsMessage: () => true,
+			deny: () => AuthzService.forbidden()
 		};
 	}
 	if (AuthzService.hasRole(req, AuthzService.CHAPTER)) {
 		const chapterId = await AuthzService.activeChapterOf(req);
+		const refusal = chapterId ? null : await AuthzService.groupRefusal(req);
 		const writerIds = await User.managedWriterIds(chapterId);
 		const allowed = new Set(writerIds.map(String));
 		const userIn = { [Op.in]: writerIds.length ? writerIds : [-1] };
@@ -80,7 +84,8 @@ export async function threadScope(req) {
 			allowsMessage: (message) =>
 				Boolean(message) &&
 				(allowed.has(String(message.user)) ||
-					(Boolean(chapterId) && message.relayChapter === chapterId))
+					(Boolean(chapterId) && message.relayChapter === chapterId)),
+			deny: () => refusal || AuthzService.forbidden()
 		};
 	}
 	const self = String(req.user.id);
@@ -91,7 +96,8 @@ export async function threadScope(req) {
 		messageWhere: { user: req.user.id },
 		allowsUser: (userId) => String(userId) === self,
 		allows: async (chat) => isSelf(chat),
-		allowsMessage: isSelf
+		allowsMessage: isSelf,
+		deny: () => AuthzService.forbidden()
 	};
 }
 
@@ -115,7 +121,7 @@ export async function resolveWriter(req, scope, requested, letter = {}) {
 	}
 	if (scope.kind === 'managed') {
 		if (!scope.chapterId) {
-			throw await AuthzService.groupRefusal(req);
+			throw scope.deny();
 		}
 		if (requested === undefined || requested === null || requested === '') {
 			const anonymous = await User.anonymousWriterFor(scope.chapterId);

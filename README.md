@@ -1542,13 +1542,13 @@ Body: `{"id": 3}`. Removes the row and the file. Returns `"data": 1`.
 
 ### Chapters
 
-| Method | Path                | Auth             | Purpose               |
-| ------ | ------------------- | ---------------- | --------------------- |
-| POST   | `/chapter/chapter`  | Admin or chapter | Create a chapter      |
-| GET    | `/chapter/chapters` | Public           | List chapters         |
-| GET    | `/chapter/chapter`  | Public           | Get one chapter by id |
-| PUT    | `/chapter/chapter`  | Admin or chapter | Update a chapter      |
-| DELETE | `/chapter/chapter`  | Admin or chapter | Delete a chapter      |
+| Method | Path                | Auth             | Purpose                                          |
+| ------ | ------------------- | ---------------- | ------------------------------------------------ |
+| POST   | `/chapter/chapter`  | Admin or chapter | Create a chapter                                 |
+| GET    | `/chapter/chapters` | Public           | List chapters                                    |
+| GET    | `/chapter/chapter`  | Public           | Get one chapter by id                            |
+| PUT    | `/chapter/chapter`  | Admin or chapter | Update a chapter (a chapter: only its own group) |
+| DELETE | `/chapter/chapter`  | Admin or chapter | Delete a chapter (a chapter: only its own group) |
 
 #### Chapter fields
 

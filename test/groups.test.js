@@ -6,6 +6,7 @@ import {
 	get,
 	post,
 	put,
+	del,
 	makeFixtures,
 	makeUser,
 	User,
@@ -81,12 +82,17 @@ test('only an admin sets account status; a chapter-created group starts pending'
 	);
 	assert.equal(viaUpdate.status, 403);
 	assert.match(viaUpdate.body.info, /Only an admin/);
-	const role = await put(
+	const other = await put(
 		'/chapter/chapter',
 		{ id: own.body.data.id, networkRole: 'both' },
 		chapter
 	);
+	assert.equal(other.status, 403, 'not their own group');
+	assert.match(other.body.info, /only edit its own record/);
+	assert.equal((await del('/chapter/chapter', { id: own.body.data.id }, chapter)).status, 403);
+	const role = await put('/chapter/chapter', { id: f.group.id, networkRole: 'both' }, chapter);
 	assert.equal(role.status, 200, 'a group may change its own network role');
+	assert.equal((await Chapter.findByPk(f.group.id)).networkRole, 'both');
 	const activate = await put(
 		'/chapter/chapter',
 		{ id: own.body.data.id, accountStatus: 'active' },
@@ -218,4 +224,43 @@ test('groups filter by network role and account status', async () => {
 	const summary = await get('/moderation/summary', admin);
 	assert.ok(summary.body.data.groups.pendingApproval >= 1);
 	assert.equal(typeof summary.body.data.groups.suspended, 'number');
+});
+
+test('a pending group is told why on every write path, and cannot manage its writers', async () => {
+	// Set up while active: a writer and a relayed letter.
+	await Chapter.update({ accountStatus: 'active' }, { where: { id: pendingGroup.id } });
+	const writer = (await post('/auth/writer', { name: 'Held Writer' }, pendingMember)).body.data;
+	const relayPrison = await Prison.createPrison({ prisonName: 'Held Prison', address: {} });
+	await Prison.addRelay(pendingGroup.id, relayPrison.id);
+	const held = await Prisoner.createPrisoner({ birthName: 'Held', prison: relayPrison.id });
+	const letter = (
+		await post(
+			'/messaging/message',
+			{ messageText: 'Held', sender: 'user', prisoner: held.id },
+			alice
+		)
+	).body.data;
+	assert.equal(letter.relayChapter, pendingGroup.id);
+	await Chapter.update({ accountStatus: 'pending' }, { where: { id: pendingGroup.id } });
+
+	for (const res of [
+		await put('/auth/user', { id: writer.id, name: 'Renamed' }, pendingMember),
+		await get('/auth/user?id=' + writer.id, pendingMember),
+		await put('/messaging/status', { id: letter.id, status: 'printed' }, pendingMember),
+		await put('/messaging/message', { id: letter.id, messageText: 'x' }, pendingMember),
+		await get('/messaging/message?id=' + letter.id, pendingMember),
+		await get('/chat/chat?id=' + letter.chat, pendingMember),
+		await put('/chat/chat', { id: letter.chat, prisoner: held.id }, pendingMember)
+	]) {
+		assert.equal(res.status, 403);
+		assert.match(res.body.info, /waiting for network approval/);
+	}
+	const gone = await del('/auth/user', { id: writer.id }, pendingMember);
+	assert.equal(gone.status, 403);
+	assert.match(gone.body.info, /waiting for network approval/);
+	assert.ok(await User.findByPk(writer.id), 'nothing was deleted');
+	assert.equal(
+		(await put('/messaging/status', { id: letter.id, status: 'printed' }, admin)).status,
+		200
+	);
 });

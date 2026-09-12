@@ -58,7 +58,7 @@ export default class MessageController extends RouteController {
 	async #loadAllowed(scope, id) {
 		const message = await Message.getMessageByID(id);
 		if (message && !scope.allowsMessage(message)) {
-			throw AuthzService.forbidden();
+			throw scope.deny();
 		}
 		return message;
 	}
@@ -213,6 +213,9 @@ export default class MessageController extends RouteController {
 			const chapterId = await AuthzService.activeChapterOf(req);
 			const mayChange =
 				AuthzService.isAdmin(req) || (chapterId && message.relayChapter === chapterId);
+			if (!mayChange && AuthzService.hasRole(req, AuthzService.CHAPTER) && !chapterId) {
+				throw await AuthzService.groupRefusal(req);
+			}
 			if (!mayChange) {
 				throw AuthzService.forbidden(
 					'Only the relay group or an admin can change a letter status.'

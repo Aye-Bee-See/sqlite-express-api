@@ -231,20 +231,36 @@ export default class AuthzService {
 
 	/**
 	 * Once a user record is loaded: may this caller act on it? Admins, the
-	 * user themselves, or the chapter that manages an unclaimed writer.
+	 * user themselves, or the active chapter that manages an unclaimed writer.
 	 * @param {object} req
 	 * @param {object} target a User instance or plain object
 	 * @returns {boolean}
 	 */
-	static mayManageUser(req, target) {
+	static async mayManageUser(req, target) {
 		if (!target) {
 			return false;
 		}
 		if (AuthzService.isAdmin(req) || String(target.id) === String(req.user.id)) {
 			return true;
 		}
-		const chapter = AuthzService.chapterOf(req);
+		const chapter = await AuthzService.activeChapterOf(req);
 		return Boolean(chapter && target.managedBy === chapter && !target.claimedAt);
+	}
+
+	/**
+	 * The 403 for a caller who may not act on a record: for a chapter-role
+	 * caller whose group is missing or inactive, the group explanation;
+	 * otherwise a plain refusal.
+	 * @returns {Promise<Error>}
+	 */
+	static async refusalFor(req) {
+		if (
+			AuthzService.hasRole(req, AuthzService.CHAPTER) &&
+			!(await AuthzService.activeChapterOf(req))
+		) {
+			return await AuthzService.groupRefusal(req);
+		}
+		return AuthzService.forbidden();
 	}
 
 	/**

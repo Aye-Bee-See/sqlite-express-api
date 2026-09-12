@@ -1,4 +1,5 @@
 import passport from 'passport';
+import Chapter from '#models/chapter.model.js';
 
 /**
  * Authorization helpers.
@@ -90,18 +91,51 @@ export default class AuthzService {
 	}
 
 	/**
-	 * Middleware: admins pass; chapter-role callers must belong to a group.
+	 * The chapter a chapter-role caller belongs to, if that group is an
+	 * active member of the network; otherwise null. A pending or suspended
+	 * group's accounts can read what anyone can, and nothing more.
+	 * @param {object} req
+	 * @returns {Promise<number|null>}
 	 */
-	static requireGroupMember(req, res, next) {
-		if (AuthzService.isAdmin(req) || AuthzService.chapterOf(req)) {
+	static async activeChapterOf(req) {
+		const chapterId = AuthzService.chapterOf(req);
+		if (!chapterId) {
+			return null;
+		}
+		const chapter = await Chapter.findByPk(chapterId, { attributes: ['id', 'accountStatus'] });
+		return chapter && chapter.accountStatus === 'active' ? chapter.id : null;
+	}
+
+	/**
+	 * The 403 that explains why a chapter-role caller may not act: no group,
+	 * or a group that is not active.
+	 * @returns {Promise<Error>}
+	 */
+	static async groupRefusal(req) {
+		const chapterId = AuthzService.chapterOf(req);
+		if (!chapterId) {
+			return AuthzService.forbidden(
+				'This chapter account is not a member of a group yet; ask an admin to set chapterId.'
+			);
+		}
+		const chapter = await Chapter.findByPk(chapterId, { attributes: ['id', 'accountStatus'] });
+		const status = chapter ? chapter.accountStatus : 'missing';
+		return AuthzService.forbidden(
+			status === 'pending'
+				? 'Your group is waiting for network approval; an admin has to activate it first.'
+				: 'Your group is ' + status + ' and cannot act in the network.'
+		);
+	}
+
+	/**
+	 * Middleware: admins pass; chapter-role callers must belong to an active group.
+	 */
+	static async requireGroupMember(req, res, next) {
+		if (AuthzService.isAdmin(req) || (await AuthzService.activeChapterOf(req))) {
 			return next();
 		}
 		if (AuthzService.hasRole(req, AuthzService.CHAPTER)) {
-			return next(
-				AuthzService.forbidden(
-					'This chapter account is not a member of a group yet; ask an admin to set chapterId.'
-				)
-			);
+			return next(await AuthzService.groupRefusal(req));
 		}
 		return next(AuthzService.forbidden());
 	}
@@ -164,11 +198,19 @@ export default class AuthzService {
 	 * @param  {...string} roles
 	 */
 	static requireRole(...roles) {
-		return function roleGate(req, res, next) {
-			if (AuthzService.hasRole(req, ...roles)) {
-				return next();
+		return async function roleGate(req, res, next) {
+			if (!AuthzService.hasRole(req, ...roles)) {
+				return next(AuthzService.forbidden());
 			}
-			return next(AuthzService.forbidden());
+			// A chapter account acts for its group, so the group must be an
+			// active member of the network.
+			if (
+				AuthzService.hasRole(req, AuthzService.CHAPTER) &&
+				!(await AuthzService.activeChapterOf(req))
+			) {
+				return next(await AuthzService.groupRefusal(req));
+			}
+			return next();
 		};
 	}
 

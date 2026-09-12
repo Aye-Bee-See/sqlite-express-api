@@ -17,6 +17,16 @@ export const CHAPTER_SERVICES = [
 	'book_programs'
 ];
 
+/**
+ * A group's part in the mail flow: `collecting` groups gather letters and
+ * forward them to relay partners; `relay` groups print and mail; `both` do
+ * both.
+ */
+export const NETWORK_ROLES = ['collecting', 'relay', 'both'];
+
+/** Network membership of a group; only `active` groups may act. */
+export const ACCOUNT_STATUSES = ['pending', 'active', 'suspended'];
+
 /** Keys accepted in Chapter.socialLinks. */
 export const SOCIAL_LINK_KEYS = ['instagram', 'mastodon', 'bluesky', 'x', 'youtube'];
 

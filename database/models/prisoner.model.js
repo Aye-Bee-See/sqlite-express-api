@@ -123,7 +123,7 @@ export default class Prisoner extends Model {
 	}
 
 	/**
-	 * The facility a prisoner is held in and the ids of its relay groups.
+	 * The facility a prisoner is held in and the ids of its active relay groups.
 	 * @param {Prisoner} prisoner
 	 * @returns {Promise<{prison: Prison|null, relayIds: number[]}>}
 	 */
@@ -132,7 +132,11 @@ export default class Prisoner extends Model {
 		if (!prison) {
 			return { prison: null, relayIds: [] };
 		}
-		const groups = await prison.getRelay_groups({ attributes: ['id'], joinTableAttributes: [] });
+		const groups = await prison.getRelay_groups({
+			attributes: ['id'],
+			where: { accountStatus: 'active' },
+			joinTableAttributes: []
+		});
 		return { prison, relayIds: groups.map((g) => g.id) };
 	}
 

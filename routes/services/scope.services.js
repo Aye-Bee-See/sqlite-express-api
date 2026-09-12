@@ -8,7 +8,8 @@ import Message from '#models/message.model.js';
  *
  * - admin:   everything
  * - chapter: threads of writers the caller's group manages (including the
- *            group's anonymous writer), plus letters the group relays
+ *            group's anonymous writer), plus letters the group relays;
+ *            nothing while the group is not an active network member
  *            (`Messages.relayChapter`) and the chats those letters sit in
  * - user:    the caller's own threads
  *
@@ -48,7 +49,7 @@ export async function threadScope(req) {
 		};
 	}
 	if (AuthzService.hasRole(req, AuthzService.CHAPTER)) {
-		const chapterId = AuthzService.chapterOf(req);
+		const chapterId = await AuthzService.activeChapterOf(req);
 		const writerIds = await User.managedWriterIds(chapterId);
 		const allowed = new Set(writerIds.map(String));
 		const userIn = { [Op.in]: writerIds.length ? writerIds : [-1] };
@@ -113,8 +114,11 @@ export async function resolveWriter(req, scope, requested, letter = {}) {
 		return req.user.id;
 	}
 	if (scope.kind === 'managed') {
+		if (!scope.chapterId) {
+			throw await AuthzService.groupRefusal(req);
+		}
 		if (requested === undefined || requested === null || requested === '') {
-			const anonymous = await User.anonymousWriterFor(AuthzService.chapterOf(req));
+			const anonymous = await User.anonymousWriterFor(scope.chapterId);
 			return anonymous.id;
 		}
 		if (scope.allowsUser(requested)) {

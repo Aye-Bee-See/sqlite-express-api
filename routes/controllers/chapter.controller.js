@@ -2,7 +2,8 @@ import RouteController from '#rtControllers/route.controller.js';
 import Chapter from '#models/chapter.model.js';
 import { Op, literal } from 'sequelize';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
-import { CHAPTER_SERVICES } from '#db/validators.js';
+import { ACCOUNT_STATUSES, CHAPTER_SERVICES } from '#db/validators.js';
+import AuthzService from '#rtServices/authz.services.js';
 import { audit } from '#rtServices/audit.services.js';
 
 const READ_CONFIG = {
@@ -10,6 +11,12 @@ const READ_CONFIG = {
 	sorts: { name: [['name', 'ASC']], ...SORT_BY_CREATED },
 	filters: {
 		country: {},
+		// `both` groups match either role.
+		networkRole: {
+			allowed: ['collecting', 'relay'],
+			build: (value) => ({ [Op.and]: [{ networkRole: { [Op.in]: [value, 'both'] } }] })
+		},
+		accountStatus: { allowed: ACCOUNT_STATUSES },
 		// services is a JSON array stored as text; Sequelize would JSON-encode a
 		// LIKE value on a JSON column, so match the quoted element with raw SQL.
 		// The value is validated against CHAPTER_SERVICES (word characters only).
@@ -45,7 +52,10 @@ export default class chapterController extends RouteController {
 	#handleErr;
 	#handleLimits;
 
-	async create(req, res) {
+	async create(req, res, next) {
+		if (req.body.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
+			return next(AuthzService.forbidden("Only an admin can set a group's account status."));
+		}
 		try {
 			const chapter = await Chapter.createChapter(req.body);
 			await audit(req, 'chapter.create', 'chapter', chapter.id, { fields: req.body });
@@ -89,8 +99,11 @@ export default class chapterController extends RouteController {
 		}
 	}
 
-	async update(req, res) {
+	async update(req, res, next) {
 		const newChapter = req.body;
+		if (newChapter.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
+			return next(AuthzService.forbidden("Only an admin can set a group's account status."));
+		}
 		try {
 			const updatedRows = await Chapter.updateChapter(newChapter);
 			this.requireAffected(updatedRows, 'Chapter ' + newChapter.id);

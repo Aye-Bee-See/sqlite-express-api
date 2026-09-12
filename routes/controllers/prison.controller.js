@@ -1,4 +1,5 @@
 import Prison from '#models/prison.model.js';
+import { Op, literal } from 'sequelize';
 import RouteController from '#rtControllers/route.controller.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
 import { ROUTING_METHODS } from '#db/validators.js';
@@ -11,7 +12,18 @@ const READ_CONFIG = {
 	filters: {
 		country: {},
 		routing: { allowed: ROUTING_METHODS },
-		stale: { allowed: ['true'], build: () => staleVerificationWhere() }
+		stale: { allowed: ['true'], build: () => staleVerificationWhere() },
+		// relay=true: at least one active relay group; relay=false: none.
+		relay: {
+			allowed: ['true', 'false'],
+			build: (value) => ({
+				id: {
+					[value === 'true' ? Op.in : Op.notIn]: literal(
+						"(SELECT `PrisonRelay`.`prison` FROM `PrisonRelay` JOIN `Chapters` ON `Chapters`.`id` = `PrisonRelay`.`chapter` WHERE `Chapters`.`accountStatus` = 'active')"
+					)
+				}
+			})
+		}
 	}
 };
 

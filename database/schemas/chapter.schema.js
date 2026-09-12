@@ -1,6 +1,13 @@
 import { DataTypes } from 'sequelize';
 import { recordStatusAttribute } from '#db/record-status.js';
-import { CHAPTER_SERVICES, SOCIAL_LINK_KEYS, arrayFrom, objectOfStrings } from '#db/validators.js';
+import {
+	CHAPTER_SERVICES,
+	SOCIAL_LINK_KEYS,
+	arrayFrom,
+	objectOfStrings,
+	NETWORK_ROLES,
+	ACCOUNT_STATUSES
+} from '#db/validators.js';
 
 const chapterSchema = {
 	name: {
@@ -38,6 +45,30 @@ const chapterSchema = {
 	},
 	announcement: {
 		type: DataTypes.TEXT
+	},
+	/** collecting, relay, or both. */
+	networkRole: {
+		type: DataTypes.STRING,
+		allowNull: false,
+		defaultValue: 'collecting',
+		validate: {
+			isIn: {
+				args: [NETWORK_ROLES],
+				msg: 'Network role must be one of ' + NETWORK_ROLES.join(', ') + '.'
+			}
+		}
+	},
+	/** pending until an admin approves the group; only active groups may act. */
+	accountStatus: {
+		type: DataTypes.STRING,
+		allowNull: false,
+		defaultValue: 'pending',
+		validate: {
+			isIn: {
+				args: [ACCOUNT_STATUSES],
+				msg: 'Account status must be one of ' + ACCOUNT_STATUSES.join(', ') + '.'
+			}
+		}
 	},
 	vouchedBy: {
 		type: DataTypes.INTEGER

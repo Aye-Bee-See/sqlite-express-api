@@ -8,7 +8,9 @@
 			"subregion": "Portland, OR",
 			"country": "United States",
 			"about": "A test chapter used by the seed data.",
-			"services": ["letter_collection", "letter_writing_nights", "domestic_mailing"]
+			"services": ["letter_collection", "letter_writing_nights", "domestic_mailing"],
+			"networkRole": "both",
+			"accountStatus": "active"
 		}
 	]
 }

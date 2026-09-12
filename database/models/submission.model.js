@@ -14,7 +14,8 @@ export const REVIEWER_ONLY = [
 	'verifiedAt',
 	'verificationNotes',
 	'recordStatus',
-	'vouchedBy'
+	'vouchedBy',
+	'accountStatus'
 ];
 
 /** What each resource is, which fields may be proposed, and how to write it. */

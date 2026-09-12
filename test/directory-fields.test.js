@@ -17,7 +17,8 @@ before(async () => {
 		location: {},
 		country: 'United States',
 		subregion: 'Portland, OR',
-		services: ['letter_collection', 'domestic_mailing']
+		services: ['letter_collection', 'domestic_mailing'],
+		accountStatus: 'active'
 	});
 	draftGroup = await Chapter.createChapter({
 		name: 'Secret Cell',

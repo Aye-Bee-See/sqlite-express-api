@@ -312,6 +312,10 @@ export default class ModerationController extends RouteController {
 					prison: await byStatus(Prison),
 					chapter: await byStatus(Chapter)
 				},
+				groups: {
+					pendingApproval: await Chapter.count({ where: { accountStatus: 'pending' } }),
+					suspended: await Chapter.count({ where: { accountStatus: 'suspended' } })
+				},
 				staleVerification: {
 					prisoner: await Prisoner.count({ where: staleVerificationWhere() }),
 					prison: await Prison.count({ where: staleVerificationWhere() })

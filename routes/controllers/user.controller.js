@@ -287,6 +287,12 @@ export default class UserController extends RouteController {
 								'End-to-end mode: send wrappedPrivateKey, kdfSalt, and kdfParams re-wrapped under the new password.'
 							);
 						}
+						// Same shape rules as PUT /auth/keys, so a re-wrap cannot store unusable metadata.
+						KeysController.keyFields({
+							wrappedPrivateKey: newUser.wrappedPrivateKey,
+							kdfSalt: newUser.kdfSalt,
+							kdfParams: newUser.kdfParams
+						});
 					}
 				} else if (keyFields.length > 0) {
 					throw new ValidationError('Set keys through PUT /auth/keys, not here.');

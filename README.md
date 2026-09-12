@@ -101,7 +101,7 @@ Created admin account "bootadmin" (id 42).
 Database ready.
 ```
 
-The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting"}` until the database is ready and `200 {"status":"ok","encryptionMode":"server"}` afterwards; it needs no token. `encryptionMode` is `server` or `e2e`, so a client can tell which letter contract to speak before it posts anything.
+The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting","encryptionMode":"server"}` until the database is ready and `200 {"status":"ok","encryptionMode":"server"}` afterwards; it needs no token. `encryptionMode` is `server` or `e2e`, so a client can tell which letter contract to speak before it posts anything.
 
 ### Running the tests
 
@@ -520,7 +520,7 @@ Most read endpoints accept `full=true` to embed related records. The string must
 | Users (list, by id, by role) | `chats`                                                                                                                                                                                                       |
 | Prisons (list, by id)        | `prisoners`, `rules`, `relay_groups`                                                                                                                                                                          |
 | Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`). Without `full`, list rows still carry a small `prison_details` (`id`, `prisonName`, `country`, `routing`) for "Held at" lines |
-| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only                                                                                                                                       |
+| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only. Without `full`, rows carry the same small `prison_details` summary as the main list                                                  |
 | Rules (list, by id)          | `prisons`                                                                                                                                                                                                     |
 | Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons`                                                                                                                            |
 | Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details`                                                                                                                                                                |

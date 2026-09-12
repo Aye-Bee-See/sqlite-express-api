@@ -222,3 +222,39 @@ test('totals are present on the other paginated lists too', async () => {
 	assert.equal(users.body.total, 5);
 	assert.ok(!JSON.stringify(users.body).includes('$2b$'));
 });
+
+test('prisoner list rows carry a facility summary without full=true', async () => {
+	const res = await get('/prisoner/prisoners?page_size=100');
+	assert.equal(res.status, 200);
+	const row = res.body.data.find((p) => p.id === f.prisoner1.id);
+	assert.deepEqual(Object.keys(row.prison_details).sort(), [
+		'country',
+		'id',
+		'prisonName',
+		'routing'
+	]);
+	assert.equal(row.prison_details.prisonName, 'Test Prison');
+	assert.equal(row.support_groups, undefined, 'the light shape stops at the facility');
+	const full = await get('/prisoner/prisoners?full=true&page_size=100');
+	const fullRow = full.body.data.find((p) => p.id === f.prisoner1.id);
+	assert.ok(Array.isArray(fullRow.support_groups));
+	assert.ok('address' in fullRow.prison_details, 'full keeps the complete facility');
+
+	// A prisoner whose facility is not published: anonymous callers get null, staff get the name.
+	const hidden = await Prison.createPrison({
+		prisonName: 'Hidden',
+		address: {},
+		recordStatus: 'draft'
+	});
+	const held = await Prisoner.createPrisoner({ birthName: 'In Hidden', prison: hidden.id });
+	const anon = (await get('/prisoner/prisoners?page_size=100')).body.data.find(
+		(p) => p.id === held.id
+	);
+	assert.equal(anon.prison_details, null);
+	const staff = (await get('/prisoner/prisoners?page_size=100', chapter)).body.data.find(
+		(p) => p.id === held.id
+	);
+	assert.equal(staff.prison_details.prisonName, 'Hidden');
+	const byPrison = await get('/prisoner/prisoners?prison=' + f.prison.id + '&page_size=100');
+	assert.ok(byPrison.body.data.every((p) => p.prison_details.id === f.prison.id));
+});

@@ -515,16 +515,16 @@ New records default to `published` until the moderation workflow exists. Staff c
 
 Most read endpoints accept `full=true` to embed related records. The string must be exactly `true`; anything else is treated as `false`.
 
-| Endpoint                     | `full=true` adds                                                                   |
-| ---------------------------- | ---------------------------------------------------------------------------------- |
-| Users (list, by id, by role) | `chats`                                                                            |
-| Prisons (list, by id)        | `prisoners`, `rules`, `relay_groups`                                               |
-| Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`)     |
-| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only            |
-| Rules (list, by id)          | `prisons`                                                                          |
-| Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons` |
-| Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details`                                     |
-| Messages                     | accepted but ignored                                                               |
+| Endpoint                     | `full=true` adds                                                                                                                                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Users (list, by id, by role) | `chats`                                                                                                                                                                                                       |
+| Prisons (list, by id)        | `prisoners`, `rules`, `relay_groups`                                                                                                                                                                          |
+| Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`). Without `full`, list rows still carry a small `prison_details` (`id`, `prisonName`, `country`, `routing`) for "Held at" lines |
+| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only                                                                                                                                       |
+| Rules (list, by id)          | `prisons`                                                                                                                                                                                                     |
+| Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons`                                                                                                                            |
+| Chats (list, by id, by pair) | `messages`, `user_details`, `prisoner_details`                                                                                                                                                                |
+| Messages                     | accepted but ignored                                                                                                                                                                                          |
 
 Embedded rules and prisons carry a `RulePassthrough` object describing the link (see the prison example below). Embedded users never include the password hash. For anonymous and `user`-role callers, embedded prisoners, prisons, and chapters are limited to published ones, chats are never embedded, and the staff-only `verificationNotes` field is omitted from prisoners and prisons everywhere.
 

@@ -8,7 +8,8 @@ import { encryptionKey, encryptionMode, ENCRYPTION_MODES } from '#constants';
  * The shapes here are the ones the browser-side (e2e) design uses, so that
  * switching modes later re-wraps content keys and never re-encrypts bodies:
  * - a random 32-byte content key per letter, used with XChaCha20-Poly1305
- *   (libsodium `crypto_secretbox`) for the body, the relay note, and every
+ *   (libsodium `crypto_aead_xchacha20poly1305_ietf`, no associated data) for
+ *   the body, the relay note, and every
  *   attachment, each with its own nonce;
  * - the content key wrapped once per reader. In `server` mode the only
  *   reader is the server itself (wrapped with ENCRYPTION_KEY); in `e2e` mode
@@ -56,7 +57,7 @@ export function masterKey() {
 	} catch {
 		bytes = new Uint8Array(0);
 	}
-	if (bytes.length !== sodium.crypto_secretbox_KEYBYTES) {
+	if (bytes.length !== sodium.crypto_aead_xchacha20poly1305_ietf_KEYBYTES) {
 		throw new Error(
 			'ENCRYPTION_KEY must be the base64 of 32 random bytes; run `npm run keygen` and put the output in .env.'
 		);
@@ -71,7 +72,7 @@ export function masterKeyLabel() {
 }
 
 export function generateContentKey() {
-	return sodium.crypto_secretbox_keygen();
+	return sodium.crypto_aead_xchacha20poly1305_ietf_keygen();
 }
 
 /**
@@ -81,9 +82,15 @@ export function generateContentKey() {
  * @returns {{ciphertext: string, nonce: string}} base64
  */
 export function encrypt(plain, key) {
-	const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+	const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
 	const bytes = typeof plain === 'string' ? sodium.from_string(plain) : plain;
-	const ciphertext = sodium.crypto_secretbox_easy(bytes, nonce, key);
+	const ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+		bytes,
+		null,
+		null,
+		nonce,
+		key
+	);
 	return { ciphertext: encode(ciphertext), nonce: encode(nonce) };
 }
 
@@ -92,7 +99,15 @@ export function encrypt(plain, key) {
  * @throws when the key or nonce is wrong (libsodium reports "wrong secret key")
  */
 export function decrypt(ciphertext, nonce, key) {
-	return Buffer.from(sodium.crypto_secretbox_open_easy(decode(ciphertext), decode(nonce), key));
+	return Buffer.from(
+		sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+			null,
+			decode(ciphertext),
+			null,
+			decode(nonce),
+			key
+		)
+	);
 }
 
 export const decryptString = (ciphertext, nonce, key) =>
@@ -100,8 +115,14 @@ export const decryptString = (ciphertext, nonce, key) =>
 
 /** Wrap a content key with the server key: base64(nonce || box). */
 export function wrapForServer(contentKey) {
-	const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
-	const box = sodium.crypto_secretbox_easy(contentKey, nonce, masterKey());
+	const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+	const box = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+		contentKey,
+		null,
+		null,
+		nonce,
+		masterKey()
+	);
 	const out = new Uint8Array(nonce.length + box.length);
 	out.set(nonce, 0);
 	out.set(box, nonce.length);
@@ -110,9 +131,47 @@ export function wrapForServer(contentKey) {
 
 export function unwrapForServer(wrapped) {
 	const bytes = decode(wrapped);
-	const n = sodium.crypto_secretbox_NONCEBYTES;
-	return sodium.crypto_secretbox_open_easy(bytes.subarray(n), bytes.subarray(0, n), masterKey());
+	const n = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+	return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+		null,
+		bytes.subarray(n),
+		null,
+		bytes.subarray(0, n),
+		masterKey()
+	);
 }
+
+/**
+ * The cipher used before 2026-09-13 (libsodium `crypto_secretbox`, which is
+ * XSalsa20-Poly1305). Kept only so the conversion migration can read and,
+ * on rollback, write the old format; nothing else may use it.
+ */
+export const legacy = {
+	encrypt(plain, key) {
+		const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+		const bytes = typeof plain === 'string' ? sodium.from_string(plain) : plain;
+		return {
+			ciphertext: encode(sodium.crypto_secretbox_easy(bytes, nonce, key)),
+			nonce: encode(nonce)
+		};
+	},
+	decrypt(ciphertext, nonce, key) {
+		return Buffer.from(sodium.crypto_secretbox_open_easy(decode(ciphertext), decode(nonce), key));
+	},
+	wrapForServer(contentKey) {
+		const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+		const box = sodium.crypto_secretbox_easy(contentKey, nonce, masterKey());
+		const out = new Uint8Array(nonce.length + box.length);
+		out.set(nonce, 0);
+		out.set(box, nonce.length);
+		return encode(out);
+	},
+	unwrapForServer(wrapped) {
+		const bytes = decode(wrapped);
+		const n = sodium.crypto_secretbox_NONCEBYTES;
+		return sodium.crypto_secretbox_open_easy(bytes.subarray(n), bytes.subarray(0, n), masterKey());
+	}
+};
 
 /** Is this a plausible base64 X25519 public key? */
 export function isPublicKey(value) {

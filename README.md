@@ -117,7 +117,7 @@ Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and 
 
 ### Encryption
 
-Letters are never stored in the clear. Each message gets its own random content key; the body, the relay note, and every attachment file are encrypted with it (XChaCha20-Poly1305), and the content key is stored wrapped, once per reader, in the `LetterKeys` table.
+Letters are never stored in the clear. Each message gets its own random content key; the body, the relay note, and every attachment file are encrypted with it (XChaCha20-Poly1305, libsodium's `crypto_aead_xchacha20poly1305_ietf` with no associated data), and the content key is stored wrapped, once per reader, in the `LetterKeys` table.
 
 There are two modes, chosen by `ENCRYPTION_MODE`:
 
@@ -790,7 +790,7 @@ Public. Body: `{"token": "…", "username": "sam", "password": "longenough", "em
 
 ### End-to-end mode
 
-Everything in this section applies only when `ENCRYPTION_MODE=e2e`. The primitives are libsodium's: X25519 keypairs, sealed boxes for envelopes and wrapped keys, XChaCha20-Poly1305 for bodies and files. The server never runs a key derivation; the client chooses one (the design recommends Argon2id) and stores its salt and parameters beside each wrapped key as opaque `kdfSalt` / `kdfParams`.
+Everything in this section applies only when `ENCRYPTION_MODE=e2e`. The primitives are libsodium's: X25519 keypairs, sealed boxes (`crypto_box_seal`) for envelopes and wrapped keys, XChaCha20-Poly1305 (`crypto_aead_xchacha20poly1305_ietf`, no associated data; not `crypto_secretbox`, which is XSalsa20) for bodies and files. The server never runs a key derivation; the client chooses one (the design recommends Argon2id) and stores its salt and parameters beside each wrapped key as opaque `kdfSalt` / `kdfParams`.
 
 #### Account keys
 

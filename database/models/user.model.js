@@ -131,6 +131,17 @@ export default class User extends Model {
 		return new Map(rows.map((r) => [r.id, r.orgWrappedPrivateKey]));
 	}
 
+	/**
+	 * Refuse every token issued before now. Tokens carry a millisecond
+	 * `issued` time, so the fresh token handed back after a password change
+	 * (issued after this call) still passes.
+	 */
+	static async revokeSessions(userId) {
+		const at = new Date();
+		await this.update({ sessionsRevokedAt: at }, { where: { id: userId } });
+		return at;
+	}
+
 	/** One account with its key material (never through the default scope). */
 	static async getUserWithKeys(where) {
 		return await this.scope('withKeys').findOne({ where });

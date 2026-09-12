@@ -6,6 +6,8 @@ import ClaimToken from '#models/claim-token.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { audit } from '#rtServices/audit.services.js';
 import KeysController from '#rtControllers/keys.controller.js';
+import authService from '#rtServices/auth.services.js';
+import RevokedToken from '#models/revoked-token.model.js';
 import { KEY_COLUMNS, KEY_INPUT } from '#models/user.model.js';
 import * as crypto from '#services/crypto.js';
 import Chapter from '#models/chapter.model.js';
@@ -26,6 +28,8 @@ export default class UserController extends RouteController {
 		this.remove = this.remove.bind(this);
 
 		this.login = this.login.bind(this);
+		this.logout = this.logout.bind(this);
+		this.revoke = this.revoke.bind(this);
 		this.createWriter = this.createWriter.bind(this);
 		this.writers = this.writers.bind(this);
 		this.createToken = this.createToken.bind(this);
@@ -322,7 +326,16 @@ export default class UserController extends RouteController {
 			// Never echo a password, plain or hashed, back to the client.
 			const { password, ...echoed } = newUser;
 			void password;
-			this.#handleSuccess(res, { updatedRows, newUser: echoed });
+			const result = { updatedRows, newUser: echoed };
+			if (password !== undefined) {
+				// A new password ends every existing session; the caller who
+				// changed their own gets a fresh token so they stay signed in.
+				await User.revokeSessions(newUser.id);
+				if (AuthzService.targetsSelf(req)) {
+					result.token = authService.issueToken(req.user);
+				}
+			}
+			this.#handleSuccess(res, result);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -596,6 +609,54 @@ export default class UserController extends RouteController {
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar, errorVar.condition || 'par');
+		}
+	}
+
+	/**
+	 * POST /auth/logout { everywhere? }: revoke this token, or every token
+	 * for the account. A token issued before revocation existed has no id
+	 * and can only be signed out everywhere.
+	 */
+	async logout(req, res) {
+		const everywhere = req.body.everywhere === true || req.body.everywhere === 'true';
+		try {
+			const payload = authService.tokenPayload(req) || {};
+			let condition = 'par';
+			if (everywhere || !payload.jti) {
+				await User.revokeSessions(req.user.id);
+				condition = 'everywhere';
+			} else {
+				const expiresAt = payload.exp
+					? new Date(payload.exp * 1000)
+					: new Date(Date.now() + 6.048e8);
+				await RevokedToken.revoke(payload.jti, req.user.id, expiresAt);
+			}
+			await RevokedToken.sweep();
+			await audit(req, 'user.logout', 'user', req.user.id, {
+				everywhere: condition === 'everywhere'
+			});
+			this.#handleSuccess(
+				res,
+				{ signedOut: true, everywhere: condition === 'everywhere' },
+				condition
+			);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/** POST /auth/revoke { user } (admin): every token for that account stops working. */
+	async revoke(req, res) {
+		const { user: userId } = req.body;
+		try {
+			const target = this.requireFound(await User.findByPk(userId), 'User ' + userId);
+			const at = await User.revokeSessions(target.id);
+			await audit(req, 'user.revoke', 'user', target.id);
+			this.#handleSuccess(res, { user: target.id, sessionsRevokedAt: at });
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 

@@ -39,6 +39,7 @@ export const {
 	ClaimToken,
 	Attachment,
 	LetterKey,
+	RevokedToken,
 	sequelize
 } = db;
 

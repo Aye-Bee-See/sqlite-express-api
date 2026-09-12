@@ -93,6 +93,11 @@ const userSchema = {
 		type: DataTypes.TEXT
 	},
 
+	/** Tokens issued before this instant are refused (logout everywhere, revocation, password change). */
+	sessionsRevokedAt: {
+		type: DataTypes.DATE
+	},
+
 	// End-to-end key material (opaque to the server; see services/crypto.js).
 	/** X25519 public key, base64. Public. */
 	publicKey: {

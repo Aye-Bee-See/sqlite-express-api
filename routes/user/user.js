@@ -40,6 +40,19 @@ class UserRoutes {
 			this.#Controller.login
 		);
 
+		// Sessions
+		this.Router.post(
+			userEnd.post.logout,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.logout
+		);
+		this.Router.post(
+			userEnd.post.revoke,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN),
+			this.#Controller.revoke
+		);
+
 		// Managed writers (chapter accounts that belong to a group, or admins)
 		const staffOnly = [
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),

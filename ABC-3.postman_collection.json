@@ -53,6 +53,29 @@
 					]
 				},
 				{
+					"name": "Logout (this token)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/logout",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "logout"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Register (public, always role user)",
 					"request": {
 						"method": "POST",
@@ -429,6 +452,52 @@
 						},
 						"auth": {
 							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Logout Everywhere",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/logout",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "logout"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"everywhere\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke All Sessions Of A User (admin)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/revoke",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "revoke"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user\": \"{{userId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						}
 					},
 					"response": []

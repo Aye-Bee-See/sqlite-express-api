@@ -9,6 +9,7 @@ import prisonerSupportSchema from '#schemas/prisoner-support.schema.js';
 import claimTokenSchema from '#schemas/claim-token.schema.js';
 import messageStatusSchema from '#schemas/message-status.schema.js';
 import attachmentSchema from '#schemas/attachment.schema.js';
+import letterKeySchema from '#schemas/letter-key.schema.js';
 
 export default class Schemas {
 	static chat = chatSchema;
@@ -22,4 +23,5 @@ export default class Schemas {
 	static claimToken = claimTokenSchema;
 	static messageStatus = messageStatusSchema;
 	static attachment = attachmentSchema;
+	static letterKey = letterKeySchema;
 }

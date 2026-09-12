@@ -12,7 +12,9 @@ const {
 	DB_LOGGING,
 	DB_STORAGE,
 	UPLOAD_DIR,
-	UPLOAD_MAX_BYTES
+	UPLOAD_MAX_BYTES,
+	ENCRYPTION_MODE,
+	ENCRYPTION_KEY
 } = process.env;
 
 /**
@@ -61,5 +63,16 @@ export const dbStorage = DB_STORAGE || 'database.sqlite';
 /** Directory that holds uploaded attachments (created on first upload). */
 export const uploadDir = UPLOAD_DIR || 'uploads';
 /** Largest accepted upload, in bytes. Default 10 MiB. */
+/**
+ * How letters are encrypted. `server`: the API encrypts letter bodies, relay
+ * notes, and attachments with per-letter content keys wrapped by
+ * ENCRYPTION_KEY, and decrypts them for authorised readers (the API can read
+ * letters). `e2e`: reserved for the browser-side design, where the server
+ * only ever holds ciphertext and envelopes wrapped to readers' public keys.
+ */
+export const ENCRYPTION_MODES = ['server', 'e2e'];
+export const encryptionMode = ENCRYPTION_MODE || 'server';
+/** Base64 of 32 random bytes; required in `server` mode. `npm run keygen` makes one. */
+export const encryptionKey = ENCRYPTION_KEY || '';
 export const uploadMaxBytes =
 	UPLOAD_MAX_BYTES && Number(UPLOAD_MAX_BYTES) > 0 ? Number(UPLOAD_MAX_BYTES) : 10 * 1024 * 1024;

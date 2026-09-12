@@ -10,6 +10,8 @@ process.env.ADMIN_USERNAME = '';
 process.env.ADMIN_PASSWORD = '';
 process.env.ADMIN_EMAIL = '';
 process.env.NODE_ENV = 'test';
+process.env.ENCRYPTION_MODE = 'server';
+process.env.ENCRYPTION_KEY = 'dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdCE=';
 
 const { Sequelize } = await import('sequelize');
 const db = await import('../database/sql-database.js');
@@ -43,7 +45,9 @@ test('the migrated schema matches the models (no drift)', async () => {
 	for (const model of Object.values(db.sequelize.models)) {
 		const table = model.getTableName();
 		const columns = await qi.describeTable(table);
-		const attributes = model.getAttributes();
+		const attributes = Object.fromEntries(
+			Object.entries(model.getAttributes()).filter(([, a]) => a.type.key !== 'VIRTUAL')
+		);
 		const expected = Object.values(attributes).map((a) => a.field);
 		assert.deepEqual(
 			Object.keys(columns).sort(),

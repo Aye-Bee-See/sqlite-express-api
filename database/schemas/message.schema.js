@@ -16,7 +16,14 @@ const messageSchema = {
 			}
 		}
 	},
+	/** The letter body. Virtual: stored encrypted in ciphertext/nonce. */
 	messageText: {
+		type: DataTypes.VIRTUAL
+	},
+	ciphertext: {
+		type: DataTypes.TEXT
+	},
+	nonce: {
 		type: DataTypes.STRING
 	},
 	sender: {
@@ -67,9 +74,15 @@ const messageSchema = {
 	relayChapter: {
 		type: DataTypes.INTEGER
 	},
-	/** Instructions for the relay group; never shown to the prisoner. */
+	/** Instructions for the relay group; never shown to the prisoner. Virtual: stored encrypted. */
 	relayNote: {
+		type: DataTypes.VIRTUAL
+	},
+	relayNoteCiphertext: {
 		type: DataTypes.TEXT
+	},
+	relayNoteNonce: {
+		type: DataTypes.STRING
 	},
 	statusChangedAt: {
 		type: DataTypes.DATE

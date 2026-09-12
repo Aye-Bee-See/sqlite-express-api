@@ -1,5 +1,10 @@
 import Chat from '#models/chat.model.js';
 import { initialStatusFor } from '#db/letter-status.js';
+import LetterKey from '#models/letter-key.model.js';
+import * as crypto from '#services/crypto.js';
+
+/** Content keys of instances being created, until afterCreate stores the envelope. */
+const pendingKeys = new WeakMap();
 
 export default {
 	/**
@@ -28,5 +33,38 @@ export default {
 		}
 		const [chat] = await Chat.findOrCreateChat(user, prisoner);
 		instance.chat = chat.id;
+	},
+
+	/**
+	 * Encrypt the body and relay note with a fresh content key. The key is
+	 * kept until afterCreate has the row id to attach the server envelope to.
+	 */
+	beforeCreate: (instance) => {
+		const key = crypto.generateContentKey();
+		pendingKeys.set(instance, key);
+		const columns = LetterKey.encryptFields(key, {
+			messageText: instance.getDataValue('messageText') ?? null,
+			relayNote: instance.getDataValue('relayNote') ?? null
+		});
+		for (const [column, value] of Object.entries(columns)) {
+			instance.setDataValue(column, value);
+		}
+	},
+
+	afterCreate: async (instance) => {
+		const key = pendingKeys.get(instance);
+		pendingKeys.delete(instance);
+		if (key) {
+			await LetterKey.issueServerKey(instance.id, key);
+		}
+		LetterKey.stripCipher(instance);
+	},
+
+	/** Decrypt rows read directly through Message (includes are handled by the chat hook). */
+	afterFind: async (result) => {
+		if (!result) {
+			return;
+		}
+		await LetterKey.decryptRows(Array.isArray(result) ? result : [result]);
 	}
 };

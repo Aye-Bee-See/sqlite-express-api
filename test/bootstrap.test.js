@@ -13,6 +13,8 @@ process.env.ADMIN_USERNAME = 'bootadmin';
 process.env.ADMIN_PASSWORD = 'bootpassword';
 process.env.ADMIN_EMAIL = 'boot@example.com';
 process.env.NODE_ENV = 'test';
+process.env.ENCRYPTION_MODE = 'server';
+process.env.ENCRYPTION_KEY = 'dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdCE=';
 
 const { ready, User, sequelize } = await import('../database/sql-database.js');
 const { ensureAdmin } = await import('../database/bootstrap-admin.js');

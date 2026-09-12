@@ -67,6 +67,26 @@ after(stopServer);
 
 // ---- account keys ----------------------------------------------------------
 
+test('health announces the encryption mode', async () => {
+	const res = await get('/health');
+	assert.deepEqual(res.body, { status: 'ok', encryptionMode: 'e2e' });
+});
+
+test('kdfParams must name the KDF, on registration, key updates, and claim tokens', async () => {
+	const { fields } = client.accountKeys('kdfpass', 'RECOVERY');
+	const bad = await post('/auth/user', {
+		username: 'kdfless',
+		password: 'kdfpass',
+		email: 'k@example.com',
+		...fields,
+		kdfParams: { opslimit: 2 }
+	});
+	assert.equal(bad.status, 400);
+	assert.match(bad.body.errors[0], /kdfParams must be an object naming the KDF/);
+	assert.equal((await put('/auth/keys', { ...fields, recoveryKdfParams: [] }, alice)).status, 400);
+	assert.equal((await put('/auth/keys', { ...fields, kdfParams: { kdf: '' } }, alice)).status, 400);
+});
+
 test('registration and key bundles', async () => {
 	const { privateKey, fields } = client.accountKeys('carolpass', 'RECOVERY-carol');
 	const reg = await post('/auth/user', {

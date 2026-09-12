@@ -526,8 +526,8 @@ export default class UserController extends RouteController {
 						throw new ValidationError('End-to-end mode: ' + field + ' is required.');
 					}
 				}
-				if (!claimKdfParams || typeof claimKdfParams !== 'object') {
-					throw new ValidationError('End-to-end mode: claimKdfParams must be an object.');
+				if (!crypto.isKdfParams(claimKdfParams)) {
+					throw new ValidationError('End-to-end mode: claimKdfParams ' + crypto.KDF_PARAMS_HINT);
 				}
 				const { expiresAt } = await ClaimToken.issueFromClient(
 					writer.id,

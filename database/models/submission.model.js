@@ -6,9 +6,10 @@ import Prison, { PRISON_FIELDS } from '#models/prison.model.js';
 import Chapter, { CHAPTER_FIELDS } from '#models/chapter.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
+import { publishedWhere } from '#db/record-status.js';
 
-/** Fields a submitter may never propose directly; a reviewer may still set them on approval. */
-const REVIEWER_ONLY = [
+/** Fields a submitter may never propose directly, and never sees in a decision; a reviewer may set them on approval. */
+export const REVIEWER_ONLY = [
 	'verifiedBy',
 	'verifiedAt',
 	'verificationNotes',
@@ -89,10 +90,19 @@ export default class Submission extends Model {
 
 	/**
 	 * File a proposal.
-	 * @param {{resource: string, target?: number|string|null, fields: object, evidence?: string, note?: string, submittedBy: number}} input
-	 * @throws {ValidationError} bad resource, empty or disallowed fields; {NotFoundError} missing target
+	 * @param {{resource: string, target?: number|string|null, fields: object, evidence?: string, note?: string, submittedBy: number, publishedOnly?: boolean}} input
+	 *   `publishedOnly` limits the target to published records (non-staff callers).
+	 * @throws {ValidationError} bad resource, empty, disallowed, or (for a new record) invalid fields; {NotFoundError} missing target
 	 */
-	static async propose({ resource, target, fields, evidence, note, submittedBy }) {
+	static async propose({
+		resource,
+		target,
+		fields,
+		evidence,
+		note,
+		submittedBy,
+		publishedOnly = true
+	}) {
 		const spec = RESOURCES[resource];
 		if (!spec) {
 			throw new ValidationError('resource must be one of ' + SUBMISSION_RESOURCES.join(', ') + '.');
@@ -117,8 +127,17 @@ export default class Submission extends Model {
 			throw new ValidationError('Propose at least one field.');
 		}
 		const kind = target === undefined || target === null || target === '' ? 'create' : 'update';
-		if (kind === 'update' && !(await spec.model.findByPk(target))) {
-			throw new NotFoundError(spec.label + ' ' + target + ' not found');
+		if (kind === 'update') {
+			const existing = await spec.model.findOne({
+				where: { id: target, ...publishedWhere(publishedOnly) }
+			});
+			if (!existing) {
+				throw new NotFoundError(spec.label + ' ' + target + ' not found');
+			}
+		} else {
+			// A new record must at least pass the model's own validation now,
+			// so the submitter hears about a missing name today, not at review.
+			await spec.model.build({ recordStatus: 'published', ...payload }).validate();
 		}
 		return await this.create({
 			resource,
@@ -138,15 +157,17 @@ export default class Submission extends Model {
 
 	/**
 	 * For an update proposal, the target's current values for the proposed
-	 * fields, so a reviewer can see the diff. Null for creates or a target
-	 * that has since been deleted.
+	 * fields, so a reviewer can see the diff. Null for creates, a target
+	 * that has since been deleted, or one the caller may not see.
 	 */
-	static async currentValues(submission) {
+	static async currentValues(submission, publishedOnly = true) {
 		if (submission.kind !== 'update') {
 			return null;
 		}
 		const spec = RESOURCES[submission.resource];
-		const target = await spec.model.findByPk(submission.targetId);
+		const target = await spec.model.findOne({
+			where: { id: submission.targetId, ...publishedWhere(publishedOnly) }
+		});
 		if (!target) {
 			return null;
 		}
@@ -167,14 +188,36 @@ export default class Submission extends Model {
 		});
 	}
 
+	static #alreadyDecided(submission) {
+		return new HttpError(
+			409,
+			'Submission ' + submission.id + ' is already ' + submission.status + '.',
+			'SubmissionStateError'
+		);
+	}
+
 	static #requirePending(submission) {
 		if (submission.status !== 'pending') {
-			throw new HttpError(
-				409,
-				'Submission ' + submission.id + ' is already ' + submission.status + '.',
-				'SubmissionStateError'
-			);
+			throw Submission.#alreadyDecided(submission);
 		}
+	}
+
+	/**
+	 * Move a submission out of `pending` with a conditional update, so two
+	 * concurrent decisions cannot both succeed. Resolves to false when
+	 * someone else got there first.
+	 */
+	static async #transition(submission, values) {
+		const [count] = await this.update(values, {
+			where: { id: submission.id, status: 'pending' }
+		});
+		return count === 1;
+	}
+
+	/** Reload and throw the 409 for a submission that was decided concurrently. */
+	static async #lost(submission) {
+		const fresh = await this.findByPk(submission.id);
+		throw Submission.#alreadyDecided(fresh || submission);
 	}
 
 	/**
@@ -187,25 +230,46 @@ export default class Submission extends Model {
 	static async approve(submission, { reviewer, fields = {}, decisionNote }) {
 		Submission.#requirePending(submission);
 		const spec = RESOURCES[submission.resource];
-		const changes = { ...submission.payload, ...pick(fields || {}, spec.fields) };
-		let targetId = submission.targetId;
-		if (submission.kind === 'update') {
-			const [count] = await spec.update({ ...changes, id: targetId });
-			if (count === 0) {
-				throw new NotFoundError(spec.label + ' ' + targetId + ' no longer exists');
-			}
-		} else {
-			const created = await spec.create({ recordStatus: 'published', ...changes });
-			targetId = created.id;
-		}
-		await submission.update({
+		const defaults = submission.kind === 'create' ? { recordStatus: 'published' } : {};
+		const changes = { ...defaults, ...submission.payload, ...pick(fields || {}, spec.fields) };
+
+		// Claim the row first so a second approver gets a 409 instead of a
+		// second record; give it back if the write fails.
+		const claimed = await Submission.#transition(submission, {
 			status: 'approved',
-			targetId,
-			appliedChanges: changes,
 			reviewedBy: reviewer,
 			reviewedAt: new Date(),
-			decisionNote: decisionNote || null
+			decisionNote: decisionNote || null,
+			appliedChanges: changes
 		});
+		if (!claimed) {
+			await Submission.#lost(submission);
+		}
+		let targetId = submission.targetId;
+		try {
+			if (submission.kind === 'update') {
+				const [count] = await spec.update({ ...changes, id: targetId });
+				if (count === 0) {
+					throw new NotFoundError(spec.label + ' ' + targetId + ' no longer exists');
+				}
+			} else {
+				const created = await spec.create(changes);
+				targetId = created.id;
+			}
+		} catch (err) {
+			await this.update(
+				{
+					status: 'pending',
+					reviewedBy: null,
+					reviewedAt: null,
+					decisionNote: null,
+					appliedChanges: null
+				},
+				{ where: { id: submission.id } }
+			);
+			throw err;
+		}
+		await this.update({ targetId }, { where: { id: submission.id } });
 		return await this.read(submission.id);
 	}
 
@@ -243,24 +307,38 @@ export default class Submission extends Model {
 		if (note !== undefined) {
 			values.note = note || null;
 		}
-		await submission.update(values);
+		const [count] = await this.update(values, {
+			where: { id: submission.id, status: 'pending' }
+		});
+		if (count === 0) {
+			await Submission.#lost(submission);
+		}
 		return await this.read(submission.id);
 	}
 
 	static async reject(submission, { reviewer, decisionNote }) {
 		Submission.#requirePending(submission);
-		await submission.update({
+		const done = await Submission.#transition(submission, {
 			status: 'rejected',
 			reviewedBy: reviewer,
 			reviewedAt: new Date(),
 			decisionNote
 		});
+		if (!done) {
+			await Submission.#lost(submission);
+		}
 		return await this.read(submission.id);
 	}
 
 	static async withdraw(submission) {
 		Submission.#requirePending(submission);
-		await submission.update({ status: 'withdrawn', reviewedAt: new Date() });
+		const done = await Submission.#transition(submission, {
+			status: 'withdrawn',
+			reviewedAt: new Date()
+		});
+		if (!done) {
+			await Submission.#lost(submission);
+		}
 		return await this.read(submission.id);
 	}
 

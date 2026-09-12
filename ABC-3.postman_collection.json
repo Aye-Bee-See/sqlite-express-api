@@ -1842,7 +1842,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/moderation/submissions?status=pending&resource=&page=1&page_size=10",
+							"raw": "localhost:3000/moderation/submissions?status=pending&page=1&page_size=10",
 							"host": ["localhost"],
 							"port": "3000",
 							"path": ["moderation", "submissions"],
@@ -1850,10 +1850,6 @@
 								{
 									"key": "status",
 									"value": "pending"
-								},
-								{
-									"key": "resource",
-									"value": ""
 								},
 								{
 									"key": "page",

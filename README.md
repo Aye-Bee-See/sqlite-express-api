@@ -1670,8 +1670,8 @@ Anyone signed in can propose a new prisoner, facility, or group, or a change to 
 | `payload`                                      | The proposed field values. Only the resource's public fields may be proposed; `recordStatus`, `verifiedBy`, `verifiedAt`, `verificationNotes`, `vouchedBy`, and the group statistics are reviewer-only. `GET /moderation/summary` lists what is allowed. |
 | `evidence`                                     | Free text: where the information comes from (links, documents, "I am their lawyer").                                                                                                                                                                     |
 | `note`                                         | A message to the reviewer.                                                                                                                                                                                                                               |
-| `status`                                       | `pending`, `approved`, `rejected`, or `withdrawn`. Only `pending` proposals can be revised, approved, rejected, or withdrawn; anything else is a `409` with `"name": "SubmissionStateError"`.                                                            |
-| `submitter`, `reviewer`                        | Embedded `{ id, username, name, role }`, or `null`.                                                                                                                                                                                                      |
+| `status`                                       | `pending`, `approved`, `rejected`, or `withdrawn`. Only `pending` proposals can be revised, approved, rejected, or withdrawn; anything else is a `409` with `"name": "SubmissionStateError"`, including the loser of two simultaneous decisions.         |
+| `submitter`, `reviewer`                        | Embedded `{ id, username, name, role }`, or `null`. Non-admins never receive the reviewer-only fields in `appliedChanges`, and `current` shows only records they could read directly.                                                                    |
 | `reviewedAt`, `decisionNote`, `appliedChanges` | Set on decision. `appliedChanges` is exactly what was written: the payload plus any reviewer edits.                                                                                                                                                      |
 
 #### POST /moderation/submission
@@ -1682,7 +1682,7 @@ curl -s -X POST http://localhost:3000/moderation/submission \
   -d '{"resource":"prisoner","target":41,"fields":{"chosenName":"Sam","interests":["chess"]},"evidence":"Letter from counsel, 1 Sept 2026","note":"Legal name change"}'
 ```
 
-Returns `201` with the submission. Omit `target` to propose a brand-new record; the `fields` then need everything the resource requires (a prison needs `prisonName` and `address`, a prisoner `birthName` and `prison`, a group `name` and `location`). A reviewer-only field, an unknown resource, empty `fields`, or a `target` that does not exist are `400` or `404` at filing time; other validation happens when the proposal is approved.
+Returns `201` with the submission. Omit `target` to propose a brand-new record; the `fields` are then run through the resource's own validation at filing (a prison needs `prisonName` and `address`, a group `name` and `location`), so a submitter hears about a missing required field immediately. A reviewer-only field, an unknown resource, empty `fields`, or a `target` that does not exist (or that the caller cannot see: non-staff may only propose changes to published records) are `400` or `404` at filing time. Checks that need the database, such as a `prison` id on a new prisoner, happen when the proposal is approved.
 
 #### GET /moderation/submissions
 

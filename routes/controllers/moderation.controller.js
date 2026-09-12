@@ -1,11 +1,12 @@
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
-import Submission, { RESOURCES } from '#models/submission.model.js';
+import Submission, { RESOURCES, REVIEWER_ONLY } from '#models/submission.model.js';
 import AuditLog from '#models/audit-log.model.js';
 import Prisoner from '#models/prisoner.model.js';
 import Prison from '#models/prison.model.js';
 import Chapter from '#models/chapter.model.js';
 import ValidationError from '#services/ValidationError.js';
+import { HttpError } from '#services/HttpError.js';
 import { audit } from '#rtServices/audit.services.js';
 import { SUBMISSION_RESOURCES, SUBMISSION_STATUSES } from '#schemas/submission.schema.js';
 import { RECORD_STATUSES, staleVerificationWhere } from '#db/record-status.js';
@@ -52,6 +53,21 @@ export default class ModerationController extends RouteController {
 		this.#handleErr(res, errorVar);
 	}
 
+	/**
+	 * A submission as this caller may see it: non-admins never receive the
+	 * reviewer-only fields a decision may have set.
+	 */
+	#present(req, submission, extra = {}) {
+		const plain = { ...submission.toJSON(), ...extra };
+		if (!AuthzService.isAdmin(req) && plain.appliedChanges) {
+			plain.appliedChanges = { ...plain.appliedChanges };
+			for (const field of REVIEWER_ONLY) {
+				delete plain.appliedChanges[field];
+			}
+		}
+		return plain;
+	}
+
 	/** Load a submission the caller may see (admin, or its submitter). */
 	async #visible(req, id) {
 		const submission = this.requireFound(await Submission.read(id), 'Submission ' + id);
@@ -75,14 +91,15 @@ export default class ModerationController extends RouteController {
 				fields,
 				evidence,
 				note,
-				submittedBy: req.user.id
+				submittedBy: req.user.id,
+				publishedOnly: AuthzService.publishedOnly(req)
 			});
 			await audit(req, 'submission.create', 'submission', submission.id, {
 				resource,
 				kind: submission.kind,
 				targetId: submission.targetId
 			});
-			this.#handleSuccess(res, await Submission.read(submission.id));
+			this.#handleSuccess(res, this.#present(req, await Submission.read(submission.id)));
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -97,17 +114,19 @@ export default class ModerationController extends RouteController {
 		const limits = this.#handleLimits(page, page_size);
 		try {
 			const where = {};
-			if (status !== undefined && status !== 'all') {
+			// Empty query values (e.g. a blank form field) mean "no filter".
+			const given = (v) => v !== undefined && v !== '';
+			if (given(status) && status !== 'all') {
 				if (!SUBMISSION_STATUSES.includes(status)) {
 					throw new ValidationError(
 						'status must be one of ' + SUBMISSION_STATUSES.join(', ') + ', or all.'
 					);
 				}
 				where.status = status;
-			} else if (status === undefined && AuthzService.isAdmin(req)) {
+			} else if (!given(status) && AuthzService.isAdmin(req)) {
 				where.status = 'pending';
 			}
-			if (resource !== undefined) {
+			if (given(resource)) {
 				if (!SUBMISSION_RESOURCES.includes(resource)) {
 					throw new ValidationError(
 						'resource must be one of ' + SUBMISSION_RESOURCES.join(', ') + '.'
@@ -116,14 +135,18 @@ export default class ModerationController extends RouteController {
 				where.resource = resource;
 			}
 			if (AuthzService.isAdmin(req)) {
-				if (submittedBy !== undefined) {
+				if (given(submittedBy)) {
 					where.submittedBy = submittedBy;
 				}
 			} else {
 				where.submittedBy = req.user.id;
 			}
 			const result = await Submission.list({ where, limit: limits.limit, offset: limits.offset });
-			this.handlePage(res, result, limits);
+			this.handlePage(
+				res,
+				{ rows: result.rows.map((s) => this.#present(req, s)), count: result.count },
+				limits
+			);
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -134,9 +157,8 @@ export default class ModerationController extends RouteController {
 		const { id } = req.query;
 		try {
 			const submission = await this.#visible(req, id);
-			const plain = submission.toJSON();
-			plain.current = await Submission.currentValues(submission);
-			this.#handleSuccess(res, plain);
+			const current = await Submission.currentValues(submission, AuthzService.publishedOnly(req));
+			this.#handleSuccess(res, this.#present(req, submission, { current }));
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -152,7 +174,7 @@ export default class ModerationController extends RouteController {
 			const submission = await this.#visible(req, id);
 			const result = await Submission.revise(submission, { fields, evidence, note });
 			await audit(req, 'submission.update', 'submission', result.id, { resource: result.resource });
-			this.#handleSuccess(res, result);
+			this.#handleSuccess(res, this.#present(req, result));
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -163,7 +185,10 @@ export default class ModerationController extends RouteController {
 		const { id, fields, decisionNote } = req.body;
 		try {
 			const submission = this.requireFound(await Submission.read(id), 'Submission ' + id);
-			if (fields !== undefined && (typeof fields !== 'object' || Array.isArray(fields))) {
+			if (
+				fields !== undefined &&
+				(!fields || typeof fields !== 'object' || Array.isArray(fields))
+			) {
 				throw new ValidationError('fields must be an object of reviewer edits.');
 			}
 			const result = await Submission.approve(submission, {
@@ -184,7 +209,7 @@ export default class ModerationController extends RouteController {
 				result.targetId,
 				{ viaSubmission: result.id, fields: result.appliedChanges }
 			);
-			this.#handleSuccess(res, result);
+			this.#handleSuccess(res, this.#present(req, result));
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -194,10 +219,17 @@ export default class ModerationController extends RouteController {
 	async reject(req, res, next) {
 		const { id, decisionNote } = req.body;
 		try {
+			const submission = this.requireFound(await Submission.read(id), 'Submission ' + id);
+			if (submission.status !== 'pending') {
+				throw new HttpError(
+					409,
+					'Submission ' + submission.id + ' is already ' + submission.status + '.',
+					'SubmissionStateError'
+				);
+			}
 			if (typeof decisionNote !== 'string' || decisionNote.trim() === '') {
 				throw new ValidationError('decisionNote is required when rejecting.');
 			}
-			const submission = this.requireFound(await Submission.read(id), 'Submission ' + id);
 			const result = await Submission.reject(submission, {
 				reviewer: req.user.id,
 				decisionNote: decisionNote.trim()
@@ -206,7 +238,7 @@ export default class ModerationController extends RouteController {
 				resource: result.resource,
 				decisionNote: result.decisionNote
 			});
-			this.#handleSuccess(res, result);
+			this.#handleSuccess(res, this.#present(req, result));
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -221,7 +253,7 @@ export default class ModerationController extends RouteController {
 			await audit(req, 'submission.withdraw', 'submission', result.id, {
 				resource: result.resource
 			});
-			this.#handleSuccess(res, result);
+			this.#handleSuccess(res, this.#present(req, result));
 		} catch (err) {
 			this.#fail(res, next, err);
 		}

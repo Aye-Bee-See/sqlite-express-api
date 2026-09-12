@@ -13,6 +13,7 @@ import {
 	Prison,
 	Chapter
 } from './helpers.js';
+import AuditLog from '../database/models/audit-log.model.js';
 
 let f;
 let admin;
@@ -318,4 +319,144 @@ test('the summary counts pending work, record statuses, and stale verifications'
 	assert.ok(stalePrisons.body.data.some((p) => p.id === f.prison.id));
 	const old = await makeUser({ role: 'user', username: 'nobody' });
 	assert.equal((await get('/prisoner/prisoners?stale=maybe', { token: old.token })).status, 400);
+});
+
+// ---- review follow-ups (regressions) --------------------------------------
+
+test('stale combines with a name search instead of replacing it', async () => {
+	const none = await get('/prisoner/prisoners?q=Nobody&stale=true', chapter);
+	assert.equal(none.status, 200);
+	assert.equal(none.body.total, 0);
+	const two = await get('/prisoner/prisoners?q=Two&stale=true&page_size=100', chapter);
+	assert.ok(two.body.data.some((p) => p.id === f.prisoner2.id));
+	assert.ok(two.body.data.every((p) => /Two/.test(p.birthName + p.chosenName)));
+});
+
+test('two simultaneous approvals create one record and one 409', async () => {
+	const { id } = (
+		await propose({ resource: 'prison', fields: { prisonName: 'Race Facility', address: {} } }, bob)
+	).body.data;
+	const results = await Promise.all([
+		put('/moderation/approve', { id }, admin),
+		put('/moderation/approve', { id }, admin)
+	]);
+	assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+	assert.equal(await Prison.count({ where: { prisonName: 'Race Facility' } }), 1);
+	const winner = results.find((r) => r.status === 200).body.data;
+	assert.equal(winner.appliedChanges.recordStatus, 'published', 'the default is recorded');
+	assert.equal(
+		winner.targetId,
+		(await Prison.findOne({ where: { prisonName: 'Race Facility' } })).id
+	);
+});
+
+test('a failed approval hands the proposal back as pending', async () => {
+	const { id } = (
+		await propose({ resource: 'prisoner', target: f.prisoner2.id, fields: { status: 'flying' } })
+	).body.data;
+	assert.equal((await put('/moderation/approve', { id }, admin)).status, 400);
+	const again = await get('/moderation/submission?id=' + id, admin);
+	assert.equal(again.body.data.status, 'pending');
+	assert.equal(again.body.data.reviewer, null);
+	assert.equal(again.body.data.appliedChanges, null);
+	await put('/moderation/reject', { id, decisionNote: 'cleanup' }, admin);
+});
+
+test('reviewer-only values in a decision are hidden from the submitter', async () => {
+	const { id } = (
+		await propose({
+			resource: 'prisoner',
+			target: f.prisoner2.id,
+			fields: { bio: 'Twelve characters or more' }
+		})
+	).body.data;
+	await put(
+		'/moderation/approve',
+		{ id, fields: { verificationNotes: 'staff only', verifiedAt: '2026-09-12T00:00:00.000Z' } },
+		admin
+	);
+	const asAdmin = await get('/moderation/submission?id=' + id, admin);
+	assert.equal(asAdmin.body.data.appliedChanges.verificationNotes, 'staff only');
+	const asAlice = await get('/moderation/submission?id=' + id, alice);
+	assert.equal(asAlice.status, 200);
+	assert.equal(asAlice.body.data.appliedChanges.bio, 'Twelve characters or more');
+	assert.equal(asAlice.body.data.appliedChanges.verificationNotes, undefined);
+	assert.equal(asAlice.body.data.appliedChanges.verifiedAt, undefined);
+	const list = await get('/moderation/submissions?status=all&page_size=100', alice);
+	assert.ok(!JSON.stringify(list.body).includes('staff only'));
+});
+
+test('non-staff cannot target or peek at unpublished records', async () => {
+	const draft = await Prisoner.createPrisoner({
+		birthName: 'Draft Person',
+		prison: f.prison.id,
+		recordStatus: 'draft'
+	});
+	const asUser = await propose({
+		resource: 'prisoner',
+		target: draft.id,
+		fields: { bio: 'Twelve characters or more' }
+	});
+	assert.equal(asUser.status, 404);
+	const asStaff = await propose(
+		{ resource: 'prisoner', target: draft.id, fields: { bio: 'Twelve characters or more' } },
+		chapter
+	);
+	assert.equal(asStaff.status, 201);
+
+	// A published target that is later unpublished stops showing its values to the submitter.
+	const mine = (
+		await propose({ resource: 'prisoner', target: f.prisoner2.id, fields: { chosenName: 'Peek' } })
+	).body.data;
+	await Prisoner.update({ recordStatus: 'pending' }, { where: { id: f.prisoner2.id } });
+	assert.equal((await get('/moderation/submission?id=' + mine.id, alice)).body.data.current, null);
+	assert.equal(
+		(await get('/moderation/submission?id=' + mine.id, admin)).body.data.current.chosenName,
+		'Two'
+	);
+	await Prisoner.update({ recordStatus: 'published' }, { where: { id: f.prisoner2.id } });
+});
+
+test('input edge cases: blank filters, null reviewer fields, state before note, required fields', async () => {
+	assert.equal(
+		(await get('/moderation/submissions?resource=&status=&submittedBy=', admin)).status,
+		200
+	);
+	const { id } = (
+		await propose({ resource: 'prison', target: f.prison.id, fields: { notes: 'x' } })
+	).body.data;
+	const nullFields = await put('/moderation/approve', { id, fields: null }, admin);
+	assert.equal(nullFields.status, 400);
+	assert.match(nullFields.body.errors[0], /fields must be an object/);
+	await del('/moderation/submission', { id }, alice);
+	assert.equal(
+		(await put('/moderation/reject', { id }, admin)).status,
+		409,
+		'state wins over the missing note'
+	);
+	const incomplete = await propose(
+		{ resource: 'prison', fields: { prisonName: 'No Address' } },
+		bob
+	);
+	assert.equal(incomplete.status, 400);
+	assert.ok(Array.isArray(incomplete.body.errors));
+});
+
+test('an audit write failure does not fail the request it describes', async () => {
+	const original = AuditLog.record;
+	AuditLog.record = async () => {
+		throw new Error('disk full');
+	};
+	const originalError = console.error;
+	const logged = [];
+	console.error = (...args) => logged.push(args.join(' '));
+	try {
+		const res = await put('/prison/prison', { id: f.prison.id, notes: 'Still saved' }, admin);
+		assert.equal(res.status, 200);
+	} finally {
+		AuditLog.record = original;
+		console.error = originalError;
+	}
+	assert.ok(logged.some((l) => l.includes('[audit] failed')));
+	assert.equal((await Prison.findByPk(f.prison.id)).notes, 'Still saved');
 });

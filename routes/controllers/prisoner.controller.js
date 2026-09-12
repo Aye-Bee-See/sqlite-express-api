@@ -2,6 +2,8 @@ import Prisoner from '#models/prisoner.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { staleVerificationWhere } from '#db/record-status.js';
+import { audit } from '#rtServices/audit.services.js';
 
 const READ_CONFIG = {
 	searchFields: ['birthName', 'chosenName'],
@@ -15,7 +17,8 @@ const READ_CONFIG = {
 	filters: {
 		status: { allowed: ['pretrial', 'incarcerated', 'free'] },
 		country: {},
-		featured: { allowed: ['true', 'false'], transform: (v) => v === 'true' }
+		featured: { allowed: ['true', 'false'], transform: (v) => v === 'true' },
+		stale: { allowed: ['true'], build: () => staleVerificationWhere() }
 	}
 };
 
@@ -93,6 +96,7 @@ export default class PrisonerController extends RouteController {
 	async create(req, res) {
 		try {
 			const prisoner = await Prisoner.createPrisoner(req.body);
+			await audit(req, 'prisoner.create', 'prisoner', prisoner.id, { fields: req.body });
 			this.#handleSuccess(res, prisoner);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -105,6 +109,7 @@ export default class PrisonerController extends RouteController {
 		const { prisoner, chapter, description } = req.body;
 		try {
 			const updated = await Prisoner.addSupport(prisoner, chapter, description);
+			await audit(req, 'prisoner.support.add', 'prisoner', prisoner, { chapter, description });
 			this.#handleSuccess(res, { prisoner: updated, chapter });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -117,13 +122,12 @@ export default class PrisonerController extends RouteController {
 		const { prisoner, chapter } = req.body;
 		try {
 			const removed = await Prisoner.removeSupport(prisoner, chapter);
-			this.#handleSuccess(
-				res,
-				this.requireAffected(
-					removed,
-					'Support link for prisoner ' + prisoner + ' and chapter ' + chapter
-				)
+			this.requireAffected(
+				removed,
+				'Support link for prisoner ' + prisoner + ' and chapter ' + chapter
 			);
+			await audit(req, 'prisoner.support.remove', 'prisoner', prisoner, { chapter });
+			this.#handleSuccess(res, removed);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -137,6 +141,7 @@ export default class PrisonerController extends RouteController {
 		try {
 			const updatedRows = await Prisoner.updatePrisoner(newPrisoner);
 			this.requireAffected(updatedRows, 'Prisoner ' + newPrisoner.id);
+			await audit(req, 'prisoner.update', 'prisoner', newPrisoner.id, { fields: newPrisoner });
 			this.#handleSuccess(res, { updatedRows, newPrisoner });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -149,7 +154,9 @@ export default class PrisonerController extends RouteController {
 		const { id } = req.body;
 		try {
 			const deletedRows = await Prisoner.deletePrisoner(id);
-			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Prisoner ' + id));
+			this.requireAffected(deletedRows, 'Prisoner ' + id);
+			await audit(req, 'prisoner.delete', 'prisoner', id);
+			this.#handleSuccess(res, deletedRows);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

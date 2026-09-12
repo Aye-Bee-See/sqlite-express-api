@@ -87,6 +87,25 @@ const endpoints = {
 			remove: '/chapter'
 		}
 	},
+	moderation: {
+		get: {
+			many: '/submissions',
+			one: '/submission',
+			audit: '/audit',
+			summary: '/summary'
+		},
+		post: {
+			create: '/submission'
+		},
+		put: {
+			update: '/submission',
+			approve: '/approve',
+			reject: '/reject'
+		},
+		delete: {
+			remove: '/submission'
+		}
+	},
 	message: {
 		get: {
 			many: '/messages',
@@ -402,6 +421,52 @@ const messages = {
 			}
 		}
 	},
+	moderation: {
+		get: {
+			many: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing submissions.' } }
+			},
+			one: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading submission.' } }
+			},
+			audit: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the audit log.' } }
+			},
+			summary: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error building the moderation summary.' } }
+			}
+		},
+		post: {
+			create: {
+				success: { condition: { par: 'Thanks. Your proposal is waiting for review.' } },
+				error: { condition: { par: 'Error filing the proposal.' } }
+			}
+		},
+		put: {
+			update: {
+				success: { condition: { par: 'Proposal updated.' } },
+				error: { condition: { par: 'Error updating the proposal.' } }
+			},
+			approve: {
+				success: { condition: { par: 'Approved and applied.' } },
+				error: { condition: { par: 'Error approving the submission.' } }
+			},
+			reject: {
+				success: { condition: { par: 'Rejected.' } },
+				error: { condition: { par: 'Error rejecting the submission.' } }
+			}
+		},
+		delete: {
+			remove: {
+				success: { condition: { par: 'Proposal withdrawn.' } },
+				error: { condition: { par: 'Error withdrawing the proposal.' } }
+			}
+		}
+	},
 	message: {
 		get: {
 			many: {
@@ -570,7 +635,8 @@ export const {
 	prison: prisonMsg,
 	message: messageMsg,
 	chat: chatMsg,
-	chapter: chapterMsg
+	chapter: chapterMsg,
+	moderation: moderationMsg
 } = messages;
 
 /***********Messages***********/
@@ -582,5 +648,6 @@ export const {
 	prison: prisonEnd,
 	message: messageEnd,
 	chat: chatEnd,
-	chapter: chapterEnd
+	chapter: chapterEnd,
+	moderation: moderationEnd
 } = endpoints;

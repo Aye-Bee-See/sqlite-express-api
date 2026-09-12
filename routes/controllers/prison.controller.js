@@ -2,11 +2,17 @@ import Prison from '#models/prison.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
 import { ROUTING_METHODS } from '#db/validators.js';
+import { staleVerificationWhere } from '#db/record-status.js';
+import { audit } from '#rtServices/audit.services.js';
 
 const READ_CONFIG = {
 	searchFields: ['prisonName'],
 	sorts: { name: [['prisonName', 'ASC']], ...SORT_BY_CREATED },
-	filters: { country: {}, routing: { allowed: ROUTING_METHODS } }
+	filters: {
+		country: {},
+		routing: { allowed: ROUTING_METHODS },
+		stale: { allowed: ['true'], build: () => staleVerificationWhere() }
+	}
 };
 
 export default class PrisonController extends RouteController {
@@ -74,6 +80,7 @@ export default class PrisonController extends RouteController {
 	async create(req, res) {
 		try {
 			const prison = await Prison.createPrison(req.body);
+			await audit(req, 'prison.create', 'prison', prison.id, { fields: req.body });
 			this.#handleSuccess(res, prison);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -88,6 +95,7 @@ export default class PrisonController extends RouteController {
 		try {
 			const updatedRows = await Prison.updatePrison(newPrison);
 			this.requireAffected(updatedRows, 'Prison ' + newPrison.id);
+			await audit(req, 'prison.update', 'prison', newPrison.id, { fields: newPrison });
 			this.#handleSuccess(res, { updatedRows, newPrison });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -100,6 +108,7 @@ export default class PrisonController extends RouteController {
 
 		try {
 			const updatedRows = await Prison.addRule(rule, prison);
+			await audit(req, 'prison.rule.add', 'prison', prison, { rule });
 			this.#handleSuccess(res, { updatedRows, rule, prison });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -112,10 +121,9 @@ export default class PrisonController extends RouteController {
 		const { rule, prison } = req.body;
 		try {
 			const removed = await Prison.removeRule(rule, prison);
-			this.#handleSuccess(
-				res,
-				this.requireAffected(removed, 'Rule ' + rule + ' on prison ' + prison)
-			);
+			this.requireAffected(removed, 'Rule ' + rule + ' on prison ' + prison);
+			await audit(req, 'prison.rule.remove', 'prison', prison, { rule });
+			this.#handleSuccess(res, removed);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -127,6 +135,7 @@ export default class PrisonController extends RouteController {
 		const { chapter, prison } = req.body;
 		try {
 			const updatedRows = await Prison.addRelay(chapter, prison);
+			await audit(req, 'prison.relay.add', 'prison', prison, { chapter });
 			this.#handleSuccess(res, { updatedRows, chapter, prison });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -139,10 +148,9 @@ export default class PrisonController extends RouteController {
 		const { chapter, prison } = req.body;
 		try {
 			const removed = await Prison.removeRelay(chapter, prison);
-			this.#handleSuccess(
-				res,
-				this.requireAffected(removed, 'Relay link for prison ' + prison + ' and chapter ' + chapter)
-			);
+			this.requireAffected(removed, 'Relay link for prison ' + prison + ' and chapter ' + chapter);
+			await audit(req, 'prison.relay.remove', 'prison', prison, { chapter });
+			this.#handleSuccess(res, removed);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
@@ -155,7 +163,9 @@ export default class PrisonController extends RouteController {
 		const { id } = req.body;
 		try {
 			const deletedRows = await Prison.deletePrison(id);
-			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Prison ' + id));
+			this.requireAffected(deletedRows, 'Prison ' + id);
+			await audit(req, 'prison.delete', 'prison', id);
+			this.#handleSuccess(res, deletedRows);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

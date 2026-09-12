@@ -1,3 +1,5 @@
+import { Op } from 'sequelize';
+
 /**
  * Publication state of directory records (prisons, prisoners, chapters).
  *
@@ -31,4 +33,16 @@ export const recordStatusAttribute = {
  */
 export function publishedWhere(publishedOnly) {
 	return publishedOnly ? { recordStatus: PUBLISHED } : {};
+}
+
+/** A verification older than this is stale (about six months). */
+export const STALE_AFTER_DAYS = 183;
+
+/**
+ * Where-fragment: records never verified, or verified more than
+ * STALE_AFTER_DAYS ago. Prisoners and prisons carry `verifiedAt`.
+ */
+export function staleVerificationWhere(now = new Date()) {
+	const cutoff = new Date(now.getTime() - STALE_AFTER_DAYS * 24 * 60 * 60 * 1000);
+	return { [Op.or]: [{ verifiedAt: null }, { verifiedAt: { [Op.lt]: cutoff } }] };
 }

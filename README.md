@@ -225,20 +225,22 @@ A token whose user has since been deleted or banned is rejected with `401`.
 
 ### What each role can do
 
-| Action                                                     | `user`                | `chapter`                         | `admin` |
-| ---------------------------------------------------------- | --------------------- | --------------------------------- | ------- |
-| Read published prisons, prisoners, rules, chapters         | Yes (and anonymous)   | Yes                               | Yes     |
-| Read draft and pending directory records                   | No                    | Yes                               | Yes     |
-| Create, update, delete prisons, prisoners, rules, chapters | No                    | Yes                               | Yes     |
-| Attach a rule to a prison                                  | No                    | Yes                               | Yes     |
-| Read, create, update, delete chats and messages            | **Own threads only**  | **Managed writers' threads only** | All     |
-| Send a message as the prisoner side (`sender: prisoner`)   | No (forced to `user`) | Yes                               | Yes     |
-| Move a letter to `printed` / `mailed`                      | No                    | As its relay group                | Yes     |
-| Create managed writers, issue claim tokens                 | No                    | Own group                         | Yes     |
-| Read, edit, delete a group's unclaimed managed writers     | No                    | Own group                         | Yes     |
-| Read own user record; update or delete own account         | Yes                   | Yes                               | Yes     |
-| Read, update, delete other users; list users               | No                    | No                                | Yes     |
-| Change a role, or create a non-`user` account              | No                    | No                                | Yes     |
+| Action                                                           | `user`                | `chapter`                         | `admin` |
+| ---------------------------------------------------------------- | --------------------- | --------------------------------- | ------- |
+| Read published prisons, prisoners, rules, chapters               | Yes (and anonymous)   | Yes                               | Yes     |
+| Read draft and pending directory records                         | No                    | Yes                               | Yes     |
+| Create, update, delete prisons, prisoners, rules, chapters       | No                    | Yes                               | Yes     |
+| Attach a rule to a prison                                        | No                    | Yes                               | Yes     |
+| Read, create, update, delete chats and messages                  | **Own threads only**  | **Managed writers' threads only** | All     |
+| Send a message as the prisoner side (`sender: prisoner`)         | No (forced to `user`) | Yes                               | Yes     |
+| Propose a directory change or record ([Moderation](#moderation)) | Yes                   | Yes                               | Yes     |
+| Approve or reject proposals; read the audit log and summary      | No                    | No                                | Yes     |
+| Move a letter to `printed` / `mailed`                            | No                    | As its relay group                | Yes     |
+| Create managed writers, issue claim tokens                       | No                    | Own group                         | Yes     |
+| Read, edit, delete a group's unclaimed managed writers           | No                    | Own group                         | Yes     |
+| Read own user record; update or delete own account               | Yes                   | Yes                               | Yes     |
+| Read, update, delete other users; list users                     | No                    | No                                | Yes     |
+| Change a role, or create a non-`user` account                    | No                    | No                                | Yes     |
 
 "Own threads" means chats whose `user` is the caller's id, and messages whose `user` is the caller's id. For a `user`:
 
@@ -279,15 +281,16 @@ To get the first admin on a fresh database, either log in as the seeded `admin`,
 
 All examples use `http://localhost:3000`. Each resource lives under its own prefix, and the resource name is repeated in the path:
 
-| Prefix       | Resource  | Singular path        | Plural path           |
-| ------------ | --------- | -------------------- | --------------------- |
-| `/auth`      | Users     | `/auth/user`         | `/auth/users`         |
-| `/prison`    | Prisons   | `/prison/prison`     | `/prison/prisons`     |
-| `/prisoner`  | Prisoners | `/prisoner/prisoner` | `/prisoner/prisoners` |
-| `/rule`      | Rules     | `/rule/rule`         | `/rule/rules`         |
-| `/chat`      | Chats     | `/chat/chat`         | `/chat/chats`         |
-| `/messaging` | Messages  | `/messaging/message` | `/messaging/messages` |
-| `/chapter`   | Chapters  | `/chapter/chapter`   | `/chapter/chapters`   |
+| Prefix        | Resource               | Singular path            | Plural path               |
+| ------------- | ---------------------- | ------------------------ | ------------------------- |
+| `/auth`       | Users                  | `/auth/user`             | `/auth/users`             |
+| `/prison`     | Prisons                | `/prison/prison`         | `/prison/prisons`         |
+| `/prisoner`   | Prisoners              | `/prisoner/prisoner`     | `/prisoner/prisoners`     |
+| `/rule`       | Rules                  | `/rule/rule`             | `/rule/rules`             |
+| `/chat`       | Chats                  | `/chat/chat`             | `/chat/chats`             |
+| `/messaging`  | Messages               | `/messaging/message`     | `/messaging/messages`     |
+| `/chapter`    | Chapters               | `/chapter/chapter`       | `/chapter/chapters`       |
+| `/moderation` | Submissions, audit log | `/moderation/submission` | `/moderation/submissions` |
 
 Note the odd one out: messages are mounted at `/messaging`, while chats are at `/chat`.
 
@@ -450,6 +453,7 @@ Directory lists accept these in addition to `page` and `page_size`:
 | `country`      | prisoners, prisons, chapters                       | Exact match on the `country` field.                                                                                                                                                                                                   |
 | `featured`     | prisoners                                          | `true` or `false`.                                                                                                                                                                                                                    |
 | `routing`      | prisons                                            | `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                                                                                            |
+| `stale`        | prisoners, prisons                                 | `true`: records never verified, or verified more than six months ago (`verifiedAt`). For re-verification worklists.                                                                                                                   |
 | `service`      | chapters                                           | One service key (see [Chapter fields](#chapter-fields)); matches groups whose `services` include it.                                                                                                                                  |
 | `prison`       | prisoners, rules                                   | Only records attached to that prison.                                                                                                                                                                                                 |
 | `recordStatus` | prisons, prisoners, chapters (staff only)          | See below.                                                                                                                                                                                                                            |
@@ -1639,6 +1643,101 @@ None of these break anything, but clients should know about them.
 3. Ids in request bodies are examples from the seed data; adjust them from list responses.
 
 `ABC-3.postman_collection_old.json` is a historical snapshot and does not match the API.
+
+### Moderation
+
+Anyone signed in can propose a new prisoner, facility, or group, or a change to an existing one. Admins review the queue and approve (optionally editing first), or reject with a reason. Every decision, and every direct staff write to the directory, lands in an append-only audit log.
+
+| Method | Path                      | Auth               | Purpose                                                       |
+| ------ | ------------------------- | ------------------ | ------------------------------------------------------------- |
+| POST   | `/moderation/submission`  | Any                | Propose a new record or a change to one                       |
+| GET    | `/moderation/submissions` | Any                | Admins: the queue (pending by default); others: own proposals |
+| GET    | `/moderation/submission`  | Submitter or admin | One proposal, with the target's current values                |
+| PUT    | `/moderation/submission`  | Submitter or admin | Revise a pending proposal                                     |
+| DELETE | `/moderation/submission`  | Submitter or admin | Withdraw a pending proposal                                   |
+| PUT    | `/moderation/approve`     | Admin              | Apply a proposal, with optional reviewer edits                |
+| PUT    | `/moderation/reject`      | Admin              | Reject a proposal with a reason                               |
+| GET    | `/moderation/audit`       | Admin              | The audit log, newest first                                   |
+| GET    | `/moderation/summary`     | Admin              | Dashboard counts                                              |
+
+#### Submission fields
+
+| Field                                          | Notes                                                                                                                                                                                                                                                    |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resource`                                     | `prisoner`, `prison`, or `chapter`.                                                                                                                                                                                                                      |
+| `kind`                                         | Set by the server: `update` when `target` was given, else `create`.                                                                                                                                                                                      |
+| `targetId`                                     | The record an update proposes to change. For a create, filled in with the new record's id once approved.                                                                                                                                                 |
+| `payload`                                      | The proposed field values. Only the resource's public fields may be proposed; `recordStatus`, `verifiedBy`, `verifiedAt`, `verificationNotes`, `vouchedBy`, and the group statistics are reviewer-only. `GET /moderation/summary` lists what is allowed. |
+| `evidence`                                     | Free text: where the information comes from (links, documents, "I am their lawyer").                                                                                                                                                                     |
+| `note`                                         | A message to the reviewer.                                                                                                                                                                                                                               |
+| `status`                                       | `pending`, `approved`, `rejected`, or `withdrawn`. Only `pending` proposals can be revised, approved, rejected, or withdrawn; anything else is a `409` with `"name": "SubmissionStateError"`.                                                            |
+| `submitter`, `reviewer`                        | Embedded `{ id, username, name, role }`, or `null`.                                                                                                                                                                                                      |
+| `reviewedAt`, `decisionNote`, `appliedChanges` | Set on decision. `appliedChanges` is exactly what was written: the payload plus any reviewer edits.                                                                                                                                                      |
+
+#### POST /moderation/submission
+
+```bash
+curl -s -X POST http://localhost:3000/moderation/submission \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"resource":"prisoner","target":41,"fields":{"chosenName":"Sam","interests":["chess"]},"evidence":"Letter from counsel, 1 Sept 2026","note":"Legal name change"}'
+```
+
+Returns `201` with the submission. Omit `target` to propose a brand-new record; the `fields` then need everything the resource requires (a prison needs `prisonName` and `address`, a prisoner `birthName` and `prison`, a group `name` and `location`). A reviewer-only field, an unknown resource, empty `fields`, or a `target` that does not exist are `400` or `404` at filing time; other validation happens when the proposal is approved.
+
+#### GET /moderation/submissions
+
+Parameters: `status` (`pending`, `approved`, `rejected`, `withdrawn`, or `all`), `resource`, `submittedBy` (admin only), `page`, `page_size`. Admins get every proposal, `pending` by default, oldest first. Anyone else gets their own proposals in every status. Rows carry `submitter` and `reviewer`.
+
+#### GET /moderation/submission
+
+Parameter: `id`. Adds `current`: for an update, the target's present values of the proposed fields (so a reviewer can see the diff); `null` for a create or a target that has since been deleted.
+
+#### PUT /moderation/submission and DELETE /moderation/submission
+
+Body `{"id": 7, "fields": {...}, "evidence": "...", "note": "..."}` replaces the parts given (`fields` is validated as on filing). `{"id": 7}` on DELETE withdraws; the row stays with `status: withdrawn`.
+
+#### PUT /moderation/approve
+
+Body `{"id": 7, "fields": {...}, "decisionNote": "..."}`. `fields` are reviewer edits merged over the payload and may include the reviewer-only fields, so "edit then approve" and "approve and mark verified" are one call. The record is written through the same model code as a direct write, so its validation applies; a failure is a `400` and the proposal stays pending. New records are created `published` unless `fields.recordStatus` says otherwise. Returns the submission with `appliedChanges`.
+
+#### PUT /moderation/reject
+
+Body `{"id": 7, "decisionNote": "..."}`. The note is required.
+
+#### GET /moderation/audit
+
+Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest first. Each entry is `{ id, actor, action, resource, targetId, details, createdAt, actor_details }`. Actions recorded:
+
+| Action                                                                                            | When                                                                       |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `submission.create`, `.update`, `.approve`, `.reject`, `.withdraw`                                | Moderation events; `approve` also logs the resulting record write below    |
+| `prisoner.create`, `.update`, `.delete`, `.support.add`, `.support.remove`                        | Staff writes, direct or via an approved proposal (`details.viaSubmission`) |
+| `prison.create`, `.update`, `.delete`, `.rule.add`, `.rule.remove`, `.relay.add`, `.relay.remove` | Same                                                                       |
+| `chapter.create`, `.update`, `.delete`                                                            | Same                                                                       |
+| `letter.status`                                                                                   | A status move (`details.from`, `details.to`)                               |
+| `user.update`                                                                                     | An admin changed a role or group membership                                |
+| `writer.create`, `writer.claim`                                                                   | A managed writer was created, or claimed (no actor)                        |
+
+#### GET /moderation/summary
+
+```json
+{
+	"pendingSubmissions": { "prisoner": 2, "prison": 0, "chapter": 1 },
+	"records": {
+		"prisoner": { "draft": 1, "pending": 0, "published": 40 },
+		"prison": { "draft": 0, "pending": 2, "published": 52 },
+		"chapter": { "draft": 0, "pending": 0, "published": 1 }
+	},
+	"staleVerification": { "prisoner": 38, "prison": 52 },
+	"resources": {
+		"prisoner": { "submittable": ["birthName", "..."] },
+		"prison": { "submittable": ["..."] },
+		"chapter": { "submittable": ["..."] }
+	}
+}
+```
+
+`staleVerification` matches the `stale=true` list filter on prisoners and prisons. Not yet built: anonymous corrections from the public footer, group invitations with vouching, and site settings.
 
 ## Further reading
 

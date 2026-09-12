@@ -10,6 +10,8 @@ import claimTokenSchema from '#schemas/claim-token.schema.js';
 import messageStatusSchema from '#schemas/message-status.schema.js';
 import attachmentSchema from '#schemas/attachment.schema.js';
 import letterKeySchema from '#schemas/letter-key.schema.js';
+import submissionSchema from '#schemas/submission.schema.js';
+import auditLogSchema from '#schemas/audit-log.schema.js';
 
 export default class Schemas {
 	static chat = chatSchema;
@@ -24,4 +26,6 @@ export default class Schemas {
 	static messageStatus = messageStatusSchema;
 	static attachment = attachmentSchema;
 	static letterKey = letterKeySchema;
+	static submission = submissionSchema;
+	static auditLog = auditLogSchema;
 }

@@ -10,6 +10,7 @@ import RuleRoutes from '#routes/rule/rule.js';
 import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
 import ChapterRoutes from '#routes/chapter/chapter.js';
+import ModerationRoutes from '#routes/moderation/moderation.js';
 import ErrorService from '#rtServices/error.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
 import { NotFoundError } from '#services/HttpError.js';
@@ -58,6 +59,7 @@ export function createApp() {
 	app.use('/messaging', MessageRoutes.Router);
 	app.use('/chat', ChatRoutes.Router);
 	app.use('/chapter', ChapterRoutes.Router);
+	app.use('/moderation', ModerationRoutes.Router);
 
 	// Unknown routes get a JSON 404 instead of Express's HTML page.
 	app.use((req, res, next) => {

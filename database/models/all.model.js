@@ -10,6 +10,8 @@ import ClaimToken from '#models/claim-token.model.js';
 import MessageStatus from '#models/message-status.model.js';
 import Attachment from '#models/attachment.model.js';
 import LetterKey from '#models/letter-key.model.js';
+import Submission from '#models/submission.model.js';
+import AuditLog from '#models/audit-log.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -60,6 +62,7 @@ Child.belongsToMany(
 
 export {
 	Attachment,
+	AuditLog,
 	Chat,
 	Chapter,
 	ClaimToken,
@@ -70,5 +73,6 @@ export {
 	Prisoner,
 	PrisonerSupport,
 	Rule,
+	Submission,
 	User
 };

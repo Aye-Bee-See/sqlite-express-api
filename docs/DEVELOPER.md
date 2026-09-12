@@ -155,7 +155,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   ├── rule/rule.js
 │   ├── chat/chat.js
 │   ├── message/message.js
-│   └── chapter/chapter.js
+│   ├── chapter/chapter.js
+│   └── moderation/moderation.js   Proposals, review, audit log, summary.
 └── database/
     ├── connection.js                 The Sequelize instance; no models, so the CLI can import it alone.
     ├── migrate.js                    createMigrator(), runMigrations() (reset + adoption logic), CLI entry point.

@@ -34,6 +34,8 @@ export const ClaimToken = Models.ClaimToken.init(sequelize, Sequelize);
 export const MessageStatus = Models.MessageStatus.init(sequelize, Sequelize);
 export const Attachment = Models.Attachment.init(sequelize, Sequelize);
 export const LetterKey = Models.LetterKey.init(sequelize, Sequelize);
+export const Submission = Models.Submission.init(sequelize, Sequelize);
+export const AuditLog = Models.AuditLog.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -46,6 +48,8 @@ ClaimToken.associate(Models);
 MessageStatus.associate(Models);
 Attachment.associate(Models);
 LetterKey.associate(Models);
+Submission.associate(Models);
+AuditLog.associate(Models);
 
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;

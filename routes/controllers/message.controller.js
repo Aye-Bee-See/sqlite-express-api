@@ -7,6 +7,7 @@ import { isOpen, LETTER_STATUSES } from '#db/letter-status.js';
 import Attachment from '#models/attachment.model.js';
 import { NotFoundError } from '#services/HttpError.js';
 import { sniffType } from '#services/files.js';
+import { audit } from '#rtServices/audit.services.js';
 
 /**
  * Message (letter) controller.
@@ -217,7 +218,9 @@ export default class MessageController extends RouteController {
 					'Only the relay group or an admin can change a letter status.'
 				);
 			}
+			const from = message.status;
 			const updated = await Message.changeStatus(message, status, req.user.id);
+			await audit(req, 'letter.status', 'message', updated.id, { from, to: status });
 			this.#handleSuccess(res, updated);
 		} catch (err) {
 			this.#fail(res, next, err);

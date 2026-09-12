@@ -139,7 +139,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   │   ├── authz.services.js         requireRole, requireSelfOrAdmin, requireGroupMember, optionalAuthenticate, chapterOf, mayManageUser, forbidden(), unauthorized().
 │   │   ├── scope.services.js         threadScope(req) and resolveWriter(): who may see and write which chats and messages.
 │   │   ├── error.services.js         ErrorService.handler, the final error middleware.
-│   │   └── upload.services.js        uploadSingle(field): multer (memory) with size and type limits, errors rendered as ValidationError.
+│   │   ├── upload.services.js        uploadSingle(field): multer (memory) with size and type limits, errors rendered as ValidationError.
+│   │   └── audit.services.js         audit(req, action, resource, targetId, details): append to AuditLog with req.user as actor.
 │   ├── controllers/
 │   │   ├── route.controller.js       Base class: pagination, requireFound/requireAffected, handleSuccess, handleErr.
 │   │   ├── user.controller.js        Plus login, registration role policy, password/note stripping, managed writers, claim tokens.
@@ -148,14 +149,16 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   │   ├── rule.controller.js
 │   │   ├── chat.controller.js        Scope checks via threadScope().
 │   │   ├── message.controller.js     Scope checks via threadScope().
-│   │   └── chapter.controller.js
+│   │   ├── chapter.controller.js
+│   │   └── moderation.controller.js  create/getMany/getOne/update/remove (proposals), approve/reject, audit, summary.
 │   ├── user/user.js                  Route classes. All seven follow the same template.
 │   ├── prison/prison.js
 │   ├── prisoner/prisoner.js
 │   ├── rule/rule.js
 │   ├── chat/chat.js
 │   ├── message/message.js
-│   └── chapter/chapter.js
+│   ├── chapter/chapter.js
+│   └── moderation/moderation.js   Proposals, review, audit log, summary.
 └── database/
     ├── connection.js                 The Sequelize instance; no models, so the CLI can import it alone.
     ├── migrate.js                    createMigrator(), runMigrations() (reset + adoption logic), CLI entry point.
@@ -177,7 +180,9 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     │   ├── message-status.model.js   MessageStatus: one row per status change.
     │   ├── attachment.model.js       Attachment: attach (encrypt + store + row), readBytes (decrypt), withFile, listForMessage, remove, purgeForMessages.
     │   ├── letter-key.model.js       LetterKey: content-key envelopes; issueServerKey, contentKeysFor, encryptFields, decryptRows, stripCipher.
-    │   └── chapter.model.js
+    │   ├── chapter.model.js
+    │   ├── submission.model.js       Submission: RESOURCES registry (fields, submittable, create/update), propose, revise, approve, reject, withdraw, currentValues, pendingCounts.
+    │   └── audit-log.model.js        AuditLog: record, list (newest first). Append-only, no updatedAt.
     ├── schemas/
     │   ├── all.schema.js             Schemas class with one static per model.
     │   └── <model>.schema.js         Plain objects of Sequelize column definitions.
@@ -474,6 +479,7 @@ The policy, as implemented:
 - Chats and messages follow `threadScope(req)` in `routes/services/scope.services.js`: `{ kind: 'all' | 'managed' | 'own', where, messageWhere, allowsUser(id), allows(chat) (async), allowsMessage(message) }`. Admins get everything; a `chapter` caller gets `user IN (ids of writers its group manages)` **or** `relayChapter = its group` (for chats: chats holding such a message, via a literal subquery); a `user` gets their own id. Controllers spread `scope.where` / `scope.messageWhere` **last** into list queries, call `allows` / `allowsMessage` before single-record reads, updates, and deletes, and use `resolveWriter(req, scope, body.user, { sender, prisoner })` on create (user role: self; chapter: a managed writer, the group's anonymous writer when omitted, or an independent writer only for a `prisoner` reply on a thread the group relays; admin: as given). Enforced in the controllers because it depends on the record, not just the route.
 - Attachments (`Attachment` model, `MessageController.createAttachment` / `attachments` / `getAttachment` / `removeAttachment`): scoped exactly like the message they belong to via `allowsMessage`; adding or removing requires the letter to be `isOpen` unless the caller is an admin. Uploads go through `uploadSingle('file')`, are sniffed with `sniffType`, and must match the declared MIME type. `Message.deleteMessage` and `Chat.deleteChat` call `Attachment.purgeForMessages` first because the database cascade cannot unlink files.
 - Letter lifecycle (`database/letter-status.js`, `Message.createLetter` / `changeStatus`, `MessageController.updateStatus`): every message has `status`; letters start `queued`, replies `received`; `PUT /messaging/status` moves queued to printed to mailed for admins or the letter's `relayChapter`; `MessageStatus` rows record every change. `Message.resolveRelayChapter(prisonerId, requested, callerChapter)` validates an explicit group against the facility's relay groups (`Prisoner.relayGroupsFor`) and otherwise defaults to the caller's group, then the single relay group, then none unless the facility is `relay_only`. Non-admins may edit or delete a letter only while `isOpen(status)`.
+- Moderation (`moderation.controller.js`, `Submission`): any authenticated account may propose; `Submission.RESOURCES` maps `prisoner`/`prison`/`chapter` to their model, full field list, submittable subset (everything except `recordStatus`, `verifiedBy`, `verifiedAt`, `verificationNotes`, `vouchedBy`, and the group statistics), and create/update functions. Approval merges reviewer `fields` (any field) over the payload and writes through the model's normal create/update, so validation is identical to a direct write; a `SequelizeValidationError` leaves the proposal pending. Submitters read, revise, and withdraw their own pending proposals; admins do everything. `audit()` in `routes/services/audit.services.js` records moderation events, directory writes (create, update, delete, link/unlink), letter status moves, admin role/group changes, and managed-writer creation and claiming. `staleVerificationWhere()` in `database/record-status.js` backs the `stale=true` filter and the summary.
 - Managed writers (`user.controller.js`, `User.createManagedWriter` and friends, `ClaimToken`): a group creates an account with `managedBy` set; the local strategy refuses login while `managedBy && !claimedAt`; `POST /auth/claim` sets credentials, `claimedAt`, `claimedFrom`, and clears `managedBy`, after which the group is out of scope. `User.anonymousWriterFor(chapterId)` find-or-creates the one account with `anonymousForChapter = chapterId`. `managerNote` is stripped from every response except to admins and the managing group (`#stripPassword(user, req)` in the user controller).
 
 To change the policy, edit the route files (which roles guard which routes) and the two controllers (ownership). `requireRole` is deliberately dumb so that the policy stays visible in the route definitions.
@@ -652,7 +658,7 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 `npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
 
 - `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `upload()` (multipart via `FormData`) and `getBytes()` (raw download), a per-process temporary `UPLOAD_DIR` (removed by `stopServer()`) with a 64 KiB `UPLOAD_MAX_BYTES`, a fixed test `ENCRYPTION_KEY`, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin; a Chapter record `group` with a `chapter`-role member and an unclaimed managed `writer`; two independent users `alice` and `bob`; a prison with two prisoners; a rule).
-- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `encryption`, `letters`, `messaging`, `migrations`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
+- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `encryption`, `letters`, `messaging`, `migrations`, `moderation`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
 - Seeded data is not used by the tests; fixtures are created explicitly, so tests never depend on seed ids.
 - CI (`.github/workflows/test.yml`) runs `npm ci`, ESLint, and the suite on Node 22 and 24 for every pull request and push to `main`.
 
@@ -730,8 +736,9 @@ Known gaps, roughly in the order they are worth tackling:
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
 5. **Token lifecycle.** No refresh, no logout, no revocation short of banning; a week-long token is generous.
 6. **Key rotation and e2e mode.** No script re-wraps the server envelopes under a new `ENCRYPTION_KEY` yet (unwrap with the old key, wrap with the new, update `keyLabel`). `ENCRYPTION_MODE=e2e` needs the key endpoints, the envelope-aware create and read contracts, and the re-wrap script described in the encryption design document.
-7. **Retention and storage.** Purging `mailed` letters (and their attachment files) after a window, then `VACUUM`, is a scheduled job to add once the product decides the window. Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes are still open to every chapter account.
-8. **Rate limiting and request logging.** None.
-9. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
-10. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
-11. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.
+7. **Moderation follow-ups.** Anonymous corrections from the public footer (a submission with no `submittedBy`, rate-limited), group invitations with vouching, site settings, and email or in-app notification of decisions to submitters.
+8. **Retention and storage.** Purging `mailed` letters (and their attachment files) after a window, then `VACUUM`, is a scheduled job to add once the product decides the window. Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes are still open to every chapter account.
+9. **Rate limiting and request logging.** None.
+10. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
+11. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
+12. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.

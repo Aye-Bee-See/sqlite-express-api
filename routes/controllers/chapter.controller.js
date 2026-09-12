@@ -3,6 +3,7 @@ import Chapter from '#models/chapter.model.js';
 import { Op, literal } from 'sequelize';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
 import { CHAPTER_SERVICES } from '#db/validators.js';
+import { audit } from '#rtServices/audit.services.js';
 
 const READ_CONFIG = {
 	searchFields: ['name'],
@@ -47,6 +48,7 @@ export default class chapterController extends RouteController {
 	async create(req, res) {
 		try {
 			const chapter = await Chapter.createChapter(req.body);
+			await audit(req, 'chapter.create', 'chapter', chapter.id, { fields: req.body });
 			this.#handleSuccess(res, chapter);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -92,6 +94,7 @@ export default class chapterController extends RouteController {
 		try {
 			const updatedRows = await Chapter.updateChapter(newChapter);
 			this.requireAffected(updatedRows, 'Chapter ' + newChapter.id);
+			await audit(req, 'chapter.update', 'chapter', newChapter.id, { fields: newChapter });
 			this.#handleSuccess(res, { updatedRows, newChapter });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -103,7 +106,9 @@ export default class chapterController extends RouteController {
 		const { id } = req.body;
 		try {
 			const deletedRows = await Chapter.deleteChapter(id);
-			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Chapter ' + id));
+			this.requireAffected(deletedRows, 'Chapter ' + id);
+			await audit(req, 'chapter.delete', 'chapter', id);
+			this.#handleSuccess(res, deletedRows);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

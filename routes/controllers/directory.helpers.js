@@ -55,6 +55,7 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 		where[Op.or] = searchFields.map((field) => ({ [field]: { [Op.like]: '%' + term + '%' } }));
 	}
 
+	const fragments = [];
 	for (const [param, spec] of Object.entries(filters)) {
 		const value = req.query[param];
 		if (value === undefined || value === '') {
@@ -63,10 +64,16 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 		if (spec.allowed && !spec.allowed.includes(value)) {
 			errors.push(param + ' must be one of ' + spec.allowed.join(', ') + '.');
 		} else if (spec.build) {
-			Object.assign(where, spec.build(value));
+			// Built fragments may use Op.or themselves; keep them apart from the
+			// q search (which owns the top-level Op.or) by AND-ing them.
+			fragments.push(spec.build(value));
 		} else {
 			where[spec.column || param] = spec.transform ? spec.transform(value) : value;
 		}
+	}
+
+	if (fragments.length > 0) {
+		where[Op.and] = fragments;
 	}
 
 	let order = [['id', 'ASC']];

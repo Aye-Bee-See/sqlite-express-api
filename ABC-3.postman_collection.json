@@ -1772,6 +1772,297 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "Moderation",
+			"item": [
+				{
+					"name": "Propose A Change To A Prisoner",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/submission",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "submission"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"resource\": \"prisoner\",\n    \"target\": 1,\n    \"fields\": {\n        \"chosenName\": \"Sam\",\n        \"interests\": [\n            \"chess\"\n        ]\n    },\n    \"evidence\": \"Letter from counsel\",\n    \"note\": \"Legal name change\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Propose A New Facility",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/submission",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "submission"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"resource\": \"prison\",\n    \"fields\": {\n        \"prisonName\": \"Proposed Facility\",\n        \"address\": {\n            \"city\": \"Somewhere\"\n        },\n        \"country\": \"Canada\"\n    },\n    \"evidence\": \"https://example.org/facility\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Moderation Queue (admin, pending)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/submissions?status=pending&page=1&page_size=10",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "submissions"],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "My Proposals",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/submissions?status=all",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "submissions"],
+							"query": [
+								{
+									"key": "status",
+									"value": "all"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Read Submission With Current Values",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/submission?id={{submissionId}}",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "submission"],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{submissionId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Revise My Proposal",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/submission",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "submission"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"{{submissionId}}\",\n    \"fields\": {\n        \"chosenName\": \"Samuel\"\n    },\n    \"note\": \"Corrected spelling\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Approve (admin, with reviewer edits)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/approve",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "approve"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"{{submissionId}}\",\n    \"fields\": {\n        \"verifiedAt\": \"2026-09-12T00:00:00.000Z\",\n        \"verifiedBy\": 1\n    },\n    \"decisionNote\": \"Confirmed with counsel\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reject (admin)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/reject",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "reject"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"{{submissionId}}\",\n    \"decisionNote\": \"Could not verify\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Withdraw My Proposal",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/submission",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "submission"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"{{submissionId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Audit Log (admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/audit?resource=prisoner&page=1&page_size=25",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "audit"],
+							"query": [
+								{
+									"key": "resource",
+									"value": "prisoner"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "25"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Moderation Summary (admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/moderation/summary",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["moderation", "summary"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Stale Prisoners (re-verification worklist)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prisoner/prisoners?stale=true&page_size=50",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["prisoner", "prisoners"],
+							"query": [
+								{
+									"key": "stale",
+									"value": "true"
+								},
+								{
+									"key": "page_size",
+									"value": "50"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"variable": [
@@ -1792,6 +2083,11 @@
 		},
 		{
 			"key": "claimToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "submissionId",
 			"value": "",
 			"type": "string"
 		}

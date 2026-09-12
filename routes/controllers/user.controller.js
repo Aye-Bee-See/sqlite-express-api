@@ -4,6 +4,7 @@ import AuthzService from '#rtServices/authz.services.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import ClaimToken from '#models/claim-token.model.js';
 import ValidationError from '#services/ValidationError.js';
+import { audit } from '#rtServices/audit.services.js';
 import Chapter from '#models/chapter.model.js';
 
 export default class UserController extends RouteController {
@@ -236,6 +237,15 @@ export default class UserController extends RouteController {
 			}
 			const updatedRows = await User.updateUser(newUser);
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
+			if (
+				AuthzService.isAdmin(req) &&
+				(newUser.role !== undefined || newUser.chapterId !== undefined)
+			) {
+				await audit(req, 'user.update', 'user', newUser.id, {
+					role: newUser.role,
+					chapterId: newUser.chapterId
+				});
+			}
 			// Never echo a password, plain or hashed, back to the client.
 			const { password, ...echoed } = newUser;
 			void password;
@@ -307,6 +317,7 @@ export default class UserController extends RouteController {
 				managerNote,
 				chapterId
 			});
+			await audit(req, 'writer.create', 'user', writer.id, { chapterId });
 			this.#handleSuccess(res, this.#stripPassword(writer, req));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -433,6 +444,7 @@ export default class UserController extends RouteController {
 			await User.claim(writer, { username, password, email });
 			record.usedAt = new Date();
 			await record.save();
+			await audit(null, 'writer.claim', 'user', writer.id, { claimedFrom: writer.managedBy });
 			const claimed = await User.findByPk(writer.id);
 			this.#handleSuccess(res, this.#stripPassword(claimed, req));
 		} catch (err) {

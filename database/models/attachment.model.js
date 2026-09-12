@@ -1,6 +1,9 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
-import { removeFile, storeFile } from '#services/files.js';
+import { readFile } from 'node:fs/promises';
+import { removeFile, storeFile, storedPath } from '#services/files.js';
+import LetterKey from '#models/letter-key.model.js';
+import * as crypto from '#services/crypto.js';
 
 /**
  * A file attached to a message. Rows hide `storedName` by default; use the
@@ -12,7 +15,7 @@ export default class Attachment extends Model {
 			sequelize,
 			modelName: 'Attachment',
 			tableName: 'Attachments',
-			defaultScope: { attributes: { exclude: ['storedName'] } },
+			defaultScope: { attributes: { exclude: ['storedName', 'nonce'] } },
 			scopes: { withStoredName: {} }
 		});
 	}
@@ -38,7 +41,9 @@ export default class Attachment extends Model {
 	 * @returns {Promise<Attachment>} the row without storedName
 	 */
 	static async attach({ message, buffer, mimeType, originalName, uploadedBy = null }) {
-		const storedName = await storeFile(buffer, mimeType);
+		const key = await LetterKey.contentKeyFor(message);
+		const { ciphertext, nonce } = crypto.encrypt(buffer, key);
+		const storedName = await storeFile(Buffer.from(crypto.decode(ciphertext)), mimeType);
 		try {
 			const row = await this.create({
 				message,
@@ -46,13 +51,33 @@ export default class Attachment extends Model {
 				originalName: originalName || null,
 				mimeType,
 				size: buffer.length,
-				uploadedBy
+				uploadedBy,
+				nonce
 			});
 			return await this.findByPk(row.id);
 		} catch (err) {
 			await removeFile(storedName);
 			throw err;
 		}
+	}
+
+	/**
+	 * The decrypted bytes of an attachment.
+	 * @param {Attachment} row loaded with withFile()
+	 * @returns {Promise<Buffer|null>} null when the file is missing from disk
+	 */
+	static async readBytes(row) {
+		let stored;
+		try {
+			stored = await readFile(storedPath(row.storedName));
+		} catch (err) {
+			if (err.code === 'ENOENT') {
+				return null;
+			}
+			throw err;
+		}
+		const key = await LetterKey.contentKeyFor(row.message);
+		return crypto.decrypt(crypto.encode(stored), row.nonce, key);
 	}
 
 	/** One attachment including its stored file name, or null. */

@@ -5,6 +5,7 @@ import { dbReset, dbSeed, quietBoot } from '#constants';
 import { runMigrations } from './migrate.js';
 import { createSeeds } from './seeds/all.seeds.js';
 import { ensureAdmin } from './bootstrap-admin.js';
+import * as crypto from '#services/crypto.js';
 
 /**
  * Model initialisation and boot-time database setup.
@@ -32,6 +33,7 @@ export const PrisonerSupport = Models.PrisonerSupport.init(sequelize, Sequelize)
 export const ClaimToken = Models.ClaimToken.init(sequelize, Sequelize);
 export const MessageStatus = Models.MessageStatus.init(sequelize, Sequelize);
 export const Attachment = Models.Attachment.init(sequelize, Sequelize);
+export const LetterKey = Models.LetterKey.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -43,6 +45,7 @@ Chapter.associate(Models);
 ClaimToken.associate(Models);
 MessageStatus.associate(Models);
 Attachment.associate(Models);
+LetterKey.associate(Models);
 
 const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;
@@ -53,6 +56,8 @@ const warn = quietBoot ? () => {} : console.warn;
  * Resolves once the database is ready to serve requests.
  */
 export const ready = (async () => {
+	await crypto.ready;
+	crypto.assertConfigured();
 	if (dbReset) {
 		warn('DB_RESET is set: dropping every table and replaying all migrations.');
 	}

@@ -74,6 +74,8 @@ cp .env.example .env
 | `DB_STORAGE`       | No       | `database.sqlite`       | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                            |
 | `UPLOAD_DIR`       | No       | `uploads`               | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database. |
 | `UPLOAD_MAX_BYTES` | No       | `10485760`              | Largest accepted upload (10 MiB).                                                                                                     |
+| `ENCRYPTION_MODE`  | No       | `server`                | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                              |
+| `ENCRYPTION_KEY`   | Yes      | none                    | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.        |
 | `NODE_ENV`         | No       | none                    | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                            |
 
 ### Start
@@ -112,6 +114,20 @@ The suite runs against an in-memory database and needs no `.env`. It takes a cou
 Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
 
 Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and are referenced by rows in the `Attachments` table; back up both together. Deleting a message or chat through the API removes its files.
+
+### Encryption
+
+Letters are never stored in the clear. Each message gets its own random content key; the body, the relay note, and every attachment file are encrypted with it (XChaCha20-Poly1305), and the content key is stored wrapped, once per reader, in the `LetterKeys` table.
+
+Today the API runs in `server` mode: the only reader is the server, and the content keys are wrapped with `ENCRYPTION_KEY`. The API therefore decrypts letters for authorised callers, and the request and response shapes are exactly what this document describes (`messageText`, `relayNote`, plain file downloads). What this protects against is a copied database file or upload directory: without the key they hold ciphertext only. It does not protect against someone with the running server and its key.
+
+The storage shape is the one the browser-side design (`e2e` mode) uses. Moving to it later means giving readers public keys and re-wrapping each content key to them; letter bodies are never re-encrypted. Until then `ENCRYPTION_MODE=e2e` is refused at boot.
+
+Operational rules:
+
+- Generate the key once with `npm run keygen`, put it in `.env`, and back it up somewhere other than the server. Migrations, seeds, and the first boot all need it.
+- Every server envelope records a fingerprint of the key that wrapped it. A letter wrapped under a different key is refused with a `500` and `"name": "EncryptionKeyError"` rather than served as garbage.
+- Key rotation (re-wrapping the envelopes under a new key) is not scripted yet.
 
 Schema changes ship as migrations and are applied automatically on boot, so pulling a new version and starting the server upgrades an existing database in place. A database created before migrations existed is adopted on first boot (you will see `Existing database adopted` once).
 
@@ -1335,7 +1351,7 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 | Field                                | Type    | Notes                                                                                                                                                                                                                    |
 | ------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `chat`                               | integer | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                                                                                                                                              |
-| `messageText`                        | string  | The letter body.                                                                                                                                                                                                         |
+| `messageText`                        | string  | The letter body. Stored encrypted; see [Encryption](#encryption).                                                                                                                                                        |
 | `sender`                             | string  | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.                                                                                                                                       |
 | `user`                               | integer | Id of the user side. A `user`-role caller's own id is used regardless of body. A `chapter` account may name one of its group's managed writers, or omit it to send as the group's anonymous writer. Required for admins. |
 | `status`                             | string  | Read-only here; see [Letter lifecycle](#letter-lifecycle). Change it with `PUT /messaging/status`.                                                                                                                       |

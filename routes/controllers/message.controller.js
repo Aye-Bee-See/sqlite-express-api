@@ -6,8 +6,7 @@ import ValidationError from '#services/ValidationError.js';
 import { isOpen, LETTER_STATUSES } from '#db/letter-status.js';
 import Attachment from '#models/attachment.model.js';
 import { NotFoundError } from '#services/HttpError.js';
-import { sniffType, storedPath } from '#services/files.js';
-import { access } from 'node:fs/promises';
+import { sniffType } from '#services/files.js';
 
 /**
  * Message (letter) controller.
@@ -300,10 +299,8 @@ export default class MessageController extends RouteController {
 			const attachment = this.requireFound(await Attachment.withFile(id), 'Attachment ' + id);
 			const scope = await threadScope(req);
 			await this.#attachableMessage(req, scope, attachment.message, { forWrite: false });
-			const path = storedPath(attachment.storedName);
-			try {
-				await access(path);
-			} catch {
+			const bytes = await Attachment.readBytes(attachment);
+			if (!bytes) {
 				throw new NotFoundError('Attachment ' + id + ' file is missing from storage');
 			}
 			const safeName = (attachment.originalName || attachment.storedName).replace(
@@ -311,9 +308,9 @@ export default class MessageController extends RouteController {
 				'_'
 			);
 			res.setHeader('Content-Type', attachment.mimeType);
-			res.setHeader('Content-Length', attachment.size);
+			res.setHeader('Content-Length', bytes.length);
 			res.setHeader('Content-Disposition', 'attachment; filename="' + safeName + '"');
-			res.sendFile(path);
+			res.send(bytes);
 		} catch (err) {
 			this.#fail(res, next, err);
 		}

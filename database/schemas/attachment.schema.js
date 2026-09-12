@@ -24,6 +24,10 @@ const attachmentSchema = {
 	},
 	uploadedBy: {
 		type: DataTypes.INTEGER
+	},
+	/** Nonce for the file's encryption with the letter's content key. */
+	nonce: {
+		type: DataTypes.STRING
 	}
 };
 

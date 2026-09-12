@@ -5,6 +5,7 @@ import modelsService from '#models/models.service.js';
 import Chat from '#models/chat.model.js';
 import MessageStatus from '#models/message-status.model.js';
 import Attachment from '#models/attachment.model.js';
+import LetterKey from '#models/letter-key.model.js';
 import Prisoner from '#models/prisoner.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
@@ -274,6 +275,17 @@ export default class Message extends Model {
 	 */
 	static async updateMessage(message) {
 		const values = { ...message };
+		if (values.messageText !== undefined || values.relayNote !== undefined) {
+			// Static updates skip instance hooks, so re-encrypt here with the letter's key.
+			const key = await LetterKey.contentKeyFor(message.id);
+			const columns = LetterKey.encryptFields(key, {
+				messageText: values.messageText,
+				relayNote: values.relayNote
+			});
+			delete values.messageText;
+			delete values.relayNote;
+			Object.assign(values, columns);
+		}
 		if (values.user !== undefined || values.prisoner !== undefined) {
 			const current = await this.findByPk(message.id);
 			if (current) {

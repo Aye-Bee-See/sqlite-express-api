@@ -1,6 +1,6 @@
 /**
  * What the browser does in end-to-end mode, for the tests: keypairs, sealed
- * envelopes, XChaCha20-Poly1305 bodies, and password / recovery / claim
+ * envelopes, XChaCha20-Poly1305 (`crypto_aead_xchacha20poly1305_ietf`) bodies, and password / recovery / claim
  * wrapping. The KDF here is scrypt from node:crypto; the server never runs
  * a KDF, it only stores the salt and parameters the client chooses.
  */

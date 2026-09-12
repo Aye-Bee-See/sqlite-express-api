@@ -17,7 +17,7 @@ const {
 	User,
 	uploadDir
 } = await import('./helpers.js');
-const { runRetention, windowFor } = await import('../database/retention.js');
+const { runRetention, windowFor, purgeIfUnpinned } = await import('../database/retention.js');
 
 let f;
 let admin;
@@ -131,6 +131,7 @@ test('mailed letters and replies past the writer window are purged with their fi
 	assert.equal(dry.letters, 2);
 	assert.equal(dry.replies, 1);
 	assert.equal(dry.attachments, 1);
+	assert.equal(dry.chats, 1, 'only the chat the run would empty');
 	assert.ok(await Message.findByPk(old), 'a dry run deletes nothing');
 
 	const logs = [];
@@ -209,4 +210,30 @@ test('a managing group sets the window for its unclaimed and anonymous writers',
 	const report = await runRetention({ log: () => {} });
 	assert.ok(report.letters >= 1);
 	assert.equal(await Message.findByPk(held), null);
+});
+
+test('a letter pinned after the snapshot is not deleted, and nothing is counted twice', async () => {
+	const id = await mailed(alice, f.prisoner1.id, 200, 'Late pin');
+	await Message.update({ keep: true }, { where: { id } });
+	assert.deepEqual(await purgeIfUnpinned(id), { deleted: false, attachments: 0 });
+	assert.ok(await Message.findByPk(id));
+	await Message.update({ keep: false }, { where: { id } });
+	assert.deepEqual(await purgeIfUnpinned(id), { deleted: true, attachments: 0 });
+	assert.deepEqual(
+		await purgeIfUnpinned(id),
+		{ deleted: false, attachments: 0 },
+		'a second run finds nothing'
+	);
+	const queued = (
+		await post(
+			'/messaging/message',
+			{ messageText: 'Queued', sender: 'user', prisoner: f.prisoner1.id },
+			alice
+		)
+	).body.data.id;
+	assert.deepEqual(
+		await purgeIfUnpinned(queued),
+		{ deleted: false, attachments: 0 },
+		'never mailed'
+	);
 });

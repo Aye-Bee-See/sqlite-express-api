@@ -335,7 +335,9 @@ export default class UserController extends RouteController {
 				if (extra.length > 0) {
 					return next(
 						AuthzService.forbidden(
-							'A managing chapter may only change name, email, managerNote, and retentionDays (not ' +
+							'A managing chapter may only change ' +
+								allowed.filter((k) => k !== 'id').join(', ') +
+								' (not ' +
 								extra.join(', ') +
 								').'
 						)

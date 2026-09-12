@@ -81,14 +81,15 @@ export const encryptionKey = ENCRYPTION_KEY || '';
  * the writer has not chosen a window (0 = forever), and an optional cap on
  * what a writer may choose (unset = no cap).
  */
-function envDays(value, fallback) {
+function envDays(value, fallback, { min = 0 } = {}) {
 	if (value === undefined || value === '') {
 		return fallback;
 	}
 	const n = Number(value);
-	return Number.isInteger(n) && n >= 0 ? n : fallback;
+	return Number.isInteger(n) && n >= min ? n : fallback;
 }
 export const retentionDefaultDays = envDays(RETENTION_DEFAULT_DAYS, 90);
-export const retentionMaxDays = envDays(RETENTION_MAX_DAYS, null);
+// A cap of 0 would read as "forever" (the sentinel), so the cap starts at 1 day.
+export const retentionMaxDays = envDays(RETENTION_MAX_DAYS, null, { min: 1 });
 export const uploadMaxBytes =
 	UPLOAD_MAX_BYTES && Number(UPLOAD_MAX_BYTES) > 0 ? Number(UPLOAD_MAX_BYTES) : 10 * 1024 * 1024;

@@ -17,7 +17,7 @@
 		"migrate:create": "node database/migrate.js create",
 		"keygen": "node services/keygen.js",
 		"encryption:rewrap": "node database/rewrap-e2e.js",
-		"retention": "node database/retention.js",
+		"retention": "node database/retention-cli.js",
 		"lint": "eslint --fix \"**/*.+(js|mjs)\"",
 		"format": "prettier --write \"**/*.+(js|mjs|json|css|md)\"",
 		"pre-commit": "lint-staged",

@@ -9,7 +9,8 @@
 			"bio": "Test bio here",
 			"country": "United States",
 			"featured": true,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Alice Johnson",
@@ -20,7 +21,8 @@
 			"bio": "Another test bio",
 			"country": "United States",
 			"featured": true,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Robert Brown",
@@ -31,7 +33,8 @@
 			"bio": "Yet another test bio",
 			"country": "United States",
 			"featured": true,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Michael Wilson",
@@ -42,7 +45,8 @@
 			"bio": "Test bio 4",
 			"country": "United States",
 			"featured": true,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "David Martinez",
@@ -53,7 +57,8 @@
 			"bio": "Test bio 5",
 			"country": "United States",
 			"featured": true,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "pretrial"
 		},
 		{
 			"birthName": "James Anderson",
@@ -64,7 +69,8 @@
 			"bio": "Test bio 6",
 			"country": "United States",
 			"featured": true,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "William Thomas",
@@ -75,7 +81,8 @@
 			"bio": "Test bio 7",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Richard Jackson",
@@ -86,7 +93,8 @@
 			"bio": "Test bio 8",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "free"
 		},
 		{
 			"birthName": "Joseph White",
@@ -97,7 +105,8 @@
 			"bio": "Test bio 9",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Charles Harris",
@@ -108,7 +117,8 @@
 			"bio": "Test bio 10",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "pretrial"
 		},
 		{
 			"birthName": "Thomas Clark",
@@ -119,7 +129,8 @@
 			"bio": "Test bio 11",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Christopher Lewis",
@@ -130,7 +141,8 @@
 			"bio": "Test bio 12",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Daniel Walker",
@@ -141,7 +153,8 @@
 			"bio": "Test bio 13",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Matthew Hall",
@@ -152,7 +165,8 @@
 			"bio": "Test bio 14",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Anthony Allen",
@@ -163,7 +177,8 @@
 			"bio": "Test bio 15",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "pretrial"
 		},
 		{
 			"birthName": "Mark Young",
@@ -174,7 +189,8 @@
 			"bio": "Test bio 16",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "free"
 		},
 		{
 			"birthName": "Donald Hernandez",
@@ -185,7 +201,8 @@
 			"bio": "Test bio 17",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Paul King",
@@ -196,7 +213,8 @@
 			"bio": "Test bio 18",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Steven Wright",
@@ -207,7 +225,8 @@
 			"bio": "Test bio 19",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Kenneth Lopez",
@@ -218,7 +237,8 @@
 			"bio": "Test bio 20",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "pretrial"
 		},
 		{
 			"birthName": "Andrew Hill",
@@ -229,7 +249,8 @@
 			"bio": "Test bio 21",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Joshua Scott",
@@ -240,7 +261,8 @@
 			"bio": "Test bio 22",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Kevin Green",
@@ -251,7 +273,8 @@
 			"bio": "Test bio 23",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Brian Adams",
@@ -262,7 +285,8 @@
 			"bio": "Test bio 24",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "free"
 		},
 		{
 			"birthName": "George Baker",
@@ -273,7 +297,8 @@
 			"bio": "Test bio 25",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "pretrial"
 		},
 		{
 			"birthName": "Edward Gonzalez",
@@ -284,7 +309,8 @@
 			"bio": "Test bio 26",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Frank Moore",
@@ -295,7 +321,8 @@
 			"bio": "Test bio 27",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Gary Taylor",
@@ -306,7 +333,8 @@
 			"bio": "Test bio 28",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Henry Anderson",
@@ -317,7 +345,8 @@
 			"bio": "Test bio 29",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Isaac Thomas",
@@ -328,7 +357,8 @@
 			"bio": "Test bio 30",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "pretrial"
 		},
 		{
 			"birthName": "Jack White",
@@ -339,7 +369,8 @@
 			"bio": "Test bio 31",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Kevin Harris",
@@ -350,7 +381,8 @@
 			"bio": "Test bio 32",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "free"
 		},
 		{
 			"birthName": "Larry Martin",
@@ -361,7 +393,8 @@
 			"bio": "Test bio 33",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Michael Lee",
@@ -372,7 +405,8 @@
 			"bio": "Test bio 34",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Nathan Walker",
@@ -383,7 +417,8 @@
 			"bio": "Test bio 35",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "pretrial"
 		},
 		{
 			"birthName": "Oscar Hall",
@@ -394,7 +429,8 @@
 			"bio": "Test bio 36",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Peter Allen",
@@ -405,7 +441,8 @@
 			"bio": "Test bio 37",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Quincy Young",
@@ -416,7 +453,8 @@
 			"bio": "Test bio 38",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Robert Hernandez",
@@ -427,7 +465,8 @@
 			"bio": "Test bio 39",
 			"country": "United States",
 			"featured": false,
-			"interests": ["writing", "solidarity"]
+			"interests": ["writing", "solidarity"],
+			"status": "incarcerated"
 		},
 		{
 			"birthName": "Samuel King",
@@ -438,7 +477,8 @@
 			"bio": "Test bio 40",
 			"country": "United States",
 			"featured": false,
-			"interests": ["art", "history"]
+			"interests": ["art", "history"],
+			"status": "free"
 		}
 	]
 }

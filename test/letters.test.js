@@ -304,3 +304,54 @@ test('changing the relay group on edit is validated the same way as on create', 
 		200
 	);
 });
+
+test('thread reads carry the relay group name and inbox rows carry the facility', async () => {
+	const { id, chat } = (await post('/messaging/message', letter(f.prisoner1.id), alice)).body.data;
+	const expectGroup = (m) =>
+		assert.deepEqual(m.relay_group, { id: f.group.id, name: 'Fixture Group' });
+	expectGroup((await get('/messaging/message?id=' + id, alice)).body.data);
+	expectGroup(
+		(await get('/messaging/messages?chat=' + chat, alice)).body.data.find((m) => m.id === id)
+	);
+	expectGroup(
+		(
+			await get('/messaging/messages?prisoner=' + f.prisoner1.id + '&page_size=100', alice)
+		).body.data.find((m) => m.id === id)
+	);
+	const thread = await get('/chat/chat?id=' + chat + '&full=true', alice);
+	expectGroup(thread.body.data.messages.find((m) => m.id === id));
+	const unrelayed = (await post('/messaging/message', letter(noRelayPrisoner.id), alice)).body.data;
+	assert.equal(
+		(await get('/messaging/message?id=' + unrelayed.id, alice)).body.data.relay_group,
+		null
+	);
+
+	const inbox = await get('/chat/chats?page_size=100', alice);
+	const row = inbox.body.data.find((c) => c.id === chat);
+	assert.deepEqual(Object.keys(row.prisoner_details).sort(), [
+		'birthName',
+		'chosenName',
+		'id',
+		'prison',
+		'prison_details',
+		'status'
+	]);
+	assert.equal(row.prisoner_details.chosenName, 'One');
+	assert.deepEqual(row.prisoner_details.prison_details, {
+		id: f.prison.id,
+		prisonName: 'Test Prison',
+		country: null
+	});
+	assert.equal(row.messages, undefined, 'the light row has no messages');
+	const byUser = (
+		await get('/chat/chats?user=' + f.alice.id + '&page_size=100', alice)
+	).body.data.find((c) => c.id === chat);
+	assert.equal(byUser.prisoner_details.prison_details.prisonName, 'Test Prison');
+	const one = await get('/chat/chat?id=' + chat, alice);
+	assert.equal(one.body.data.prisoner_details.prison_details.prisonName, 'Test Prison');
+	const fullRow = (await get('/chat/chats?full=true&page_size=100', alice)).body.data.find(
+		(c) => c.id === chat
+	);
+	assert.ok('bio' in fullRow.prisoner_details, 'full keeps the complete prisoner');
+	assert.equal(fullRow.prisoner_details.prison_details.prisonName, 'Test Prison');
+});

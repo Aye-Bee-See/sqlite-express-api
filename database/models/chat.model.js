@@ -6,6 +6,7 @@ import Attachment from '#models/attachment.model.js';
 import * as crypto from '#services/crypto.js';
 import Prisoner from '#models/prisoner.model.js';
 import User from '#models/user.model.js';
+import Prison from '#models/prison.model.js';
 import modelsService from '#models/models.service.js';
 
 /** Correlated subquery: when the newest message in the chat was created. */
@@ -26,6 +27,31 @@ function listOptions() {
 			['id', 'DESC']
 		]
 	};
+}
+
+/** Light facility summary nested under a prisoner include (inbox rows). */
+function facilitySummary() {
+	return { model: Prison, as: 'prison_details', attributes: ['id', 'prisonName', 'country'] };
+}
+
+/**
+ * What every chat row carries without full=true: who the prisoner is and
+ * where they are held, enough for an inbox line.
+ */
+function threadSummary() {
+	return [
+		{
+			model: Prisoner,
+			as: 'prisoner_details',
+			attributes: ['id', 'birthName', 'chosenName', 'status', 'prison'],
+			include: [facilitySummary()]
+		}
+	];
+}
+
+/** The relay group's id and name, on every message row. */
+function relayGroupSummary() {
+	return { association: 'relay_group', attributes: ['id', 'name'] };
 }
 
 export default class Chat extends Model {
@@ -85,22 +111,16 @@ export default class Chat extends Model {
 
 	static async readAllChats(full, limit, offset = 0, extraWhere = {}) {
 		let filters = { limit, offset, where: { ...extraWhere } };
-		let options;
+		let options = { include: threadSummary() };
 		if (full) {
 			options = {
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary()] },
 					{
 						model: User,
 						as: 'user_details'
 					},
-					{
-						model: Prisoner,
-						as: 'prisoner_details'
-					}
+					{ model: Prisoner, as: 'prisoner_details', include: [facilitySummary()] }
 				]
 			};
 		}
@@ -130,25 +150,17 @@ export default class Chat extends Model {
 			throw exists;
 		}
 		let filters = { limit, offset };
-		let options = {
-			where: { ...extraWhere, user: id }
-		};
+		let options = { where: { ...extraWhere, user: id }, include: threadSummary() };
 		if (full) {
 			options = {
 				where: { ...extraWhere, user: id },
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary()] },
 					{
 						model: User,
 						as: 'user_details'
 					},
-					{
-						model: Prisoner,
-						as: 'prisoner_details'
-					}
+					{ model: Prisoner, as: 'prisoner_details', include: [facilitySummary()] }
 				]
 			};
 		}
@@ -162,25 +174,17 @@ export default class Chat extends Model {
 			throw exists;
 		}
 		let filters = { limit, offset };
-		let options = {
-			where: { prisoner: id, ...extraWhere }
-		};
+		let options = { where: { prisoner: id, ...extraWhere }, include: threadSummary() };
 		if (full) {
 			options = {
 				where: { prisoner: id, ...extraWhere },
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary()] },
 					{
 						model: User,
 						as: 'user_details'
 					},
-					{
-						model: Prisoner,
-						as: 'prisoner_details'
-					}
+					{ model: Prisoner, as: 'prisoner_details', include: [facilitySummary()] }
 				]
 			};
 		}
@@ -193,23 +197,18 @@ export default class Chat extends Model {
 			return await this.findOne({
 				where: { user: user, prisoner: prisoner },
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary()] },
 					{
 						model: User,
 						as: 'user_details'
 					},
-					{
-						model: Prisoner,
-						as: 'prisoner_details'
-					}
+					{ model: Prisoner, as: 'prisoner_details', include: [facilitySummary()] }
 				]
 			});
 		} else {
 			return await this.findOne({
-				where: { user: user, prisoner: prisoner }
+				where: { user: user, prisoner: prisoner },
+				include: threadSummary()
 			});
 		}
 	}
@@ -225,24 +224,16 @@ export default class Chat extends Model {
 			return await this.findOne({
 				where: { id: id },
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary()] },
 					{
 						model: User,
 						as: 'user_details'
 					},
-					{
-						model: Prisoner,
-						as: 'prisoner_details'
-					}
+					{ model: Prisoner, as: 'prisoner_details', include: [facilitySummary()] }
 				]
 			});
 		} else {
-			return await this.findOne({
-				where: { id: id }
-			});
+			return await this.findOne({ where: { id: id }, include: threadSummary() });
 		}
 	}
 

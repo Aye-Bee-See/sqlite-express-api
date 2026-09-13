@@ -13,6 +13,11 @@ import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import { canTransition, initialStatusFor, LETTER_STATUSES } from '#db/letter-status.js';
 
+/** The relay group's id and name, carried on every message row. */
+function relayGroupSummary() {
+	return { association: 'relay_group', attributes: ['id', 'name'] };
+}
+
 export default class Message extends Model {
 	static init(sequelize) {
 		return super.init(Schemas.message, {
@@ -309,7 +314,11 @@ export default class Message extends Model {
 	// Read
 	static async readAllMessages(limit, offset = 0, extraWhere = {}) {
 		let filters = { limit, offset, where: { ...extraWhere } };
-		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
+		return await Message.findAndCountAll({
+			...filters,
+			include: [relayGroupSummary()],
+			order: [['id', 'ASC']]
+		});
 	}
 
 	/**
@@ -318,7 +327,7 @@ export default class Message extends Model {
 	 * @returns {Promise<Message|null>}
 	 */
 	static async getMessageByID(id) {
-		return await this.findByPk(id);
+		return await this.findByPk(id, { include: [relayGroupSummary()] });
 	}
 
 	static async readMessageById(id, limit, offset = 0, extraWhere = {}) {
@@ -327,7 +336,11 @@ export default class Message extends Model {
 			where: { id: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
-		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
+		return await Message.findAndCountAll({
+			...filters,
+			include: [relayGroupSummary()],
+			order: [['id', 'ASC']]
+		});
 	}
 
 	static async readMessagesByChat(id, limit, offset = 0, extraWhere = {}) {
@@ -340,7 +353,11 @@ export default class Message extends Model {
 			where: { chat: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
-		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
+		return await Message.findAndCountAll({
+			...filters,
+			include: [relayGroupSummary()],
+			order: [['id', 'ASC']]
+		});
 	}
 
 	static async readMessagesByPrisoner(id, limit, offset = 0, extraWhere = {}) {
@@ -353,7 +370,11 @@ export default class Message extends Model {
 			where: { prisoner: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
-		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
+		return await Message.findAndCountAll({
+			...filters,
+			include: [relayGroupSummary()],
+			order: [['id', 'ASC']]
+		});
 	}
 
 	static async readMessagesByUser(id, limit, offset = 0, extraWhere = {}) {
@@ -366,7 +387,11 @@ export default class Message extends Model {
 			where: { user: id, ...extraWhere }
 		};
 		filters = { ...filters, ...options };
-		return await Message.findAndCountAll({ ...filters, order: [['id', 'ASC']] });
+		return await Message.findAndCountAll({
+			...filters,
+			include: [relayGroupSummary()],
+			order: [['id', 'ASC']]
+		});
 	}
 
 	// Update

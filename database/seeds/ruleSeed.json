@@ -2,179 +2,179 @@
 	"seeds": [
 		{
 			"title": "No pictures",
-			"description": "Letters must be text only, no photographs"
+			"description": "Letters must be text only; photographs and printed images are returned."
 		},
 		{
 			"title": "No contraband",
-			"description": "No illegal items allowed"
+			"description": "Nothing may be enclosed with a letter: no stamps, cash, cards, or objects of any kind."
 		},
 		{
-			"title": "Visiting hours",
-			"description": "Visits are allowed only during visiting hours"
+			"title": "Plain envelopes only",
+			"description": "White or manila envelopes with no stickers, tape, drawings, or coloured ink."
 		},
 		{
-			"title": "No loud noises",
-			"description": "Keep noise levels down at all times"
+			"title": "Return address required",
+			"description": "Every envelope needs a full sender name and postal address or it is refused."
 		},
 		{
-			"title": "No smoking",
-			"description": "Smoking is prohibited"
+			"title": "Full name and number",
+			"description": "Address mail with the prisoner's full legal name and inmate number; nicknames are not delivered."
 		},
 		{
-			"title": "No pets",
-			"description": "Pets are not allowed"
+			"title": "Blue or black ink only",
+			"description": "Letters written in pencil, marker, crayon, or coloured ink are rejected."
 		},
 		{
-			"title": "No alcohol",
-			"description": "Alcohol is not allowed"
+			"title": "Plain paper only",
+			"description": "White lined or unlined paper; no cardstock, construction paper, or scented paper."
 		},
 		{
-			"title": "No drugs",
-			"description": "Drugs are not allowed"
+			"title": "No polaroids",
+			"description": "Instant-film photographs are refused because the backing can hide contraband."
 		},
 		{
-			"title": "No weapons",
-			"description": "Weapons are not allowed"
+			"title": "Photos: maximum 5",
+			"description": "Up to five loose photographs per envelope, none larger than 4 by 6 inches."
 		},
 		{
-			"title": "No gambling",
-			"description": "Gambling is not allowed"
+			"title": "No nude or suggestive photos",
+			"description": "Photographs showing nudity, underwear, or sexually suggestive poses are destroyed."
 		},
 		{
-			"title": "No fighting",
-			"description": "Fighting is not allowed"
+			"title": "No gang signs in photos",
+			"description": "Photographs showing hand signs, gang colours, or gang tattoos are refused."
 		},
 		{
-			"title": "No littering",
-			"description": "Littering is not allowed"
+			"title": "Page limit: 10",
+			"description": "Letters over ten single-sided pages are returned to sender."
 		},
 		{
-			"title": "No graffiti",
-			"description": "Graffiti is not allowed"
+			"title": "Page limit: 5",
+			"description": "Letters over five single-sided pages are returned to sender."
 		},
 		{
-			"title": "No loitering",
-			"description": "Loitering is not allowed"
+			"title": "Postcards only",
+			"description": "This facility accepts standard-size postcards only; enclosed letters are returned."
 		},
 		{
-			"title": "No trespassing",
-			"description": "Trespassing is not allowed"
+			"title": "No greeting cards",
+			"description": "Cards with layers, glitter, pop-ups, or musical parts are refused; a flat card is accepted."
 		},
 		{
-			"title": "No solicitation",
-			"description": "Solicitation is not allowed"
+			"title": "No stickers or labels",
+			"description": "Address labels, stickers, and stamps other than postage are not allowed on the envelope."
 		},
 		{
-			"title": "No harassment",
-			"description": "Harassment is not allowed"
+			"title": "No perfume or lipstick",
+			"description": "Scented, stained, or lipstick-marked paper is treated as contaminated and destroyed."
 		},
 		{
-			"title": "No discrimination",
-			"description": "Discrimination is not allowed"
+			"title": "No glue or tape inside",
+			"description": "Nothing may be glued, taped, or stapled to the pages."
 		},
 		{
-			"title": "No bullying",
-			"description": "Bullying is not allowed"
+			"title": "No newspaper clippings",
+			"description": "Cuttings and printed articles are refused; write out or describe the content instead."
 		},
 		{
-			"title": "No vandalism",
-			"description": "Vandalism is not allowed"
+			"title": "Printed internet pages allowed",
+			"description": "Printed web pages are accepted if they are plain black-and-white text with no images."
 		},
 		{
-			"title": "No spitting",
-			"description": "Spitting is not allowed"
+			"title": "Books from publishers only",
+			"description": "Books must ship new from a publisher or approved bookseller, never from an individual."
 		},
 		{
-			"title": "No profanity",
-			"description": "Profanity is not allowed"
+			"title": "Paperbacks only",
+			"description": "Hardcover books are refused; send paperback editions."
 		},
 		{
-			"title": "No nudity",
-			"description": "Nudity is not allowed"
+			"title": "No maps",
+			"description": "Maps, including hand-drawn ones, are treated as escape material and confiscated."
 		},
 		{
-			"title": "No public displays of affection",
-			"description": "Public displays of affection are not allowed"
+			"title": "No coded messages",
+			"description": "Letters containing ciphers, symbols, or unexplained abbreviations are held for investigation."
 		},
 		{
-			"title": "No running",
-			"description": "Running is not allowed"
+			"title": "English only",
+			"description": "Mail in a language other than English is delayed for translation and may be refused."
 		},
 		{
-			"title": "No skateboarding",
-			"description": "Skateboarding is not allowed"
+			"title": "Spanish or English",
+			"description": "Mail is accepted in English or Spanish; other languages are delayed for translation."
 		},
 		{
-			"title": "No rollerblading",
-			"description": "Rollerblading is not allowed"
+			"title": "Russian only",
+			"description": "Mail must be written in Russian; letters in other languages are not delivered."
 		},
 		{
-			"title": "No bicycling",
-			"description": "Bicycling is not allowed"
+			"title": "Scanned, not delivered",
+			"description": "Incoming mail is scanned by a vendor and shown on a tablet; the paper original is destroyed."
 		},
 		{
-			"title": "No scooters",
-			"description": "Scooters are not allowed"
+			"title": "Scanned mail: no colour",
+			"description": "Because mail is scanned in greyscale, colour drawings and photos arrive as black and white."
 		},
 		{
-			"title": "No hoverboards",
-			"description": "Hoverboards are not allowed"
+			"title": "Digital mail only",
+			"description": "Letters must be sent through the facility's electronic mail service; postal mail is returned."
 		},
 		{
-			"title": "No drones",
-			"description": "Drones are not allowed"
+			"title": "Mail opened and read",
+			"description": "All incoming mail except legal mail is opened and read by staff before delivery."
 		},
 		{
-			"title": "No fireworks",
-			"description": "Fireworks are not allowed"
+			"title": "Legal mail marked clearly",
+			"description": "Mail from a lawyer must be marked Legal Mail with the firm's address or it is opened as ordinary mail."
 		},
 		{
-			"title": "No camping",
-			"description": "Camping is not allowed"
+			"title": "No third-party mail",
+			"description": "Mail that forwards or relays a message from someone else is refused."
 		},
 		{
-			"title": "No fishing",
-			"description": "Fishing is not allowed"
+			"title": "No mail between prisoners",
+			"description": "Correspondence with anyone held in another facility requires prior written approval."
 		},
 		{
-			"title": "No hunting",
-			"description": "Hunting is not allowed"
+			"title": "No unknown senders",
+			"description": "Only senders on the prisoner's approved correspondence list are delivered."
 		},
 		{
-			"title": "No swimming",
-			"description": "Swimming is not allowed"
+			"title": "Sender approval form",
+			"description": "New correspondents must file the facility's approval form before their first letter is delivered."
 		},
 		{
-			"title": "No diving",
-			"description": "Diving is not allowed"
+			"title": "One letter per envelope",
+			"description": "Envelopes containing letters for more than one prisoner are returned."
 		},
 		{
-			"title": "No climbing",
-			"description": "Climbing is not allowed"
+			"title": "No money orders",
+			"description": "Funds cannot be sent by mail; use the facility's deposit service."
 		},
 		{
-			"title": "No picnicking",
-			"description": "Picnicking is not allowed"
+			"title": "Stamps not accepted",
+			"description": "Enclosed postage stamps are confiscated; stamps must be bought at the commissary."
 		},
 		{
-			"title": "No loud music",
-			"description": "Playing loud music is not allowed"
+			"title": "No drawings by others",
+			"description": "Hand-drawn artwork is accepted only from the sender; drawings by children or others are refused."
 		},
 		{
-			"title": "No flash photography",
-			"description": "Flash photography is not allowed"
+			"title": "Typed letters allowed",
+			"description": "Typed and printed letters are accepted as long as the pages are unbound."
 		},
 		{
-			"title": "No unauthorized entry",
-			"description": "Unauthorized entry is not allowed"
+			"title": "Registered post recommended",
+			"description": "Ordinary international post is often lost; send letters by registered or tracked mail."
 		},
 		{
-			"title": "No tampering with equipment",
-			"description": "Tampering with equipment is not allowed"
+			"title": "Delivery not confirmed",
+			"description": "The facility does not confirm delivery; expect delays of four to eight weeks."
 		},
 		{
-			"title": "No misuse of resources",
-			"description": "Misuse of resources is not allowed"
+			"title": "Holiday mail limits",
+			"description": "In December only, up to two cards per sender are accepted."
 		}
 	]
 }

@@ -6,6 +6,8 @@ import Attachment from '#models/attachment.model.js';
 import * as crypto from '#services/crypto.js';
 import Prisoner from '#models/prisoner.model.js';
 import User from '#models/user.model.js';
+import Prison from '#models/prison.model.js';
+import { publishedWhere } from '#db/record-status.js';
 import modelsService from '#models/models.service.js';
 
 /** Correlated subquery: when the newest message in the chat was created. */
@@ -26,6 +28,42 @@ function listOptions() {
 			['id', 'DESC']
 		]
 	};
+}
+
+/** Non-staff only see published embedded records; the rest come back null. */
+function visibility(publishedOnly) {
+	return publishedOnly ? { where: publishedWhere(true), required: false } : {};
+}
+
+/** Light facility summary nested under a prisoner include (inbox rows). */
+function facilitySummary(publishedOnly) {
+	return {
+		model: Prison,
+		as: 'prison_details',
+		attributes: ['id', 'prisonName', 'country'],
+		...visibility(publishedOnly)
+	};
+}
+
+/**
+ * What every chat row carries without full=true: who the prisoner is and
+ * where they are held, enough for an inbox line.
+ */
+function threadSummary(publishedOnly) {
+	return [
+		{
+			model: Prisoner,
+			as: 'prisoner_details',
+			attributes: ['id', 'birthName', 'chosenName', 'status', 'prison'],
+			...visibility(publishedOnly),
+			include: [facilitySummary(publishedOnly)]
+		}
+	];
+}
+
+/** The relay group's id and name, on every message row. */
+function relayGroupSummary(publishedOnly) {
+	return { association: 'relay_group', attributes: ['id', 'name'], ...visibility(publishedOnly) };
 }
 
 export default class Chat extends Model {
@@ -83,23 +121,22 @@ export default class Chat extends Model {
 
 	// Read
 
-	static async readAllChats(full, limit, offset = 0, extraWhere = {}) {
+	static async readAllChats(full, limit, offset = 0, extraWhere = {}, publishedOnly = false) {
 		let filters = { limit, offset, where: { ...extraWhere } };
-		let options;
+		let options = { include: threadSummary(publishedOnly) };
 		if (full) {
 			options = {
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
 						as: 'user_details'
 					},
 					{
 						model: Prisoner,
-						as: 'prisoner_details'
+						as: 'prisoner_details',
+						...visibility(publishedOnly),
+						include: [facilitySummary(publishedOnly)]
 					}
 				]
 			};
@@ -124,30 +161,34 @@ export default class Chat extends Model {
 	 * @param {number} offset
 	 * @param {object} extraWhere additional column filters merged into the where clause
 	 */
-	static async readChatsByUser(id, full, limit, offset = 0, extraWhere = {}) {
+	static async readChatsByUser(
+		id,
+		full,
+		limit,
+		offset = 0,
+		extraWhere = {},
+		publishedOnly = false
+	) {
 		const exists = await modelsService.modelInstanceExists('User', id);
 		if (exists instanceof Error) {
 			throw exists;
 		}
 		let filters = { limit, offset };
-		let options = {
-			where: { ...extraWhere, user: id }
-		};
+		let options = { where: { ...extraWhere, user: id }, include: threadSummary(publishedOnly) };
 		if (full) {
 			options = {
 				where: { ...extraWhere, user: id },
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
 						as: 'user_details'
 					},
 					{
 						model: Prisoner,
-						as: 'prisoner_details'
+						as: 'prisoner_details',
+						...visibility(publishedOnly),
+						include: [facilitySummary(publishedOnly)]
 					}
 				]
 			};
@@ -156,30 +197,34 @@ export default class Chat extends Model {
 		return await Chat.findAndCountAll({ ...filters, ...listOptions(), distinct: true });
 	}
 
-	static async readChatsByPrisoner(id, full, limit, offset = 0, extraWhere = {}) {
+	static async readChatsByPrisoner(
+		id,
+		full,
+		limit,
+		offset = 0,
+		extraWhere = {},
+		publishedOnly = false
+	) {
 		const exists = await modelsService.modelInstanceExists('Prisoner', id);
 		if (exists instanceof Error) {
 			throw exists;
 		}
 		let filters = { limit, offset };
-		let options = {
-			where: { prisoner: id, ...extraWhere }
-		};
+		let options = { where: { prisoner: id, ...extraWhere }, include: threadSummary(publishedOnly) };
 		if (full) {
 			options = {
 				where: { prisoner: id, ...extraWhere },
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
 						as: 'user_details'
 					},
 					{
 						model: Prisoner,
-						as: 'prisoner_details'
+						as: 'prisoner_details',
+						...visibility(publishedOnly),
+						include: [facilitySummary(publishedOnly)]
 					}
 				]
 			};
@@ -188,28 +233,28 @@ export default class Chat extends Model {
 		return await Chat.findAndCountAll({ ...filters, ...listOptions(), distinct: true });
 	}
 
-	static async readChatByUserAndPrisoner(user, prisoner, full) {
+	static async readChatByUserAndPrisoner(user, prisoner, full, publishedOnly = false) {
 		if (full) {
 			return await this.findOne({
 				where: { user: user, prisoner: prisoner },
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
 						as: 'user_details'
 					},
 					{
 						model: Prisoner,
-						as: 'prisoner_details'
+						as: 'prisoner_details',
+						...visibility(publishedOnly),
+						include: [facilitySummary(publishedOnly)]
 					}
 				]
 			});
 		} else {
 			return await this.findOne({
-				where: { user: user, prisoner: prisoner }
+				where: { user: user, prisoner: prisoner },
+				include: threadSummary(publishedOnly)
 			});
 		}
 	}
@@ -220,29 +265,26 @@ export default class Chat extends Model {
 	 * @param {boolean} full include messages and user/prisoner details
 	 * @returns {Promise<Chat|null>}
 	 */
-	static async readChatById(id, full) {
+	static async readChatById(id, full, publishedOnly = false) {
 		if (full) {
 			return await this.findOne({
 				where: { id: id },
 				include: [
-					{
-						model: Message,
-						as: 'messages'
-					},
+					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
 						as: 'user_details'
 					},
 					{
 						model: Prisoner,
-						as: 'prisoner_details'
+						as: 'prisoner_details',
+						...visibility(publishedOnly),
+						include: [facilitySummary(publishedOnly)]
 					}
 				]
 			});
 		} else {
-			return await this.findOne({
-				where: { id: id }
-			});
+			return await this.findOne({ where: { id: id }, include: threadSummary(publishedOnly) });
 		}
 	}
 

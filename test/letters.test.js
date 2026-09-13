@@ -304,3 +304,147 @@ test('changing the relay group on edit is validated the same way as on create', 
 		200
 	);
 });
+
+test('thread reads carry the relay group name and inbox rows carry the facility', async () => {
+	const { id, chat } = (await post('/messaging/message', letter(f.prisoner1.id), alice)).body.data;
+	const expectGroup = (m) =>
+		assert.deepEqual(m.relay_group, { id: f.group.id, name: 'Fixture Group' });
+	expectGroup((await get('/messaging/message?id=' + id, alice)).body.data);
+	expectGroup(
+		(await get('/messaging/messages?chat=' + chat, alice)).body.data.find((m) => m.id === id)
+	);
+	expectGroup(
+		(
+			await get('/messaging/messages?prisoner=' + f.prisoner1.id + '&page_size=100', alice)
+		).body.data.find((m) => m.id === id)
+	);
+	const thread = await get('/chat/chat?id=' + chat + '&full=true', alice);
+	expectGroup(thread.body.data.messages.find((m) => m.id === id));
+	const unrelayed = (await post('/messaging/message', letter(noRelayPrisoner.id), alice)).body.data;
+	assert.equal(
+		(await get('/messaging/message?id=' + unrelayed.id, alice)).body.data.relay_group,
+		null
+	);
+
+	const inbox = await get('/chat/chats?page_size=100', alice);
+	const row = inbox.body.data.find((c) => c.id === chat);
+	assert.deepEqual(Object.keys(row.prisoner_details).sort(), [
+		'birthName',
+		'chosenName',
+		'id',
+		'prison',
+		'prison_details',
+		'status'
+	]);
+	assert.equal(row.prisoner_details.chosenName, 'One');
+	assert.deepEqual(row.prisoner_details.prison_details, {
+		id: f.prison.id,
+		prisonName: 'Test Prison',
+		country: null
+	});
+	assert.equal(row.messages, undefined, 'the light row has no messages');
+	const byUser = (
+		await get('/chat/chats?user=' + f.alice.id + '&page_size=100', alice)
+	).body.data.find((c) => c.id === chat);
+	assert.equal(byUser.prisoner_details.prison_details.prisonName, 'Test Prison');
+	const one = await get('/chat/chat?id=' + chat, alice);
+	assert.equal(one.body.data.prisoner_details.prison_details.prisonName, 'Test Prison');
+	const fullRow = (await get('/chat/chats?full=true&page_size=100', alice)).body.data.find(
+		(c) => c.id === chat
+	);
+	assert.ok('bio' in fullRow.prisoner_details, 'full keeps the complete prisoner');
+	assert.equal(fullRow.prisoner_details.prison_details.prisonName, 'Test Prison');
+});
+
+test('every message and chat reader carries the summaries, full or not', async () => {
+	const { id, chat } = (await post('/messaging/message', letter(f.prisoner1.id), alice)).body.data;
+	const group = { id: f.group.id, name: 'Fixture Group' };
+	const facility = { id: f.prison.id, prisonName: 'Test Prison', country: null };
+	const find = (rows) => rows.find((m) => m.id === id);
+	for (const path of [
+		'/messaging/messages?page_size=100',
+		'/messaging/messages?user=' + f.alice.id + '&page_size=100',
+		'/messaging/messages?prisoner=' + f.prisoner1.id + '&page_size=100',
+		'/messaging/messages?chat=' + chat,
+		'/messaging/messages?id=' + id
+	]) {
+		assert.deepEqual(find((await get(path, alice)).body.data).relay_group, group, path);
+	}
+	assert.deepEqual(
+		(await get('/messaging/message?id=' + id + '&full=true', alice)).body.data.relay_group,
+		group
+	);
+	for (const [path, who] of [
+		['/chat/chats?page_size=100', admin],
+		['/chat/chats?user=' + f.alice.id + '&page_size=100', alice],
+		['/chat/chats?prisoner=' + f.prisoner1.id + '&page_size=100', admin]
+	]) {
+		for (const suffix of ['', '&full=true']) {
+			const row = (await get(path + suffix, who)).body.data.find((c) => c.id === chat);
+			assert.deepEqual(row.prisoner_details.prison_details, facility, path + suffix);
+			if (suffix) {
+				assert.deepEqual(row.messages.find((m) => m.id === id).relay_group, group, path + suffix);
+			}
+		}
+	}
+	for (const path of [
+		'/chat/chat?id=' + chat,
+		'/chat/chat?user=' + f.alice.id + '&prisoner=' + f.prisoner1.id
+	]) {
+		for (const suffix of ['', '&full=true']) {
+			const row = (await get(path + suffix, alice)).body.data;
+			assert.deepEqual(row.prisoner_details.prison_details, facility, path + suffix);
+			if (suffix) {
+				assert.deepEqual(row.messages.find((m) => m.id === id).relay_group, group, path + suffix);
+			}
+		}
+	}
+});
+
+test('unpublished facilities, prisoners, and groups are null in the summaries for non-staff', async () => {
+	const draftPrison = await Prison.createPrison({
+		prisonName: 'Draft Prison',
+		address: {},
+		recordStatus: 'draft'
+	});
+	const draftGroup = await Chapter.createChapter({
+		name: 'Draft Relay',
+		location: {},
+		accountStatus: 'active',
+		recordStatus: 'draft'
+	});
+	await Prison.addRelay(draftGroup.id, draftPrison.id);
+	const hidden = await Prisoner.createPrisoner({
+		birthName: 'Hidden Person',
+		prison: draftPrison.id,
+		recordStatus: 'pending'
+	});
+	const sent = await post(
+		'/messaging/message',
+		{ messageText: 'Hi', sender: 'user', prisoner: hidden.id, user: f.bob.id },
+		admin
+	);
+	assert.equal(sent.status, 201);
+	assert.equal(sent.body.data.relayChapter, draftGroup.id);
+	const bob = { token: f.bob.token };
+	const asBob = (await get('/chat/chats?page_size=100', bob)).body.data.find(
+		(c) => c.id === sent.body.data.chat
+	);
+	assert.equal(asBob.prisoner_details, null, 'pending prisoner hidden');
+	assert.equal(
+		(await get('/messaging/message?id=' + sent.body.data.id, bob)).body.data.relay_group,
+		null,
+		'draft group hidden'
+	);
+	const thread = (await get('/chat/chat?id=' + sent.body.data.chat + '&full=true', bob)).body.data;
+	assert.equal(thread.prisoner_details, null);
+	assert.equal(thread.messages[0].relay_group, null);
+	const asAdmin = (await get('/chat/chats?page_size=100', admin)).body.data.find(
+		(c) => c.id === sent.body.data.chat
+	);
+	assert.equal(asAdmin.prisoner_details.prison_details.prisonName, 'Draft Prison');
+	assert.deepEqual(
+		(await get('/messaging/message?id=' + sent.body.data.id, admin)).body.data.relay_group,
+		{ id: draftGroup.id, name: 'Draft Relay' }
+	);
+});

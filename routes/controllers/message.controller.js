@@ -63,7 +63,8 @@ export default class MessageController extends RouteController {
 	 * @throws {Error} a 403 error when the caller may not see it
 	 */
 	async #loadAllowed(scope, id) {
-		const message = await Message.getMessageByID(id);
+		// Only the user role is limited to published embeds; staff scopes see everything.
+		const message = await Message.getMessageByID(id, scope.kind === 'own');
 		if (message && !(await scope.allowsMessage(message))) {
 			throw scope.deny();
 		}
@@ -126,19 +127,26 @@ export default class MessageController extends RouteController {
 		try {
 			const scope = await threadScope(req);
 			const where = { ...this.#listFilters(req.query), ...scope.messageWhere };
+			const publishedOnly = AuthzService.publishedOnly(req);
 			let messages;
 			if (id !== undefined) {
-				messages = await Message.readMessageById(id, limit, offset, where);
+				messages = await Message.readMessageById(id, limit, offset, where, publishedOnly);
 			} else if (chat !== undefined) {
-				messages = await Message.readMessagesByChat(chat, limit, offset, where);
+				messages = await Message.readMessagesByChat(chat, limit, offset, where, publishedOnly);
 			} else if (prisoner !== undefined) {
-				messages = await Message.readMessagesByPrisoner(prisoner, limit, offset, where);
+				messages = await Message.readMessagesByPrisoner(
+					prisoner,
+					limit,
+					offset,
+					where,
+					publishedOnly
+				);
 			} else if (user !== undefined) {
 				// A user-role caller always lists their own messages, whatever `user` says.
 				const writer = scope.kind === 'own' ? req.user.id : user;
-				messages = await Message.readMessagesByUser(writer, limit, offset, where);
+				messages = await Message.readMessagesByUser(writer, limit, offset, where, publishedOnly);
 			} else {
-				messages = await Message.readAllMessages(limit, offset, where);
+				messages = await Message.readAllMessages(limit, offset, where, publishedOnly);
 			}
 			await this.#withEnvelopes(messages.rows, req, scope);
 			this.handlePage(res, messages, limits);
@@ -154,7 +162,8 @@ export default class MessageController extends RouteController {
 			const scope = await threadScope(req);
 			const message = await this.#loadAllowed(scope, id);
 			this.requireFound(message, 'Message ' + id);
-			const row = full === 'true' ? await Message.readLetter(id) : message;
+			const row =
+				full === 'true' ? await Message.readLetter(id, AuthzService.publishedOnly(req)) : message;
 			await this.#withEnvelopes([row], req, scope);
 			this.#handleSuccess(res, row);
 		} catch (err) {

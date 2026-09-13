@@ -8,14 +8,19 @@ import Attachment from '#models/attachment.model.js';
 import LetterKey from '#models/letter-key.model.js';
 import User from '#models/user.model.js';
 import * as crypto from '#services/crypto.js';
+import { publishedWhere } from '#db/record-status.js';
 import Prisoner from '#models/prisoner.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import { canTransition, initialStatusFor, LETTER_STATUSES } from '#db/letter-status.js';
 
-/** The relay group's id and name, carried on every message row. */
-function relayGroupSummary() {
-	return { association: 'relay_group', attributes: ['id', 'name'] };
+/** The relay group's id and name, carried on every message row (null for non-staff when unpublished). */
+function relayGroupSummary(publishedOnly) {
+	return {
+		association: 'relay_group',
+		attributes: ['id', 'name'],
+		...(publishedOnly ? { where: publishedWhere(true), required: false } : {})
+	};
 }
 
 export default class Message extends Model {
@@ -269,12 +274,12 @@ export default class Message extends Model {
 	}
 
 	/** One message with its relay group, status history, and attachments embedded. */
-	static async readLetter(id) {
+	static async readLetter(id, publishedOnly = false) {
 		return await this.findByPk(id, {
 			include: [
 				{ model: MessageStatus, as: 'status_history' },
 				{ model: Attachment, as: 'attachments' },
-				{ association: 'relay_group', attributes: ['id', 'name'] }
+				relayGroupSummary(publishedOnly)
 			],
 			order: [
 				[{ model: MessageStatus, as: 'status_history' }, 'id', 'ASC'],
@@ -312,11 +317,11 @@ export default class Message extends Model {
 	}
 
 	// Read
-	static async readAllMessages(limit, offset = 0, extraWhere = {}) {
+	static async readAllMessages(limit, offset = 0, extraWhere = {}, publishedOnly = false) {
 		let filters = { limit, offset, where: { ...extraWhere } };
 		return await Message.findAndCountAll({
 			...filters,
-			include: [relayGroupSummary()],
+			include: [relayGroupSummary(publishedOnly)],
 			order: [['id', 'ASC']]
 		});
 	}
@@ -326,11 +331,11 @@ export default class Message extends Model {
 	 * @param {number|string} id
 	 * @returns {Promise<Message|null>}
 	 */
-	static async getMessageByID(id) {
-		return await this.findByPk(id, { include: [relayGroupSummary()] });
+	static async getMessageByID(id, publishedOnly = false) {
+		return await this.findByPk(id, { include: [relayGroupSummary(publishedOnly)] });
 	}
 
-	static async readMessageById(id, limit, offset = 0, extraWhere = {}) {
+	static async readMessageById(id, limit, offset = 0, extraWhere = {}, publishedOnly = false) {
 		let filters = { limit, offset };
 		let options = {
 			where: { id: id, ...extraWhere }
@@ -338,12 +343,12 @@ export default class Message extends Model {
 		filters = { ...filters, ...options };
 		return await Message.findAndCountAll({
 			...filters,
-			include: [relayGroupSummary()],
+			include: [relayGroupSummary(publishedOnly)],
 			order: [['id', 'ASC']]
 		});
 	}
 
-	static async readMessagesByChat(id, limit, offset = 0, extraWhere = {}) {
+	static async readMessagesByChat(id, limit, offset = 0, extraWhere = {}, publishedOnly = false) {
 		const exists = await modelsService.modelInstanceExists('Chat', id);
 		if (exists instanceof Error) {
 			throw exists;
@@ -355,12 +360,18 @@ export default class Message extends Model {
 		filters = { ...filters, ...options };
 		return await Message.findAndCountAll({
 			...filters,
-			include: [relayGroupSummary()],
+			include: [relayGroupSummary(publishedOnly)],
 			order: [['id', 'ASC']]
 		});
 	}
 
-	static async readMessagesByPrisoner(id, limit, offset = 0, extraWhere = {}) {
+	static async readMessagesByPrisoner(
+		id,
+		limit,
+		offset = 0,
+		extraWhere = {},
+		publishedOnly = false
+	) {
 		const exists = await modelsService.modelInstanceExists('Prisoner', id);
 		if (exists instanceof Error) {
 			throw exists;
@@ -372,12 +383,12 @@ export default class Message extends Model {
 		filters = { ...filters, ...options };
 		return await Message.findAndCountAll({
 			...filters,
-			include: [relayGroupSummary()],
+			include: [relayGroupSummary(publishedOnly)],
 			order: [['id', 'ASC']]
 		});
 	}
 
-	static async readMessagesByUser(id, limit, offset = 0, extraWhere = {}) {
+	static async readMessagesByUser(id, limit, offset = 0, extraWhere = {}, publishedOnly = false) {
 		const exists = await modelsService.modelInstanceExists('User', id);
 		if (exists instanceof Error) {
 			throw exists;
@@ -389,7 +400,7 @@ export default class Message extends Model {
 		filters = { ...filters, ...options };
 		return await Message.findAndCountAll({
 			...filters,
-			include: [relayGroupSummary()],
+			include: [relayGroupSummary(publishedOnly)],
 			order: [['id', 'ASC']]
 		});
 	}

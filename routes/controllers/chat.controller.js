@@ -101,16 +101,24 @@ export default class ChatController extends RouteController {
 
 		try {
 			const scope = await threadScope(req);
+			const publishedOnly = AuthzService.publishedOnly(req);
 			// A user-role caller always lists their own threads, whatever `user` says.
 			const writer = scope.kind === 'own' ? req.user.id : user;
 			let chats;
 			if (writer !== undefined) {
 				const extra = { ...(prisoner !== undefined ? { prisoner } : {}), ...scope.where };
-				chats = await Chat.readChatsByUser(writer, fullBool, limit, offset, extra);
+				chats = await Chat.readChatsByUser(writer, fullBool, limit, offset, extra, publishedOnly);
 			} else if (prisoner !== undefined) {
-				chats = await Chat.readChatsByPrisoner(prisoner, fullBool, limit, offset, scope.where);
+				chats = await Chat.readChatsByPrisoner(
+					prisoner,
+					fullBool,
+					limit,
+					offset,
+					scope.where,
+					publishedOnly
+				);
 			} else {
-				chats = await Chat.readAllChats(fullBool, limit, offset, scope.where);
+				chats = await Chat.readAllChats(fullBool, limit, offset, scope.where, publishedOnly);
 			}
 			await Chat.attachLastMessages(chats.rows);
 			await this.#e2eEnvelopes(chats.rows, req, scope);
@@ -135,17 +143,18 @@ export default class ChatController extends RouteController {
 
 		try {
 			const scope = await threadScope(req);
+			const publishedOnly = AuthzService.publishedOnly(req);
 			const user =
 				scope.kind === 'own' && req.query.user === undefined ? req.user.id : req.query.user;
 			let chat;
 			if (id !== undefined) {
 				await this.#loadAllowed(scope, id);
-				chat = await Chat.readChatById(id, full);
+				chat = await Chat.readChatById(id, full, publishedOnly);
 			} else if (user !== undefined && prisoner !== undefined) {
 				if (!scope.allowsUser(user)) {
 					throw scope.deny();
 				}
-				chat = await Chat.readChatByUserAndPrisoner(user, prisoner, full);
+				chat = await Chat.readChatByUserAndPrisoner(user, prisoner, full, publishedOnly);
 			} else if (user !== undefined || prisoner !== undefined) {
 				condition = 'param';
 				throw new HttpError(400, 'Both user and prisoner are required.');

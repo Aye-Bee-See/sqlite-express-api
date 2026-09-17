@@ -180,7 +180,7 @@ export async function makeUser(overrides = {}) {
 /**
  * A standard cast: an admin; a group (Chapter record) with one chapter-role
  * member account and one unclaimed managed writer; alice and bob, two
- * independent users; one prison with two prisoners; one rule. Chats and
+ * independent users; one prison with two prisoners. Chats and
  * messages are left to each test.
  */
 export async function makeFixtures() {

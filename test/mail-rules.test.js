@@ -31,6 +31,12 @@ after(stopServer);
 test('the vocabulary is public, complete, and well formed', async () => {
 	const res = await get('/prison/mail-rules');
 	assert.equal(res.status, 200);
+	assert.equal((await get('/prison/mail-rules', alice)).status, 200);
+	assert.equal(
+		(await get('/prison/mail-rules', { token: 'garbage' })).status,
+		401,
+		'a bad token is rejected on public routes, not treated as anonymous'
+	);
 	const { categories, rules, conflicts, parameters } = res.body.data;
 	assert.deepEqual(categories, MAIL_RULE_CATEGORIES);
 	assert.equal(rules.length, MAIL_RULES.length);
@@ -174,6 +180,45 @@ test('a facility that takes no photos cannot state a photo limit', async () => {
 		admin
 	);
 	assert.equal(restored.status, 200);
+});
+
+test('two partial updates cannot combine into no_photos with a photo limit', async () => {
+	for (let round = 0; round < 5; round += 1) {
+		const fresh = await Prison.createPrison({ prisonName: 'Race ' + round, address: {} });
+		const results = await Promise.all([
+			put('/prison/prison', { id: fresh.id, mailRules: ['no_photos'] }, admin),
+			put('/prison/prison', { id: fresh.id, photoLimit: 3 }, admin)
+		]);
+		assert.deepEqual(
+			results.map((r) => r.status).sort(),
+			[200, 400],
+			'one of the two is refused: ' + JSON.stringify(results.map((r) => r.body))
+		);
+		const stored = await Prison.findByPk(fresh.id);
+		assert.ok(!Prison.photoRulesClash(stored), JSON.stringify(stored));
+	}
+	// A guarded update of a facility that does not exist is still a 404, not a 400.
+	assert.equal((await put('/prison/prison', { id: 999999, photoLimit: 3 }, admin)).status, 404);
+	assert.equal(
+		(await put('/prison/prison', { id: 999999, mailRules: ['no_photos'] }, admin)).status,
+		404
+	);
+});
+
+test('a proposed new facility gets the photo rule check straight away', async () => {
+	const res = await post(
+		'/moderation/submission',
+		{
+			resource: 'prison',
+			fields: { prisonName: 'Proposed', address: {}, mailRules: ['no_photos'], photoLimit: 5 }
+		},
+		alice
+	);
+	assert.equal(res.status, 400, JSON.stringify(res.body));
+	assert.match(
+		res.body.errors.join(' '),
+		/photoLimit cannot be set on a facility tagged no_photos/
+	);
 });
 
 test('lists filter by tag and by language', async () => {

@@ -45,8 +45,12 @@ class PrisonRoutes {
 
 		this.Router.get(prisonEnd.get.one, AuthzService.optionalAuthenticate, this.#Controller.getOne);
 
-		// The mail rule vocabulary: static and public.
-		this.Router.get(prisonEnd.get.mailRules, this.#Controller.mailRules);
+		// The mail rule vocabulary: static and public (a bad token is still a 401, as on every public read).
+		this.Router.get(
+			prisonEnd.get.mailRules,
+			AuthzService.optionalAuthenticate,
+			this.#Controller.mailRules
+		);
 
 		// Update
 

@@ -769,7 +769,7 @@ The codebase was idle from June 2025 to September 2026. The first thing the revi
 Known gaps, roughly in the order they are worth tackling:
 
 1. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
-2. **Mail rule follow-ups.** Proposed edits to an existing record are validated at review, not when proposed, so a bad tag reaches the queue before it is refused; the letter form does not yet check a letter against the facility's rules server-side (clients do).
+2. **Mail rule follow-ups.** The letter form does not yet check a letter against the facility's rules server-side (clients do).
 3. **Message `full=true`** on the single read embeds `relay_group` and `status_history`; on lists it is still ignored. `chat_details` / `user_details` / `prisoner_details` includes are a few lines if clients want them.
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-relay response. Fix together with a front-end release, since clients may match on them.
 5. **Token refresh.** Logout and revocation exist; there is still no refresh, so a week-long token simply expires and the client logs in again.

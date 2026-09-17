@@ -262,17 +262,25 @@ test('anyone signed in can propose rule changes; approval applies them', async (
 	);
 	assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
 
-	// Edits to an existing record are validated at review, like every other field:
-	// a free-text rule gets as far as the queue and no further.
+	// A free-text rule never reaches the queue, for an edit or for a new facility.
 	const bad = await post(
 		'/moderation/submission',
 		{ resource: 'prison', target: open.id, fields: { mailRules: ['be nice'] } },
 		alice
 	);
-	assert.equal(bad.status, 201);
-	const refused = await put('/moderation/approve', { id: bad.body.data.id }, admin);
-	assert.equal(refused.status, 400);
-	assert.match(refused.body.errors.join(' '), /Unknown mail rule "be nice"/);
+	assert.equal(bad.status, 400);
+	assert.match(bad.body.errors.join(' '), /Unknown mail rule "be nice"/);
+	// The photo rule is checked against the stored half of the facility.
+	const clash = await post(
+		'/moderation/submission',
+		{ resource: 'prison', target: strict.id, fields: { mailRules: ['no_photos'] } },
+		alice
+	);
+	assert.equal(clash.status, 400, JSON.stringify(clash.body));
+	assert.match(
+		clash.body.errors.join(' '),
+		/photoLimit cannot be set on a facility tagged no_photos/
+	);
 	const newRecord = await post(
 		'/moderation/submission',
 		{ resource: 'prison', fields: { prisonName: 'Proposed', address: {}, mailRules: ['be nice'] } },

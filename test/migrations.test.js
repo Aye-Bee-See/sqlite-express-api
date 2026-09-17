@@ -192,6 +192,33 @@ test('the mail rule migration turns attached rule records into tags and limits',
 	await old.close();
 });
 
+test('the session run migration keeps existing sessions and gives a new database none', async () => {
+	const MIGRATION = '2026.09.17T02.00.00.session-runs.js';
+	const upTo = async (db) => {
+		const names = (await createMigrator(db, { quiet: true }).pending()).map((m) => m.name);
+		await createMigrator(db, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	};
+
+	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	await upTo(live);
+	await live.query(
+		"INSERT INTO User (username, password, email, role, createdAt, updatedAt) VALUES ('someone', 'x', 's@example.com', 'user', datetime('now'), datetime('now'))"
+	);
+	const before = Date.now();
+	await runMigrations(live, { quiet: true });
+	const [runs] = await live.query('SELECT startedAt, lastIssuedAt FROM SessionRuns');
+	assert.equal(runs.length, 1, 'a database with accounts keeps its sessions across the upgrade');
+	assert.equal(runs[0].startedAt, 0);
+	assert.ok(runs[0].lastIssuedAt >= before && runs[0].lastIssuedAt <= Date.now());
+	await live.close();
+
+	const fresh = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	await runMigrations(fresh, { quiet: true });
+	const [none] = await fresh.query('SELECT COUNT(*) AS n FROM SessionRuns');
+	assert.equal(none[0].n, 0, 'a new or reset database honours no earlier token');
+	await fresh.close();
+});
+
 test('every migration can be reverted and re-applied', async () => {
 	const fresh = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
 	const umzug = createMigrator(fresh, { quiet: true });

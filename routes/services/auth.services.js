@@ -1,7 +1,7 @@
 import { ExtractJwt, Strategy as JwtStrategy } from 'passport-jwt';
 import { Strategy as LocalStrategy } from 'passport-local';
 import jwt from 'jsonwebtoken';
-import { User, RevokedToken } from '#db/sql-database.js';
+import { User, RevokedToken, SessionRun } from '#db/sql-database.js';
 import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import passport from 'passport';
@@ -11,7 +11,7 @@ export default class authService {
 		secretOrKey: secretOrKey,
 		jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken()
 	};
-	static #createJWT(user) {
+	static async #createJWT(user) {
 		const now = Date.now();
 		const weekInMilliseconds = 6.048e8;
 		const expiryDateMs = now + weekInMilliseconds;
@@ -25,12 +25,14 @@ export default class authService {
 			jti: randomBytes(16).toString('hex')
 		};
 		const token = jwt.sign(payload, secretOrKey, { expiresIn: '1w' });
+		// The database remembers when it issued tokens; see SessionRun.
+		await SessionRun.recordIssue(now);
 		return { token, expires: expiryDateMs };
 	}
 
 	/** A fresh token for a user (after a password change). */
-	static issueToken(user) {
-		return authService.#createJWT(user);
+	static async issueToken(user) {
+		return await authService.#createJWT(user);
 	}
 
 	/** The decoded payload of the bearer token on a request that already passed the JWT strategy. */
@@ -47,16 +49,19 @@ export default class authService {
 		if (payload.jti && (await RevokedToken.isRevoked(payload.jti))) {
 			return false;
 		}
-		if (!user.sessionsRevokedAt) {
-			return true;
-		}
 		const issued =
 			typeof payload.issued === 'number'
 				? payload.issued
 				: typeof payload.iat === 'number'
 					? payload.iat * 1000
 					: 0; // a token from before this check: treated as older than any revocation
-		return issued >= user.sessionsRevokedAt.getTime();
+		// Issued at a time this database has no record of: a token from before
+		// a reset, or from a timeline a restore discarded. Its user id may now
+		// belong to someone else.
+		if (!(await SessionRun.covers(issued))) {
+			return false;
+		}
+		return !user.sessionsRevokedAt || issued >= user.sessionsRevokedAt.getTime();
 	}
 
 	static async #verify(username, password, done) {
@@ -67,7 +72,7 @@ export default class authService {
 			if (user && user.role !== 'banned' && !User.isUnclaimedManaged(user)) {
 				const match = (await bcrypt.compare(password, user.password)) || false;
 				if (match) {
-					const token = authService.#createJWT(user);
+					const token = await authService.#createJWT(user);
 
 					return done(null, user, { token: token });
 				}

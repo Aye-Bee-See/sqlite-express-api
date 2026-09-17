@@ -68,7 +68,7 @@ cp .env.example .env
 | `ADMIN_PASSWORD`         | No       | none                            | Password for that account, at least 7 characters.                                                                                                  |
 | `ADMIN_EMAIL`            | No       | none                            | Email for that account.                                                                                                                            |
 | `CORS_ORIGIN`            | No       | `http://localhost:3001`         | Browser origins allowed by CORS, comma-separated.                                                                                                  |
-| `DB_RESET`               | No       | `false`                         | `true` drops every table and replays all migrations on boot. All data is lost.                                                                     |
+| `DB_RESET`               | No       | `false`                         | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                        |
 | `DB_SEED`                | No       | `true`                          | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                              |
 | `DB_LOGGING`             | No       | `false`                         | `true` prints every SQL statement.                                                                                                                 |
 | `DB_STORAGE`             | No       | `database.sqlite`               | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                         |
@@ -265,6 +265,14 @@ Tokens last a week, and each one carries an id, so a token can be ended early:
 - `POST /auth/revoke` `{"user": 43}` (admin): every token for that account stops working, without banning it. The account can log in again straight away. Use it for a lost phone or a shared computer.
 - Changing a password (`PUT /auth/user`) ends every existing session for that account. When the account holder changes their own, the response carries a fresh `token` so they stay signed in; an admin reset carries none.
 - Finishing recovery (`POST /auth/recover`) ends every existing session.
+
+Tokens are also tied to the database that issued them, not only to `JWT_SECRET`. The database records the spans of time in which it issued tokens, and a token issued at a time it has no record of is refused:
+
+- after `DB_RESET=true`, or on a new database, every earlier token is refused, even though the secret is the same and an account with the same id exists again;
+- after a **restore from backup**, tokens issued between the backup and the restore are refused (the backup never saw them, and their user ids may belong to different accounts now), while tokens from before the backup keep working;
+- an ordinary restart changes nothing: people stay signed in.
+
+Clients need no special handling: it is the same `401` as an expired token, answered by sending the person to sign in. Deploying this to a database that already has accounts does not sign anybody out.
 
 A revoked token gets `401` like any bad token. Logged-out token ids are kept only until the token would have expired anyway, then dropped. Tokens issued before this feature existed have no id and can only be ended with `everywhere`, a revocation, or a password change.
 

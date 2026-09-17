@@ -389,7 +389,7 @@ export default class UserController extends RouteController {
 				// changed their own gets a fresh token so they stay signed in.
 				await User.revokeSessions(newUser.id);
 				if (AuthzService.targetsSelf(req)) {
-					result.token = authService.issueToken(req.user);
+					result.token = await authService.issueToken(req.user);
 				}
 			}
 			this.#handleSuccess(res, result);

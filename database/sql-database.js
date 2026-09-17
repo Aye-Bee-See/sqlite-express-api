@@ -38,6 +38,7 @@ export const Submission = Models.Submission.init(sequelize, Sequelize);
 export const AuditLog = Models.AuditLog.init(sequelize, Sequelize);
 export const OrgMemberKey = Models.OrgMemberKey.init(sequelize, Sequelize);
 export const RevokedToken = Models.RevokedToken.init(sequelize, Sequelize);
+export const SessionRun = Models.SessionRun.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -81,11 +82,15 @@ export const ready = (async () => {
 	}
 	await ensureAdmin();
 	await RevokedToken.sweep();
+	await SessionRun.sweep();
 	// Expired logout entries are also swept on every logout; this covers a
 	// server that runs for days without one. unref() keeps it from holding
 	// the process open (tests, one-off scripts).
 	setInterval(
-		() => RevokedToken.sweep().catch((err) => console.error('[sessions] sweep failed', err)),
+		() =>
+			Promise.all([RevokedToken.sweep(), SessionRun.sweep()]).catch((err) =>
+				console.error('[sessions] sweep failed', err)
+			),
 		SWEEP_INTERVAL_MS
 	).unref();
 	if (crypto.isE2E()) {

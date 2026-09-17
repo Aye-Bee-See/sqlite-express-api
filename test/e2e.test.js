@@ -359,7 +359,12 @@ test('readers get their own envelope on every read path', async () => {
 });
 
 test('a reader forwards the letter by sealing the key to a partner group', async () => {
-	const forward = { message: letter.id, readerType: 'chapter', readerId: partnerGroup.id };
+	const forward = {
+		message: letter.id,
+		readerType: 'chapter',
+		readerId: partnerGroup.id,
+		keyVersion: 1
+	};
 	assert.equal(
 		(await post('/messaging/envelope', { ...forward, wrappedKey: 'x' }, partnerMember)).status,
 		403,
@@ -442,7 +447,8 @@ test('a group creates a writer with a keypair it holds, and sends for them', asy
 			orgWrappedPrivateKey: client.seal(
 				groupKeys.publicKey,
 				Buffer.from(writerKeys.privateKey, 'base64')
-			)
+			),
+			orgKeyVersion: 1
 		},
 		member
 	);

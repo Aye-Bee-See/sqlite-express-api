@@ -313,7 +313,8 @@ export default class UserController extends RouteController {
 					'managerNote',
 					'retentionDays',
 					'publicKey',
-					'orgWrappedPrivateKey'
+					'orgWrappedPrivateKey',
+					'orgKeyVersion'
 				];
 				if (newUser.publicKey !== undefined) {
 					if (!crypto.isPublicKey(newUser.publicKey)) {
@@ -337,6 +338,16 @@ export default class UserController extends RouteController {
 				) {
 					return next(new ValidationError('orgWrappedPrivateKey must be a string.'));
 				}
+				if (newUser.orgWrappedPrivateKey !== undefined) {
+					// Sealed to the group key: it must be the current one.
+					const group = await Chapter.findByPk(target.managedBy ?? target.anonymousForChapter);
+					try {
+						KeysController.requireCurrentGroupKey(group, newUser.orgKeyVersion);
+					} catch (err) {
+						return next(err);
+					}
+				}
+				delete newUser.orgKeyVersion;
 				const extra = Object.keys(newUser).filter((k) => !allowed.includes(k));
 				if (extra.length > 0) {
 					return next(
@@ -448,6 +459,7 @@ export default class UserController extends RouteController {
 				) {
 					throw new ValidationError('End-to-end mode: orgWrappedPrivateKey is required.');
 				}
+				KeysController.requireCurrentGroupKey(chapter, req.body.orgKeyVersion);
 				keys.publicKey = req.body.publicKey;
 				keys.orgWrappedPrivateKey = req.body.orgWrappedPrivateKey;
 			}

@@ -19,7 +19,7 @@ Nothing here needs downtime. Keys can be created while the API is still in serve
 
 - Writers: at next login the front end generates a keypair, wraps the private key under the password and a recovery code, shows the recovery code once, and calls `PUT /auth/keys`.
 - Groups: the first member calls `PUT /auth/chapter-keys` (from the front end) with a new group keypair sealed to their own key, then hands the group key to each other member with `PUT /auth/member-key`. `GET /auth/member-keys?chapter=` shows who is still missing it.
-- Unclaimed managed writers: those accounts cannot log in, so the group's browser generates a keypair for each one and stores the public key plus the group-sealed private key on the writer (the same fields `POST /auth/writer` takes in e2e mode, sent through `PUT /auth/user` by the managing group). The front end needs a "prepare for encryption" action on the writers list for this. Claimed writers are ordinary accounts and follow the writer flow.
+- Unclaimed managed writers: those accounts cannot log in, so the group's browser generates a keypair for each one and stores the public key plus the group-sealed private key on the writer (the same fields `POST /auth/writer` takes in e2e mode, sent through `PUT /auth/user` by the managing group, with `orgKeyVersion` naming the group key version it was sealed to). The front end needs a "prepare for encryption" action on the writers list for this. Claimed writers are ordinary accounts and follow the writer flow.
 
 Check progress from the server:
 
@@ -98,4 +98,4 @@ Only when the front end is on the e2e contract and step 3 reports nothing outsta
 - `POST /messaging/message` refuses `messageText`; `GET` returns `messageText: null` with `ciphertext`, `nonce`, and `envelopes`.
 - Attachment downloads return ciphertext as `application/octet-stream` with an `X-Encrypted: e2e` header.
 - Seed data no longer includes letters (`messages: 0 seeded` on a fresh database).
-- The developer guide's open items list what is not built yet: rate limiting on the recovery endpoints and a way for a group to rotate its keypair.
+- Removing a member from a group's key (`DELETE /auth/member-key`) only stops handing it out. To revoke someone who already opened it, a remaining key holder rotates the group key from the front end (README, "Rotating a group key"); plan to do this whenever a member leaves.

@@ -34,6 +34,10 @@ const letterKeySchema = {
 	/** Fingerprint of the wrapping key (server rows), so a wrong ENCRYPTION_KEY is reported plainly. */
 	keyLabel: {
 		type: DataTypes.STRING
+	},
+	/** Chapter rows: the version of the group key this envelope is sealed to. */
+	keyVersion: {
+		type: DataTypes.INTEGER
 	}
 };
 

@@ -50,6 +50,15 @@ const chapterSchema = {
 	publicKey: {
 		type: DataTypes.STRING
 	},
+	/** Which keypair this is: 0 before the group has keys, 1 at set-up, +1 per rotation. */
+	keyVersion: {
+		type: DataTypes.INTEGER,
+		allowNull: false,
+		defaultValue: 0
+	},
+	keyRotatedAt: {
+		type: DataTypes.DATE
+	},
 	/** collecting, relay, or both. */
 	networkRole: {
 		type: DataTypes.STRING,

@@ -177,19 +177,75 @@ export default class LetterKey extends Model {
 				readerType: e.readerType,
 				readerId: Number(e.readerId),
 				wrappedKey: e.wrappedKey,
-				keyLabel: null
+				keyLabel: null,
+				keyVersion: e.readerType === 'chapter' ? e.keyVersion : null
 			}))
 		);
+	}
+
+	/**
+	 * Group envelopes of a message whose key version is no longer the group's
+	 * current one: a rotation landed between validating and storing them.
+	 * @returns {Promise<number[]>} chapter ids
+	 */
+	static async staleGroupEnvelopes(messageId) {
+		const rows = await this.findAll({
+			where: { message: messageId, readerType: 'chapter' },
+			attributes: ['readerId', 'keyVersion']
+		});
+		if (rows.length === 0) {
+			return [];
+		}
+		const chapters = await this.sequelize.models.Chapter.findAll({
+			where: { id: rows.map((r) => r.readerId) },
+			attributes: ['id', 'keyVersion']
+		});
+		const current = new Map(chapters.map((c) => [c.id, c.keyVersion]));
+		return rows.filter((r) => current.get(r.readerId) !== r.keyVersion).map((r) => r.readerId);
+	}
+
+	/**
+	 * A group envelope names the version of the group key it was sealed to.
+	 * The server cannot look inside a sealed box, so this is how a letter
+	 * sealed to a key that has since been rotated away gets refused instead
+	 * of stored unreadable.
+	 * @returns {number} the version, equal to the group's current one
+	 * @throws {ValidationError} missing version or keyless group; {HttpError} 409 for a stale version
+	 */
+	static #checkKeyVersion(envelope, chapterId, versions) {
+		const current = versions ? versions.get(chapterId) || 0 : 0;
+		if (current === 0) {
+			throw new ValidationError(
+				'Chapter ' + chapterId + ' has no group key yet, so nothing can be sealed to it.'
+			);
+		}
+		if (!Number.isInteger(envelope.keyVersion)) {
+			throw new ValidationError(
+				'An envelope for a group needs keyVersion: the version GET /auth/public-key returned with the key it was sealed to.'
+			);
+		}
+		if (envelope.keyVersion !== current) {
+			throw new HttpError(
+				409,
+				'Chapter ' +
+					chapterId +
+					' rotated its key (now version ' +
+					current +
+					'); fetch its public key again and re-seal the envelope.',
+				'KeyVersionError'
+			);
+		}
+		return current;
 	}
 
 	/**
 	 * Validate the shape of client-supplied envelopes against the readers a
 	 * letter may have.
 	 * @param {unknown} envelopes from the request body
-	 * @param {{users: Set<number>, chapters: Set<number>}} allowed
+	 * @param {{users: Set<number>, chapters: Set<number>, chapterVersions: Map<number, number>}} allowed
 	 * @param {{writer: object, relayChapter: number|null}} letter
-	 * @returns {{readerType: string, readerId: number, wrappedKey: string}[]}
-	 * @throws {ValidationError}
+	 * @returns {{readerType: string, readerId: number, wrappedKey: string, keyVersion?: number}[]}
+	 * @throws {ValidationError}; {HttpError} 409 for an envelope sealed to a rotated group key
 	 */
 	static validateEnvelopes(envelopes, allowed, { writer, relayChapter }) {
 		if (!Array.isArray(envelopes) || envelopes.length === 0) {
@@ -224,7 +280,11 @@ export default class LetterKey extends Model {
 				throw new ValidationError('Duplicate envelope for ' + key + '.');
 			}
 			seen.add(key);
-			return { readerType: e.readerType, readerId, wrappedKey: e.wrappedKey };
+			const envelope = { readerType: e.readerType, readerId, wrappedKey: e.wrappedKey };
+			if (e.readerType === 'chapter') {
+				envelope.keyVersion = LetterKey.#checkKeyVersion(e, readerId, allowed.chapterVersions);
+			}
+			return envelope;
 		});
 		if (!writer.anonymousForChapter && !seen.has('user:' + writer.id)) {
 			throw new ValidationError('The writer (user ' + writer.id + ') needs an envelope.');

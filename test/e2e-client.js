@@ -69,10 +69,12 @@ export function open(sealed, publicKey, privateKey) {
 export function encryptLetter(text, readers, note) {
 	const contentKey = crypto.generateContentKey();
 	const body = crypto.encrypt(text, contentKey);
+	// A group envelope names the version of the group key it is sealed to (1 until a rotation).
 	const envelopes = readers.map((r) => ({
 		readerType: r.readerType,
 		readerId: r.readerId,
-		wrappedKey: seal(r.publicKey, contentKey)
+		wrappedKey: seal(r.publicKey, contentKey),
+		...(r.readerType === 'chapter' ? { keyVersion: r.keyVersion ?? 1 } : {})
 	}));
 	const fields = { ciphertext: body.ciphertext, nonce: body.nonce, envelopes };
 	if (note !== undefined) {

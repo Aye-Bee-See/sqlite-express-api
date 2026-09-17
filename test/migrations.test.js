@@ -128,3 +128,40 @@ test('every migration can be reverted and re-applied', async () => {
 	assert.deepEqual(await umzug.pending(), []);
 	await fresh.close();
 });
+
+test('the rotation migration versions existing group keys and their envelopes', async () => {
+	const old = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const PREVIOUS = '2026.09.13T03.00.00.retention.js';
+	await createMigrator(old, { quiet: true }).up({ to: PREVIOUS });
+	// The envelope's letter is beside the point here.
+	await old.query('PRAGMA foreign_keys = OFF');
+	const now = "datetime('now'), datetime('now')";
+	await old.query(
+		"INSERT INTO Chapters (id, name, location, publicKey, createdAt, updatedAt) VALUES (1, 'Keyed', '{}', 'pk', " +
+			now +
+			"), (2, 'Keyless', '{}', NULL, " +
+			now +
+			')'
+	);
+	await old.query(
+		"INSERT INTO LetterKeys (message, readerType, readerId, wrappedKey, createdAt, updatedAt) VALUES (1, 'chapter', 1, 'sealed', " +
+			now +
+			"), (1, 'user', 5, 'sealed', " +
+			now +
+			')'
+	);
+	await runMigrations(old, { quiet: true });
+	const [chapters] = await old.query('SELECT id, keyVersion FROM Chapters ORDER BY id');
+	assert.deepEqual(
+		chapters.map((c) => c.keyVersion),
+		[1, 0],
+		'a group with a key is at version 1; one without is at 0'
+	);
+	const [envelopes] = await old.query('SELECT readerType, keyVersion FROM LetterKeys ORDER BY id');
+	assert.deepEqual(
+		envelopes.map((e) => e.keyVersion),
+		[1, null],
+		'only group envelopes carry a version'
+	);
+	await old.close();
+});

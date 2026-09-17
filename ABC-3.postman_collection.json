@@ -1740,7 +1740,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"sender\": \"user\",\n    \"prisoner\": 1,\n    \"relayChapter\": 1,\n    \"ciphertext\": \"<base64>\",\n    \"nonce\": \"<base64>\",\n    \"relayNoteCiphertext\": \"<base64>\",\n    \"relayNoteNonce\": \"<base64>\",\n    \"envelopes\": [\n        {\n            \"readerType\": \"user\",\n            \"readerId\": \"{{userId}}\",\n            \"wrappedKey\": \"<content key sealed to me>\"\n        },\n        {\n            \"readerType\": \"chapter\",\n            \"readerId\": 1,\n            \"wrappedKey\": \"<content key sealed to the relay group>\"\n        }\n    ]\n}",
+							"raw": "{\n    \"sender\": \"user\",\n    \"prisoner\": 1,\n    \"relayChapter\": 1,\n    \"ciphertext\": \"<base64>\",\n    \"nonce\": \"<base64>\",\n    \"relayNoteCiphertext\": \"<base64>\",\n    \"relayNoteNonce\": \"<base64>\",\n    \"envelopes\": [\n        {\n            \"readerType\": \"user\",\n            \"readerId\": \"{{userId}}\",\n            \"wrappedKey\": \"<content key sealed to me>\"\n        },\n        {\n            \"readerType\": \"chapter\",\n            \"readerId\": 1,\n            \"wrappedKey\": \"<content key sealed to the relay group>\",\n            \"keyVersion\": 1\n        }\n    ]\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1763,7 +1763,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"message\": 1,\n    \"readerType\": \"chapter\",\n    \"readerId\": 2,\n    \"wrappedKey\": \"<content key sealed to the partner>\"\n}",
+							"raw": "{\n    \"message\": 1,\n    \"readerType\": \"chapter\",\n    \"readerId\": 2,\n    \"wrappedKey\": \"<content key sealed to the partner>\",\n    \"keyVersion\": 1\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2468,6 +2468,49 @@
 									"value": "1"
 								}
 							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Rotation Material (key holder)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/chapter-rotation?chapter=1",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "chapter-rotation"],
+							"query": [
+								{
+									"key": "chapter",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Rotate Group Key (key holder)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/chapter-rotation",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "chapter-rotation"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"chapter\": 1,\n    \"keyVersion\": 1,\n    \"publicKey\": \"<new group public key>\",\n    \"envelopes\": [\n        {\n            \"id\": 1,\n            \"wrappedKey\": \"<content key re-sealed to the new group key>\"\n        }\n    ],\n    \"writers\": [\n        {\n            \"id\": 5,\n            \"orgWrappedPrivateKey\": \"<writer private key re-sealed to the new group key>\"\n        }\n    ],\n    \"members\": [\n        {\n            \"user\": 2,\n            \"wrappedOrgPrivateKey\": \"<new group private key sealed to this member>\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						}
 					},
 					"response": []

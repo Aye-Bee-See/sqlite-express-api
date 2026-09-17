@@ -28,10 +28,12 @@ const endpoints = {
 			one: '/keys',
 			many: '/member-keys',
 			publicKey: '/public-key',
-			recoverChallenge: '/recover'
+			recoverChallenge: '/recover',
+			rotationMaterial: '/chapter-rotation'
 		},
 		post: {
-			create: '/recover'
+			create: '/recover',
+			rotate: '/chapter-rotation'
 		},
 		put: {
 			update: '/keys',
@@ -474,12 +476,20 @@ const messages = {
 			recoverChallenge: {
 				success: { condition: { par: 'Open the challenge with your recovered private key.' } },
 				error: { condition: { par: 'Error starting recovery.' } }
+			},
+			rotationMaterial: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading rotation material.' } }
 			}
 		},
 		post: {
 			create: {
 				success: { condition: { par: 'Password reset. You can now sign in.' } },
 				error: { condition: { par: 'Error finishing recovery.' } }
+			},
+			rotate: {
+				success: { condition: { par: 'Group key rotated.' } },
+				error: { condition: { par: 'Error rotating the group key.' } }
 			}
 		},
 		put: {

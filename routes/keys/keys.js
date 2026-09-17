@@ -38,6 +38,8 @@ class KeysRoutes {
 		this.Router.put(keysEnd.put.putMemberKey, authenticate, this.#Controller.putMemberKey);
 		this.Router.delete(keysEnd.delete.remove, authenticate, this.#Controller.remove);
 		this.Router.get(keysEnd.get.many, authenticate, this.#Controller.getMany);
+		this.Router.get(keysEnd.get.rotationMaterial, authenticate, this.#Controller.rotationMaterial);
+		this.Router.post(keysEnd.post.rotate, authenticate, this.#Controller.rotate);
 	}
 }
 

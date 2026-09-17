@@ -148,6 +148,8 @@ test('the rotation migration versions existing group keys and their envelopes', 
 			now +
 			"), (1, 'user', 5, 'sealed', " +
 			now +
+			"), (1, 'chapter', 2, 'sealed to nothing', " +
+			now +
 			')'
 	);
 	await runMigrations(old, { quiet: true });
@@ -160,8 +162,8 @@ test('the rotation migration versions existing group keys and their envelopes', 
 	const [envelopes] = await old.query('SELECT readerType, keyVersion FROM LetterKeys ORDER BY id');
 	assert.deepEqual(
 		envelopes.map((e) => e.keyVersion),
-		[1, null],
-		'only group envelopes carry a version'
+		[1, null, null],
+		'only envelopes of a group that has a key carry a version'
 	);
 	await old.close();
 });

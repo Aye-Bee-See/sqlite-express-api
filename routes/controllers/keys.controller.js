@@ -9,18 +9,7 @@ import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import * as crypto from '#services/crypto.js';
 import { audit } from '#rtServices/audit.services.js';
-
-/**
- * Rotations run one at a time in this process. SQLite has one writer, and an
- * in-memory database has one connection, so two transactions cannot overlap;
- * the loser of a race then fails its version check instead of a BEGIN.
- */
-let rotationQueue = Promise.resolve();
-function oneRotationAtATime(work) {
-	const run = rotationQueue.then(work, work);
-	rotationQueue = run.catch(() => {});
-	return run;
-}
+import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
 
 /** How long a recovery challenge stays valid. */
 const RECOVERY_CHALLENGE_MS = 10 * 60 * 1000;
@@ -464,16 +453,20 @@ export default class KeysController extends RouteController {
 					'Only a member holding the group key, or an admin, can remove members.'
 				);
 			}
-			const holders = await OrgMemberKey.count({ where: { chapterId } });
-			const target = await OrgMemberKey.forMember(chapterId, userId);
-			if (target && holders <= 1) {
-				throw new HttpError(
-					409,
-					'This is the last holder of the group key; removing it would lock the group out. Rotate the key to another member instead (POST /auth/chapter-rotation).',
-					'KeyChangeError'
-				);
-			}
-			const removed = await OrgMemberKey.remove(chapterId, userId);
+			// Count and delete as one step: two removals at once must not both
+			// find a holder to spare and leave the group with none.
+			const removed = await withGroupKeyLock(async () => {
+				const holders = await OrgMemberKey.count({ where: { chapterId } });
+				const target = await OrgMemberKey.forMember(chapterId, userId);
+				if (target && holders <= 1) {
+					throw new HttpError(
+						409,
+						'This is the last holder of the group key; removing it would lock the group out. Rotate the key to another member instead (POST /auth/chapter-rotation).',
+						'KeyChangeError'
+					);
+				}
+				return await OrgMemberKey.remove(chapterId, userId);
+			});
 			await audit(req, 'chapter.member-key.remove', 'chapter', chapterId, { member: userId });
 			this.#handleSuccess(res, this.requireAffected(removed, 'Member key for user ' + userId));
 		} catch (err) {
@@ -721,7 +714,8 @@ export default class KeysController extends RouteController {
 			}
 
 			const nextVersion = chapter.keyVersion + 1;
-			const result = await oneRotationAtATime(() =>
+			// One at a time, so the loser of a race fails its version check rather than a BEGIN.
+			const result = await withGroupKeyLock(() =>
 				Chapter.sequelize.transaction(async (transaction) => {
 					// Claim the rotation first: only one request can move this version on.
 					const [claimed] = await Chapter.update(

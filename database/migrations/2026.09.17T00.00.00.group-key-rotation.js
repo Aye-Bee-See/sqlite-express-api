@@ -19,7 +19,7 @@ export async function up({ context: queryInterface }) {
 		'UPDATE `Chapters` SET `keyVersion` = 1 WHERE `publicKey` IS NOT NULL'
 	);
 	await queryInterface.sequelize.query(
-		"UPDATE `LetterKeys` SET `keyVersion` = 1 WHERE `readerType` = 'chapter'"
+		"UPDATE `LetterKeys` SET `keyVersion` = 1 WHERE `readerType` = 'chapter' AND `readerId` IN (SELECT `id` FROM `Chapters` WHERE `publicKey` IS NOT NULL)"
 	);
 }
 

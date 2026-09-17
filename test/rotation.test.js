@@ -462,6 +462,77 @@ test('anything sealed to the old group key is refused after the rotation', async
 	assert.equal(custody.status, 200, JSON.stringify(custody.body));
 });
 
+test('a group-sealed writer key cannot straddle a rotation', async () => {
+	// Whichever request lands first, no writer may end up sealed to a key the group no longer has.
+	const sealedWriters = async (group) => {
+		const listed = (await get('/auth/writers', first)).body.data.filter(
+			(w) => w.orgWrappedPrivateKey
+		);
+		for (const w of listed) {
+			assert.doesNotThrow(
+				() => client.open(w.orgWrappedPrivateKey, group.publicKey, group.privateKey),
+				'writer ' + w.id + ' opens with the current group key'
+			);
+		}
+		return listed.length;
+	};
+	const race = async (other, { bothMayWin = false } = {}) => {
+		const material = (await get('/auth/chapter-rotation?chapter=' + f.group.id, first)).body.data;
+		const next = client.keypair();
+		const [rotation, write] = await Promise.all([
+			post(
+				'/auth/chapter-rotation',
+				reseal(material, newGroup, next, [first.id, second.id]),
+				first
+			),
+			other(material.keyVersion)
+		]);
+		const statuses = [rotation.status, write.status].join(', ');
+		assert.ok(
+			[200, 409].includes(rotation.status) && [200, 201, 409].includes(write.status),
+			statuses
+		);
+		assert.ok(rotation.status === 200 || write.status < 300, 'they cannot both lose: ' + statuses);
+		if (!bothMayWin) {
+			assert.ok(rotation.status === 409 || write.status === 409, 'only one can win: ' + statuses);
+		}
+		if (rotation.status === 200) {
+			newGroup = next;
+		}
+		await sealedWriters(newGroup);
+	};
+
+	const racerKeys = client.keypair();
+	await race((version) =>
+		post(
+			'/auth/writer',
+			{
+				name: 'Racing Writer',
+				publicKey: racerKeys.publicKey,
+				orgWrappedPrivateKey: client.seal(newGroup.publicKey, bytes(racerKeys.privateKey)),
+				orgKeyVersion: version
+			},
+			first
+		)
+	);
+	await race(
+		(version) =>
+			put(
+				'/auth/user',
+				{
+					id: writer.id,
+					orgWrappedPrivateKey: client.seal(newGroup.publicKey, bytes(writerKeys.privateKey)),
+					orgKeyVersion: version
+				},
+				first
+			),
+		// Re-sealing a writer the rotation already covers: if it lands first, the
+		// rotation simply re-seals that writer again, and both succeed.
+		{ bothMayWin: true }
+	);
+	assert.ok((await sealedWriters(newGroup)) >= 1);
+});
+
 test('two rotations from the same material: one wins', async () => {
 	const material = (await get('/auth/chapter-rotation?chapter=' + f.group.id, first)).body.data;
 	const a = reseal(material, newGroup, client.keypair(), [first.id, second.id]);
@@ -476,7 +547,7 @@ test('two rotations from the same material: one wins', async () => {
 		JSON.stringify(results.map((r) => r.body))
 	);
 	const group = await Chapter.findByPk(f.group.id);
-	assert.equal(group.keyVersion, 3);
+	assert.equal(group.keyVersion, material.keyVersion + 1);
 	const winner = results[0].status === 200 ? a : b;
 	assert.equal(group.publicKey, winner.publicKey);
 	const holders = await OrgMemberKey.findAll({ where: { chapterId: f.group.id } });
@@ -498,6 +569,28 @@ test('the last holder cannot be removed, and the refusal points at rotation', as
 	);
 	assert.equal(last.status, 409);
 	assert.match(last.body.error, /chapter-rotation/);
+});
+
+test('two removals at once cannot leave the group without a holder', async () => {
+	for (const who of [first, second]) {
+		const res = await put(
+			'/auth/member-key',
+			{ chapter: f.group.id, user: who.id, wrappedOrgPrivateKey: 'sealed' },
+			admin
+		);
+		assert.equal(res.status, 200, JSON.stringify(res.body));
+	}
+	await OrgMemberKey.destroy({
+		where: { chapterId: f.group.id, userId: leaver.id }
+	});
+	assert.equal(await OrgMemberKey.count({ where: { chapterId: f.group.id } }), 2);
+	const results = await Promise.all(
+		[first, second].map((who) =>
+			del('/auth/member-key', { chapter: f.group.id, user: who.id }, admin)
+		)
+	);
+	assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+	assert.equal(await OrgMemberKey.count({ where: { chapterId: f.group.id } }), 1);
 });
 
 test('key state never travels through the generic group update', async () => {

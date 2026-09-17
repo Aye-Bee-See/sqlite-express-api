@@ -2176,7 +2176,11 @@
 								"exec": [
 									"const body = pm.response.json();",
 									"if (body && body.data && body.data.id) {",
-									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"    pm.collectionVariables.set('invitationId', String(body.data.id));",
+									"}",
+									"// The token is shown only in this response; keep it for the check and accept requests.",
+									"if (body && body.data && body.data.token) {",
+									"    pm.collectionVariables.set('invitationToken', body.data.token);",
 									"}"
 								]
 							}
@@ -2213,7 +2217,11 @@
 								"exec": [
 									"const body = pm.response.json();",
 									"if (body && body.data && body.data.id) {",
-									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"    pm.collectionVariables.set('invitationId', String(body.data.id));",
+									"}",
+									"// The token is shown only in this response; keep it for the check and accept requests.",
+									"if (body && body.data && body.data.token) {",
+									"    pm.collectionVariables.set('invitationToken', body.data.token);",
 									"}"
 								]
 							}
@@ -2257,7 +2265,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"id\": 1\n}",
+							"raw": "{\n    \"id\": {{invitationId}}\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2274,7 +2282,11 @@
 								"exec": [
 									"const body = pm.response.json();",
 									"if (body && body.data && body.data.id) {",
-									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"    pm.collectionVariables.set('invitationId', String(body.data.id));",
+									"}",
+									"// The token is shown only in this response; keep it for the check and accept requests.",
+									"if (body && body.data && body.data.token) {",
+									"    pm.collectionVariables.set('invitationToken', body.data.token);",
 									"}"
 								]
 							}
@@ -2294,7 +2306,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"id\": 1\n}",
+							"raw": "{\n    \"id\": {{invitationId}}\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2302,21 +2314,7 @@
 							}
 						}
 					},
-					"response": [],
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"const body = pm.response.json();",
-									"if (body && body.data && body.data.id) {",
-									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
-									"}"
-								]
-							}
-						}
-					]
+					"response": []
 				},
 				{
 					"name": "Check Invitation Token (public)",
@@ -2324,14 +2322,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/invitation/invitation?token=PASTE-TOKEN",
+							"raw": "localhost:3000/invitation/invitation?token={{invitationToken}}",
 							"host": ["localhost"],
 							"port": "3000",
 							"path": ["invitation", "invitation"],
 							"query": [
 								{
 									"key": "token",
-									"value": "PASTE-TOKEN"
+									"value": "{{invitationToken}}"
 								}
 							]
 						},
@@ -2354,7 +2352,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"token\": \"PASTE-TOKEN\",\n    \"username\": \"riverside\",\n    \"password\": \"longenough\",\n    \"email\": \"riverside@example.com\",\n    \"group\": {\n        \"name\": \"Riverside ABC\",\n        \"location\": {\n            \"city\": \"Riverside\"\n        },\n        \"country\": \"Canada\",\n        \"services\": [\n            \"letter_writing_nights\"\n        ],\n        \"networkRole\": \"collecting\"\n    }\n}",
+							"raw": "{\n    \"token\": \"{{invitationToken}}\",\n    \"username\": \"riverside\",\n    \"password\": \"longenough\",\n    \"email\": \"riverside@example.com\",\n    \"group\": {\n        \"name\": \"Riverside ABC\",\n        \"location\": {\n            \"city\": \"Riverside\"\n        },\n        \"country\": \"Canada\",\n        \"services\": [\n            \"letter_writing_nights\"\n        ],\n        \"networkRole\": \"collecting\"\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2365,21 +2363,7 @@
 							"type": "noauth"
 						}
 					},
-					"response": [],
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"const body = pm.response.json();",
-									"if (body && body.data && body.data.id) {",
-									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
-									"}"
-								]
-							}
-						}
-					]
+					"response": []
 				},
 				{
 					"name": "Accept Member Invitation (public)",
@@ -2394,7 +2378,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"token\": \"PASTE-TOKEN\",\n    \"username\": \"jojo\",\n    \"password\": \"longenough\",\n    \"email\": \"jo@example.com\"\n}",
+							"raw": "{\n    \"token\": \"{{invitationToken}}\",\n    \"username\": \"jojo\",\n    \"password\": \"longenough\",\n    \"email\": \"jo@example.com\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2405,21 +2389,7 @@
 							"type": "noauth"
 						}
 					},
-					"response": [],
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"const body = pm.response.json();",
-									"if (body && body.data && body.data.id) {",
-									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
-									"}"
-								]
-							}
-						}
-					]
+					"response": []
 				},
 				{
 					"name": "Approve A Group That Joined By Invitation (admin)",
@@ -2442,21 +2412,7 @@
 							}
 						}
 					},
-					"response": [],
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"const body = pm.response.json();",
-									"if (body && body.data && body.data.id) {",
-									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
-									"}"
-								]
-							}
-						}
-					]
+					"response": []
 				}
 			]
 		},
@@ -2727,6 +2683,16 @@
 		},
 		{
 			"key": "submissionId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "invitationId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "invitationToken",
 			"value": "",
 			"type": "string"
 		}

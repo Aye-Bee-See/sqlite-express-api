@@ -139,11 +139,15 @@ export default class Invitation extends Model {
 		return count > 0;
 	}
 
-	/** Hand a consumed invitation back after the acceptance failed (a taken username, say). */
+	/**
+	 * Hand back an invitation this request consumed, after its acceptance
+	 * failed at any later step (a taken username, say). Only the request
+	 * that won `consume` may call it.
+	 */
 	static async release(id) {
 		await this.update(
 			{ status: 'pending', acceptedAt: null, acceptedUser: null, createdChapter: null },
-			{ where: { id, status: 'accepted', acceptedUser: null } }
+			{ where: { id, status: 'accepted' } }
 		);
 	}
 

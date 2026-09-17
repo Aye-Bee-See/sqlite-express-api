@@ -277,6 +277,32 @@ test('a failed acceptance leaves nothing behind and the invitation usable', asyn
 	assert.equal(ok.status, 201, JSON.stringify(ok.body));
 });
 
+test('a failure after the account exists is undone as well', async (t) => {
+	const created = await invite({ kind: 'group', inviteeName: 'Unlucky ABC' });
+	const groups = await Chapter.count();
+	const users = await User.count();
+	const audits = await AuditLog.count({ where: { action: 'invitation.accept' } });
+	// The step after the account is created fails, once.
+	t.mock.method(Invitation, 'complete', async () => {
+		throw new Error('disk full');
+	});
+	const body = {
+		token: created.token,
+		...account('unlucky'),
+		group: { name: 'Unlucky ABC', location: {} }
+	};
+	const failed = await post('/invitation/accept', body);
+	assert.equal(failed.status, 500);
+	assert.equal(await User.count(), users, 'the account is gone');
+	assert.equal(await Chapter.count(), groups, 'and so is the group');
+	assert.equal((await Invitation.findByPk(created.id)).status, 'pending');
+	assert.equal(await AuditLog.count({ where: { action: 'invitation.accept' } }), audits);
+
+	t.mock.restoreAll();
+	const retried = await post('/invitation/accept', body);
+	assert.equal(retried.status, 201, JSON.stringify(retried.body));
+});
+
 test('two acceptances of one invitation: one account', async () => {
 	const created = await invite({ kind: 'member', inviteeName: 'Twin' });
 	const results = await Promise.all([

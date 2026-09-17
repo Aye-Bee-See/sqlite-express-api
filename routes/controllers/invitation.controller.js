@@ -197,13 +197,23 @@ export default class InvitationController extends RouteController {
 				inviteeName: record.inviteeName,
 				chapter: chapter ? { id: chapter.id, name: chapter.name } : null,
 				expiresAt: record.expiresAt,
-				activation:
-					record.kind === 'member' || invitationAutoActivate ? 'immediate' : 'admin_review',
+				activation: InvitationController.#activatesAtOnce(record) ? 'immediate' : 'admin_review',
 				groupFields: record.kind === 'group' ? GROUP_PROFILE_FIELDS : undefined
 			});
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
+	}
+
+	/**
+	 * Does accepting this invitation give an account that can act straight
+	 * away? A member joins a group that is already active. A new group waits
+	 * for an admin unless INVITATION_AUTO_ACTIVATE says an invitation is
+	 * enough. That includes an admin's invitation with no vouching group:
+	 * only an admin can issue one, so an admin has already decided.
+	 */
+	static #activatesAtOnce(invitation) {
+		return invitation.kind === 'member' || invitationAutoActivate;
 	}
 
 	/** PUT /invitation/invitation { id }: a fresh token and expiry; the old token stops working. */
@@ -258,6 +268,7 @@ export default class InvitationController extends RouteController {
 		const { token, username, password, email, name } = req.body;
 		let consumed = null;
 		let createdGroup = null;
+		let createdUser = null;
 		try {
 			const { record, chapter } = await this.#usable(token);
 			const keys = KeysController.keyFields(req.body);
@@ -282,15 +293,16 @@ export default class InvitationController extends RouteController {
 
 			let group = chapter;
 			if (record.kind === 'group') {
+				const atOnce = InvitationController.#activatesAtOnce(record);
 				createdGroup = await Chapter.create({
 					...groupFields,
 					vouchedBy: record.chapterId,
-					accountStatus: invitationAutoActivate ? 'active' : 'pending',
-					recordStatus: invitationAutoActivate ? 'published' : 'pending'
+					accountStatus: atOnce ? 'active' : 'pending',
+					recordStatus: atOnce ? 'published' : 'pending'
 				});
 				group = createdGroup;
 			}
-			const created = await User.createUser({
+			createdUser = await User.createUser({
 				username,
 				password,
 				email,
@@ -300,24 +312,30 @@ export default class InvitationController extends RouteController {
 				...keys
 			});
 			await Invitation.complete(record.id, {
-				acceptedUser: created.id,
+				acceptedUser: createdUser.id,
 				createdChapter: createdGroup ? createdGroup.id : null
 			});
+			const user = (await User.findByPk(createdUser.id)).toJSON();
+			delete user.managerNote;
+			// Last, once nothing else can fail: the log should not describe an acceptance that was undone.
 			await audit(null, 'invitation.accept', 'invitation', record.id, {
 				kind: record.kind,
-				user: created.id,
+				user: createdUser.id,
 				chapter: group.id,
 				vouchedBy: record.kind === 'group' ? record.chapterId : undefined
 			});
-			const user = (await User.findByPk(created.id)).toJSON();
-			delete user.managerNote;
 			this.#handleSuccess(res, {
 				user,
 				chapter: { id: group.id, name: group.name, accountStatus: group.accountStatus },
 				activation: group.accountStatus === 'active' ? 'immediate' : 'admin_review'
 			});
 		} catch (err) {
-			// Nothing half-made is left behind, and the invitee can correct and try again.
+			// Nothing half-made is left behind, whichever step failed, and the
+			// invitee can correct and try again. The account goes before the
+			// group it points at.
+			if (createdUser) {
+				await createdUser.destroy({ force: true }).catch(() => {});
+			}
 			if (createdGroup) {
 				await createdGroup.destroy({ force: true }).catch(() => {});
 			}

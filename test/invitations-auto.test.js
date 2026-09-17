@@ -49,3 +49,34 @@ test('with INVITATION_AUTO_ACTIVATE a vouched group is active and listed at once
 	);
 	assert.equal(acts.status, 201, 'the new group can act straight away');
 });
+
+test("an admin's own invitation needs no second approval, even with nobody vouching", async () => {
+	// Only an admin can invite without a vouching group, so an admin has already decided.
+	const created = await post(
+		'/invitation/invitation',
+		{ kind: 'group', inviteeName: 'Founding ABC' },
+		{ token: f.admin.token }
+	);
+	assert.equal(created.body.data.chapterId, null);
+	const info = await get('/invitation/invitation?token=' + created.body.data.token);
+	assert.equal(info.body.data.activation, 'immediate');
+	const res = await post('/invitation/accept', {
+		token: created.body.data.token,
+		username: 'founding',
+		password: 'longenough',
+		email: 'founding@example.com',
+		group: { name: 'Founding ABC', location: {} }
+	});
+	assert.equal(res.status, 201, JSON.stringify(res.body));
+	const group = await Chapter.findByPk(res.body.data.chapter.id);
+	assert.equal(group.accountStatus, 'active');
+	assert.equal(group.vouchedBy, null);
+
+	// Nobody but an admin can produce one: a group that tries to drop its vouch is refused.
+	const asGroup = await post(
+		'/invitation/invitation',
+		{ kind: 'group', inviteeName: 'Sneaky ABC', chapter: null },
+		{ token: f.chapter.token }
+	);
+	assert.equal(asGroup.status, 403);
+});

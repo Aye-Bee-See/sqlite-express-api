@@ -456,17 +456,20 @@ Unknown paths return the same shape with status `404` and `"info": "Cannot GET /
 
 ### Status codes
 
-| Situation                                                                                             | Status |
-| ----------------------------------------------------------------------------------------------------- | ------ |
-| Create                                                                                                | 201    |
-| Read, update, delete, login, attach rule                                                              | 200    |
-| Validation failed, bad pagination, unknown role filter                                                | 400    |
-| Duplicate username or email                                                                           | 400    |
-| Referential integrity refused the change (see below)                                                  | 400    |
-| Missing or invalid token, banned or deleted user, wrong password                                      | 401    |
-| Role or ownership does not permit the action                                                          | 403    |
-| No record with that id (read, update, or delete), or unknown parent in a list filter, or unknown path | 404    |
-| Internal fault                                                                                        | 500    |
+| Situation                                                                                                                   | Status |
+| --------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Create                                                                                                                      | 201    |
+| Read, update, delete, login, attach rule                                                                                    | 200    |
+| Validation failed, bad pagination, unknown role filter                                                                      | 400    |
+| Duplicate username or email                                                                                                 | 400    |
+| Referential integrity refused the change (see below)                                                                        | 400    |
+| Missing or invalid token, banned or deleted user, wrong password                                                            | 401    |
+| Role or ownership does not permit the action                                                                                | 403    |
+| No record with that id (read, update, or delete), or unknown parent in a list filter, or unknown path                       | 404    |
+| State conflict: a letter status move the lifecycle forbids, a submission already decided, a key already set                 | 409    |
+| Claim token used or expired                                                                                                 | 410    |
+| Rate limited on login, claim checks, or recovery; `Retry-After` gives the wait in seconds (see [Rate limits](#rate-limits)) | 429    |
+| Internal fault                                                                                                              | 500    |
 
 ### Pagination
 

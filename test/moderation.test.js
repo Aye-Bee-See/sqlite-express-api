@@ -250,9 +250,13 @@ test('a reviewer edit that fails validation on approval leaves the proposal pend
 	const { id } = (
 		await propose({ resource: 'prisoner', target: f.prisoner2.id, fields: { status: 'free' } })
 	).body.data;
+	const statusBefore = (await Prisoner.findByPk(f.prisoner2.id)).status;
 	const res = await put('/moderation/approve', { id, fields: { status: 'flying' } }, admin);
 	assert.equal(res.status, 400);
 	assert.ok(Array.isArray(res.body.errors));
+	assert.match(res.body.errors.join(' '), /Status must be pretrial, incarcerated, or free/);
+	// Model.update validates by default, so the refused value is never written.
+	assert.equal((await Prisoner.findByPk(f.prisoner2.id)).status, statusBefore);
 	assert.equal((await get('/moderation/submission?id=' + id, admin)).body.data.status, 'pending');
 	const rejected = await put(
 		'/moderation/reject',

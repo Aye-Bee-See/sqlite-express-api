@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startServer, stopServer, get, post, put, makeFixtures, Prison } from './helpers.js';
+import { startServer, stopServer, get, post, put, del, makeFixtures, Prison } from './helpers.js';
 import { MAIL_RULES, MAIL_RULE_CATEGORIES, MAIL_RULE_TAGS } from '../database/mail-rules.js';
 
 let f;
@@ -221,6 +221,58 @@ test('a proposed new facility gets the photo rule check straight away', async ()
 	);
 });
 
+test('a proposed edit is checked against the stored half of the photo rule', async () => {
+	const clash = /photoLimit cannot be set on a facility tagged no_photos/;
+	const proposeEdit = (target, fields) =>
+		post('/moderation/submission', { resource: 'prison', target, fields }, alice);
+
+	// strict has photoLimit 3 stored: tagging it no_photos alone clashes.
+	const tagOnly = await proposeEdit(strict.id, { mailRules: ['no_photos'] });
+	assert.equal(tagOnly.status, 400, JSON.stringify(tagOnly.body));
+	assert.match(tagOnly.body.errors.join(' '), clash);
+	const both = await proposeEdit(strict.id, { mailRules: ['no_photos'], photoLimit: 2 });
+	assert.equal(both.status, 400);
+	assert.match(both.body.errors.join(' '), clash);
+
+	// And the other way round: a limit alone on a facility already tagged.
+	const tagged = await Prison.createPrison({
+		prisonName: 'No Photos Facility',
+		address: {},
+		mailRules: ['no_photos']
+	});
+	const limitOnly = await proposeEdit(tagged.id, { photoLimit: 4 });
+	assert.equal(limitOnly.status, 400, JSON.stringify(limitOnly.body));
+	assert.match(limitOnly.body.errors.join(' '), clash);
+	const unrelated = await proposeEdit(tagged.id, { notes: 'Mail is slow in winter' });
+	assert.equal(unrelated.status, 201, 'a consistent facility takes other edits');
+
+	// Clearing the limit in the same proposal is consistent, and a revision is held to the same rule.
+	const cleared = await proposeEdit(strict.id, { mailRules: ['no_photos'], photoLimit: null });
+	assert.equal(cleared.status, 201, JSON.stringify(cleared.body));
+	const revised = await put(
+		'/moderation/submission',
+		{ id: cleared.body.data.id, fields: { mailRules: ['no_photos'] } },
+		alice
+	);
+	assert.equal(revised.status, 400);
+	assert.match(revised.body.errors.join(' '), clash);
+	assert.ok(!(await Prison.findByPk(strict.id)).mailRules.includes('no_photos'), 'nothing saved');
+
+	// Approval still checks: the stored half can change after a valid proposal is filed.
+	const later = await proposeEdit(tagged.id, { mailRules: [], photoLimit: 4 });
+	assert.equal(later.status, 201);
+	const limit = await proposeEdit(open.id, { photoLimit: 6 });
+	assert.equal(limit.status, 201);
+	await Prison.updatePrison({ id: open.id, mailRules: ['no_photos'] });
+	const refused = await put('/moderation/approve', { id: limit.body.data.id }, admin);
+	assert.equal(refused.status, 400, JSON.stringify(refused.body));
+	assert.match(refused.body.errors.join(' '), clash);
+	await Prison.updatePrison({ id: open.id, mailRules: [] });
+	for (const s of [unrelated, cleared, later, limit]) {
+		await del('/moderation/submission', { id: s.body.data.id }, alice);
+	}
+});
+
 test('lists filter by tag and by language', async () => {
 	const ids = async (query) =>
 		(await get('/prison/prisons?page_size=100&' + query)).body.data.map((p) => p.id);
@@ -262,17 +314,15 @@ test('anyone signed in can propose rule changes; approval applies them', async (
 	);
 	assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
 
-	// Edits to an existing record are validated at review, like every other field:
-	// a free-text rule gets as far as the queue and no further.
+	// An edit is validated when it is filed, like a new record: a free-text
+	// rule never reaches the queue.
 	const bad = await post(
 		'/moderation/submission',
 		{ resource: 'prison', target: open.id, fields: { mailRules: ['be nice'] } },
 		alice
 	);
-	assert.equal(bad.status, 201);
-	const refused = await put('/moderation/approve', { id: bad.body.data.id }, admin);
-	assert.equal(refused.status, 400);
-	assert.match(refused.body.errors.join(' '), /Unknown mail rule "be nice"/);
+	assert.equal(bad.status, 400, JSON.stringify(bad.body));
+	assert.match(bad.body.errors.join(' '), /Unknown mail rule "be nice"/);
 	const newRecord = await post(
 		'/moderation/submission',
 		{ resource: 'prison', fields: { prisonName: 'Proposed', address: {}, mailRules: ['be nice'] } },

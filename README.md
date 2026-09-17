@@ -60,25 +60,27 @@ Copy `.env.example` to `.env` and edit it. `.env` is git-ignored.
 cp .env.example .env
 ```
 
-| Variable                 | Required | Default                 | Purpose                                                                                                                                            |
-| ------------------------ | -------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `JWT_SECRET`             | Yes      | none                    | Secret used to sign and verify login tokens. Login fails without it.                                                                               |
-| `PORT`                   | Yes      | none                    | TCP port to listen on.                                                                                                                             |
-| `ADMIN_USERNAME`         | No       | none                    | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                  |
-| `ADMIN_PASSWORD`         | No       | none                    | Password for that account, at least 7 characters.                                                                                                  |
-| `ADMIN_EMAIL`            | No       | none                    | Email for that account.                                                                                                                            |
-| `CORS_ORIGIN`            | No       | `http://localhost:3001` | Browser origins allowed by CORS, comma-separated.                                                                                                  |
-| `DB_RESET`               | No       | `false`                 | `true` drops every table and replays all migrations on boot. All data is lost.                                                                     |
-| `DB_SEED`                | No       | `true`                  | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                              |
-| `DB_LOGGING`             | No       | `false`                 | `true` prints every SQL statement.                                                                                                                 |
-| `DB_STORAGE`             | No       | `database.sqlite`       | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                         |
-| `UPLOAD_DIR`             | No       | `uploads`               | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.              |
-| `UPLOAD_MAX_BYTES`       | No       | `10485760`              | Largest accepted upload (10 MiB).                                                                                                                  |
-| `ENCRYPTION_MODE`        | No       | `server`                | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                           |
-| `ENCRYPTION_KEY`         | Yes      | none                    | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                     |
-| `RETENTION_DEFAULT_DAYS` | No       | `90`                    | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention). |
-| `RETENTION_MAX_DAYS`     | No       | none                    | Caps what a writer may choose, including \"forever\".                                                                                              |
-| `NODE_ENV`               | No       | none                    | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                         |
+| Variable                 | Required | Default                         | Purpose                                                                                                                                            |
+| ------------------------ | -------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JWT_SECRET`             | Yes      | none                            | Secret used to sign and verify login tokens. Login fails without it.                                                                               |
+| `PORT`                   | Yes      | none                            | TCP port to listen on.                                                                                                                             |
+| `ADMIN_USERNAME`         | No       | none                            | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                  |
+| `ADMIN_PASSWORD`         | No       | none                            | Password for that account, at least 7 characters.                                                                                                  |
+| `ADMIN_EMAIL`            | No       | none                            | Email for that account.                                                                                                                            |
+| `CORS_ORIGIN`            | No       | `http://localhost:3001`         | Browser origins allowed by CORS, comma-separated.                                                                                                  |
+| `DB_RESET`               | No       | `false`                         | `true` drops every table and replays all migrations on boot. All data is lost.                                                                     |
+| `DB_SEED`                | No       | `true`                          | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                              |
+| `DB_LOGGING`             | No       | `false`                         | `true` prints every SQL statement.                                                                                                                 |
+| `DB_STORAGE`             | No       | `database.sqlite`               | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                         |
+| `UPLOAD_DIR`             | No       | `uploads`                       | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.              |
+| `UPLOAD_MAX_BYTES`       | No       | `20971520`                      | Largest accepted upload (20 MiB).                                                                                                                  |
+| `RATE_LIMIT_*`           | No       | see [Rate limits](#rate-limits) | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                            |
+| `TRUST_PROXY`            | No       | none                            | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                     |
+| `ENCRYPTION_MODE`        | No       | `server`                        | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                           |
+| `ENCRYPTION_KEY`         | Yes      | none                            | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                     |
+| `RETENTION_DEFAULT_DAYS` | No       | `90`                            | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention). |
+| `RETENTION_MAX_DAYS`     | No       | none                            | Caps what a writer may choose, including \"forever\".                                                                                              |
+| `NODE_ENV`               | No       | none                            | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                         |
 
 ### Start
 
@@ -240,6 +242,21 @@ curl -s http://localhost:3000/prison/prisons \
 ```
 
 A token whose user has since been deleted or banned is rejected with `401`.
+
+### Rate limits
+
+The endpoints that need no token are limited, so nobody can guess passwords, enumerate usernames through recovery, or scan claim tokens at speed. A limited request gets `429` with a `Retry-After` header (seconds) and the general error shape, `"name": "RateLimitError"`. Counts live in the API process and reset on restart.
+
+| What                           | Default           | Environment variable                                                     |
+| ------------------------------ | ----------------- | ------------------------------------------------------------------------ |
+| Failed sign-ins per username   | 10 per 15 minutes | `RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`  |
+| Sign-in attempts per address   | 60 per 15 minutes | `RATE_LIMIT_LOGIN_PER_IP`                                                |
+| Claim token checks per address | 20 per hour       | `RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`             |
+| Recovery starts per username   | 5 per hour        | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES` |
+| Recovery starts per address    | 30 per hour       | `RATE_LIMIT_RECOVER_START_PER_IP`                                        |
+| Recovery finishes per username | 5 per hour        | `RATE_LIMIT_RECOVER_FINISH_PER_USER`                                     |
+
+Successful sign-ins never count against a username; once the failure limit is reached, even the right password is refused until the window ends. Usernames are compared case-insensitively. Set `RATE_LIMIT_ENABLED=false` to switch limiting off, and set `TRUST_PROXY` when the API is behind a reverse proxy, otherwise every client appears to come from the proxy's address and shares one budget.
 
 ### Signing out and revoking tokens
 
@@ -1593,7 +1610,7 @@ Body: `{"id": 41}`. Returns `"data": 1`. Once a letter is `printed` or `mailed`,
 
 #### Attachments
 
-A message can carry files: a scan of a prisoner's reply, a photo enclosed with a letter, a PDF to print. Accepted types are `application/pdf`, `image/jpeg`, `image/png`, and `image/webp`; the server checks the file's leading bytes against the declared type and refuses a mismatch. One upload is limited to `UPLOAD_MAX_BYTES` (default 10 MiB).
+A message can carry files: a scan of a prisoner's reply, a photo enclosed with a letter, a PDF to print. Accepted types are `application/pdf`, `image/jpeg`, `image/png`, and `image/webp`; the server checks the file's leading bytes against the declared type and refuses a mismatch. One upload is limited to `UPLOAD_MAX_BYTES` (default 20 MiB).
 
 Attachments follow the message's scope: whoever can read the message can list and download them, and whoever can edit it can add or delete them. Once a letter is `printed` or `mailed`, only an admin can add or remove its files; downloading still works.
 

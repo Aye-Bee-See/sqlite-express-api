@@ -16,7 +16,8 @@ const {
 	ENCRYPTION_MODE,
 	ENCRYPTION_KEY,
 	RETENTION_DEFAULT_DAYS,
-	RETENTION_MAX_DAYS
+	RETENTION_MAX_DAYS,
+	TRUST_PROXY
 } = process.env;
 
 /**
@@ -64,7 +65,7 @@ export const quietBoot = process.env.NODE_ENV === 'test';
 export const dbStorage = DB_STORAGE || 'database.sqlite';
 /** Directory that holds uploaded attachments (created on first upload). */
 export const uploadDir = UPLOAD_DIR || 'uploads';
-/** Largest accepted upload, in bytes. Default 10 MiB. */
+/** Largest accepted upload, in bytes. Default 20 MiB. */
 /**
  * How letters are encrypted. `server`: the API encrypts letter bodies, relay
  * notes, and attachments with per-letter content keys wrapped by
@@ -92,4 +93,41 @@ export const retentionDefaultDays = envDays(RETENTION_DEFAULT_DAYS, 90);
 // A cap of 0 would read as "forever" (the sentinel), so the cap starts at 1 day.
 export const retentionMaxDays = envDays(RETENTION_MAX_DAYS, null, { min: 1 });
 export const uploadMaxBytes =
-	UPLOAD_MAX_BYTES && Number(UPLOAD_MAX_BYTES) > 0 ? Number(UPLOAD_MAX_BYTES) : 10 * 1024 * 1024;
+	UPLOAD_MAX_BYTES && Number(UPLOAD_MAX_BYTES) > 0 ? Number(UPLOAD_MAX_BYTES) : 20 * 1024 * 1024;
+
+/**
+ * Rate limits on the unauthenticated endpoints. Every value is a positive
+ * whole number read from the environment, falling back to the default;
+ * RATE_LIMIT_ENABLED=false switches limiting off (the test suite does).
+ */
+function envCount(name, fallback) {
+	const n = Number(process.env[name]);
+	return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+export const rateLimits = {
+	enabled: envBool(process.env.RATE_LIMIT_ENABLED, true),
+	// Sign-in: failed attempts per username, and all attempts per address, per window.
+	loginFailuresPerUser: envCount('RATE_LIMIT_LOGIN_FAILURES_PER_USER', 10),
+	loginPerIp: envCount('RATE_LIMIT_LOGIN_PER_IP', 60),
+	loginWindowMinutes: envCount('RATE_LIMIT_LOGIN_WINDOW_MINUTES', 15),
+	// Claim token checks per address per window.
+	claimPerIp: envCount('RATE_LIMIT_CLAIM_PER_IP', 20),
+	claimWindowMinutes: envCount('RATE_LIMIT_CLAIM_WINDOW_MINUTES', 60),
+	// Recovery: starts per username and per address, finishes per username, per window.
+	recoverStartPerUser: envCount('RATE_LIMIT_RECOVER_START_PER_USER', 5),
+	recoverStartPerIp: envCount('RATE_LIMIT_RECOVER_START_PER_IP', 30),
+	recoverFinishPerUser: envCount('RATE_LIMIT_RECOVER_FINISH_PER_USER', 5),
+	recoverWindowMinutes: envCount('RATE_LIMIT_RECOVER_WINDOW_MINUTES', 60)
+};
+
+/**
+ * Express "trust proxy" setting, so req.ip is the client and not the
+ * reverse proxy. Unset: direct connections. Examples: 1 (one proxy hop),
+ * "loopback", or a subnet.
+ */
+export const trustProxy =
+	TRUST_PROXY === undefined || TRUST_PROXY === ''
+		? false
+		: /^\d+$/.test(TRUST_PROXY)
+			? Number(TRUST_PROXY)
+			: (envBool(TRUST_PROXY, null) ?? TRUST_PROXY);

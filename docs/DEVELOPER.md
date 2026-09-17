@@ -140,7 +140,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   │   ├── scope.services.js         threadScope(req) and resolveWriter(): who may see and write which chats and messages.
 │   │   ├── error.services.js         ErrorService.handler, the final error middleware.
 │   │   ├── upload.services.js        uploadSingle(field): multer (memory) with size and type limits, errors rendered as ValidationError.
-│   │   └── audit.services.js         audit(req, action, resource, targetId, details): append to AuditLog with req.user as actor.
+│   │   ├── audit.services.js         audit(req, action, resource, targetId, details): append to AuditLog with req.user as actor.
+│   │   └── ratelimit.services.js     limit() and the configured limiters for login, claim checks, and recovery; in-memory, 429 + Retry-After.
 │   ├── controllers/
 │   │   ├── route.controller.js       Base class: pagination, requireFound/requireAffected, handleSuccess, handleErr.
 │   │   ├── user.controller.js        Plus login, registration role policy, password/note stripping, managed writers, claim tokens (with key material in e2e mode).
@@ -446,6 +447,10 @@ The README documents the shapes from the client's point of view. Where they come
 
 Missing `username` or `password` never reaches the verify function; passport-local fails with a 400 that renders as `{ name: 'AuthenticationError', info: 'Bad Request', status: 400 }`.
 
+### Rate limits
+
+`routes/services/ratelimit.services.js` is a small fixed-window limiter kept in a `Map` (swept every minute, hard-capped in size). `limit({ name, what, windowMs, perIp, perSubject, subject, failuresOnly })` builds a middleware; `limiters` holds the four in use: `login` (failures per username counted on the response's 4xx, all attempts per address), `claimCheck`, `recoverStart`, and `recoverFinish`. Every number comes from `rateLimits` in `constants.js` (`RATE_LIMIT_*`), and `RATE_LIMIT_ENABLED=false` disables it, which the test helper does; `test/ratelimit.test.js` opts back in with small values. A refusal is `next(new HttpError(429, ..., 'RateLimitError'))` after setting `Retry-After`. `app.set('trust proxy', trustProxy)` makes `req.ip` meaningful behind a proxy. One process only: a second API instance would need a shared store.
+
 ### Token creation
 
 Each token's payload carries `id`, `jti` (16 random bytes, hex), `issued` (milliseconds; finer than the standard `iat`), and the legacy `expiry`; `jwt.sign` adds `iat` and `exp` (one week). `authService.issueToken(user)` makes one outside the login flow (after a self password change), and `authService.tokenPayload(req)` decodes the bearer token of a request that already passed the strategy.
@@ -688,7 +693,7 @@ A cautionary tale: in June 2025 the `no-prototype-builtins` autofix turned `this
 `npm test` runs `node --test "test/**/*.test.js"` (a glob, because Node 22 and 24 do not expand a bare directory argument). There are no test dependencies: the built-in runner, `node:assert`, and global `fetch`.
 
 - `test/helpers.js` pins the environment (`DB_STORAGE=:memory:`, `DB_SEED=false`, a test JWT secret, blank `ADMIN_*`) **before** importing `app.js`, because `constants.js` reads `process.env` at import time. It exports `startServer()` (awaits `ready`, listens on an ephemeral port), `stopServer()`, thin `get`/`post`/`put`/`del` helpers that send JSON and parse the response, `upload()` (multipart via `FormData`) and `getBytes()` (raw download), a per-process temporary `UPLOAD_DIR` (removed by `stopServer()`) with a 64 KiB `UPLOAD_MAX_BYTES`, a fixed test `ENCRYPTION_KEY`, `makeUser()` (creates through the model so the password is hashed, then logs in), and `makeFixtures()` (admin; an active Chapter record `group` with a `chapter`-role member and an unclaimed managed `writer`; two independent users `alice` and `bob`; a prison with two prisoners; a rule).
-- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `e2e`, `encryption`, `groups`, `letters`, `messaging`, `migrations`, `moderation`, `retention`, `sessions`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
+- Each test file is its own process, so each gets a fresh in-memory database. Files: `attachments`, `auth`, `authorization`, `directory`, `directory-fields`, `e2e`, `encryption`, `groups`, `letters`, `messaging`, `migrations`, `moderation`, `ratelimit`, `retention`, `sessions`, `public`, `search`, `users`, `writers` (HTTP-level), `errors` (pure unit tests of the error classes and `ErrorService`), and `bootstrap` (boots with `ADMIN_*` set; cannot use the helper).
 - Seeded data is not used by the tests; fixtures are created explicitly, so tests never depend on seed ids.
 - CI (`.github/workflows/test.yml`) runs `npm ci`, ESLint, and the suite on Node 22 and 24 for every pull request and push to `main`.
 
@@ -765,10 +770,10 @@ Known gaps, roughly in the order they are worth tackling:
 3. **Message `full=true`** on the single read embeds `relay_group` and `status_history`; on lists it is still ignored. `chat_details` / `user_details` / `prisoner_details` includes are a few lines if clients want them.
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
 5. **Token refresh.** Logout and revocation exist; there is still no refresh, so a week-long token simply expires and the client logs in again.
-6. **Key rotation and e2e follow-ups.** No script re-wraps the server envelopes under a new `ENCRYPTION_KEY` yet (unwrap with the old key, wrap with the new, update `keyLabel`). In e2e mode: rate limiting on the recovery endpoints, a way for a group to rotate its keypair (re-seal every envelope it holds), and group-only envelopes for anonymous-writer letters whose account has no keys.
+6. **Key rotation and e2e follow-ups.** No script re-wraps the server envelopes under a new `ENCRYPTION_KEY` yet (unwrap with the old key, wrap with the new, update `keyLabel`). In e2e mode: a way for a group to rotate its keypair (re-seal every envelope it holds), and group-only envelopes for anonymous-writer letters whose account has no keys.
 7. **Moderation follow-ups.** Anonymous corrections from the public footer (a submission with no `submittedBy`, rate-limited), group invitations with vouching, site settings, and email or in-app notification of decisions to submitters.
 8. **Storage.** Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes to facilities and prisoners are still open to every active chapter account (groups may only edit their own group record).
-9. **Rate limiting and request logging.** None.
+9. **Request logging.** None. Rate limiting covers the unauthenticated endpoints only and lives in one process' memory; authenticated write endpoints are not limited, and a second API instance would need a shared store.
 10. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
 11. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
 12. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.

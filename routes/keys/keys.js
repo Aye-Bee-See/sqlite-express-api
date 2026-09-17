@@ -2,6 +2,7 @@ import express from 'express';
 import { default as passport } from 'passport';
 import { keysEnd } from '#routes/constants.js';
 import { default as keysCtrlr } from '#rtControllers/keys.controller.js';
+import { limiters } from '#rtServices/ratelimit.services.js';
 
 /** Key material routes, mounted under /auth beside the user routes. */
 class KeysRoutes {
@@ -25,8 +26,12 @@ class KeysRoutes {
 		this.Router.get(keysEnd.get.publicKey, authenticate, this.#Controller.publicKey);
 
 		// Recovery is public: the recovery code is the credential.
-		this.Router.get(keysEnd.get.recoverChallenge, this.#Controller.recoverChallenge);
-		this.Router.post(keysEnd.post.create, this.#Controller.create);
+		this.Router.get(
+			keysEnd.get.recoverChallenge,
+			limiters.recoverStart,
+			this.#Controller.recoverChallenge
+		);
+		this.Router.post(keysEnd.post.create, limiters.recoverFinish, this.#Controller.create);
 
 		// Group keys
 		this.Router.put(keysEnd.put.chapterKeys, authenticate, this.#Controller.chapterKeys);

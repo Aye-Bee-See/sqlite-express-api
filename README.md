@@ -60,27 +60,29 @@ Copy `.env.example` to `.env` and edit it. `.env` is git-ignored.
 cp .env.example .env
 ```
 
-| Variable                 | Required | Default                         | Purpose                                                                                                                                            |
-| ------------------------ | -------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `JWT_SECRET`             | Yes      | none                            | Secret used to sign and verify login tokens. Login fails without it.                                                                               |
-| `PORT`                   | Yes      | none                            | TCP port to listen on.                                                                                                                             |
-| `ADMIN_USERNAME`         | No       | none                            | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                  |
-| `ADMIN_PASSWORD`         | No       | none                            | Password for that account, at least 7 characters.                                                                                                  |
-| `ADMIN_EMAIL`            | No       | none                            | Email for that account.                                                                                                                            |
-| `CORS_ORIGIN`            | No       | `http://localhost:3001`         | Browser origins allowed by CORS, comma-separated.                                                                                                  |
-| `DB_RESET`               | No       | `false`                         | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                        |
-| `DB_SEED`                | No       | `true`                          | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                              |
-| `DB_LOGGING`             | No       | `false`                         | `true` prints every SQL statement.                                                                                                                 |
-| `DB_STORAGE`             | No       | `database.sqlite`               | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                         |
-| `UPLOAD_DIR`             | No       | `uploads`                       | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.              |
-| `UPLOAD_MAX_BYTES`       | No       | `20971520`                      | Largest accepted upload (20 MiB).                                                                                                                  |
-| `RATE_LIMIT_*`           | No       | see [Rate limits](#rate-limits) | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                            |
-| `TRUST_PROXY`            | No       | none                            | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                     |
-| `ENCRYPTION_MODE`        | No       | `server`                        | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                           |
-| `ENCRYPTION_KEY`         | Yes      | none                            | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                     |
-| `RETENTION_DEFAULT_DAYS` | No       | `90`                            | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention). |
-| `RETENTION_MAX_DAYS`     | No       | none                            | Caps what a writer may choose, including \"forever\".                                                                                              |
-| `NODE_ENV`               | No       | none                            | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                         |
+| Variable                   | Required | Default                         | Purpose                                                                                                                                            |
+| -------------------------- | -------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JWT_SECRET`               | Yes      | none                            | Secret used to sign and verify login tokens. Login fails without it.                                                                               |
+| `PORT`                     | Yes      | none                            | TCP port to listen on.                                                                                                                             |
+| `ADMIN_USERNAME`           | No       | none                            | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                  |
+| `ADMIN_PASSWORD`           | No       | none                            | Password for that account, at least 7 characters.                                                                                                  |
+| `ADMIN_EMAIL`              | No       | none                            | Email for that account.                                                                                                                            |
+| `CORS_ORIGIN`              | No       | `http://localhost:3001`         | Browser origins allowed by CORS, comma-separated.                                                                                                  |
+| `DB_RESET`                 | No       | `false`                         | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                        |
+| `DB_SEED`                  | No       | `true`                          | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                              |
+| `DB_LOGGING`               | No       | `false`                         | `true` prints every SQL statement.                                                                                                                 |
+| `DB_STORAGE`               | No       | `database.sqlite`               | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                         |
+| `UPLOAD_DIR`               | No       | `uploads`                       | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.              |
+| `UPLOAD_MAX_BYTES`         | No       | `20971520`                      | Largest accepted upload (20 MiB).                                                                                                                  |
+| `RATE_LIMIT_*`             | No       | see [Rate limits](#rate-limits) | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                            |
+| `TRUST_PROXY`              | No       | none                            | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                     |
+| `ENCRYPTION_MODE`          | No       | `server`                        | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                           |
+| `ENCRYPTION_KEY`           | Yes      | none                            | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                     |
+| `RETENTION_DEFAULT_DAYS`   | No       | `90`                            | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention). |
+| `RETENTION_MAX_DAYS`       | No       | none                            | Caps what a writer may choose, including \"forever\".                                                                                              |
+| `INVITATION_DAYS`          | No       | `14`                            | How long an invitation token works. See [Invitations](#invitations).                                                                               |
+| `INVITATION_AUTO_ACTIVATE` | No       | `false`                         | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.           |
+| `NODE_ENV`                 | No       | none                            | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                         |
 
 ### Start
 
@@ -244,16 +246,17 @@ A token whose user has since been deleted or banned is rejected with `401`.
 
 ### Rate limits
 
-The endpoints that need no token are limited, so nobody can guess passwords, enumerate usernames through recovery, or scan claim tokens at speed. A limited request gets `429` with a `Retry-After` header (seconds) and the general error shape, `"name": "RateLimitError"`. Counts live in the API process and reset on restart.
+The endpoints that need no token are limited, so nobody can guess passwords, enumerate usernames through recovery, or scan claim and invitation tokens at speed. A limited request gets `429` with a `Retry-After` header (seconds) and the general error shape, `"name": "RateLimitError"`. Counts live in the API process and reset on restart.
 
-| What                           | Default           | Environment variable                                                     |
-| ------------------------------ | ----------------- | ------------------------------------------------------------------------ |
-| Failed sign-ins per username   | 10 per 15 minutes | `RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`  |
-| Sign-in attempts per address   | 60 per 15 minutes | `RATE_LIMIT_LOGIN_PER_IP`                                                |
-| Claim token checks per address | 20 per hour       | `RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`             |
-| Recovery starts per username   | 5 per hour        | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES` |
-| Recovery starts per address    | 30 per hour       | `RATE_LIMIT_RECOVER_START_PER_IP`                                        |
-| Recovery finishes per username | 5 per hour        | `RATE_LIMIT_RECOVER_FINISH_PER_USER`                                     |
+| What                                          | Default           | Environment variable                                                     |
+| --------------------------------------------- | ----------------- | ------------------------------------------------------------------------ |
+| Failed sign-ins per username                  | 10 per 15 minutes | `RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`  |
+| Sign-in attempts per address                  | 60 per 15 minutes | `RATE_LIMIT_LOGIN_PER_IP`                                                |
+| Claim token checks per address                | 20 per hour       | `RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`             |
+| Invitation checks and acceptances per address | 20 per hour       | `RATE_LIMIT_INVITE_PER_IP`, `RATE_LIMIT_INVITE_WINDOW_MINUTES`           |
+| Recovery starts per username                  | 5 per hour        | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES` |
+| Recovery starts per address                   | 30 per hour       | `RATE_LIMIT_RECOVER_START_PER_IP`                                        |
+| Recovery finishes per username                | 5 per hour        | `RATE_LIMIT_RECOVER_FINISH_PER_USER`                                     |
 
 Successful sign-ins never count against a username; once the failure limit is reached, even the right password is refused until the window ends. Usernames are compared case-insensitively. Set `RATE_LIMIT_ENABLED=false` to switch limiting off, and set `TRUST_PROXY` when the API is behind a reverse proxy, otherwise every client appears to come from the proxy's address and shares one budget.
 
@@ -278,23 +281,25 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 
 ### What each role can do
 
-| Action                                                           | `user`                | `chapter`                         | `admin` |
-| ---------------------------------------------------------------- | --------------------- | --------------------------------- | ------- |
-| Read published prisons, prisoners, chapters                      | Yes (and anonymous)   | Yes                               | Yes     |
-| Read draft and pending directory records                         | No                    | Yes                               | Yes     |
-| Create, update, delete prisons, prisoners, chapters              | No                    | Yes                               | Yes     |
-| Set a prison's mail rules                                        | No                    | Yes                               | Yes     |
-| Read, create, update, delete chats and messages                  | **Own threads only**  | **Managed writers' threads only** | All     |
-| Send a message as the prisoner side (`sender: prisoner`)         | No (forced to `user`) | Yes                               | Yes     |
-| Propose a directory change or record ([Moderation](#moderation)) | Yes                   | Yes                               | Yes     |
-| Approve or reject proposals; read the audit log and summary      | No                    | No                                | Yes     |
-| Move a letter to `printed` / `mailed`                            | No                    | As its relay group                | Yes     |
-| Create managed writers, issue claim tokens                       | No                    | Own group                         | Yes     |
-| Read, edit, delete a group's unclaimed managed writers           | No                    | Own group                         | Yes     |
-| Read own user record; update or delete own account               | Yes                   | Yes                               | Yes     |
-| Read, update, delete other users; list users                     | No                    | No                                | Yes     |
-| Revoke every session of another account                          | No                    | No                                | Yes     |
-| Change a role, or create a non-`user` account                    | No                    | No                                | Yes     |
+| Action                                                                  | `user`                | `chapter`                         | `admin` |
+| ----------------------------------------------------------------------- | --------------------- | --------------------------------- | ------- |
+| Read published prisons, prisoners, chapters                             | Yes (and anonymous)   | Yes                               | Yes     |
+| Read draft and pending directory records                                | No                    | Yes                               | Yes     |
+| Create, update, delete prisons, prisoners, chapters                     | No                    | Yes                               | Yes     |
+| Set a prison's mail rules                                               | No                    | Yes                               | Yes     |
+| Read, create, update, delete chats and messages                         | **Own threads only**  | **Managed writers' threads only** | All     |
+| Send a message as the prisoner side (`sender: prisoner`)                | No (forced to `user`) | Yes                               | Yes     |
+| Propose a directory change or record ([Moderation](#moderation))        | Yes                   | Yes                               | Yes     |
+| Approve or reject proposals; read the audit log and summary             | No                    | No                                | Yes     |
+| Move a letter to `printed` / `mailed`                                   | No                    | As its relay group                | Yes     |
+| Create managed writers, issue claim tokens                              | No                    | Own group                         | Yes     |
+| Invite a new group (vouching for it) or a new member of one's own group | No                    | Own group, if active              | Yes     |
+| Approve a group that joined by invitation (`accountStatus`)             | No                    | No                                | Yes     |
+| Read, edit, delete a group's unclaimed managed writers                  | No                    | Own group                         | Yes     |
+| Read own user record; update or delete own account                      | Yes                   | Yes                               | Yes     |
+| Read, update, delete other users; list users                            | No                    | No                                | Yes     |
+| Revoke every session of another account                                 | No                    | No                                | Yes     |
+| Change a role, or create a non-`user` account                           | No                    | No                                | Yes     |
 
 "Own threads" means chats whose `user` is the caller's id, and messages whose `user` is the caller's id. For a `user`:
 
@@ -344,6 +349,7 @@ All examples use `http://localhost:3000`. Each resource lives under its own pref
 | `/messaging`  | Messages               | `/messaging/message`     | `/messaging/messages`     |
 | `/chapter`    | Chapters               | `/chapter/chapter`       | `/chapter/chapters`       |
 | `/moderation` | Submissions, audit log | `/moderation/submission` | `/moderation/submissions` |
+| `/invitation` | Invitations            | `/invitation/invitation` | `/invitation/invitations` |
 
 Note the odd one out: messages are mounted at `/messaging`, while chats are at `/chat`.
 
@@ -1720,26 +1726,6 @@ Parameters: `page`, `page_size`, `q`, `sort`, and (staff) `recordStatus`.
 
 `?id=1` for GET (add `full=true` to embed `supported_prisoners` and `relay_prisons`); `{"id": 2, ...}` in the body for PUT and DELETE. A missing id is a `404` on all three.
 
-## Known quirks
-
-None of these break anything, but clients should know about them.
-
-1. Several `info` strings contain typos ("retireved", "Succeessfully") that clients may already match on. They are left as-is for now.
-2. `PUT /prison/relay` returns the prison object under a key named `updatedRows`.
-3. `full=true` is accepted but ignored on message endpoints.
-4. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
-5. Seeded ids are not stable across databases. Read them from responses.
-
-## Postman collection
-
-`ABC-3.postman_collection.json` in the repository root matches the current API. Import it, then:
-
-1. Run **Users › Login (seeded admin)**. Its test script stores the token in the `{{jwt}}` collection variable and the admin's id in `{{userId}}`.
-2. Every other request sends `{{jwt}}` as a bearer token automatically.
-3. Ids in request bodies are examples from the seed data; adjust them from list responses.
-
-`ABC-3.postman_collection_old.json` is a historical snapshot and does not match the API.
-
 ### Moderation
 
 Anyone signed in can propose a new prisoner, facility, or group, or a change to an existing one. Admins review the queue and approve (optionally editing first), or reject with a reason. Every decision, and every direct staff write to the directory, lands in an append-only audit log.
@@ -1833,7 +1819,110 @@ Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest
 }
 ```
 
-`staleVerification` matches the `stale=true` list filter on prisoners and prisons. Not yet built: anonymous corrections from the public footer, group invitations with vouching, and site settings.
+`staleVerification` matches the `stale=true` list filter on prisoners and prisons. Not yet built: anonymous corrections from the public footer and site settings.
+
+### Invitations
+
+Groups are not registered; they are invited. A member of an active group invites a new group, and by doing so their group vouches for it. The same mechanism lets a group add its own members, which otherwise only an admin could do. The vouching itself happens between people, off the platform; the API records it and turns it into a group and a first account.
+
+| Method | Path                      | Auth                    | Purpose                                                            |
+| ------ | ------------------------- | ----------------------- | ------------------------------------------------------------------ |
+| POST   | `/invitation/invitation`  | Group or admin          | Create an invitation; the response carries the token, once         |
+| GET    | `/invitation/invitations` | Group or admin          | A group's own invitations; admins see all                          |
+| PUT    | `/invitation/invitation`  | Inviting group or admin | Renew: a fresh token and expiry, the old token stops working       |
+| DELETE | `/invitation/invitation`  | Inviting group or admin | Withdraw a pending invitation                                      |
+| GET    | `/invitation/invitation`  | Public                  | What a token invites its holder to                                 |
+| POST   | `/invitation/accept`      | Public                  | Accept: creates the account and, for a group invitation, the group |
+
+The token is the credential, like a claim token: 24 characters that read aloud well, stored only as a hash, valid for `INVITATION_DAYS` (14). **The API never sends it anywhere.** The inviter hands it over in person or through a channel the two already trust. `inviteeEmail` and `note` are the inviter's own notes and are never shown to the invitee. The two public endpoints are [rate limited](#rate-limits).
+
+#### POST /invitation/invitation
+
+```bash
+curl -s -X POST http://localhost:3000/invitation/invitation \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"kind":"group","inviteeName":"Riverside ABC","note":"Met at the bookfair; two of us know them"}'
+```
+
+| Field                  | Notes                                                                                                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`                 | `group`: a new group joins the network, vouched for by the caller's group. `member`: a person joins the caller's group.                                                |
+| `inviteeName`          | Required. Who or what is being invited.                                                                                                                                |
+| `inviteeEmail`, `note` | Optional, private to the inviting group and admins.                                                                                                                    |
+| `chapter`              | Admins only: the vouching group (`group`; may be omitted, so nobody vouches) or the group being joined (`member`; required). A group always invites on its own behalf. |
+
+Returns `201` with the invitation and `token`. The token appears in this response and in the renew response, nowhere else. Only a member of an **active** group can invite (`403` otherwise), and an admin cannot make a pending or suspended group vouch (`409`). List rows carry `state`: `pending`, `expired`, `accepted`, or `revoked`; filter with `status`, `kind`, and (admin) `chapter`.
+
+#### GET /invitation/invitation?token=
+
+```json
+{
+	"data": {
+		"kind": "group",
+		"inviteeName": "Riverside ABC",
+		"chapter": { "id": 1, "name": "Test Chapter" },
+		"expiresAt": "2026-10-01T12:00:00.000Z",
+		"activation": "admin_review",
+		"groupFields": [
+			"name",
+			"location",
+			"subregion",
+			"country",
+			"about",
+			"website",
+			"email",
+			"socialLinks",
+			"services",
+			"announcement",
+			"networkRole"
+		]
+	},
+	"success": true,
+	"status": 200,
+	"name": "invitation one"
+}
+```
+
+`chapter` is the group that vouches (`group`) or the group being joined (`member`); `null` when an admin invited with nobody vouching. `activation` tells the client what to say after accepting: `immediate`, or `admin_review` when the new group must wait for an admin. `groupFields` lists what the acceptance form may send about the new group. An unknown token is `404`; an expired, used, or withdrawn one is `410`, and so is one whose inviting group is no longer active, because a vouch is only as good as the group behind it.
+
+#### POST /invitation/accept
+
+```bash
+curl -s -X POST http://localhost:3000/invitation/accept -H 'Content-Type: application/json' -d '{
+  "token": "7K2M9QX4T8VB3N6Y1RZC5WDH",
+  "username": "riverside", "password": "longenough", "email": "riverside@example.com",
+  "group": { "name": "Riverside ABC", "location": { "city": "Riverside" }, "country": "Canada", "services": ["letter_writing_nights"] }
+}'
+```
+
+`username`, `password`, `email`, and optional `name` follow the [user field rules](#user-fields); the account gets role `chapter`. In [end-to-end mode](#end-to-end-mode) the body may also carry the account's key fields, exactly as registration does. `group` is required for a `group` invitation and refused for a `member` one; it takes the fields listed in `groupFields`, so an invitee cannot approve, verify, or choose the voucher of their own group.
+
+Returns `201` with `user`, `chapter` (`id`, `name`, `accountStatus`), and `activation`.
+
+- A **member** joins the inviting group and can act at once.
+- A **group** is created with `vouchedBy` set to the inviting group. By default it starts with `accountStatus: "pending"` and `recordStatus: "pending"`: its account can sign in but not act, and it is not in the public directory. An admin approves it with `PUT /chapter/chapter {"id": 7, "accountStatus": "active", "recordStatus": "published"}`; `GET /moderation/summary` counts groups waiting (`groups.pendingApproval`), and `GET /chapter/chapters?accountStatus=pending` lists them. With `INVITATION_AUTO_ACTIVATE=true` the invitation is enough and the group is active and listed at once. That includes an admin's invitation with no vouching group: only an admin can issue one (a group that sends `chapter: null` gets `403`), so an admin has already decided.
+
+An invitation works once: of two simultaneous acceptances one gets `410`. A refused acceptance (a taken username, a weak password, an unknown service) leaves nothing behind and the invitation still usable, so the invitee can correct the form and send it again.
+
+## Known quirks
+
+None of these break anything, but clients should know about them.
+
+1. Several `info` strings contain typos ("retireved", "Succeessfully") that clients may already match on. They are left as-is for now.
+2. `PUT /prison/relay` returns the prison object under a key named `updatedRows`.
+3. `full=true` is accepted but ignored on message endpoints.
+4. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
+5. Seeded ids are not stable across databases. Read them from responses.
+
+## Postman collection
+
+`ABC-3.postman_collection.json` in the repository root matches the current API. Import it, then:
+
+1. Run **Users › Login (seeded admin)**. Its test script stores the token in the `{{jwt}}` collection variable and the admin's id in `{{userId}}`.
+2. Every other request sends `{{jwt}}` as a bearer token automatically.
+3. Ids in request bodies are examples from the seed data; adjust them from list responses.
+
+`ABC-3.postman_collection_old.json` is a historical snapshot and does not match the API.
 
 ## Further reading
 

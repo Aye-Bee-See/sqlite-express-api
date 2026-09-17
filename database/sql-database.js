@@ -39,6 +39,7 @@ export const AuditLog = Models.AuditLog.init(sequelize, Sequelize);
 export const OrgMemberKey = Models.OrgMemberKey.init(sequelize, Sequelize);
 export const RevokedToken = Models.RevokedToken.init(sequelize, Sequelize);
 export const SessionRun = Models.SessionRun.init(sequelize, Sequelize);
+export const Invitation = Models.Invitation.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -54,6 +55,7 @@ Submission.associate(Models);
 AuditLog.associate(Models);
 OrgMemberKey.associate(Models);
 RevokedToken.associate(Models);
+Invitation.associate(Models);
 
 /** How often expired revocations are cleared while the server runs. */
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;

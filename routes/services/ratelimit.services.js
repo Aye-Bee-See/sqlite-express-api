@@ -128,6 +128,12 @@ export const limiters = {
 		windowMs: minutes(rateLimits.claimWindowMinutes),
 		perIp: rateLimits.claimPerIp
 	}),
+	inviteCheck: limit({
+		name: 'invite',
+		what: 'invitation token checks',
+		windowMs: minutes(rateLimits.inviteWindowMinutes),
+		perIp: rateLimits.invitePerIp
+	}),
 	recoverStart: limit({
 		name: 'recover-start',
 		what: 'recovery requests',

@@ -110,8 +110,10 @@ export default class RouteController {
 			? callerName.toLowerCase().substring(3)
 			: callerName;
 		const { method } = stack;
-		// Creates answer 201; everything else (reads, updates, deletes, login) 200.
-		const status = msgRef.startsWith('create') || msgRef === 'claim' ? 201 : 200;
+		// Creates answer 201 (claiming and accepting an invitation create an account);
+		// everything else (reads, updates, deletes, login) 200.
+		const status =
+			msgRef.startsWith('create') || msgRef === 'claim' || msgRef === 'accept' ? 201 : 200;
 		const message = {
 			data: outObj,
 			info: ctrlMsg[method][msgRef].success.condition[condition],

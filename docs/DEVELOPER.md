@@ -151,7 +151,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   │   ├── chat.controller.js        Scope checks via threadScope().
 │   │   ├── message.controller.js     Scope checks via threadScope().
 │   │   ├── chapter.controller.js
-│   │   └── moderation.controller.js  create/getMany/getOne/update/remove (proposals), approve/reject, audit, summary.
+│   │   ├── moderation.controller.js  create/getMany/getOne/update/remove (proposals), approve/reject, audit, summary.
+│   │   └── invitation.controller.js  Invitations: create, list, renew, withdraw; public token check and accept.
 │   ├── user/user.js                  Route classes. All seven follow the same template.
 │   ├── prison/prison.js
 │   ├── prisoner/prisoner.js
@@ -159,6 +160,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   ├── message/message.js
 │   ├── chapter/chapter.js
 │   ├── moderation/moderation.js   Proposals, review, audit log, summary.
+│   ├── invitation/invitation.js   Invitations; the token check and accept are public and rate limited.
 │   └── keys/keys.js               Key routes, mounted under /auth beside the user routes.
 └── database/
     ├── connection.js                 The Sequelize instance; no models, so the CLI can import it alone.
@@ -186,6 +188,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     │   ├── org-member-key.model.js   OrgMemberKey: the group private key sealed per member.
     │   ├── revoked-token.model.js    RevokedToken: logged-out token ids until they expire; revoke, isRevoked, sweep.
     │   ├── session-run.model.js      SessionRun: when this database issued tokens; recordIssue, covers, sweep.
+    │   ├── invitation.model.js       Invitation: issue, renew, revoke, lookup, consume / release / complete.
     │   ├── chapter.model.js
     │   ├── submission.model.js       Submission: RESOURCES registry (fields, submittable, create/update), propose, revise, approve, reject, withdraw, currentValues, pendingCounts.
     │   └── audit-log.model.js        AuditLog: record, list (newest first). Append-only, no updatedAt.
@@ -607,6 +610,17 @@ A facility's mail rules are tags, not text. `database/mail-rules.js` is the voca
 - To add a tag, add an entry to `MAIL_RULES`. To rename or remove one, write a migration that rewrites `Prisons.mailRules`; stored values are not checked on read.
 - History: until `2026.09.17T01.00.00.mail-rule-tags` rules were free-text `Rules` records attached through `RulePassthrough`, with their own `/rule` endpoints. The migration maps the seeded titles to tags and limits (a frozen table inside the migration), keeps the words of any hand-written rule in the facility's `notes`, and drops both tables; `down` rebuilds them from the tags.
 
+### Invitations
+
+`Invitations` rows are `kind` (`group` | `member`), `chapterId` (the vouching group, or the group being joined; null only for an admin's unvouched group invitation), the inviter's notes (`inviteeName`, `inviteeEmail`, `note`), `tokenHash` (SHA-256 of the upper-cased token, shared with claim tokens via `hashToken`; excluded by the default scope), `expiresAt`, `status` (`pending` | `accepted` | `revoked`; `expired` is derived by `Invitation.stateOf`), `invitedBy`, and what acceptance produced (`acceptedAt`, `acceptedUser`, `createdChapter`). The server makes the token, because unlike a claim token it wraps no key: the invitee generates their own keys when they accept. Mounted at `/invitation` (`InvitationRoutes`).
+
+- Creating, listing, renewing, and withdrawing sit behind `requireRole(ADMIN, CHAPTER)`, which already refuses members of groups that are not active. `#managed` limits a group to invitations whose `chapterId` is its own.
+- `#usable(token)` is the gate for both public endpoints: unknown is 404; expired, accepted, revoked, or an inviting group that is no longer active is 410.
+- `accept` validates first (`Chapter.build().validate()`, `User.build().validate()`, `KeysController.keyFields`), then takes the invitation with a conditional update (`Invitation.consume`: pending and unexpired), then creates the group and the account. Uniqueness can only be found by inserting, so a failure at any step after the consume is compensated: the new account (if it got that far) and the new group are destroyed, in that order, and `Invitation.release` makes the invitation pending again. The audit entry is written last, so the log never describes an acceptance that was undone. This is compensation rather than a transaction on purpose: an in-memory SQLite database has one connection, and the only transaction in the code base (group key rotation) owns it.
+- The new group's fields come from `GROUP_PROFILE_FIELDS`, which is the moderation `submittable` list for chapters: the profile, never `accountStatus`, `recordStatus`, `vouchedBy`, or verification. `vouchedBy` is set from the invitation. `#activatesAtOnce` is the one rule for both the public view's `activation` and the statuses the group is created with: a member always, a group when `invitationAutoActivate` (`INVITATION_AUTO_ACTIVATE`) is set, including an admin's unvouched invitation, which only an admin can issue. It chooses between `pending`/`pending` and `active`/`published` for `accountStatus`/`recordStatus`; an admin approves with the ordinary chapter update.
+- `handleSuccess` answers 201 for `accept`, as for `claim`.
+- Audit actions: `invitation.create`, `.renew`, `.revoke`, `.accept` (the last with no actor).
+
 ### Retention
 
 `database/retention.js` exports `windowFor(writer)` (the writer's `retentionDays`, else the default, capped; `null` means keep forever) and `runRetention({ dryRun, now, log })`. The run selects messages with status `mailed` or `received` and `keep = false`, resolves each writer's window, and deletes those whose `statusChangedAt` is older than it with `purgeIfUnpinned`: a conditional `destroy` (`keep = false` and still mailed or received at that instant, so a pin made after the snapshot wins) after listing the attachment files, which are unlinked once the row is gone (envelope and history rows cascade). Runs in one process never overlap (`runRetention` reuses an in-flight run); a concurrent manual run in another process only ever double-counts nothing, because each deletion is conditional. A cap of `0` is refused (it would read as the forever sentinel). Chats emptied by the run are destroyed, one `retention.run` audit entry records the counts, and `VACUUM` follows so freed pages leave the file. `sql-database.js` runs it at boot and every six hours on an unref'd timer; `npm run retention [-- --dry-run]` runs it by hand. `PUT /auth/user` validates `retentionDays` (whole number, not negative, within the cap) and lets a managing group set it for its unclaimed and anonymous writers; `PUT /messaging/message` accepts `{ id, keep }` on a mailed letter from anyone in scope, the one edit allowed after mailing.
@@ -777,7 +791,7 @@ Known gaps, roughly in the order they are worth tackling:
 4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-relay response. Fix together with a front-end release, since clients may match on them.
 5. **Token refresh.** Logout and revocation exist; there is still no refresh, so a week-long token simply expires and the client logs in again.
 6. **Key rotation and e2e follow-ups.** No script re-wraps the server envelopes under a new `ENCRYPTION_KEY` yet (unwrap with the old key, wrap with the new, update `keyLabel`). In e2e mode: rotation material is returned in one response (page it if a group ever holds tens of thousands of letters), an admin path for a group that has lost every key holder (its old letters are unrecoverable; it would need its key cleared to start again), and group-only envelopes for anonymous-writer letters whose account has no keys.
-7. **Moderation follow-ups.** Anonymous corrections from the public footer (a submission with no `submittedBy`, rate-limited), group invitations with vouching, site settings, and email or in-app notification of decisions to submitters.
+7. **Moderation follow-ups.** Anonymous corrections from the public footer (a submission with no `submittedBy`, rate-limited), a second vouch or a limit on vouches per group if the network wants one, site settings, and email or in-app notification of decisions to submitters.
 8. **Storage.** Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes to facilities and prisoners are still open to every active chapter account (groups may only edit their own group record).
 9. **Request logging.** None. Rate limiting covers the unauthenticated endpoints only and lives in one process' memory; authenticated write endpoints are not limited, and a second API instance would need a shared store.
 10. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.

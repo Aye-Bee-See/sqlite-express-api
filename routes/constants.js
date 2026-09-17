@@ -94,6 +94,22 @@ const endpoints = {
 			remove: '/chapter'
 		}
 	},
+	invitation: {
+		get: {
+			many: '/invitations',
+			one: '/invitation'
+		},
+		post: {
+			create: '/invitation',
+			accept: '/accept'
+		},
+		put: {
+			update: '/invitation'
+		},
+		delete: {
+			remove: '/invitation'
+		}
+	},
 	moderation: {
 		get: {
 			many: '/submissions',
@@ -453,6 +469,42 @@ const messages = {
 			}
 		}
 	},
+	invitation: {
+		get: {
+			many: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing invitations.' } }
+			},
+			one: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error checking the invitation.' } }
+			}
+		},
+		post: {
+			create: {
+				success: {
+					condition: { par: 'Invitation created. The token is shown once; hand it over yourself.' }
+				},
+				error: { condition: { par: 'Error creating the invitation.' } }
+			},
+			accept: {
+				success: { condition: { par: 'Invitation accepted. You can now sign in.' } },
+				error: { condition: { par: 'Error accepting the invitation.' } }
+			}
+		},
+		put: {
+			update: {
+				success: { condition: { par: 'Invitation renewed. The old token no longer works.' } },
+				error: { condition: { par: 'Error renewing the invitation.' } }
+			}
+		},
+		delete: {
+			remove: {
+				success: { condition: { par: 'Invitation withdrawn.' } },
+				error: { condition: { par: 'Error withdrawing the invitation.' } }
+			}
+		}
+	},
 	moderation: {
 		get: {
 			many: {
@@ -676,6 +728,7 @@ export const {
 	chat: chatMsg,
 	chapter: chapterMsg,
 	moderation: moderationMsg,
+	invitation: invitationMsg,
 	keys: keysMsg
 } = messages;
 
@@ -689,5 +742,6 @@ export const {
 	chat: chatEnd,
 	chapter: chapterEnd,
 	moderation: moderationEnd,
+	invitation: invitationEnd,
 	keys: keysEnd
 } = endpoints;

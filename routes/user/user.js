@@ -3,6 +3,7 @@ import { default as passport } from 'passport';
 import { userEnd } from '#routes/constants.js';
 import { default as userCrtlr } from '#rtControllers/user.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { limiters } from '#rtServices/ratelimit.services.js';
 
 class UserRoutes {
 	static Router;
@@ -36,6 +37,7 @@ class UserRoutes {
 		// Login
 		this.Router.post(
 			userEnd.post.login,
+			limiters.login,
 			passport.authenticate('LStrat', { session: false, authInfo: true, failWithError: true }),
 			this.#Controller.login
 		);
@@ -65,7 +67,7 @@ class UserRoutes {
 		this.Router.delete(userEnd.delete.revokeToken, ...staffOnly, this.#Controller.revokeToken);
 
 		// Claiming (public: the token is the credential)
-		this.Router.get(userEnd.get.claimInfo, this.#Controller.claimInfo);
+		this.Router.get(userEnd.get.claimInfo, limiters.claimCheck, this.#Controller.claimInfo);
 		this.Router.post(userEnd.post.claim, this.#Controller.claim);
 
 		// Read

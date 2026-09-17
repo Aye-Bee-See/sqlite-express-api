@@ -2,7 +2,7 @@ import express from 'express';
 import passport from 'passport';
 import { default as bodyParser } from 'body-parser';
 import cors from 'cors';
-import { encryptionMode, corsOrigins } from '#constants';
+import { encryptionMode, corsOrigins, trustProxy } from '#constants';
 import { default as authRouter } from '#routes/user/user.js';
 import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
@@ -29,6 +29,8 @@ import { ready } from '#db/sql-database.js';
  */
 export function createApp() {
 	const app = express();
+	// Behind a reverse proxy, TRUST_PROXY makes req.ip the client address (rate limits key on it).
+	app.set('trust proxy', trustProxy);
 
 	// CORS before any routes are defined
 	app.use(

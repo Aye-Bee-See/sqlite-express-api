@@ -1805,7 +1805,7 @@ curl -s -X POST http://localhost:3000/moderation/submission \
   -d '{"resource":"prisoner","target":41,"fields":{"chosenName":"Sam","interests":["chess"]},"evidence":"Letter from counsel, 1 Sept 2026","note":"Legal name change"}'
 ```
 
-Returns `201` with the submission. Omit `target` to propose a brand-new record; the `fields` are then run through the resource's own validation at filing (a prison needs `prisonName` and `address`, a group `name` and `location`), so a submitter hears about a missing required field immediately. A reviewer-only field, an unknown resource, empty `fields`, or a `target` that does not exist (or that the caller cannot see: non-staff may only propose changes to published records) are `400` or `404` at filing time. Checks that need the database, such as a `prison` id on a new prisoner, happen when the proposal is approved.
+Returns `201` with the submission. Omit `target` to propose a brand-new record. Either way the `fields` are run through the resource's own validation at filing, without saving anything, so a submitter hears about a problem immediately as a `400` with an `errors` array: a new record is checked whole (a prison needs `prisonName` and `address`, a group `name` and `location`), and an edit has its proposed fields checked against the target (a prisoner `status` of `flying` is refused). A reviewer-only field, an unknown resource, empty `fields`, or a `target` that does not exist (or that the caller cannot see: non-staff may only propose changes to published records) are `400` or `404` at filing time. Checks that need the database, such as a `prison` id on a new prisoner, happen when the proposal is approved.
 
 #### GET /moderation/submissions
 
@@ -1817,11 +1817,11 @@ Parameter: `id`. Adds `current`: for an update, the target's present values of t
 
 #### PUT /moderation/submission and DELETE /moderation/submission
 
-Body `{"id": 7, "fields": {...}, "evidence": "...", "note": "..."}` replaces the parts given (`fields` is validated as on filing). `{"id": 7}` on DELETE withdraws; the row stays with `status: withdrawn`.
+Body `{"id": 7, "fields": {...}, "evidence": "...", "note": "..."}` replaces the parts given. New `fields` are validated as on filing, so an invalid value is a `400` and the proposal keeps its old payload; if the record an edit targets has since been deleted, revising its `fields` is a `404`. `{"id": 7}` on DELETE withdraws; the row stays with `status: withdrawn`.
 
 #### PUT /moderation/approve
 
-Body `{"id": 7, "fields": {...}, "decisionNote": "..."}`. `fields` are reviewer edits merged over the payload and may include the reviewer-only fields, so "edit then approve" and "approve and mark verified" are one call. The record is written through the same model code as a direct write, so its validation applies; a failure is a `400` and the proposal stays pending. New records are created `published` unless `fields.recordStatus` says otherwise. Returns the submission with `appliedChanges`.
+Body `{"id": 7, "fields": {...}, "decisionNote": "..."}`. `fields` are reviewer edits merged over the payload and may include the reviewer-only fields, so "edit then approve" and "approve and mark verified" are one call. The record is written through the same model code as a direct write, so its validation applies again here (the target may have changed since filing, and reviewer edits have not been checked yet); a failure is a `400` and the proposal stays pending. New records are created `published` unless `fields.recordStatus` says otherwise. Returns the submission with `appliedChanges`.
 
 #### PUT /moderation/reject
 

@@ -90,10 +90,30 @@ export default class Submission extends Model {
 	}
 
 	/**
+	 * Run the model's own validation over proposed values without saving, so
+	 * the submitter hears about a missing name or a bad status today, not at
+	 * review. A new record is validated whole; an edit is laid over the
+	 * target and only the proposed fields are checked. Approval validates
+	 * again: the target can change in between, and reviewers can edit fields.
+	 * @param {object} spec entry of RESOURCES
+	 * @param {object} payload proposed values
+	 * @param {Model|null} existing the target of an update, or null for a new record
+	 * @throws {import('sequelize').ValidationError}
+	 */
+	static async #validatePayload(spec, payload, existing) {
+		if (!existing) {
+			await spec.model.build({ recordStatus: 'published', ...payload }).validate();
+			return;
+		}
+		existing.set(payload);
+		await existing.validate({ fields: Object.keys(payload) });
+	}
+
+	/**
 	 * File a proposal.
 	 * @param {{resource: string, target?: number|string|null, fields: object, evidence?: string, note?: string, submittedBy: number, publishedOnly?: boolean}} input
 	 *   `publishedOnly` limits the target to published records (non-staff callers).
-	 * @throws {ValidationError} bad resource, empty, disallowed, or (for a new record) invalid fields; {NotFoundError} missing target
+	 * @throws {ValidationError} bad resource, empty, disallowed, or invalid fields; {NotFoundError} missing target
 	 */
 	static async propose({
 		resource,
@@ -128,18 +148,16 @@ export default class Submission extends Model {
 			throw new ValidationError('Propose at least one field.');
 		}
 		const kind = target === undefined || target === null || target === '' ? 'create' : 'update';
+		let existing = null;
 		if (kind === 'update') {
-			const existing = await spec.model.findOne({
+			existing = await spec.model.findOne({
 				where: { id: target, ...publishedWhere(publishedOnly) }
 			});
 			if (!existing) {
 				throw new NotFoundError(spec.label + ' ' + target + ' not found');
 			}
-		} else {
-			// A new record must at least pass the model's own validation now,
-			// so the submitter hears about a missing name today, not at review.
-			await spec.model.build({ recordStatus: 'published', ...payload }).validate();
 		}
+		await Submission.#validatePayload(spec, payload, existing);
 		return await this.create({
 			resource,
 			kind,
@@ -277,6 +295,7 @@ export default class Submission extends Model {
 	/**
 	 * Replace the proposed fields, evidence, or note of a pending proposal.
 	 * Fields are validated as on propose; an omitted part is kept.
+	 * @throws {ValidationError} disallowed or invalid fields; {NotFoundError} the target of an edit is gone
 	 */
 	static async revise(submission, { fields, evidence, note }) {
 		Submission.#requirePending(submission);
@@ -300,6 +319,14 @@ export default class Submission extends Model {
 			if (Object.keys(payload).length === 0) {
 				throw new ValidationError('Propose at least one field.');
 			}
+			let existing = null;
+			if (submission.kind === 'update') {
+				existing = await spec.model.findByPk(submission.targetId);
+				if (!existing) {
+					throw new NotFoundError(spec.label + ' ' + submission.targetId + ' no longer exists');
+				}
+			}
+			await Submission.#validatePayload(spec, payload, existing);
 			values.payload = payload;
 		}
 		if (evidence !== undefined) {

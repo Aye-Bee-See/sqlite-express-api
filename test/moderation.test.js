@@ -209,11 +209,48 @@ test('approving a new-record proposal creates it as published and links the id',
 	assert.equal((await Chapter.findByPk(draft.body.data.targetId)).recordStatus, 'draft');
 });
 
-test('an invalid proposal fails validation on approval and stays pending', async () => {
+test('an invalid update proposal is refused at submission, and so is an invalid revision', async () => {
+	const before = await get('/moderation/submissions?status=all&page_size=100', alice);
+	const statusBefore = (await Prisoner.findByPk(f.prisoner2.id)).status;
+	const res = await propose({
+		resource: 'prisoner',
+		target: f.prisoner2.id,
+		fields: { status: 'flying', bio: 'A perfectly good bio' }
+	});
+	assert.equal(res.status, 400);
+	assert.ok(Array.isArray(res.body.errors));
+	assert.match(res.body.errors.join(' '), /Status must be pretrial, incarcerated, or free/);
+	const after = await get('/moderation/submissions?status=all&page_size=100', alice);
+	assert.equal(after.body.data.length, before.body.data.length, 'nothing was filed');
+	assert.equal((await Prisoner.findByPk(f.prisoner2.id)).status, statusBefore, 'and nothing saved');
+
+	// Only the proposed fields are checked, and the same check guards a revision.
 	const { id } = (
-		await propose({ resource: 'prisoner', target: f.prisoner2.id, fields: { status: 'flying' } })
+		await propose({ resource: 'prisoner', target: f.prisoner2.id, fields: { status: 'free' } })
 	).body.data;
-	const res = await put('/moderation/approve', { id }, admin);
+	const revised = await put('/moderation/submission', { id, fields: { status: 'flying' } }, alice);
+	assert.equal(revised.status, 400);
+	assert.match(revised.body.errors.join(' '), /Status must be/);
+	const kept = await get('/moderation/submission?id=' + id, alice);
+	assert.deepEqual(kept.body.data.payload, { status: 'free' }, 'the old payload is kept');
+	const newRecord = (
+		await propose({ resource: 'chapter', fields: { name: 'Revisable', location: {} } })
+	).body.data;
+	const badCreate = await put(
+		'/moderation/submission',
+		{ id: newRecord.id, fields: { name: 'Revisable', location: {}, email: 'not-an-email' } },
+		alice
+	);
+	assert.equal(badCreate.status, 400);
+	await del('/moderation/submission', { id }, alice);
+	await del('/moderation/submission', { id: newRecord.id }, alice);
+});
+
+test('a reviewer edit that fails validation on approval leaves the proposal pending', async () => {
+	const { id } = (
+		await propose({ resource: 'prisoner', target: f.prisoner2.id, fields: { status: 'free' } })
+	).body.data;
+	const res = await put('/moderation/approve', { id, fields: { status: 'flying' } }, admin);
 	assert.equal(res.status, 400);
 	assert.ok(Array.isArray(res.body.errors));
 	assert.equal((await get('/moderation/submission?id=' + id, admin)).body.data.status, 'pending');
@@ -351,10 +388,19 @@ test('two simultaneous approvals create one record and one 409', async () => {
 });
 
 test('a failed approval hands the proposal back as pending', async () => {
+	// Valid when proposed; the target is gone by the time it is reviewed.
+	const doomed = await Prisoner.createPrisoner({ birthName: 'Doomed Target', prison: f.prison.id });
 	const { id } = (
-		await propose({ resource: 'prisoner', target: f.prisoner2.id, fields: { status: 'flying' } })
+		await propose({ resource: 'prisoner', target: doomed.id, fields: { status: 'free' } })
 	).body.data;
-	assert.equal((await put('/moderation/approve', { id }, admin)).status, 400);
+	await Prisoner.deletePrisoner(doomed.id);
+	assert.equal((await put('/moderation/approve', { id }, admin)).status, 404);
+	const revised = await put(
+		'/moderation/submission',
+		{ id, fields: { status: 'pretrial' } },
+		alice
+	);
+	assert.equal(revised.status, 404, 'fields cannot be checked against a missing target');
 	const again = await get('/moderation/submission?id=' + id, admin);
 	assert.equal(again.body.data.status, 'pending');
 	assert.equal(again.body.data.reviewer, null);

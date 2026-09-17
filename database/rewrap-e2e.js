@@ -52,9 +52,16 @@ export async function rewrapForE2E({
 			chapterIds.add(writer.managedBy);
 		}
 		for (const chapterId of chapterIds) {
-			const chapter = await Chapter.findByPk(chapterId, { attributes: ['id', 'publicKey'] });
+			const chapter = await Chapter.findByPk(chapterId, {
+				attributes: ['id', 'publicKey', 'keyVersion']
+			});
 			if (chapter && chapter.publicKey) {
-				readers.push({ readerType: 'chapter', readerId: chapter.id, publicKey: chapter.publicKey });
+				readers.push({
+					readerType: 'chapter',
+					readerId: chapter.id,
+					publicKey: chapter.publicKey,
+					keyVersion: chapter.keyVersion
+				});
 			} else {
 				missing.push('chapter ' + chapterId);
 			}
@@ -72,7 +79,8 @@ export async function rewrapForE2E({
 					readerType: reader.readerType,
 					readerId: reader.readerId,
 					wrappedKey: crypto.sealTo(reader.publicKey, contentKey),
-					keyLabel: null
+					keyLabel: null,
+					keyVersion: reader.keyVersion ?? null
 				});
 			}
 			report.sealed += 1;

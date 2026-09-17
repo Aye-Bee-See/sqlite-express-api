@@ -6,6 +6,7 @@ import ClaimToken from '#models/claim-token.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { audit } from '#rtServices/audit.services.js';
 import KeysController from '#rtControllers/keys.controller.js';
+import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
 import authService from '#rtServices/auth.services.js';
 import RevokedToken from '#models/revoked-token.model.js';
 import { KEY_COLUMNS, KEY_INPUT } from '#models/user.model.js';
@@ -227,6 +228,7 @@ export default class UserController extends RouteController {
 	 */
 	async update(req, res, next) {
 		const newUser = req.body;
+		let sealedTo = null;
 		if (newUser.role !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can change a user's role."));
 		}
@@ -313,7 +315,8 @@ export default class UserController extends RouteController {
 					'managerNote',
 					'retentionDays',
 					'publicKey',
-					'orgWrappedPrivateKey'
+					'orgWrappedPrivateKey',
+					'orgKeyVersion'
 				];
 				if (newUser.publicKey !== undefined) {
 					if (!crypto.isPublicKey(newUser.publicKey)) {
@@ -337,6 +340,14 @@ export default class UserController extends RouteController {
 				) {
 					return next(new ValidationError('orgWrappedPrivateKey must be a string.'));
 				}
+				if (newUser.orgWrappedPrivateKey !== undefined) {
+					// Sealed to the group key: checked against the current version at the write, below.
+					sealedTo = {
+						chapterId: target.managedBy ?? target.anonymousForChapter,
+						version: newUser.orgKeyVersion
+					};
+				}
+				delete newUser.orgKeyVersion;
 				const extra = Object.keys(newUser).filter((k) => !allowed.includes(k));
 				if (extra.length > 0) {
 					return next(
@@ -350,7 +361,15 @@ export default class UserController extends RouteController {
 					);
 				}
 			}
-			const updatedRows = await User.updateUser(newUser);
+			// A group-sealed key is checked and stored as one step, so a rotation
+			// cannot land in between and leave the writer's key sealed to the old one.
+			const updatedRows = sealedTo
+				? await withGroupKeyLock(async () => {
+						const group = await Chapter.findByPk(sealedTo.chapterId);
+						KeysController.requireCurrentGroupKey(group, sealedTo.version);
+						return await User.updateUser(newUser);
+					})
+				: await User.updateUser(newUser);
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
 			if (
 				AuthzService.isAdmin(req) &&
@@ -451,13 +470,25 @@ export default class UserController extends RouteController {
 				keys.publicKey = req.body.publicKey;
 				keys.orgWrappedPrivateKey = req.body.orgWrappedPrivateKey;
 			}
-			const writer = await User.createManagedWriter({
-				name: name.trim(),
-				email,
-				managerNote,
-				chapterId,
-				...keys
-			});
+			const make = async () =>
+				await User.createManagedWriter({
+					name: name.trim(),
+					email,
+					managerNote,
+					chapterId,
+					...keys
+				});
+			// e2e: the writer's key is sealed to the group key, so the version check
+			// and the insert are one step; a rotation cannot slip in and miss this writer.
+			const writer = crypto.isE2E()
+				? await withGroupKeyLock(async () => {
+						KeysController.requireCurrentGroupKey(
+							await Chapter.findByPk(chapterId),
+							req.body.orgKeyVersion
+						);
+						return await make();
+					})
+				: await make();
 			await audit(req, 'writer.create', 'user', writer.id, { chapterId });
 			this.#handleSuccess(res, this.#stripPassword(writer, req));
 		} catch (err) {

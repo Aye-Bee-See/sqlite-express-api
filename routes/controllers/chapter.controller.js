@@ -29,6 +29,11 @@ const READ_CONFIG = {
 	}
 };
 
+/** Group key state: written only by the key endpoints under /auth. */
+const KEY_STATE = ['publicKey', 'keyVersion', 'keyRotatedAt'];
+const KEY_STATE_REFUSAL =
+	'Group keys are set through PUT /auth/chapter-keys and changed through POST /auth/chapter-rotation.';
+
 export default class chapterController extends RouteController {
 	constructor() {
 		/*
@@ -53,10 +58,8 @@ export default class chapterController extends RouteController {
 	#handleLimits;
 
 	async create(req, res, next) {
-		if (req.body.publicKey !== undefined) {
-			return next(
-				AuthzService.forbidden('A group public key is set once, through PUT /auth/chapter-keys.')
-			);
+		if (KEY_STATE.some((f) => req.body[f] !== undefined)) {
+			return next(AuthzService.forbidden(KEY_STATE_REFUSAL));
 		}
 		if (req.body.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can set a group's account status."));
@@ -114,10 +117,8 @@ export default class chapterController extends RouteController {
 
 	async update(req, res, next) {
 		const newChapter = req.body;
-		if (newChapter.publicKey !== undefined) {
-			return next(
-				AuthzService.forbidden('A group public key is set once, through PUT /auth/chapter-keys.')
-			);
+		if (KEY_STATE.some((f) => newChapter[f] !== undefined)) {
+			return next(AuthzService.forbidden(KEY_STATE_REFUSAL));
 		}
 		if (newChapter.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can set a group's account status."));

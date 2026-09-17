@@ -148,7 +148,8 @@ test('a managing group can prepare an unclaimed writer for the switch', async ()
 		orgWrappedPrivateKey: client.seal(
 			groupKeys.publicKey,
 			Buffer.from(writerKeys.privateKey, 'base64')
-		)
+		),
+		orgKeyVersion: 1
 	};
 	assert.equal((await put('/auth/user', body, { token: other.token })).status, 403);
 	assert.equal(

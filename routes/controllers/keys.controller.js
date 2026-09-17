@@ -3,10 +3,13 @@ import AuthzService from '#rtServices/authz.services.js';
 import User, { KEY_INPUT } from '#models/user.model.js';
 import Chapter from '#models/chapter.model.js';
 import OrgMemberKey from '#models/org-member-key.model.js';
+import LetterKey from '#models/letter-key.model.js';
+import { Op } from 'sequelize';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import * as crypto from '#services/crypto.js';
 import { audit } from '#rtServices/audit.services.js';
+import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
 
 /** How long a recovery challenge stays valid. */
 const RECOVERY_CHALLENGE_MS = 10 * 60 * 1000;
@@ -29,6 +32,8 @@ export default class KeysController extends RouteController {
 		this.putMemberKey = this.putMemberKey.bind(this);
 		this.remove = this.remove.bind(this);
 		this.getMany = this.getMany.bind(this);
+		this.rotationMaterial = this.rotationMaterial.bind(this);
+		this.rotate = this.rotate.bind(this);
 
 		this.#handleErr = super.handleErr;
 		this.#handleSuccess = super.handleSuccess;
@@ -112,7 +117,9 @@ export default class KeysController extends RouteController {
 		};
 		if (user.chapterId) {
 			const [chapter, memberKey] = await Promise.all([
-				Chapter.findByPk(user.chapterId, { attributes: ['id', 'name', 'publicKey'] }),
+				Chapter.findByPk(user.chapterId, {
+					attributes: ['id', 'name', 'publicKey', 'keyVersion']
+				}),
 				OrgMemberKey.forMember(user.chapterId, user.id)
 			]);
 			if (chapter) {
@@ -120,6 +127,7 @@ export default class KeysController extends RouteController {
 					chapterId: chapter.id,
 					chapterName: chapter.name,
 					chapterPublicKey: chapter.publicKey,
+					keyVersion: chapter.keyVersion,
 					wrappedOrgPrivateKey: memberKey ? memberKey.wrappedOrgPrivateKey : null
 				};
 			}
@@ -194,10 +202,14 @@ export default class KeysController extends RouteController {
 			}
 			if (chapter !== undefined) {
 				const target = this.requireFound(
-					await Chapter.findByPk(chapter, { attributes: ['id', 'publicKey'] }),
+					await Chapter.findByPk(chapter, { attributes: ['id', 'publicKey', 'keyVersion'] }),
 					'Chapter ' + chapter
 				);
-				return this.#handleSuccess(res, { chapter: target.id, publicKey: target.publicKey });
+				return this.#handleSuccess(res, {
+					chapter: target.id,
+					publicKey: target.publicKey,
+					keyVersion: target.keyVersion
+				});
 			}
 			throw new ValidationError('Give user or chapter.');
 		} catch (err) {
@@ -354,7 +366,7 @@ export default class KeysController extends RouteController {
 			}
 			// Bootstrap once: the write succeeds only while the key is still unset.
 			const [count] = await Chapter.update(
-				{ publicKey },
+				{ publicKey, keyVersion: 1 },
 				{ where: { id: chapter.id, publicKey: null } }
 			);
 			if (count === 0) {
@@ -371,7 +383,12 @@ export default class KeysController extends RouteController {
 				addedBy: req.user.id
 			});
 			await audit(req, 'chapter.keys', 'chapter', chapter.id, { firstMember: member.id });
-			this.#handleSuccess(res, { chapter: chapter.id, publicKey, member: member.id });
+			this.#handleSuccess(res, {
+				chapter: chapter.id,
+				publicKey,
+				keyVersion: 1,
+				member: member.id
+			});
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -425,7 +442,8 @@ export default class KeysController extends RouteController {
 	/**
 	 * DELETE /auth/member-key { chapter, user } (remove): stop handing the group
 	 * key to this member. It does not revoke a key the member already opened;
-	 * that needs group key rotation, which is not built yet.
+	 * for that, rotate the group key (POST /auth/chapter-rotation) and leave
+	 * the member out.
 	 */
 	async remove(req, res, next) {
 		const { chapter: chapterId, user: userId } = req.body;
@@ -435,16 +453,20 @@ export default class KeysController extends RouteController {
 					'Only a member holding the group key, or an admin, can remove members.'
 				);
 			}
-			const holders = await OrgMemberKey.count({ where: { chapterId } });
-			const target = await OrgMemberKey.forMember(chapterId, userId);
-			if (target && holders <= 1) {
-				throw new HttpError(
-					409,
-					'This is the last holder of the group key; removing it would lock the group out (key rotation is not available yet).',
-					'KeyChangeError'
-				);
-			}
-			const removed = await OrgMemberKey.remove(chapterId, userId);
+			// Count and delete as one step: two removals at once must not both
+			// find a holder to spare and leave the group with none.
+			const removed = await withGroupKeyLock(async () => {
+				const holders = await OrgMemberKey.count({ where: { chapterId } });
+				const target = await OrgMemberKey.forMember(chapterId, userId);
+				if (target && holders <= 1) {
+					throw new HttpError(
+						409,
+						'This is the last holder of the group key; removing it would lock the group out. Rotate the key to another member instead (POST /auth/chapter-rotation).',
+						'KeyChangeError'
+					);
+				}
+				return await OrgMemberKey.remove(chapterId, userId);
+			});
 			await audit(req, 'chapter.member-key.remove', 'chapter', chapterId, { member: userId });
 			this.#handleSuccess(res, this.requireAffected(removed, 'Member key for user ' + userId));
 		} catch (err) {
@@ -473,6 +495,8 @@ export default class KeysController extends RouteController {
 			this.#handleSuccess(res, {
 				chapter: chapter.id,
 				publicKey: chapter.publicKey,
+				keyVersion: chapter.keyVersion,
+				keyRotatedAt: chapter.keyRotatedAt,
 				members: members.map((m) => ({
 					id: m.id,
 					username: m.username,
@@ -480,6 +504,326 @@ export default class KeysController extends RouteController {
 					publicKey: m.publicKey,
 					holdsGroupKey: holders.has(m.id)
 				}))
+			});
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * Anything sealed to a group's public key names the key version it was
+	 * sealed to, because the server cannot look inside a sealed box.
+	 * @throws {ValidationError} no version, or a group without keys; {HttpError} 409 for a rotated-away key
+	 */
+	static requireCurrentGroupKey(chapter, version, field = 'orgKeyVersion') {
+		if (!chapter.publicKey) {
+			throw new HttpError(
+				409,
+				'Set the group keys first with /auth/chapter-keys.',
+				'KeyChangeError'
+			);
+		}
+		if (!Number.isInteger(version)) {
+			throw new ValidationError(
+				field + ' is required: the keyVersion of the group key this was sealed to.'
+			);
+		}
+		if (version !== chapter.keyVersion) {
+			throw new HttpError(
+				409,
+				'The group rotated its key (now version ' +
+					chapter.keyVersion +
+					'); fetch it again and re-seal.',
+				'KeyVersionError'
+			);
+		}
+	}
+
+	/** Everything sealed to the group's current public key. */
+	static async #sealedToGroup(chapterId, options = {}) {
+		const [envelopes, writers] = await Promise.all([
+			LetterKey.findAll({
+				where: { readerType: 'chapter', readerId: chapterId },
+				attributes: ['id', 'message', 'wrappedKey', 'keyVersion'],
+				order: [['id', 'ASC']],
+				...options
+			}),
+			User.scope('withKeys').findAll({
+				where: {
+					[Op.or]: [{ managedBy: chapterId }, { anonymousForChapter: chapterId }],
+					orgWrappedPrivateKey: { [Op.ne]: null }
+				},
+				attributes: ['id', 'name', 'publicKey', 'orgWrappedPrivateKey'],
+				order: [['id', 'ASC']],
+				...options
+			})
+		]);
+		return { envelopes, writers };
+	}
+
+	/** Only a member who holds the group key can rotate it: an admin cannot open what must be re-sealed. */
+	async #requireRotator(req, chapter) {
+		const holder =
+			String(AuthzService.chapterOf(req)) === String(chapter.id) &&
+			(await OrgMemberKey.forMember(chapter.id, req.user.id));
+		if (!holder) {
+			throw AuthzService.forbidden(
+				'Only a member holding the group key can rotate it; nobody else can open what has to be re-sealed.'
+			);
+		}
+		if (!chapter.publicKey) {
+			throw new HttpError(
+				409,
+				'Set the group keys first with /auth/chapter-keys.',
+				'KeyChangeError'
+			);
+		}
+	}
+
+	/**
+	 * GET /auth/chapter-rotation?chapter=: what a rotation must re-seal. The
+	 * caller's client opens each item with the old group key, seals it to
+	 * the new one, and posts the lot back.
+	 */
+	async rotationMaterial(req, res, next) {
+		const { chapter: chapterId } = req.query;
+		try {
+			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
+			await this.#requireRotator(req, chapter);
+			const { envelopes, writers } = await KeysController.#sealedToGroup(chapter.id);
+			const members = await User.findAll({
+				where: { chapterId: chapter.id, role: 'chapter' },
+				attributes: ['id', 'username', 'name', 'publicKey'],
+				order: [['id', 'ASC']]
+			});
+			const holders = new Set(
+				(await OrgMemberKey.findAll({ where: { chapterId: chapter.id } })).map((k) => k.userId)
+			);
+			this.#handleSuccess(res, {
+				chapter: chapter.id,
+				publicKey: chapter.publicKey,
+				keyVersion: chapter.keyVersion,
+				envelopes: envelopes.map((e) => ({
+					id: e.id,
+					message: e.message,
+					wrappedKey: e.wrappedKey
+				})),
+				writers: writers.map((w) => ({
+					id: w.id,
+					name: w.name,
+					publicKey: w.publicKey,
+					orgWrappedPrivateKey: w.orgWrappedPrivateKey
+				})),
+				members: members.map((m) => ({
+					id: m.id,
+					username: m.username,
+					name: m.name,
+					publicKey: m.publicKey,
+					holdsGroupKey: holders.has(m.id)
+				}))
+			});
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/** A list of { id|user, <field> } pairs from a rotation body, as a Map keyed by number. */
+	static #sealedList(list, idField, valueField, label, { allowEmpty = true } = {}) {
+		if (!Array.isArray(list) || (!allowEmpty && list.length === 0)) {
+			throw new ValidationError(
+				label + ' must be an array of { ' + idField + ', ' + valueField + ' }.'
+			);
+		}
+		const map = new Map();
+		for (const item of list) {
+			const id = Number(item && item[idField]);
+			const value = item && item[valueField];
+			if (!Number.isInteger(id) || id <= 0 || typeof value !== 'string' || value === '') {
+				throw new ValidationError(
+					'Each of ' + label + ' needs a numeric ' + idField + ' and a ' + valueField + '.'
+				);
+			}
+			if (map.has(id)) {
+				throw new ValidationError('Duplicate ' + idField + ' ' + id + ' in ' + label + '.');
+			}
+			map.set(id, value);
+		}
+		return map;
+	}
+
+	/** Ids on one side only, for the "fetch again" refusal. */
+	static #difference(sent, stored) {
+		return {
+			missing: stored.filter((id) => !sent.has(id)),
+			unknown: [...sent.keys()].filter((id) => !stored.includes(id))
+		};
+	}
+
+	/**
+	 * POST /auth/chapter-rotation { chapter, keyVersion, publicKey, envelopes,
+	 * writers, members }: replace the group's keypair. The body must re-seal
+	 * every envelope and every managed writer's key the group holds, and name
+	 * the members who get the new group key; a holder left out loses access,
+	 * which is what revokes them. All of it lands in one transaction or none.
+	 */
+	async rotate(req, res, next) {
+		const { chapter: chapterId, keyVersion, publicKey } = req.body;
+		try {
+			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
+			await this.#requireRotator(req, chapter);
+			if (!crypto.isPublicKey(publicKey)) {
+				throw new ValidationError('publicKey must be a base64 X25519 public key (32 bytes).');
+			}
+			if (publicKey === chapter.publicKey) {
+				throw new ValidationError('publicKey is the current key; a rotation needs a new keypair.');
+			}
+			KeysController.requireCurrentGroupKey(chapter, keyVersion, 'keyVersion');
+			const envelopes = KeysController.#sealedList(
+				req.body.envelopes,
+				'id',
+				'wrappedKey',
+				'envelopes'
+			);
+			const writers = KeysController.#sealedList(
+				req.body.writers,
+				'id',
+				'orgWrappedPrivateKey',
+				'writers'
+			);
+			const members = KeysController.#sealedList(
+				req.body.members,
+				'user',
+				'wrappedOrgPrivateKey',
+				'members',
+				{ allowEmpty: false }
+			);
+			const eligible = await User.findAll({
+				where: { id: [...members.keys()], chapterId: chapter.id, role: 'chapter' },
+				attributes: ['id', 'publicKey']
+			});
+			for (const id of members.keys()) {
+				const member = eligible.find((m) => m.id === id);
+				if (!member) {
+					throw new ValidationError(
+						'User ' + id + ' is not a member of chapter ' + chapter.id + '.'
+					);
+				}
+				if (!member.publicKey) {
+					throw new HttpError(409, 'User ' + id + ' has no public key yet.', 'KeyChangeError');
+				}
+			}
+
+			const nextVersion = chapter.keyVersion + 1;
+			// One at a time, so the loser of a race fails its version check rather than a BEGIN.
+			const result = await withGroupKeyLock(() =>
+				Chapter.sequelize.transaction(async (transaction) => {
+					// Claim the rotation first: only one request can move this version on.
+					const [claimed] = await Chapter.update(
+						{ publicKey, keyVersion: nextVersion, keyRotatedAt: new Date() },
+						{
+							where: {
+								id: chapter.id,
+								keyVersion: chapter.keyVersion,
+								publicKey: chapter.publicKey
+							},
+							transaction
+						}
+					);
+					if (claimed === 0) {
+						throw new HttpError(
+							409,
+							'The group key changed while you were rotating; fetch the rotation material again.',
+							'KeyVersionError'
+						);
+					}
+					// Completeness is judged inside the transaction, against what is stored now.
+					const stored = await KeysController.#sealedToGroup(chapter.id, { transaction });
+					const envelopeGap = KeysController.#difference(
+						envelopes,
+						stored.envelopes.map((e) => e.id)
+					);
+					const writerGap = KeysController.#difference(
+						writers,
+						stored.writers.map((w) => w.id)
+					);
+					const gaps =
+						envelopeGap.missing.length +
+						envelopeGap.unknown.length +
+						writerGap.missing.length +
+						writerGap.unknown.length;
+					if (gaps > 0) {
+						throw new HttpError(
+							409,
+							'The rotation does not match what the group holds (envelopes missing: ' +
+								envelopeGap.missing.length +
+								", not the group's: " +
+								envelopeGap.unknown.length +
+								'; writers missing: ' +
+								writerGap.missing.length +
+								", not the group's: " +
+								writerGap.unknown.length +
+								'). Letters or writers changed since you fetched; fetch the rotation material again.',
+							'RotationIncompleteError'
+						);
+					}
+					for (const [id, wrappedKey] of envelopes) {
+						await LetterKey.update(
+							{ wrappedKey, keyVersion: nextVersion },
+							{ where: { id, readerType: 'chapter', readerId: chapter.id }, transaction }
+						);
+					}
+					for (const [id, orgWrappedPrivateKey] of writers) {
+						// Only while still unclaimed: a claim in the meantime cleared the group's copy.
+						const [count] = await User.update(
+							{ orgWrappedPrivateKey },
+							{ where: { id, orgWrappedPrivateKey: { [Op.ne]: null } }, transaction }
+						);
+						if (count === 0) {
+							throw new HttpError(
+								409,
+								'Writer ' +
+									id +
+									' was claimed during the rotation; fetch the rotation material again.',
+								'RotationIncompleteError'
+							);
+						}
+					}
+					const before = await OrgMemberKey.findAll({
+						where: { chapterId: chapter.id },
+						attributes: ['userId'],
+						transaction
+					});
+					await OrgMemberKey.destroy({ where: { chapterId: chapter.id }, transaction });
+					await OrgMemberKey.bulkCreate(
+						[...members].map(([userId, wrappedOrgPrivateKey]) => ({
+							chapterId: chapter.id,
+							userId,
+							wrappedOrgPrivateKey,
+							addedBy: req.user.id
+						})),
+						{ transaction }
+					);
+					return {
+						removed: before.map((k) => k.userId).filter((id) => !members.has(id))
+					};
+				})
+			);
+
+			await audit(req, 'chapter.keys.rotate', 'chapter', chapter.id, {
+				keyVersion: nextVersion,
+				envelopes: envelopes.size,
+				writers: writers.size,
+				members: [...members.keys()],
+				removed: result.removed
+			});
+			this.#handleSuccess(res, {
+				chapter: chapter.id,
+				publicKey,
+				keyVersion: nextVersion,
+				envelopes: envelopes.size,
+				writers: writers.size,
+				members: [...members.keys()],
+				removed: result.removed
 			});
 		} catch (err) {
 			this.#fail(res, next, err);

@@ -288,7 +288,7 @@ export default class MessageController extends RouteController {
 	 * reader, for example a partner relay group.
 	 */
 	async createEnvelope(req, res, next) {
-		const { message: messageId, readerType, readerId, wrappedKey } = req.body;
+		const { message: messageId, readerType, readerId, wrappedKey, keyVersion } = req.body;
 		try {
 			if (!crypto.isE2E()) {
 				throw new HttpError(
@@ -302,7 +302,12 @@ export default class MessageController extends RouteController {
 			if (!(await LetterKey.canRead(message.id, this.#reader(req, scope)))) {
 				throw AuthzService.forbidden('Only a current reader of the letter can add a reader.');
 			}
-			const envelope = await Message.addEnvelope(message, { readerType, readerId, wrappedKey });
+			const envelope = await Message.addEnvelope(message, {
+				readerType,
+				readerId,
+				wrappedKey,
+				keyVersion
+			});
 			await audit(req, 'letter.envelope', 'message', message.id, {
 				readerType: envelope.readerType,
 				readerId: envelope.readerId

@@ -10,6 +10,7 @@ import User from '#models/user.model.js';
 import * as crypto from '#services/crypto.js';
 import { publishedWhere } from '#db/record-status.js';
 import Prisoner from '#models/prisoner.model.js';
+import Chapter from '#models/chapter.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import { canTransition, initialStatusFor, LETTER_STATUSES } from '#db/letter-status.js';
@@ -21,6 +22,16 @@ function relayGroupSummary(publishedOnly) {
 		attributes: ['id', 'name'],
 		...(publishedOnly ? { where: publishedWhere(true), required: false } : {})
 	};
+}
+
+function staleKeyError(chapterIds) {
+	return new HttpError(
+		409,
+		'Chapter ' +
+			chapterIds.join(', ') +
+			' rotated its key while this was being saved; fetch its public key again and re-seal.',
+		'KeyVersionError'
+	);
 }
 
 export default class Message extends Model {
@@ -160,6 +171,14 @@ export default class Message extends Model {
 		});
 		if (clean) {
 			await LetterKey.issueEnvelopes(created.id, clean);
+			// A rotation that landed since validation would leave this letter
+			// sealed to a key nobody holds: take it back and have the client re-seal.
+			const stale = await LetterKey.staleGroupEnvelopes(created.id);
+			if (stale.length > 0) {
+				await LetterKey.destroy({ where: { message: created.id } });
+				await this.destroy({ where: { id: created.id }, force: true });
+				throw staleKeyError(stale);
+			}
 		}
 		await MessageStatus.record(created.id, null, created.status, changedBy);
 		return created;
@@ -202,7 +221,7 @@ export default class Message extends Model {
 	 * Who may hold an envelope for a letter: its writer; the relay group;
 	 * the group managing the writer; and every active relay group of the
 	 * facility (so a relay can forward to a partner).
-	 * @returns {Promise<{users: Set<number>, chapters: Set<number>}>}
+	 * @returns {Promise<{users: Set<number>, chapters: Set<number>, chapterVersions: Map<number, number>}>}
 	 */
 	static async allowedReaders(message, writer) {
 		const users = new Set([Number(writer.id)]);
@@ -220,7 +239,12 @@ export default class Message extends Model {
 				chapters.add(Number(id));
 			}
 		}
-		return { users, chapters };
+		const keyed = await Chapter.findAll({
+			where: { id: [...chapters] },
+			attributes: ['id', 'keyVersion']
+		});
+		const chapterVersions = new Map(keyed.map((c) => [c.id, c.keyVersion]));
+		return { users, chapters, chapterVersions };
 	}
 
 	/**
@@ -244,7 +268,14 @@ export default class Message extends Model {
 				'EnvelopeError'
 			);
 		}
-		await LetterKey.issueEnvelopes(message.id, [clean]);
+		const [row] = await LetterKey.issueEnvelopes(message.id, [clean]);
+		if (clean.readerType === 'chapter') {
+			const stale = await LetterKey.staleGroupEnvelopes(message.id);
+			if (stale.includes(clean.readerId)) {
+				await row.destroy();
+				throw staleKeyError([clean.readerId]);
+			}
+		}
 		return clean;
 	}
 

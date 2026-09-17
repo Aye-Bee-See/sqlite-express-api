@@ -66,7 +66,15 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 		} else if (spec.build) {
 			// Built fragments may use Op.or themselves; keep them apart from the
 			// q search (which owns the top-level Op.or) by AND-ing them.
-			fragments.push(spec.build(value));
+			// A builder may refuse a value it cannot use; report it with the rest.
+			try {
+				fragments.push(spec.build(value));
+			} catch (err) {
+				if (!(err instanceof ValidationError)) {
+					throw err;
+				}
+				errors.push(err.message);
+			}
 		} else {
 			where[spec.column || param] = spec.transform ? spec.transform(value) : value;
 		}

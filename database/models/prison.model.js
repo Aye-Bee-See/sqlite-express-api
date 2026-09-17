@@ -1,11 +1,14 @@
-import { Model } from 'sequelize';
+import { Model, Op, literal } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
-import Rule from '#models/rule.model.js';
 import Chapter from '#models/chapter.model.js';
 import { NotFoundError } from '#services/HttpError.js';
+import ValidationError from '#services/ValidationError.js';
 import { publishedWhere } from '#db/record-status.js';
+
+const PHOTO_RULES_CLASH =
+	'photoLimit cannot be set on a facility tagged no_photos; send photoLimit: null or drop the tag.';
 
 /** Fields a client may set on create. */
 export const PRISON_FIELDS = [
@@ -14,6 +17,10 @@ export const PRISON_FIELDS = [
 	'country',
 	'routing',
 	'scanService',
+	'mailRules',
+	'pageLimit',
+	'photoLimit',
+	'mailLanguages',
 	'notes',
 	'verifiedBy',
 	'verifiedAt',
@@ -39,7 +46,15 @@ export default class Prison extends Model {
 		return super.init(Schemas.prison, {
 			sequelize,
 			hooks: Hooks.prison || null,
-			modelName: 'Prison'
+			modelName: 'Prison',
+			validate: {
+				// Runs wherever a whole facility is validated: create, and a proposed new facility.
+				photoRules() {
+					if (Prison.photoRulesClash(this)) {
+						throw new Error(PHOTO_RULES_CLASH);
+					}
+				}
+			}
 		});
 	}
 	static associate(models) {
@@ -48,12 +63,6 @@ export default class Prison extends Model {
 			foreignKey: 'prison',
 			onDelete: 'RESTRICT',
 			onUpdate: 'CASCADE'
-		});
-		this.belongsToMany(models.Rule, {
-			as: 'rules',
-			through: 'RulePassthrough',
-			foreignKey: 'prison',
-			otherKey: 'rule'
 		});
 		this.belongsToMany(models.Chapter, {
 			as: 'relay_groups',
@@ -75,9 +84,8 @@ export default class Prison extends Model {
 	}
 
 	/**
-	 * Includes for full=true: prisoners, rules, and relay groups. Embedded
-	 * prisoners and groups are limited to published ones for non-staff
-	 * (rules have no status).
+	 * Includes for full=true: prisoners and relay groups, limited to
+	 * published ones for non-staff.
 	 */
 	static #includes(publishedOnly) {
 		const publishedOnlyOpts = publishedOnly ? { where: publishedWhere(true), required: false } : {};
@@ -88,7 +96,6 @@ export default class Prison extends Model {
 				...Prisoner.publicAttributes(publishedOnly),
 				...publishedOnlyOpts
 			},
-			{ model: Rule, as: 'rules' },
 			{
 				model: Chapter,
 				as: 'relay_groups',
@@ -101,6 +108,14 @@ export default class Prison extends Model {
 	// Create
 	static async createPrison(fields) {
 		return await this.create(pick(fields, PRISON_FIELDS));
+	}
+
+	/**
+	 * A facility that takes no photos has no photo limit to state. The two
+	 * live in different columns, so the columns' own validators cannot see it.
+	 */
+	static photoRulesClash({ mailRules, photoLimit }) {
+		return Array.isArray(mailRules) && mailRules.includes('no_photos') && photoLimit != null;
 	}
 
 	/**
@@ -163,7 +178,30 @@ export default class Prison extends Model {
 
 	// Update
 	static async updatePrison(prison) {
-		return await this.update({ ...prison }, { where: { id: prison.id } });
+		// When only one half of the photo rule is sent, the other half is the
+		// stored one. Make it a condition of the write rather than a read
+		// beforehand, so two partial updates cannot each pass and clash together.
+		if (Prison.photoRulesClash(prison)) {
+			throw new ValidationError(PHOTO_RULES_CLASH);
+		}
+		const where = { id: prison.id };
+		const tagging = Array.isArray(prison.mailRules) && prison.mailRules.includes('no_photos');
+		let guarded = true;
+		if (tagging && prison.photoLimit === undefined) {
+			where.photoLimit = null;
+		} else if (prison.photoLimit != null && prison.mailRules === undefined) {
+			where[Op.and] = literal(
+				"NOT EXISTS (SELECT 1 FROM json_each(`mailRules`) WHERE json_each.value = 'no_photos')"
+			);
+		} else {
+			guarded = false;
+		}
+		const result = await this.update({ ...prison }, { where });
+		// Nothing written under a guard: either no such facility, or the stored half clashes.
+		if (guarded && result[0] === 0 && (await this.count({ where: { id: prison.id } })) > 0) {
+			throw new ValidationError(PHOTO_RULES_CLASH);
+		}
+		return result;
 	}
 
 	/**
@@ -182,25 +220,6 @@ export default class Prison extends Model {
 			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
 		return [prison, related];
-	}
-
-	/**
-	 * Attach an existing rule to an existing prison (idempotent).
-	 * @returns {Promise<Prison>} the prison with its relations loaded
-	 */
-	static async addRule(ruleId, prisonId) {
-		const [prison, rule] = await this.#pair(prisonId, Rule, ruleId, 'Rule');
-		await prison.addRule(rule);
-		return await this.getPrisonByID(prisonId, { full: true });
-	}
-
-	/**
-	 * Detach a rule from a prison.
-	 * @returns {Promise<number>} links removed (0 when there was none)
-	 */
-	static async removeRule(ruleId, prisonId) {
-		const [prison, rule] = await this.#pair(prisonId, Rule, ruleId, 'Rule');
-		return await prison.removeRule(rule);
 	}
 
 	/**

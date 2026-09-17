@@ -33,7 +33,6 @@ export const {
 	User,
 	Prison,
 	Prisoner,
-	Rule,
 	Chapter,
 	Chat,
 	Message,
@@ -181,7 +180,7 @@ export async function makeUser(overrides = {}) {
 /**
  * A standard cast: an admin; a group (Chapter record) with one chapter-role
  * member account and one unclaimed managed writer; alice and bob, two
- * independent users; one prison with two prisoners; one rule. Chats and
+ * independent users; one prison with two prisoners. Chats and
  * messages are left to each test.
  */
 export async function makeFixtures() {
@@ -214,6 +213,5 @@ export async function makeFixtures() {
 		prison: prison.id,
 		inmateID: 'P-2'
 	});
-	const rule = await Rule.createRule({ title: 'No pictures', description: 'Text only' });
-	return { admin, group, chapter, writer, alice, bob, prison, prisoner1, prisoner2, rule };
+	return { admin, group, chapter, writer, alice, bob, prison, prisoner1, prisoner2 };
 }

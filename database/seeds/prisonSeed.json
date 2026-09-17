@@ -6,7 +6,18 @@
 				"street": "123 Fake Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"plain_envelopes",
+				"ink_blue_or_black",
+				"no_polaroids",
+				"mail_read_by_staff"
+			],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Alpha Prison",
@@ -14,7 +25,18 @@
 				"street": "456 Alpha Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"paperbacks_only",
+				"no_maps",
+				"plain_envelopes",
+				"no_greeting_cards"
+			],
+			"pageLimit": 10,
+			"photoLimit": 10,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Beta Prison",
@@ -22,7 +44,20 @@
 				"street": "789 Beta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"plain_envelopes",
+				"no_gang_imagery",
+				"no_drawings_by_others",
+				"no_stickers_or_labels",
+				"no_greeting_cards"
+			],
+			"pageLimit": null,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Gamma Prison",
@@ -30,7 +65,18 @@
 				"street": "101 Gamma Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"no_enclosures",
+				"delivery_not_confirmed",
+				"legal_mail_marked",
+				"no_gang_imagery"
+			],
+			"pageLimit": 10,
+			"photoLimit": 3,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Delta Prison",
@@ -38,7 +84,20 @@
 				"street": "202 Delta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_inter_prisoner_mail",
+				"printed_pages_allowed",
+				"no_photos",
+				"handwritten_only"
+			],
+			"pageLimit": 5,
+			"photoLimit": null,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Epsilon Prison",
@@ -46,7 +105,19 @@
 				"street": "303 Epsilon Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_third_party_mail",
+				"no_coded_messages",
+				"plain_envelopes"
+			],
+			"pageLimit": null,
+			"photoLimit": 3,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Zeta Prison",
@@ -54,7 +125,18 @@
 				"street": "404 Zeta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"no_third_party_mail",
+				"plain_paper",
+				"no_scents_or_lipstick",
+				"no_glue_tape_or_staples",
+				"ink_blue_or_black",
+				"no_inter_prisoner_mail"
+			],
+			"pageLimit": 10,
+			"photoLimit": 10,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Eta Prison",
@@ -62,7 +144,20 @@
 				"street": "505 Eta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"no_enclosures",
+				"no_greeting_cards",
+				"no_stamps_enclosed",
+				"no_coded_messages",
+				"no_clippings",
+				"typed_letters_allowed"
+			],
+			"pageLimit": 20,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Theta Prison",
@@ -70,7 +165,22 @@
 				"street": "606 Theta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_maps",
+				"typed_letters_allowed",
+				"no_coded_messages",
+				"no_third_party_mail",
+				"no_polaroids",
+				"plain_paper",
+				"no_photos"
+			],
+			"pageLimit": 10,
+			"photoLimit": null,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Iota Prison",
@@ -78,7 +188,22 @@
 				"street": "707 Iota Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"no_enclosures",
+				"no_scents_or_lipstick",
+				"one_letter_per_envelope",
+				"no_coded_messages",
+				"typed_letters_allowed",
+				"no_drawings_by_others",
+				"no_explicit_photos",
+				"postcards_only"
+			],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Kappa Prison",
@@ -86,7 +211,21 @@
 				"street": "808 Kappa Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"books_from_publisher_only",
+				"one_letter_per_envelope",
+				"plain_paper",
+				"no_third_party_mail",
+				"no_glue_tape_or_staples",
+				"no_money"
+			],
+			"pageLimit": null,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Lambda Prison",
@@ -94,7 +233,20 @@
 				"street": "909 Lambda Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"no_enclosures",
+				"paperbacks_only",
+				"no_money",
+				"no_coded_messages",
+				"no_greeting_cards",
+				"plain_envelopes"
+			],
+			"pageLimit": 10,
+			"photoLimit": 10,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Mu Prison",
@@ -102,7 +254,18 @@
 				"street": "111 Mu Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_third_party_mail",
+				"ink_blue_or_black"
+			],
+			"pageLimit": 20,
+			"photoLimit": null,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Nu Prison",
@@ -110,7 +273,23 @@
 				"street": "222 Nu Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_glue_tape_or_staples",
+				"paperbacks_only",
+				"no_maps",
+				"no_gang_imagery",
+				"no_inter_prisoner_mail",
+				"originals_destroyed",
+				"scanned_in_greyscale"
+			],
+			"pageLimit": 20,
+			"photoLimit": 5,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Xi Prison",
@@ -118,7 +297,20 @@
 				"street": "333 Xi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"no_enclosures",
+				"paperbacks_only",
+				"no_inter_prisoner_mail",
+				"printed_pages_allowed",
+				"no_stickers_or_labels",
+				"no_clippings",
+				"handwritten_only"
+			],
+			"pageLimit": 10,
+			"photoLimit": 3,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Omicron Prison",
@@ -126,7 +318,19 @@
 				"street": "444 Omicron Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"paperbacks_only",
+				"ink_blue_or_black",
+				"no_scents_or_lipstick"
+			],
+			"pageLimit": null,
+			"photoLimit": 3,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Pi Prison",
@@ -134,7 +338,20 @@
 				"street": "555 Pi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"mail_read_by_staff",
+				"no_polaroids",
+				"no_money",
+				"books_from_publisher_only",
+				"paperbacks_only",
+				"no_glue_tape_or_staples",
+				"no_drawings_by_others"
+			],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Rho Prison",
@@ -142,7 +359,21 @@
 				"street": "666 Rho Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_clippings",
+				"plain_envelopes",
+				"no_explicit_photos",
+				"no_gang_imagery",
+				"no_glue_tape_or_staples"
+			],
+			"pageLimit": null,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Sigma Prison",
@@ -150,7 +381,18 @@
 				"street": "777 Sigma Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"paperbacks_only",
+				"no_maps"
+			],
+			"pageLimit": null,
+			"photoLimit": 10,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Tau Prison",
@@ -158,7 +400,20 @@
 				"street": "888 Tau Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"plain_paper",
+				"no_scents_or_lipstick",
+				"originals_destroyed",
+				"scanned_in_greyscale"
+			],
+			"pageLimit": 10,
+			"photoLimit": 3,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Upsilon Prison",
@@ -166,7 +421,21 @@
 				"street": "999 Upsilon Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"full_name_and_number",
+				"no_enclosures",
+				"no_gang_imagery",
+				"no_maps",
+				"no_stamps_enclosed",
+				"no_glue_tape_or_staples",
+				"legal_mail_marked",
+				"originals_destroyed",
+				"scanned_in_greyscale"
+			],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Phi Prison",
@@ -174,7 +443,22 @@
 				"street": "1010 Phi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_money",
+				"no_inter_prisoner_mail",
+				"delivery_not_confirmed",
+				"no_polaroids",
+				"no_stamps_enclosed",
+				"plain_envelopes"
+			],
+			"pageLimit": null,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Chi Prison",
@@ -182,7 +466,20 @@
 				"street": "1111 Chi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"printed_pages_allowed",
+				"legal_mail_marked",
+				"no_greeting_cards",
+				"delivery_not_confirmed"
+			],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Psi Prison",
@@ -190,7 +487,19 @@
 				"street": "1212 Psi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_stamps_enclosed",
+				"no_polaroids",
+				"plain_paper"
+			],
+			"pageLimit": 10,
+			"photoLimit": null,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Omega Prison",
@@ -198,7 +507,22 @@
 				"street": "1313 Omega Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_clippings",
+				"ink_blue_or_black",
+				"paperbacks_only",
+				"no_glue_tape_or_staples",
+				"no_maps",
+				"typed_letters_allowed",
+				"originals_destroyed",
+				"scanned_in_greyscale"
+			],
+			"pageLimit": 20,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Alpha Prison",
@@ -206,7 +530,20 @@
 				"street": "1414 Alpha Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_inter_prisoner_mail",
+				"no_stamps_enclosed",
+				"plain_paper",
+				"no_scents_or_lipstick"
+			],
+			"pageLimit": 10,
+			"photoLimit": 10,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Beta Prison",
@@ -214,7 +551,16 @@
 				"street": "1515 Beta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"typed_letters_allowed",
+				"printed_pages_allowed"
+			],
+			"pageLimit": 20,
+			"photoLimit": 3,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Gamma Prison",
@@ -222,7 +568,22 @@
 				"street": "1616 Gamma Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_glue_tape_or_staples",
+				"books_from_publisher_only",
+				"no_stickers_or_labels",
+				"one_letter_per_envelope",
+				"no_inter_prisoner_mail",
+				"no_third_party_mail"
+			],
+			"pageLimit": 10,
+			"photoLimit": 10,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Delta Prison",
@@ -230,7 +591,21 @@
 				"street": "1717 Delta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"no_enclosures",
+				"no_glue_tape_or_staples",
+				"books_from_publisher_only",
+				"one_letter_per_envelope",
+				"typed_letters_allowed",
+				"printed_pages_allowed",
+				"plain_envelopes"
+			],
+			"pageLimit": 5,
+			"photoLimit": 5,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Epsilon Prison",
@@ -238,7 +613,20 @@
 				"street": "1818 Epsilon Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_stamps_enclosed",
+				"legal_mail_marked",
+				"one_letter_per_envelope",
+				"books_from_publisher_only"
+			],
+			"pageLimit": 5,
+			"photoLimit": null,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Zeta Prison",
@@ -246,7 +634,17 @@
 				"street": "1919 Zeta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_gang_imagery",
+				"no_maps"
+			],
+			"pageLimit": 10,
+			"photoLimit": 10,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Eta Prison",
@@ -254,7 +652,17 @@
 				"street": "2020 Eta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"no_greeting_cards",
+				"books_from_publisher_only",
+				"no_clippings",
+				"plain_paper"
+			],
+			"pageLimit": null,
+			"photoLimit": 5,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Theta Prison",
@@ -262,7 +670,16 @@
 				"street": "2121 Theta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"no_drawings_by_others",
+				"no_glue_tape_or_staples"
+			],
+			"pageLimit": null,
+			"photoLimit": 10,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Iota Prison",
@@ -270,7 +687,17 @@
 				"street": "2222 Iota Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"no_enclosures",
+				"books_from_publisher_only",
+				"printed_pages_allowed"
+			],
+			"pageLimit": 10,
+			"photoLimit": 10,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Kappa Prison",
@@ -278,7 +705,21 @@
 				"street": "2323 Kappa Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"books_from_publisher_only",
+				"paperbacks_only",
+				"no_gang_imagery",
+				"no_maps",
+				"ink_blue_or_black",
+				"no_greeting_cards"
+			],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Lambda Prison",
@@ -286,7 +727,11 @@
 				"street": "2424 Lambda Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": ["no_enclosures", "no_clippings", "no_money", "handwritten_only"],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Mu Prison",
@@ -294,7 +739,24 @@
 				"street": "2525 Mu Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"delivery_not_confirmed",
+				"one_letter_per_envelope",
+				"no_third_party_mail",
+				"no_explicit_photos",
+				"no_money",
+				"no_maps",
+				"originals_destroyed",
+				"scanned_in_greyscale"
+			],
+			"pageLimit": 20,
+			"photoLimit": 5,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Nu Prison",
@@ -302,7 +764,21 @@
 				"street": "2626 Nu Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"books_from_publisher_only",
+				"no_stickers_or_labels",
+				"one_letter_per_envelope",
+				"no_gang_imagery",
+				"no_coded_messages",
+				"plain_envelopes",
+				"postcards_only"
+			],
+			"pageLimit": 20,
+			"photoLimit": 3,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Xi Prison",
@@ -310,7 +786,21 @@
 				"street": "2727 Xi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_explicit_photos",
+				"delivery_not_confirmed",
+				"no_maps",
+				"one_letter_per_envelope",
+				"plain_paper"
+			],
+			"pageLimit": null,
+			"photoLimit": 3,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Omicron Prison",
@@ -318,7 +808,21 @@
 				"street": "2828 Omicron Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_stickers_or_labels",
+				"no_clippings",
+				"typed_letters_allowed",
+				"plain_envelopes",
+				"no_inter_prisoner_mail",
+				"delivery_not_confirmed"
+			],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Pi Prison",
@@ -326,7 +830,21 @@
 				"street": "2929 Pi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"books_from_publisher_only",
+				"no_inter_prisoner_mail",
+				"no_money",
+				"no_stickers_or_labels",
+				"legal_mail_marked",
+				"postcards_only"
+			],
+			"pageLimit": null,
+			"photoLimit": 10,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Rho Prison",
@@ -334,7 +852,18 @@
 				"street": "3030 Rho Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"no_enclosures",
+				"books_from_publisher_only",
+				"no_stamps_enclosed",
+				"no_inter_prisoner_mail"
+			],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Sigma Prison",
@@ -342,7 +871,20 @@
 				"street": "3131 Sigma Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_coded_messages",
+				"books_from_publisher_only",
+				"no_scents_or_lipstick",
+				"no_gang_imagery"
+			],
+			"pageLimit": 5,
+			"photoLimit": 10,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Tau Prison",
@@ -350,7 +892,23 @@
 				"street": "3232 Tau Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_scents_or_lipstick",
+				"no_third_party_mail",
+				"no_polaroids",
+				"no_stickers_or_labels",
+				"no_coded_messages",
+				"no_maps",
+				"no_photos"
+			],
+			"pageLimit": 5,
+			"photoLimit": null,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Upsilon Prison",
@@ -358,7 +916,23 @@
 				"street": "3333 Upsilon Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_stamps_enclosed",
+				"no_greeting_cards",
+				"no_gang_imagery",
+				"legal_mail_marked",
+				"no_coded_messages",
+				"no_explicit_photos",
+				"no_photos",
+				"handwritten_only"
+			],
+			"pageLimit": 10,
+			"photoLimit": null,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Phi Prison",
@@ -366,7 +940,19 @@
 				"street": "3434 Phi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_drawings_by_others",
+				"delivery_not_confirmed",
+				"no_money",
+				"no_photos"
+			],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Chi Prison",
@@ -374,7 +960,17 @@
 				"street": "3535 Chi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"no_enclosures",
+				"no_clippings",
+				"no_third_party_mail",
+				"one_letter_per_envelope"
+			],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Psi Prison",
@@ -382,7 +978,21 @@
 				"street": "3636 Psi Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_drawings_by_others",
+				"printed_pages_allowed",
+				"paperbacks_only",
+				"no_scents_or_lipstick",
+				"legal_mail_marked",
+				"no_photos"
+			],
+			"pageLimit": 10,
+			"photoLimit": null,
+			"mailLanguages": ["en"]
 		},
 		{
 			"prisonName": "Omega Prison",
@@ -390,7 +1000,21 @@
 				"street": "3737 Omega Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_polaroids",
+				"typed_letters_allowed",
+				"no_third_party_mail",
+				"legal_mail_marked",
+				"printed_pages_allowed"
+			],
+			"pageLimit": 20,
+			"photoLimit": 5,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Alpha Prison",
@@ -398,7 +1022,20 @@
 				"street": "3838 Alpha Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_drawings_by_others",
+				"no_greeting_cards",
+				"no_explicit_photos",
+				"no_glue_tape_or_staples"
+			],
+			"pageLimit": 10,
+			"photoLimit": 3,
+			"mailLanguages": null
 		},
 		{
 			"prisonName": "Beta Prison",
@@ -406,7 +1043,22 @@
 				"street": "3939 Beta Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"no_greeting_cards",
+				"plain_envelopes",
+				"legal_mail_marked",
+				"no_gang_imagery",
+				"paperbacks_only",
+				"no_scents_or_lipstick"
+			],
+			"pageLimit": 20,
+			"photoLimit": 10,
+			"mailLanguages": ["en", "es"]
 		},
 		{
 			"prisonName": "Gamma Prison",
@@ -414,7 +1066,21 @@
 				"street": "4040 Gamma Street"
 			},
 			"country": "United States",
-			"routing": "direct"
+			"routing": "direct",
+			"mailRules": [
+				"return_address_required",
+				"full_name_and_number",
+				"mail_read_by_staff",
+				"no_enclosures",
+				"ink_blue_or_black",
+				"typed_letters_allowed",
+				"no_stamps_enclosed",
+				"no_polaroids",
+				"postcards_only"
+			],
+			"pageLimit": 10,
+			"photoLimit": 5,
+			"mailLanguages": ["en"]
 		}
 	]
 }

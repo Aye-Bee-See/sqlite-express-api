@@ -8,8 +8,7 @@ import {
 	makeFixtures,
 	Prison,
 	Prisoner,
-	Chapter,
-	Rule
+	Chapter
 } from './helpers.js';
 
 let f;
@@ -35,7 +34,6 @@ before(async () => {
 	});
 	await Chapter.createChapter({ name: 'Portland ABC', location: {} });
 	await Chapter.createChapter({ name: 'NYC ABC', location: {} });
-	await Rule.createRule({ title: 'No staples', description: 'Loose pages only' });
 });
 after(stopServer);
 
@@ -86,16 +84,9 @@ test('prisoner status filter works alone, with q, with prison, and is validated'
 	assert.deepEqual(bad.body.errors, ['status must be one of pretrial, incarcerated, free.']);
 });
 
-test('q searches chapters and rules', async () => {
+test('q searches chapters', async () => {
 	const chapters = await get('/chapter/chapters?q=abc');
 	assert.deepEqual(chapters.body.data.map((c) => c.name).sort(), ['NYC ABC', 'Portland ABC']);
-	const rules = await get('/rule/rules?q=loose');
-	assert.deepEqual(
-		rules.body.data.map((r) => r.title),
-		['No staples']
-	);
-	const byPrison = await get('/rule/rules?prison=' + f.prison.id + '&q=pictures');
-	assert.equal(byPrison.status, 200);
 });
 
 test('sort=name, newest, oldest are honoured; unknown sorts are rejected', async () => {

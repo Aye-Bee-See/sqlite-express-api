@@ -45,6 +45,13 @@ class PrisonRoutes {
 
 		this.Router.get(prisonEnd.get.one, AuthzService.optionalAuthenticate, this.#Controller.getOne);
 
+		// The mail rule vocabulary: static and public (a bad token is still a 401, as on every public read).
+		this.Router.get(
+			prisonEnd.get.mailRules,
+			AuthzService.optionalAuthenticate,
+			this.#Controller.mailRules
+		);
+
 		// Update
 
 		this.Router.put(
@@ -53,15 +60,7 @@ class PrisonRoutes {
 			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.update
 		);
-		// Add Rule
-		this.Router.put(
-			prisonEnd.put.addRule,
-			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
-			this.#Controller.addRule
-		);
-
-		// Relay groups and rule detachment
+		// Relay groups
 		this.Router.put(
 			prisonEnd.put.addRelay,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
@@ -73,12 +72,6 @@ class PrisonRoutes {
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.removeRelay
-		);
-		this.Router.delete(
-			prisonEnd.delete.removeRule,
-			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
-			this.#Controller.removeRule
 		);
 
 		// Delete

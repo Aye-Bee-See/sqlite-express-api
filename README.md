@@ -24,7 +24,7 @@ This README is written for people who **use** the API: front-end developers, int
 | **User**           | An account. Has a `role` of `admin`, `user`, `chapter`, or `banned`. A `user` is a person on the outside writing letters; a `chapter` is a partner organisation that prints and mails them; an `admin` manages everything.                                                                                                                                                  |
 | **Prison**         | A correctional facility. Has a name and a free-form JSON `address`.                                                                                                                                                                                                                                                                                                         |
 | **Prisoner**       | An incarcerated person that users can write to. Belongs to one prison. Stores birth name, chosen name, inmate ID, release date, a bio, and a status.                                                                                                                                                                                                                        |
-| **Rule**           | A mail rule a prison enforces, such as "No pictures". A rule can be attached to many prisons and a prison can have many rules.                                                                                                                                                                                                                                              |
+| **Mail rule**      | What a prison's mail room enforces, such as "no polaroids". A rule is a tag from a fixed vocabulary, stored on the prison; page limits, photo limits, and accepted languages are typed fields beside the tags.                                                                                                                                                              |
 | **Chat**           | A thread between exactly one user and one prisoner. Chats are created automatically the first time a message is sent between a pair, and can also be created directly.                                                                                                                                                                                                      |
 | **Message**        | One letter or text within a chat. `sender` is either `user` or `prisoner`. A letter has a lifecycle `status` (`queued`, `printed`, `mailed`; replies are `received`) and a relay group that prints and mails it; see [Letter lifecycle](#letter-lifecycle).                                                                                                                 |
 | **Managed writer** | A `user` account a group created for someone who writes through it (for example at a letter-writing night). The group sends letters on the writer's behalf until the writer claims the account with a one-time token; see [Managed writers](#managed-writers).                                                                                                              |
@@ -98,7 +98,7 @@ Boot output looks like this:
 
 ```text
 Express is running on port: 3000
-Seed data: users: 41 seeded, prisons: 52 seeded, prisoners: 40 seeded, rules: 44 seeded, chats: 40 seeded, messages: 40 seeded, chapters: 1 seeded.
+Seed data: users: 41 seeded, prisons: 52 seeded, prisoners: 40 seeded, chats: 40 seeded, messages: 40 seeded, chapters: 1 seeded.
 Created admin account "bootadmin" (id 42).
 Database ready.
 ```
@@ -159,15 +159,14 @@ The server only sends CORS headers for the origins in `CORS_ORIGIN`. Browser cli
 
 On a fresh database the JSON files in `database/seeds/` are loaded:
 
-| Resource  | Rows | Notes                                                                                                                        |
-| --------- | ---- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Users     | 41   | One admin plus forty regular users.                                                                                          |
-| Prisons   | 52   | "Test Prison", then Greek-letter names ("Alpha Prison", "Beta Prison", ...). Each has a one-line street address.             |
-| Prisoners | 40   | Prisoner N is in prison N. Each has a birth name, chosen name, inmate ID, release date, and bio. `status` is null.           |
-| Rules     | 44   | "No pictures", "No contraband", and so on. Seeded rules are not attached to any prison; attach them with `PUT /prison/rule`. |
-| Chats     | 40   | Chat N pairs user N with prisoner N.                                                                                         |
-| Messages  | 40   | One short greeting per chat, all sent by the user side.                                                                      |
-| Chapters  | 1    | "Test Chapter".                                                                                                              |
+| Resource  | Rows | Notes                                                                                                              |
+| --------- | ---- | ------------------------------------------------------------------------------------------------------------------ |
+| Users     | 41   | One admin plus forty regular users.                                                                                |
+| Prisons   | 52   | "Test Prison", then Greek-letter names ("Alpha Prison", "Beta Prison", ...). Each has a one-line street address.   |
+| Prisoners | 40   | Prisoner N is in prison N. Each has a birth name, chosen name, inmate ID, release date, and bio. `status` is null. |
+| Chats     | 40   | Chat N pairs user N with prisoner N.                                                                               |
+| Messages  | 40   | One short greeting per chat, all sent by the user side.                                                            |
+| Chapters  | 1    | "Test Chapter".                                                                                                    |
 
 ### Credentials
 
@@ -189,7 +188,7 @@ These work without a token:
 - `POST /auth/user` registers an account. It always gets the `user` role.
 - `POST /auth/login` returns a token.
 - `GET /auth/claim` and `POST /auth/claim` check and use a claim token; see [Managed writers](#managed-writers).
-- Every **GET** on prisons, prisoners, rules, and chapters (the public directory). Anonymous callers see only records whose `recordStatus` is `published`; see [Record status](#record-status).
+- Every **GET** on prisons, prisoners, and chapters (the public directory), and the mail rule vocabulary. Anonymous callers see only records whose `recordStatus` is `published`; see [Record status](#record-status).
 - `GET /health`.
 
 Everything else, including every write, requires a bearer token. A token that is present but invalid is rejected with `401` even on public routes.
@@ -273,10 +272,10 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 
 | Action                                                           | `user`                | `chapter`                         | `admin` |
 | ---------------------------------------------------------------- | --------------------- | --------------------------------- | ------- |
-| Read published prisons, prisoners, rules, chapters               | Yes (and anonymous)   | Yes                               | Yes     |
+| Read published prisons, prisoners, chapters                      | Yes (and anonymous)   | Yes                               | Yes     |
 | Read draft and pending directory records                         | No                    | Yes                               | Yes     |
-| Create, update, delete prisons, prisoners, rules, chapters       | No                    | Yes                               | Yes     |
-| Attach a rule to a prison                                        | No                    | Yes                               | Yes     |
+| Create, update, delete prisons, prisoners, chapters              | No                    | Yes                               | Yes     |
+| Set a prison's mail rules                                        | No                    | Yes                               | Yes     |
 | Read, create, update, delete chats and messages                  | **Own threads only**  | **Managed writers' threads only** | All     |
 | Send a message as the prisoner side (`sender: prisoner`)         | No (forced to `user`) | Yes                               | Yes     |
 | Propose a directory change or record ([Moderation](#moderation)) | Yes                   | Yes                               | Yes     |
@@ -333,7 +332,6 @@ All examples use `http://localhost:3000`. Each resource lives under its own pref
 | `/auth`       | Users                  | `/auth/user`             | `/auth/users`             |
 | `/prison`     | Prisons                | `/prison/prison`         | `/prison/prisons`         |
 | `/prisoner`   | Prisoners              | `/prisoner/prisoner`     | `/prisoner/prisoners`     |
-| `/rule`       | Rules                  | `/rule/rule`             | `/rule/rules`             |
 | `/chat`       | Chats                  | `/chat/chat`             | `/chat/chats`             |
 | `/messaging`  | Messages               | `/messaging/message`     | `/messaging/messages`     |
 | `/chapter`    | Chapters               | `/chapter/chapter`       | `/chapter/chapters`       |
@@ -371,7 +369,7 @@ Every successful response is a JSON object with this shape:
 | `info`    | A human-readable message. `null` on some user endpoints. A few contain typos ("retireved", "Succeessfully"). |
 | `success` | Always `true` on this shape.                                                                                 |
 | `status`  | `201` for creates, `200` for everything else. Mirrors the HTTP status.                                       |
-| `name`    | The resource and operation, for example `user create`, `chat many`, `prison remove`, `prison addRule`.       |
+| `name`    | The resource and operation, for example `user create`, `chat many`, `prison remove`, `prison addRelay`.      |
 
 Update responses wrap the affected-row count and echo the body you sent:
 
@@ -459,7 +457,7 @@ Unknown paths return the same shape with status `404` and `"info": "Cannot GET /
 | Situation                                                                                                                   | Status |
 | --------------------------------------------------------------------------------------------------------------------------- | ------ |
 | Create                                                                                                                      | 201    |
-| Read, update, delete, login, attach rule                                                                                    | 200    |
+| Read, update, delete, login, attach relay group                                                                             | 200    |
 | Validation failed, bad pagination, unknown role filter                                                                      | 400    |
 | Duplicate username or email                                                                                                 | 400    |
 | Referential integrity refused the change (see below)                                                                        | 400    |
@@ -495,22 +493,24 @@ All list endpoints are paginated, including `GET /chapter/chapters`.
 
 Directory lists accept these in addition to `page` and `page_size`:
 
-| Parameter       | Where                                              | Effect                                                                                                                                                                                                                                |
-| --------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `q`             | prisons, prisoners, rules, chapters, users (admin) | Case-insensitive substring match. Prisons match `prisonName`; prisoners match `birthName` or `chosenName`; rules match `title` or `description`; chapters match `name`; users match `username`, `email`, or `name`. Blank is ignored. |
-| `sort`          | prisons, prisoners, rules, chapters                | `name` (alphabetical: prison name, prisoner chosen then birth name, rule title, chapter name), `newest`, or `oldest`. Default is ascending id.                                                                                        |
-| `status`        | prisoners                                          | `pretrial`, `incarcerated`, or `free`.                                                                                                                                                                                                |
-| `country`       | prisoners, prisons, chapters                       | Exact match on the `country` field.                                                                                                                                                                                                   |
-| `featured`      | prisoners                                          | `true` or `false`.                                                                                                                                                                                                                    |
-| `routing`       | prisons                                            | `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                                                                                            |
-| `stale`         | prisoners, prisons                                 | `true`: records never verified, or verified more than six months ago (`verifiedAt`). For re-verification worklists.                                                                                                                   |
-| `service`       | chapters                                           | One service key (see [Chapter fields](#chapter-fields)); matches groups whose `services` include it.                                                                                                                                  |
-| `networkRole`   | chapters                                           | `collecting` or `relay`; groups marked `both` match either.                                                                                                                                                                           |
-| `accountStatus` | chapters                                           | `pending`, `active`, or `suspended`.                                                                                                                                                                                                  |
-| `relay`         | prisons                                            | `true`: facilities with at least one active relay group; `false`: facilities with none.                                                                                                                                               |
-| `prison`        | prisoners, rules                                   | Only records attached to that prison.                                                                                                                                                                                                 |
-| `recordStatus`  | prisons, prisoners, chapters (staff only)          | See below.                                                                                                                                                                                                                            |
-| `role`          | users (admin)                                      | One role.                                                                                                                                                                                                                             |
+| Parameter       | Where                                       | Effect                                                                                                                                                                                          |
+| --------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `q`             | prisons, prisoners, chapters, users (admin) | Case-insensitive substring match. Prisons match `prisonName`; prisoners match `birthName` or `chosenName`; chapters match `name`; users match `username`, `email`, or `name`. Blank is ignored. |
+| `sort`          | prisons, prisoners, chapters                | `name` (alphabetical: prison name, prisoner chosen then birth name, chapter name), `newest`, or `oldest`. Default is ascending id.                                                              |
+| `status`        | prisoners                                   | `pretrial`, `incarcerated`, or `free`.                                                                                                                                                          |
+| `country`       | prisoners, prisons, chapters                | Exact match on the `country` field.                                                                                                                                                             |
+| `featured`      | prisoners                                   | `true` or `false`.                                                                                                                                                                              |
+| `routing`       | prisons                                     | `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                                                      |
+| `stale`         | prisoners, prisons                          | `true`: records never verified, or verified more than six months ago (`verifiedAt`). For re-verification worklists.                                                                             |
+| `service`       | chapters                                    | One service key (see [Chapter fields](#chapter-fields)); matches groups whose `services` include it.                                                                                            |
+| `networkRole`   | chapters                                    | `collecting` or `relay`; groups marked `both` match either.                                                                                                                                     |
+| `accountStatus` | chapters                                    | `pending`, `active`, or `suspended`.                                                                                                                                                            |
+| `relay`         | prisons                                     | `true`: facilities with at least one active relay group; `false`: facilities with none.                                                                                                         |
+| `mailRule`      | prisons                                     | One tag from the [mail rule vocabulary](#mail-rules): facilities carrying it. An unknown tag is a `400`.                                                                                        |
+| `language`      | prisons                                     | A two-letter ISO 639-1 code: facilities that accept mail in that language, which includes every facility with no language restriction.                                                          |
+| `prison`        | prisoners                                   | Only records attached to that prison.                                                                                                                                                           |
+| `recordStatus`  | prisons, prisoners, chapters (staff only)   | See below.                                                                                                                                                                                      |
+| `role`          | users (admin)                               | One role.                                                                                                                                                                                       |
 
 Parameters combine, `total` reflects the filtered result, and every invalid value is reported together in one validation error:
 
@@ -529,7 +529,7 @@ Prisons, prisoners, and chapters carry a `recordStatus` of `draft`, `pending`, o
 | Anonymous, or role `user` | Published records only. A draft or pending record is a `404` by id, absent from lists, absent from `full=true` embeds, and its dependents (`?prison=` filters) are `404`s too. |
 | Role `chapter` or `admin` | Everything. Add `?recordStatus=draft` (or `pending`, `published`) to a list to filter.                                                                                         |
 
-New records default to `published` until the moderation workflow exists. Staff can pass `recordStatus` on create or update to make a record `draft` or `pending`. Rules have no status of their own; they are visible wherever the prison they are attached to is.
+New records default to `published` until the moderation workflow exists. Staff can pass `recordStatus` on create or update to make a record `draft` or `pending`.
 
 ### The `full` parameter
 
@@ -538,15 +538,14 @@ Most read endpoints accept `full=true` to embed related records. The string must
 | Endpoint                     | `full=true` adds                                                                                                                                                                                                                                                                      |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Users (list, by id, by role) | `chats`                                                                                                                                                                                                                                                                               |
-| Prisons (list, by id)        | `prisoners`, `rules`, `relay_groups`                                                                                                                                                                                                                                                  |
+| Prisons (list, by id)        | `prisoners`, `relay_groups`. Mail rules are plain fields on the prison and need no `full`                                                                                                                                                                                             |
 | Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`). Without `full`, list rows still carry a small `prison_details` (`id`, `prisonName`, `country`, `routing`) for "Held at" lines                                                                         |
 | Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only. Without `full`, rows carry the same small `prison_details` summary as the main list                                                                                                                          |
-| Rules (list, by id)          | `prisons`                                                                                                                                                                                                                                                                             |
 | Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons`                                                                                                                                                                                                    |
 | Chats (list, by id, by pair) | `messages` (each with `relay_group`), `user_details`, `prisoner_details` (with `prison_details`). Without `full`, every chat row still carries a light `prisoner_details` (`id`, `birthName`, `chosenName`, `status`, `prison`) with `prison_details` (`id`, `prisonName`, `country`) |
 | Messages                     | On the single read: `relay_group`, `status_history`, `attachments`. Every message row carries `relay_group` (`{ id, name }` or `null`) regardless of `full`; lists ignore `full` otherwise                                                                                            |
 
-Embedded rules and prisons carry a `RulePassthrough` object describing the link (see the prison example below). Embedded users never include the password hash. For anonymous and `user`-role callers, embedded prisoners, prisons, and chapters are limited to published ones, chats are never embedded, and the staff-only `verificationNotes` field is omitted from prisoners and prisons everywhere.
+Embedded users never include the password hash. For anonymous and `user`-role callers, embedded prisoners, prisons, and chapters are limited to published ones, chats are never embedded, and the staff-only `verificationNotes` field is omitted from prisoners and prisons everywhere.
 
 ### Deletes and referential integrity
 
@@ -557,7 +556,7 @@ Foreign keys are enforced with `RESTRICT`. Deleting a record that other records 
 - A prison with prisoners.
 - A chat with messages, **except** through `DELETE /chat/chat`, which deletes the chat's messages first.
 
-Deleting a rule or a prison removes its rule-to-prison links automatically. Creating or updating a record that points at a nonexistent user, prisoner, chat, or prison fails the same way.
+Creating or updating a record that points at a nonexistent user, prisoner, chat, or prison fails the same way.
 
 ## Endpoint reference
 
@@ -902,32 +901,35 @@ The group's browser generates the writer's keypair: `POST /auth/writer` requires
 
 ### Prisons
 
-| Method | Path              | Auth             | Purpose                            |
-| ------ | ----------------- | ---------------- | ---------------------------------- |
-| POST   | `/prison/prison`  | Admin or chapter | Create a prison                    |
-| GET    | `/prison/prisons` | Public           | List prisons                       |
-| GET    | `/prison/prison`  | Public           | Get one prison by id               |
-| PUT    | `/prison/prison`  | Admin or chapter | Update a prison                    |
-| PUT    | `/prison/rule`    | Admin or chapter | Attach a rule to a prison          |
-| DELETE | `/prison/rule`    | Admin or chapter | Detach a rule from a prison        |
-| PUT    | `/prison/relay`   | Admin or chapter | Attach a relay group to a prison   |
-| DELETE | `/prison/relay`   | Admin or chapter | Detach a relay group from a prison |
-| DELETE | `/prison/prison`  | Admin or chapter | Delete a prison                    |
+| Method | Path                 | Auth             | Purpose                                                     |
+| ------ | -------------------- | ---------------- | ----------------------------------------------------------- |
+| POST   | `/prison/prison`     | Admin or chapter | Create a prison                                             |
+| GET    | `/prison/prisons`    | Public           | List prisons                                                |
+| GET    | `/prison/prison`     | Public           | Get one prison by id                                        |
+| PUT    | `/prison/prison`     | Admin or chapter | Update a prison                                             |
+| GET    | `/prison/mail-rules` | Public           | The mail rule vocabulary: tags, categories, default wording |
+| PUT    | `/prison/relay`      | Admin or chapter | Attach a relay group to a prison                            |
+| DELETE | `/prison/relay`      | Admin or chapter | Detach a relay group from a prison                          |
+| DELETE | `/prison/prison`     | Admin or chapter | Delete a prison                                             |
 
 #### Prison fields
 
-| Field               | Type     | Notes                                                                                          |
-| ------------------- | -------- | ---------------------------------------------------------------------------------------------- |
-| `prisonName`        | string   | Required.                                                                                      |
-| `country`           | string   | Free text.                                                                                     |
-| `routing`           | string   | How mail reaches the facility: `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.      |
-| `scanService`       | string   | Details of the scan service, if any.                                                           |
-| `notes`             | string   | Public notes, e.g. delivery risk.                                                              |
-| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                   |
-| `verifiedAt`        | datetime | When it was verified.                                                                          |
-| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                            |
-| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status). |
-| `address`           | object   | Required. Free-form JSON; the seeds use `{"street": "..."}`.                                   |
+| Field               | Type     | Notes                                                                                                                                |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `prisonName`        | string   | Required.                                                                                                                            |
+| `country`           | string   | Free text.                                                                                                                           |
+| `routing`           | string   | How mail reaches the facility: `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                            |
+| `scanService`       | string   | Details of the scan service, if any.                                                                                                 |
+| `mailRules`         | array    | Tags from the [mail rule vocabulary](#mail-rules). Default `[]`. No free text, no duplicates.                                        |
+| `pageLimit`         | integer  | Most single-sided pages per letter; `null` for no limit. At least 1.                                                                 |
+| `photoLimit`        | integer  | Most loose photographs per envelope; `null` for no stated limit. At least 1. Cannot be set on a facility tagged `no_photos`.         |
+| `mailLanguages`     | array    | Two-letter ISO 639-1 codes, lower case, that mail must be written in, for example `["en", "es"]`; `null` or `[]` for no restriction. |
+| `notes`             | string   | Public notes, e.g. delivery risk.                                                                                                    |
+| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                                                         |
+| `verifiedAt`        | datetime | When it was verified.                                                                                                                |
+| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                                                  |
+| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status).                                       |
+| `address`           | object   | Required. Free-form JSON; the seeds use `{"street": "..."}`.                                                                         |
 
 #### POST /prison/prison
 
@@ -996,6 +998,12 @@ curl -s 'http://localhost:3000/prison/prison?id=1&full=true' -H "Authorization: 
 		"id": 1,
 		"prisonName": "Test Prison",
 		"address": { "street": "123 Fake Street" },
+		"country": "United States",
+		"routing": "direct",
+		"mailRules": ["return_address_required", "full_name_and_number", "no_polaroids"],
+		"pageLimit": 10,
+		"photoLimit": 5,
+		"mailLanguages": ["en", "es"],
 		"createdAt": "2026-09-11T18:18:18.368Z",
 		"updatedAt": "2026-09-11T18:18:18.368Z",
 		"prisoners": [
@@ -1012,21 +1020,7 @@ curl -s 'http://localhost:3000/prison/prison?id=1&full=true' -H "Authorization: 
 				"updatedAt": "2026-09-11T18:18:18.391Z"
 			}
 		],
-		"rules": [
-			{
-				"id": 1,
-				"title": "No pictures",
-				"description": "Letters must be text only, no photographs",
-				"createdAt": "2026-09-11T18:18:18.407Z",
-				"updatedAt": "2026-09-11T18:18:18.407Z",
-				"RulePassthrough": {
-					"createdAt": "2026-09-11T18:19:08.527Z",
-					"updatedAt": "2026-09-11T18:19:08.527Z",
-					"prison": 1,
-					"rule": 1
-				}
-			}
-		]
+		"relay_groups": []
 	},
 	"info": "Success getting prison by ID",
 	"success": true,
@@ -1041,57 +1035,75 @@ No prison with that id is a `404`.
 
 Body: `{"id": 53, "prisonName": "Doc Prison Renamed"}` plus any other fields to change. Returns the update envelope.
 
-#### PUT /prison/rule
+#### Mail rules
 
-Attach an existing rule to an existing prison. Idempotent: attaching the same pair twice is a no-op.
+A facility's mail rules are data, not prose. `mailRules` holds tags from a fixed vocabulary, and the three rules that carry a value are typed fields beside it: `pageLimit`, `photoLimit`, and `mailLanguages`. Clients translate the tags, draw icons for them, and check a letter against them (block image attachments for `no_photos`, warn past `pageLimit`). There is no free-text rule; anything the vocabulary cannot say belongs in the facility's `notes`, or in a new tag.
 
 ```bash
-curl -s -X PUT http://localhost:3000/prison/rule \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"rule":1,"prison":1}'
+curl -s http://localhost:3000/prison/mail-rules
 ```
-
-The response echoes the ids and returns the prison with its prisoners and rules embedded, under the (historically named) `updatedRows` key:
 
 ```json
 {
 	"data": {
-		"updatedRows": {
-			"id": 1,
-			"prisonName": "Test Prison",
-			"address": { "street": "123 Fake Street" },
-			"createdAt": "2026-09-11T18:18:18.368Z",
-			"updatedAt": "2026-09-11T18:18:18.368Z",
-			"prisoners": [
-				{ "id": 1, "birthName": "John Smith", "chosenName": "Jane Smith", "prison": 1 }
-			],
-			"rules": [
-				{
-					"id": 1,
-					"title": "No pictures",
-					"description": "Letters must be text only, no photographs"
-				}
-			]
-		},
-		"rule": 1,
-		"prison": 1
+		"categories": [
+			"addressing",
+			"paper_and_ink",
+			"content",
+			"photos",
+			"enclosures",
+			"publications",
+			"senders",
+			"handling"
+		],
+		"rules": [
+			{
+				"tag": "no_polaroids",
+				"category": "photos",
+				"label": "No polaroids",
+				"description": "Instant-film photographs are refused because the backing can hide contraband."
+			}
+		],
+		"conflicts": [["typed_letters_allowed", "handwritten_only"]],
+		"parameters": {
+			"pageLimit": { "type": "integer", "minimum": 1, "label": "Page limit", "description": "..." },
+			"photoLimit": {
+				"type": "integer",
+				"minimum": 1,
+				"label": "Photo limit",
+				"description": "..."
+			},
+			"mailLanguages": {
+				"type": "array",
+				"items": "ISO 639-1 language code, lower case",
+				"label": "Accepted languages",
+				"description": "..."
+			}
+		}
 	},
-	"info": "Successfully added rule to prison",
 	"success": true,
 	"status": 200,
-	"name": "prison addRule"
+	"name": "prison mailRules"
 }
 ```
 
-(Embedded objects abbreviated.) An unknown rule or prison id is a `404`.
+(`rules` abbreviated; the full list is in `database/mail-rules.js`.) The endpoint is public and its content only changes with a release, so clients can cache it or compile the tags in as an enum. `label` and `description` are default English wording; a client with its own translations needs only the tags. `categories` is the display order. A client should ignore a tag it does not know rather than fail, so that a newer server can add one.
 
-#### DELETE /prison/rule
+Rules are set with the ordinary `POST /prison/prison` and `PUT /prison/prison` (admin or chapter), and proposed by anyone signed in through [moderation](#moderation), like any other facility field:
 
-Body: `{"rule": 1, "prison": 1}`. Detaches the rule; `404` if the link (or either record) does not exist. The rule itself is kept.
+```bash
+curl -s -X PUT http://localhost:3000/prison/prison \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"id":1,"mailRules":["no_polaroids","ink_blue_or_black"],"pageLimit":10,"mailLanguages":["en","es"]}'
+```
+
+`mailRules` is replaced whole, so send the full list. A `400` follows an unknown tag, a duplicate, both tags of a conflicting pair, a limit below 1, a language that is not a two-letter lower-case code, or `photoLimit` on a facility tagged `no_photos`. `GET /prison/prisons?mailRule=no_photos` and `?language=es` filter the list (see [Searching, filtering, and sorting lists](#searching-filtering-and-sorting-lists)).
+
+Adding a tag is a one-line change to `database/mail-rules.js`. Renaming or removing one needs a migration that rewrites stored values.
 
 #### PUT /prison/relay and DELETE /prison/relay
 
-Body: `{"prison": 1, "chapter": 2}`. Attaches or detaches a relay group (a chapter that prints and mails letters for this facility). Attaching is idempotent and returns the prison with `prisoners`, `rules`, and `relay_groups` embedded under `updatedRows`; detaching returns `1`, or `404` if there was no link.
+Body: `{"prison": 1, "chapter": 2}`. Attaches or detaches a relay group (a chapter that prints and mails letters for this facility). Attaching is idempotent and returns the prison with `prisoners` and `relay_groups` embedded under `updatedRows`; detaching returns `1`, or `404` if there was no link.
 
 #### DELETE /prison/prison
 
@@ -1219,78 +1231,6 @@ Body: `{"prisoner": 1, "chapter": 2, "description": "Letter collection, US Pacif
 #### PUT /prisoner/prisoner and DELETE /prisoner/prisoner
 
 Body `{"id": 41, "chosenName": "Doc Updated"}` and `{"id": 41}` respectively. A prisoner with chats or messages cannot be deleted.
-
-### Rules
-
-| Method | Path          | Auth             | Purpose                          |
-| ------ | ------------- | ---------------- | -------------------------------- |
-| POST   | `/rule/rule`  | Admin or chapter | Create a rule                    |
-| GET    | `/rule/rules` | Public           | List rules, optionally by prison |
-| GET    | `/rule/rule`  | Public           | Get one rule by id               |
-| PUT    | `/rule/rule`  | Admin or chapter | Update a rule                    |
-| DELETE | `/rule/rule`  | Admin or chapter | Delete a rule                    |
-
-#### Rule fields
-
-| Field         | Type   | Notes                           |
-| ------------- | ------ | ------------------------------- |
-| `title`       | string | Short name, e.g. "No pictures". |
-| `description` | string | Longer explanation.             |
-
-Rules are created standalone and linked to prisons afterwards with `PUT /prison/rule`. A `prison` field in the create body is ignored.
-
-#### POST /rule/rule
-
-```bash
-curl -s -X POST http://localhost:3000/rule/rule \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"title":"Doc rule","description":"Documented"}'
-```
-
-Returns `201` with the rule.
-
-#### GET /rule/rules
-
-Parameters: `prison`, `q`, `sort`, `full`, `page`, `page_size`. `?prison=1` returns the rules attached to prison 1 (`404` if the prison does not exist). `full=true` embeds `prisons` on the unfiltered list.
-
-#### GET /rule/rule
-
-Parameters: `id` (required), `full`. With `full=true`:
-
-```json
-{
-	"data": {
-		"id": 1,
-		"title": "No pictures",
-		"description": "Letters must be text only, no photographs",
-		"createdAt": "2026-09-11T18:18:18.407Z",
-		"updatedAt": "2026-09-11T18:18:18.407Z",
-		"prisons": [
-			{
-				"id": 1,
-				"prisonName": "Test Prison",
-				"address": { "street": "123 Fake Street" },
-				"createdAt": "2026-09-11T18:18:18.368Z",
-				"updatedAt": "2026-09-11T18:18:18.368Z",
-				"RulePassthrough": {
-					"createdAt": "2026-09-11T18:19:08.527Z",
-					"updatedAt": "2026-09-11T18:19:08.527Z",
-					"prison": 1,
-					"rule": 1
-				}
-			}
-		]
-	},
-	"info": "Success getting rule by ID",
-	"success": true,
-	"status": 200,
-	"name": "rule one"
-}
-```
-
-#### PUT /rule/rule and DELETE /rule/rule
-
-Body `{"id": 45, ...}` and `{"id": 45}`. Deleting a rule also removes its links to prisons.
 
 ### Chats
 
@@ -1777,12 +1717,10 @@ Parameters: `page`, `page_size`, `q`, `sort`, and (staff) `recordStatus`.
 None of these break anything, but clients should know about them.
 
 1. Several `info` strings contain typos ("retireved", "Succeessfully") that clients may already match on. They are left as-is for now.
-2. `PUT /prison/rule` returns the prison object under a key named `updatedRows`.
-3. Embedded rules and prisons include a `RulePassthrough` object describing the link row.
-4. `full=true` is accepted but ignored on message endpoints.
-5. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
-6. There is no endpoint to detach a rule from a prison.
-7. Seeded ids are not stable across databases. Read them from responses.
+2. `PUT /prison/relay` returns the prison object under a key named `updatedRows`.
+3. `full=true` is accepted but ignored on message endpoints.
+4. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
+5. Seeded ids are not stable across databases. Read them from responses.
 
 ## Postman collection
 
@@ -1858,15 +1796,15 @@ Body `{"id": 7, "decisionNote": "..."}`. The note is required.
 
 Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest first. Each entry is `{ id, actor, action, resource, targetId, details, createdAt, actor_details }`. Actions recorded:
 
-| Action                                                                                            | When                                                                       |
-| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `submission.create`, `.update`, `.approve`, `.reject`, `.withdraw`                                | Moderation events; `approve` also logs the resulting record write below    |
-| `prisoner.create`, `.update`, `.delete`, `.support.add`, `.support.remove`                        | Staff writes, direct or via an approved proposal (`details.viaSubmission`) |
-| `prison.create`, `.update`, `.delete`, `.rule.add`, `.rule.remove`, `.relay.add`, `.relay.remove` | Same                                                                       |
-| `chapter.create`, `.update`, `.delete`                                                            | Same                                                                       |
-| `letter.status`                                                                                   | A status move (`details.from`, `details.to`)                               |
-| `user.update`                                                                                     | An admin changed a role or group membership                                |
-| `writer.create`, `writer.claim`                                                                   | A managed writer was created, or claimed (no actor)                        |
+| Action                                                                     | When                                                                       |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `submission.create`, `.update`, `.approve`, `.reject`, `.withdraw`         | Moderation events; `approve` also logs the resulting record write below    |
+| `prisoner.create`, `.update`, `.delete`, `.support.add`, `.support.remove` | Staff writes, direct or via an approved proposal (`details.viaSubmission`) |
+| `prison.create`, `.update`, `.delete`, `.relay.add`, `.relay.remove`       | Same                                                                       |
+| `chapter.create`, `.update`, `.delete`                                     | Same                                                                       |
+| `letter.status`                                                            | A status move (`details.from`, `details.to`)                               |
+| `user.update`                                                              | An admin changed a role or group membership                                |
+| `writer.create`, `writer.claim`                                            | A managed writer was created, or claimed (no actor)                        |
 
 #### GET /moderation/summary
 

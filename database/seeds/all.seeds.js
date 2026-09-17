@@ -1,7 +1,6 @@
 import { createUserSeed } from '#db/seeds/user.seed.js';
 import { createPrisonSeed } from '#db/seeds/prison.seed.js';
 import { createPrisonerSeed } from '#db/seeds/prisoner.seed.js';
-import { createRuleSeed } from '#db/seeds/rule.seed.js';
 import { createChatSeed } from '#db/seeds/chat.seed.js';
 import { createMessageSeed } from '#db/seeds/message.seed.js';
 import { createChapterSeed } from '#db/seeds/chapter.seed.js';
@@ -12,7 +11,6 @@ import Utilities from '#services/Utilities.js';
  User
  Prison
  Prisoner (Requires Prison)
- Rules (Requires Prison)
  Chat (Requires Prisoner and User)
  Message (Requires Chat)
  */
@@ -22,14 +20,13 @@ export async function createSeeds() {
 		createUserSeed,
 		createPrisonSeed,
 		createPrisonerSeed,
-		createRuleSeed,
 		createChatSeed,
 		createMessageSeed,
 		createChapterSeed
 	];
 
 	const seedsData = await Utilities.resolveSequential(seeds);
-	const names = ['users', 'prisons', 'prisoners', 'rules', 'chats', 'messages', 'chapters'];
+	const names = ['users', 'prisons', 'prisoners', 'chats', 'messages', 'chapters'];
 	const summary = names.map((name, i) => {
 		const rows = seedsData[i];
 		return Array.isArray(rows)

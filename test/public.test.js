@@ -40,8 +40,6 @@ before(async () => {
 		location: {},
 		recordStatus: 'pending'
 	});
-	await put('/prison/rule', { rule: f.rule.id, prison: f.prison.id }, admin);
-	await put('/prison/rule', { rule: f.rule.id, prison: draftPrison.id }, admin);
 });
 after(stopServer);
 
@@ -52,9 +50,7 @@ test('directory lists and single records are readable without a token', async ()
 		'/prisoner/prisoners',
 		'/prisoner/prisoner?id=' + f.prisoner1.id,
 		'/prisoner/prisoners?prison=' + f.prison.id,
-		'/rule/rules',
-		'/rule/rule?id=' + f.rule.id,
-		'/rule/rules?prison=' + f.prison.id,
+		'/prison/mail-rules',
 		'/chapter/chapters'
 	]) {
 		const res = await get(path);
@@ -115,7 +111,6 @@ test('anonymous and user-role callers see only published records', async () => {
 
 		// A draft prison's dependents are hidden too.
 		assert.equal((await get('/prisoner/prisoners?prison=' + draftPrison.id, who)).status, 404);
-		assert.equal((await get('/rule/rules?prison=' + draftPrison.id, who)).status, 404);
 
 		// The recordStatus filter is ignored for non-staff.
 		const filtered = await get('/prison/prisons?recordStatus=draft&page_size=100', who);
@@ -128,21 +123,9 @@ test('embedded records are filtered for non-staff and complete for staff', async
 	const anon = await get('/prison/prison?id=' + f.prison.id + '&full=true');
 	assert.ok(anon.body.data.prisoners.every((p) => p.recordStatus === 'published'));
 	assert.ok(!anon.body.data.prisoners.some((p) => p.id === draftPrisoner.id));
-	assert.equal(anon.body.data.rules.length, 1);
 
 	const staff = await get('/prison/prison?id=' + f.prison.id + '&full=true', admin);
 	assert.ok(staff.body.data.prisoners.some((p) => p.id === draftPrisoner.id));
-
-	const ruleAnon = await get('/rule/rule?id=' + f.rule.id + '&full=true');
-	assert.deepEqual(
-		ruleAnon.body.data.prisons.map((p) => p.id),
-		[f.prison.id]
-	);
-	const ruleStaff = await get('/rule/rule?id=' + f.rule.id + '&full=true', admin);
-	assert.deepEqual(
-		ruleStaff.body.data.prisons.map((p) => p.id).sort(),
-		[f.prison.id, draftPrison.id].sort()
-	);
 });
 
 test('chats are embedded in prisoner reads for admins only', async () => {
@@ -207,9 +190,7 @@ test('totals are present on the other paginated lists too', async () => {
 		['/auth/users?page_size=2', admin],
 		['/chat/chats?page_size=1', admin],
 		['/messaging/messages?page_size=1', admin],
-		['/prisoner/prisoners?prison=' + f.prison.id + '&page_size=1', {}],
-		['/rule/rules?page_size=1', {}],
-		['/rule/rules?prison=' + f.prison.id, {}]
+		['/prisoner/prisoners?prison=' + f.prison.id + '&page_size=1', {}]
 	];
 	for (const [path, who] of cases) {
 		const res = await get(path, who);

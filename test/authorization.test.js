@@ -16,7 +16,7 @@ test('any authenticated role can read directory resources', async () => {
 		for (const path of [
 			'/prison/prisons',
 			'/prisoner/prisoners',
-			'/rule/rules',
+			'/prison/mail-rules',
 			'/chapter/chapters'
 		]) {
 			assert.equal((await get(path, { token: who.token })).status, 200, who.user.role + ' ' + path);
@@ -33,9 +33,8 @@ test('the user role cannot write directory resources', async () => {
 		(await post('/prisoner/prisoner', { birthName: 'Z', prison: f.prison.id }, t)).status,
 		403
 	);
-	assert.equal((await post('/rule/rule', { title: 'r', description: 'd' }, t)).status, 403);
 	assert.equal(
-		(await put('/prison/rule', { rule: f.rule.id, prison: f.prison.id }, t)).status,
+		(await put('/prison/prison', { id: f.prison.id, mailRules: ['no_photos'] }, t)).status,
 		403
 	);
 	assert.equal((await post('/chapter/chapter', { name: 'c', location: {} }, t)).status, 403);

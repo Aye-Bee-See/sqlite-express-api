@@ -6,7 +6,6 @@ import { encryptionMode, corsOrigins, trustProxy } from '#constants';
 import { default as authRouter } from '#routes/user/user.js';
 import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
-import RuleRoutes from '#routes/rule/rule.js';
 import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
 import ChapterRoutes from '#routes/chapter/chapter.js';
@@ -62,7 +61,6 @@ export function createApp() {
 	app.use('/auth', KeysRoutes.Router);
 	app.use('/prison', prisonRoutes.Router);
 	app.use('/prisoner', PrisonerRoutes.Router);
-	app.use('/rule', RuleRoutes.Router);
 	app.use('/messaging', MessageRoutes.Router);
 	app.use('/chat', ChatRoutes.Router);
 	app.use('/chapter', ChapterRoutes.Router);

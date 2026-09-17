@@ -25,10 +25,12 @@ test('prison create, read, update, delete', async () => {
 		'address',
 		'createdAt',
 		'id',
+		'mailRules',
 		'prisonName',
 		'recordStatus',
 		'updatedAt'
 	]);
+	assert.deepEqual(created.body.data.mailRules, [], 'a new facility starts with no rule tags');
 
 	const one = await get('/prison/prison?id=' + id, t);
 	assert.equal(one.status, 200);
@@ -53,7 +55,6 @@ test('missing records are 404 on read, update, and delete, with the general erro
 	assert.equal((await put('/prison/prison', { id: 999999, prisonName: 'Z' }, t)).status, 404);
 	assert.equal((await del('/prison/prison', { id: 999999 }, t)).status, 404);
 	assert.equal((await get('/prisoner/prisoner?id=999999', t)).status, 404);
-	assert.equal((await get('/rule/rule?id=999999', t)).status, 404);
 	assert.equal((await get('/chapter/chapter?id=999999', t)).status, 404);
 });
 
@@ -135,45 +136,11 @@ test('full=true embeds real related rows and no phantom columns', async () => {
 	const prison = await get('/prison/prison?id=' + f.prison.id + '&full=true', t);
 	assert.ok(Array.isArray(prison.body.data.prisoners));
 	assert.ok(prison.body.data.prisoners.length >= 2);
-	assert.ok(Array.isArray(prison.body.data.rules));
+	assert.equal(prison.body.data.rules, undefined, 'rule records are gone');
+	assert.ok(Array.isArray(prison.body.data.mailRules));
 });
 
-test('rules attach to prisons idempotently and show up from both sides', async () => {
-	const attach = await put('/prison/rule', { rule: f.rule.id, prison: f.prison.id }, t);
-	assert.equal(attach.status, 200);
-	assert.equal(attach.body.name, 'prison addRule');
-	assert.deepEqual(
-		attach.body.data.updatedRows.rules.map((r) => r.id),
-		[f.rule.id]
-	);
-	const again = await put('/prison/rule', { rule: f.rule.id, prison: f.prison.id }, t);
-	assert.equal(again.body.data.updatedRows.rules.length, 1);
-
-	const byPrison = await get('/rule/rules?prison=' + f.prison.id, t);
-	assert.deepEqual(
-		byPrison.body.data.map((r) => r.id),
-		[f.rule.id]
-	);
-	const ruleFull = await get('/rule/rule?id=' + f.rule.id + '&full=true', t);
-	assert.deepEqual(
-		ruleFull.body.data.prisons.map((p) => p.id),
-		[f.prison.id]
-	);
-	const prisonFull = await get('/prison/prison?id=' + f.prison.id + '&full=true', t);
-	assert.equal(prisonFull.body.data.rules[0].title, 'No pictures');
-
-	const badRule = await put('/prison/rule', { rule: 999999, prison: f.prison.id }, t);
-	assert.equal(badRule.status, 404);
-	assert.equal(badRule.body.error, 'Rule 999999 not found');
-});
-
-test('deleting a rule removes its links; deleting a prison with prisoners is refused', async () => {
-	const rule = await post('/rule/rule', { title: 'Temp', description: 'd' }, t);
-	await put('/prison/rule', { rule: rule.body.data.id, prison: f.prison.id }, t);
-	assert.equal((await del('/rule/rule', { id: rule.body.data.id }, t)).status, 200);
-	const prisonFull = await get('/prison/prison?id=' + f.prison.id + '&full=true', t);
-	assert.ok(!prisonFull.body.data.rules.some((r) => r.id === rule.body.data.id));
-
+test('deleting a prison with prisoners is refused', async () => {
 	const refused = await del('/prison/prison', { id: f.prison.id }, t);
 	assert.equal(refused.status, 400);
 	assert.equal(refused.body.name, 'SequelizeForeignKeyConstraintError');

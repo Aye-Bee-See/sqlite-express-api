@@ -237,7 +237,7 @@ test('facilities accept routing and verification fields, and filter by country a
 	assert.equal(staff.body.data.verificationNotes, 'internal');
 });
 
-test('relay groups attach to and detach from facilities; rules can be detached', async () => {
+test('relay groups attach to and detach from facilities', async () => {
 	const attached = await put('/prison/relay', { prison: f.prison.id, chapter: group.id }, admin);
 	assert.equal(attached.status, 200, JSON.stringify(attached.body));
 	assert.deepEqual(
@@ -267,21 +267,6 @@ test('relay groups attach to and detach from facilities; rules can be detached',
 	assert.equal(detached.status, 200);
 	assert.equal(
 		(await del('/prison/relay', { prison: f.prison.id, chapter: draftGroup.id }, admin)).status,
-		404
-	);
-
-	await put('/prison/rule', { rule: f.rule.id, prison: f.prison.id }, admin);
-	const ruleGone = await del('/prison/rule', { rule: f.rule.id, prison: f.prison.id }, admin);
-	assert.equal(ruleGone.status, 200);
-	assert.equal(ruleGone.body.name, 'prison removeRule');
-	const after = await get('/prison/prison?id=' + f.prison.id + '&full=true', admin);
-	assert.deepEqual(after.body.data.rules, []);
-	assert.equal(
-		(await del('/prison/rule', { rule: f.rule.id, prison: f.prison.id }, admin)).status,
-		404
-	);
-	assert.equal(
-		(await del('/prison/rule', { rule: 999999, prison: f.prison.id }, admin)).status,
 		404
 	);
 });

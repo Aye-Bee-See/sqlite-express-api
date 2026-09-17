@@ -642,6 +642,44 @@
 					"response": []
 				},
 				{
+					"name": "Filter Prisons By Mail Rule And Language",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/prisons?mailRule=no_photos&language=es",
+							"host": ["localhost"],
+							"path": ["prison", "prisons"],
+							"port": "3000",
+							"query": [
+								{
+									"key": "mailRule",
+									"value": "no_photos"
+								},
+								{
+									"key": "language",
+									"value": "es"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mail Rule Vocabulary (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/mail-rules",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["prison", "mail-rules"]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Update Prison",
 					"request": {
 						"method": "PUT",
@@ -665,19 +703,19 @@
 					"response": []
 				},
 				{
-					"name": "Detach Rule From Prison",
+					"name": "Set Mail Rules On A Prison",
 					"request": {
-						"method": "DELETE",
+						"method": "PUT",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/prison/rule",
+							"raw": "localhost:3000/prison/prison",
 							"host": ["localhost"],
-							"path": ["prison", "rule"],
+							"path": ["prison", "prison"],
 							"port": "3000"
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"rule\": 1,\n    \"prison\": 1\n}",
+							"raw": "{\n    \"id\": 1,\n    \"mailRules\": [\n        \"return_address_required\",\n        \"no_polaroids\",\n        \"ink_blue_or_black\"\n    ],\n    \"pageLimit\": 10,\n    \"photoLimit\": 5,\n    \"mailLanguages\": [\n        \"en\",\n        \"es\"\n    ]\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -724,29 +762,6 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"prison\": 1,\n    \"chapter\": 1\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Attach Rule To Prison",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"url": {
-							"raw": "localhost:3000/prison/rule",
-							"host": ["localhost"],
-							"path": ["prison", "rule"],
-							"port": "3000"
-						},
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"rule\": 1,\n    \"prison\": 1\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -998,152 +1013,6 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"prisoner\": 1,\n    \"chapter\": 1\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Rule",
-			"item": [
-				{
-					"name": "Create Rule",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "localhost:3000/rule/rule",
-							"host": ["localhost"],
-							"path": ["rule", "rule"],
-							"port": "3000"
-						},
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"title\": \"No pictures\",\n    \"description\": \"Letters must be text only, no photographs\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Read All Rules",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "localhost:3000/rule/rules?full=true&page=1&page_size=10",
-							"host": ["localhost"],
-							"path": ["rule", "rules"],
-							"port": "3000",
-							"query": [
-								{
-									"key": "full",
-									"value": "true"
-								},
-								{
-									"key": "page",
-									"value": "1"
-								},
-								{
-									"key": "page_size",
-									"value": "10"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Read Rules By Prison",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "localhost:3000/rule/rules?prison=1",
-							"host": ["localhost"],
-							"path": ["rule", "rules"],
-							"port": "3000",
-							"query": [
-								{
-									"key": "prison",
-									"value": "1"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Read Rule By ID",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "localhost:3000/rule/rule?id=1&full=true",
-							"host": ["localhost"],
-							"path": ["rule", "rule"],
-							"port": "3000",
-							"query": [
-								{
-									"key": "id",
-									"value": "1"
-								},
-								{
-									"key": "full",
-									"value": "true"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Update Rule",
-					"request": {
-						"method": "PUT",
-						"header": [],
-						"url": {
-							"raw": "localhost:3000/rule/rule",
-							"host": ["localhost"],
-							"path": ["rule", "rule"],
-							"port": "3000"
-						},
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"id\": 1,\n    \"title\": \"No pictures updated\",\n    \"description\": \"Letters must be text only, no photographs\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Delete Rule",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "localhost:3000/rule/rule",
-							"host": ["localhost"],
-							"path": ["rule", "rule"],
-							"port": "3000"
-						},
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"id\": 45\n}",
 							"options": {
 								"raw": {
 									"language": "json"

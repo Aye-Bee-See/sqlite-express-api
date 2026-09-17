@@ -32,7 +32,7 @@ It describes `main` after pull requests #60 and #61 (September 2026). Line refer
 Aye Bee See lets people send physical letters to incarcerated people from a phone or browser. The user writes a message; a partner non-profit chapter prints it and mails it; replies are transcribed back into the same thread. This repository is the API that the front end (expected at `http://localhost:3001` in development) talks to. It owns:
 
 - **Users** (outside correspondents, chapter accounts, admins) and login.
-- **Prisons** and their **Rules** (mail restrictions).
+- **Prisons**, each with its mail rules: tags from a fixed vocabulary plus typed limits (see [Mail rules](#mail-rules)).
 - **Prisoners** and which prison each is in.
 - **Chats** (one user, one prisoner) and the **Messages** inside them.
 - **Chapters** of the partner organization.
@@ -146,9 +146,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   │   ├── route.controller.js       Base class: pagination, requireFound/requireAffected, handleSuccess, handleErr.
 │   │   ├── user.controller.js        Plus login, registration role policy, password/note stripping, managed writers, claim tokens (with key material in e2e mode).
 │   │   ├── keys.controller.js        e2e key material: own bundle, public keys, recovery challenge, group keys, member keys.
-│   │   ├── prison.controller.js      Plus addRule.
+│   │   ├── prison.controller.js      Plus mailRules (the vocabulary), addRelay, removeRelay.
 │   │   ├── prisoner.controller.js
-│   │   ├── rule.controller.js
 │   │   ├── chat.controller.js        Scope checks via threadScope().
 │   │   ├── message.controller.js     Scope checks via threadScope().
 │   │   ├── chapter.controller.js
@@ -156,7 +155,6 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   ├── user/user.js                  Route classes. All seven follow the same template.
 │   ├── prison/prison.js
 │   ├── prisoner/prisoner.js
-│   ├── rule/rule.js
 │   ├── chat/chat.js
 │   ├── message/message.js
 │   ├── chapter/chapter.js
@@ -178,9 +176,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     │   ├── models.service.js         modelInstanceExists(modelName, pk): instance or NotFoundError.
     │   ├── user.model.js             defaultScope hides the password; getUserWithPassword for login; managed-writer helpers.
     │   ├── claim-token.model.js      ClaimToken: issue/revoke/lookup one-time claim tokens (hashes only).
-    │   ├── prison.model.js           addRule.
+    │   ├── prison.model.js           addRelay, removeRelay, the no_photos / photoLimit check.
     │   ├── prisoner.model.js
-    │   ├── rule.model.js
     │   ├── chat.model.js             Readers accept an extra where-clause for ownership filtering.
     │   ├── message.model.js          Same; updateMessage re-resolves the chat; createLetter, resolveRelayChapter, changeStatus, readLetter.
     │   ├── message-status.model.js   MessageStatus: one row per status change.
@@ -309,7 +306,7 @@ Every path is defined once in the `endpoints` object in `routes/constants.js`, k
 prison: {
 	get: { many: '/prisons', one: '/prison' },
 	post: { create: '/prison' },
-	put: { update: '/prison', addRule: '/rule' },
+	put: { update: '/prison', addRelay: '/relay' },
 	delete: { remove: '/prison' }
 }
 ```
@@ -340,7 +337,7 @@ class PrisonRoutes {
 			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			this.#Controller.create
 		);
-		// get many, get one (authenticate only), put update, put addRule, delete remove (authenticate + role gate)
+		// get many, get one (authenticate only), put update, put addRelay, delete remove (authenticate + role gate)
 	}
 }
 export default PrisonRoutes;
@@ -348,7 +345,7 @@ export default PrisonRoutes;
 
 - The class is never instantiated. The static initialization block runs at import time and fills the static `Router`, which `index.js` mounts.
 - Every route except `POST /auth/user` and `POST /auth/login` starts with `passport.authenticate('UsrJStrat', { session: false, failWithError: true })`. `failWithError` routes auth failures into the JSON error handler.
-- Write routes on prisons, prisoners, rules, and chapters add `AuthzService.requireRole(ADMIN, CHAPTER)`. User routes use `requireRole(ADMIN)` for the list and `requireSelfOrAdmin` for get, update, and delete. Registration uses `optionalAuthenticate` so an admin token can unlock other roles while anonymous callers still get through. Chat and message routes have no route-level gate; ownership is enforced inside their controllers.
+- Write routes on prisons, prisoners, and chapters add `AuthzService.requireRole(ADMIN, CHAPTER)`. User routes use `requireRole(ADMIN)` for the list and `requireSelfOrAdmin` for get, update, and delete. Registration uses `optionalAuthenticate` so an admin token can unlock other roles while anonymous callers still get through. Chat and message routes have no route-level gate; ownership is enforced inside their controllers.
 - The controller method passed as the final handler must be a bound function whose `name` is `bound <method>`; see the next section.
 - Strategies are registered once at the bottom of `auth.services.js`, not per route file.
 
@@ -361,7 +358,6 @@ From `index.js`:
 | `/auth`      | `UserRoutes`     |
 | `/prison`    | `PrisonRoutes`   |
 | `/prisoner`  | `PrisonerRoutes` |
-| `/rule`      | `RuleRoutes`     |
 | `/messaging` | `MessageRoutes`  |
 | `/chat`      | `ChatRoutes`     |
 | `/chapter`   | `ChapterRoutes`  |
@@ -397,7 +393,7 @@ After the routers, `app.js` adds a catch-all that calls `next(new NotFoundError(
 
 It walks the Express route's handler layers, strips the six-character `bound ` prefix from each function name, and picks the layer whose stripped name is an own property of the controller instance. This works because each controller constructor does `this.create = this.create.bind(this)` for every handler, which both fixes `this` and makes the bound function an own property named `bound create`. Middleware layers (`authenticate`, `roleGate`, `requireSelfOrAdmin`, `optionalAuthenticate`) are skipped because their stripped names are not own properties.
 
-From the chosen layer the base class derives `callerName` (`getOne`, `getMany`, `create`, `update`, `remove`, `login`, `addRule`), maps `getOne` / `getMany` to `one` / `many`, reads the HTTP method, and looks up `messages[controllerName][method][msgRef]`. Three things must therefore line up: the controller name passed to `super()`, the method names on the class (all bound), and the key structure in `routes/constants.js`.
+From the chosen layer the base class derives `callerName` (`getOne`, `getMany`, `create`, `update`, `remove`, `login`, `addRelay`), maps `getOne` / `getMany` to `one` / `many`, reads the HTTP method, and looks up `messages[controllerName][method][msgRef]`. Three things must therefore line up: the controller name passed to `super()`, the method names on the class (all bound), and the key structure in `routes/constants.js`.
 
 `handleSuccess` sends status 201 when `msgRef === 'create'`, 200 otherwise. `handleErr`:
 
@@ -410,8 +406,8 @@ From the chosen layer the base class derives `callerName` (`getOne`, `getMany`, 
 Each method destructures `req.query` or `req.body`, calls one static model method inside `try`, and delegates to `#handleSuccess` / `#handleErr`. The private fields `#handleSuccess` and `#handleErr` are aliases for the inherited methods. Things that differ:
 
 - **User** (`user.controller.js`): `create` (`:149`) accepts `next`, lower-cases `role` (default `user`), and returns `AuthzService.forbidden(...)` through `next` when a non-admin asks for anything else. `update` refuses `role` from non-admins the same way and never echoes `password`. `#stripPassword` (`:38`) converts an instance with `toJSON` and deletes `password`; it is applied to list, single, create, and login responses as belt-and-braces on top of the model's default scope. `getMany` with `role` validates it against the schema's list and returns `200 []` for no matches. `login` reads `req.authInfo.token` set by the local strategy.
-- **Prison**: `addRule` is bound and calls `Prison.addRule`, which returns the prison with prisoners and rules embedded.
-- **Prisoner / Rule**: `getMany` branches on a `prison` query parameter.
+- **Prison**: `addRelay` / `removeRelay` are bound and call the model, which returns the prison with prisoners and relay groups embedded. `mailRules` serves the static vocabulary.
+- **Prisoner**: `getMany` branches on a `prison` query parameter.
 - **Chat** (`chat.controller.js`): `#loadOwned(req, id)` (`:41`) loads a chat and throws a 403 when the caller is a restricted `user` who does not own it. `getMany` filters restricted callers to their own id (a `prisoner` parameter narrows within that). `getOne` accepts `id` or `user` + `prisoner` (defaulting `user` to the caller for restricted callers), throws `HttpError(400, ...)` for incomplete parameters, and uses the constants' `param` / `empty` conditions for `info`. `create` forces `user` to the caller for restricted callers; `update` refuses to reassign a chat to another user; `remove` checks ownership. 403s are passed to `next(err)` so they render through `ErrorService`.
 - **Message** (`message.controller.js`): `#ownerFilter(req)` (`:38`) returns `{ user: req.user.id }` for restricted callers, which every list call merges into its where-clause last, so no query parameter can widen it. `#loadOwned` mirrors the chat version. `create` forces `user` to the caller and `sender` to `user` for restricted callers; `update` pins `user` to the caller.
 - **Chapter**: the simplest; no pagination, no `full`.
@@ -495,7 +491,7 @@ The policy, as implemented:
 - Registration is public and always yields `role: user`; other roles need an admin token.
 - Banned users are refused at login and at token verification, so `hasRole` never sees them.
 - User management is admin-only, except that anyone may read, update, or delete their own record and non-admins may not change `role`, `chapterId`, or the custody columns. A group's `chapter` account may read, edit (`name`, `email`, `managerNote` only), and delete the group's unclaimed managed writers.
-- Reads of prisons, prisoners, rules, and chapters need no token (`optionalAuthenticate`). Anonymous callers and the `user` role see published records only; staff see everything and may filter by `recordStatus`. `AuthzService.publishedOnly(req)` decides, and `readOptions(req, config)` in `routes/controllers/directory.helpers.js` turns it, plus `q`, `sort`, `recordStatus`, and per-resource exact-match filters, into `{ publishedOnly, where, order }` for the model readers. Each directory controller declares its `READ_CONFIG` (search fields, sort orders, allowed filters) at the top of the file; add to that object to expose a new filter. Writes need `admin` or `chapter`.
+- Reads of prisons, prisoners, and chapters need no token (`optionalAuthenticate`). Anonymous callers and the `user` role see published records only; staff see everything and may filter by `recordStatus`. `AuthzService.publishedOnly(req)` decides, and `readOptions(req, config)` in `routes/controllers/directory.helpers.js` turns it, plus `q`, `sort`, `recordStatus`, and per-resource exact-match filters, into `{ publishedOnly, where, order }` for the model readers. Each directory controller declares its `READ_CONFIG` (search fields, sort orders, allowed filters) at the top of the file; add to that object to expose a new filter. Writes need `admin` or `chapter`.
 - Chats and messages follow `threadScope(req)` in `routes/services/scope.services.js`: `{ kind: 'all' | 'managed' | 'own', where, messageWhere, allowsUser(id), allows(chat) (async), allowsMessage(message) }`. Admins get everything; a `chapter` caller gets `user IN (ids of writers its group manages)` **or** `relayChapter = its group` (for chats: chats holding such a message, via a literal subquery); a `user` gets their own id. Controllers spread `scope.where` / `scope.messageWhere` **last** into list queries, call `allows` / `allowsMessage` before single-record reads, updates, and deletes, and use `resolveWriter(req, scope, body.user, { sender, prisoner })` on create (user role: self; chapter: a managed writer, the group's anonymous writer when omitted, or an independent writer only for a `prisoner` reply on a thread the group relays; admin: as given). Enforced in the controllers because it depends on the record, not just the route.
 - Attachments (`Attachment` model, `MessageController.createAttachment` / `attachments` / `getAttachment` / `removeAttachment`): scoped exactly like the message they belong to via `allowsMessage`; adding or removing requires the letter to be `isOpen` unless the caller is an admin. Uploads go through `uploadSingle('file')`, are sniffed with `sniffType`, and must match the declared MIME type. `Message.deleteMessage` and `Chat.deleteChat` call `Attachment.purgeForMessages` first because the database cascade cannot unlink files.
 - Letter lifecycle (`database/letter-status.js`, `Message.createLetter` / `changeStatus`, `MessageController.updateStatus`): every message has `status`; letters start `queued`, replies `received`; `PUT /messaging/status` moves queued to printed to mailed for admins or the letter's `relayChapter`; `MessageStatus` rows record every change. `Message.resolveRelayChapter(prisonerId, requested, callerChapter)` validates an explicit group against the facility's relay groups (`Prisoner.relayGroupsFor`) and otherwise defaults to the caller's group, then the single relay group, then none unless the facility is `relay_only`. Non-admins may edit or delete a letter only while `isOpen(status)`.
@@ -509,9 +505,9 @@ To change the policy, edit the route files (which roles guard which routes) and 
 
 ### Sequelize setup
 
-`database/sql-database.js` builds everything and exports the Sequelize instance, each initialized model, and `ready`. Models are initialized (Chat, Message, Prison, Prisoner, Rule, User, Chapter) and then associated; `associate` needs all classes to exist, which they do by then.
+`database/sql-database.js` builds everything and exports the Sequelize instance, each initialized model, and `ready`. Models are initialized (Chat, Message, Prison, Prisoner, User, Chapter) and then associated; `associate` needs all classes to exist, which they do by then.
 
-Tables: `User` (explicit `tableName`), `Prisons`, `Prisoners`, `Rules`, `Chats`, `Messages`, `Chapters`, and the join table `RulePassthrough`. Every table gets `id`, `createdAt`, and `updatedAt`. SQLite enforces the foreign keys because Sequelize turns `PRAGMA foreign_keys` on for every connection.
+Tables: `User` (explicit `tableName`), `Prisons`, `Prisoners`, `Chats`, `Messages`, `Chapters`, and the join tables. Every table gets `id`, `createdAt`, and `updatedAt`. SQLite enforces the foreign keys because Sequelize turns `PRAGMA foreign_keys` on for every connection.
 
 ### Schemas
 
@@ -520,9 +516,8 @@ Tables: `User` (explicit `tableName`), `Prisons`, `Prisoners`, `Rules`, `Chats`,
 | Model           | Columns (beyond id and timestamps)                                                                                                                                                                                                                                                                                                                                                                                                                 | Validation                                                                                                                           |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | User            | `name`, `username` (unique, not null), `password` (not null), `email` (unique, not null), `bio` TEXT, `role` (not null)                                                                                                                                                                                                                                                                                                                            | `username` len 3-16, `name` len 3-32, `bio` len 12-2400, `password` len 7-255, `email` isEmail, `role` in admin/user/chapter/banned. |
-| Prison          | `prisonName` (not null), `address` JSON (not null), `country`, `routing`, `scanService` TEXT, `notes` TEXT, `verifiedBy` INT (FK Chapters, SET NULL), `verifiedAt` DATE, `verificationNotes` TEXT (staff only), `recordStatus`                                                                                                                                                                                                                     | `routing` in the ROUTING_METHODS list; `recordStatus`                                                                                |
+| Prison          | `prisonName` (not null), `address` JSON (not null), `country`, `routing`, `scanService` TEXT, `mailRules` JSON (not null, default `[]`), `pageLimit` INT, `photoLimit` INT, `mailLanguages` JSON, `notes` TEXT, `verifiedBy` INT (FK Chapters, SET NULL), `verifiedAt` DATE, `verificationNotes` TEXT (staff only), `recordStatus`                                                                                                                 | `routing` in the ROUTING_METHODS list; `recordStatus`                                                                                |
 | Prisoner        | `birthName`, `chosenName`, `prison` INT (FK), `inmateID`, `releaseDate` DATE, `bio`, `status`, `aliases` JSON, `country`, `detainedSince` DATE, `sentence`, `charges` TEXT, `estimatedRelease`, `interests` JSON, `photoUrl`, `supportWebsite`, `donationInfo` TEXT, `statusNotice`, `featured` BOOL (not null, default false), `verifiedBy` INT (FK Chapters, SET NULL), `verifiedAt` DATE, `verificationNotes` TEXT (staff only), `recordStatus` | `status`; `aliases`/`interests` arrays of strings; URLs; `recordStatus`                                                              |
-| Rule            | `title`, `description`                                                                                                                                                                                                                                                                                                                                                                                                                             | none                                                                                                                                 |
 | Chat            | `user` INT (FK), `prisoner` INT (FK), explicit `id`                                                                                                                                                                                                                                                                                                                                                                                                | none                                                                                                                                 |
 | Message         | `chat` INT (FK, not null), `messageText`, `sender` (not null), `prisoner` INT (FK, not null), `user` INT (FK, not null)                                                                                                                                                                                                                                                                                                                            | `chat`/`prisoner`/`user` isInt + notNull; `sender` in user/prisoner                                                                  |
 | Chapter         | `name` (not null), `location` JSON (not null), `prisoners` JSON, `lettersSent` STRING, `averageTimeDays` INT, `subregion`, `country`, `about` TEXT, `website`, `email`, `socialLinks` JSON, `services` JSON, `announcement` TEXT, `vouchedBy` INT (FK Chapters, SET NULL), `recordStatus`                                                                                                                                                          | `website` isUrl, `email` isEmail, `socialLinks` object of allowed keys, `services` subset of CHAPTER_SERVICES; `recordStatus`        |
@@ -553,8 +548,6 @@ Declared in each model's `associate(models)`. Every pair uses the column the sch
 | `Prisoner.hasMany(Chat, { as: 'chats', foreignKey: 'prisoner' })`                                                                                            | `Chats.prisoner`                   |
 | `Prisoner.hasMany(Message, { as: 'messages', foreignKey: 'prisoner' })`                                                                                      | `Messages.prisoner`                |
 | `Prison.hasMany(Prisoner, { as: 'prisoners', foreignKey: 'prison' })`                                                                                        | `Prisoners.prison`                 |
-| `Prison.belongsToMany(Rule, { as: 'rules', through: 'RulePassthrough', foreignKey: 'prison', otherKey: 'rule' })`                                            | `RulePassthrough.prison`, `.rule`  |
-| `Rule.belongsToMany(Prison, { as: 'prisons', through: 'RulePassthrough', foreignKey: 'rule', otherKey: 'prison' })`                                          | same                               |
 | `Prisoner.belongsTo(Chapter, { as: 'verified_by_group', foreignKey: 'verifiedBy', onDelete: 'SET NULL' })`                                                   | `Prisoners.verifiedBy`             |
 | `Prisoner.belongsToMany(Chapter, { as: 'support_groups', through: PrisonerSupport, foreignKey: 'prisoner', otherKey: 'chapter' })`                           | `PrisonerSupport`                  |
 | `Prison.belongsToMany(Chapter, { as: 'relay_groups', through: 'PrisonRelay', foreignKey: 'prison', otherKey: 'chapter' })`                                   | `PrisonRelay`                      |
@@ -567,7 +560,7 @@ Declared in each model's `associate(models)`. Every pair uses the column the sch
 | `User.belongsTo(Chapter, { as: 'anonymous_for_chapter', foreignKey: 'anonymousForChapter', onDelete: 'CASCADE' })` (unique)                                  | `User.anonymousForChapter`         |
 | `ClaimToken.belongsTo(User, { as: 'writer', foreignKey: 'userId', onDelete: 'CASCADE' })`, `{ as: 'issuer', foreignKey: 'createdBy', onDelete: 'SET NULL' }` | `ClaimTokens.userId`, `.createdBy` |
 
-The join table's own foreign keys cascade, so deleting a rule or prison removes its links. `RESTRICT` everywhere else was a deliberate choice: letters should never disappear as a side effect of deleting an account or a facility. Switch an association to `SET NULL` or `CASCADE` only after deciding what the product wants.
+The join tables' own foreign keys cascade, so deleting a prison or group removes its links. `RESTRICT` everywhere else was a deliberate choice: letters should never disappear as a side effect of deleting an account or a facility. Switch an association to `SET NULL` or `CASCADE` only after deciding what the product wants.
 
 When you add an `include`, the `as` must match these aliases exactly; Sequelize throws an `EagerLoadingError` otherwise.
 
@@ -589,7 +582,6 @@ Worth knowing:
 - `ClaimToken.issue(userId, createdBy)` deletes any unused token, stores a SHA-256 hash of a 24-character base32 token (Crockford alphabet, upper-cased before hashing so input is case-insensitive) with a 72-hour expiry, and returns the plaintext once. `lookup(token)` returns `{ record, state }` with `state` one of `valid`, `used`, `expired`, `unknown`; the controller maps `unknown` to 404 and the others to 410.
 - `Chat.readChatById` uses `findOne` and returns an object, like `readChatByUserAndPrisoner`.
 - `Message.updateMessage` (`message.model.js:139`) re-resolves the chat when `user` or `prisoner` changes, merging with the stored row so changing only one of them still lands in the right chat. It has to do this itself because Sequelize's static `update` discards attribute changes made by `beforeValidate` hooks.
-- `Prison.addRule(ruleId, prisonId)` (`prison.model.js:110`) loads both, throws `NotFoundError` for a missing one, calls the `addRule` mixin (idempotent), and returns the prison with its rules loaded.
 - `models.service.js` provides `modelInstanceExists(modelName, pk)`, which returns either the instance or a `NotFoundError` (returned, not thrown; callers check `instanceof Error` and throw). It knows all seven models.
 
 ### Encryption at rest
@@ -601,6 +593,16 @@ Worth knowing:
 - `Message.updateMessage` re-encrypts changed text under the letter's existing key (static updates bypass instance hooks). Attachments are encrypted with the parent letter's key and their own nonce (`Attachment.attach` / `readBytes`); files on disk are ciphertext and the row's `nonce` is hidden by the default scope.
 - A `keyLabel` that does not match the running key raises `EncryptionKeyError` (500) instead of returning garbage.
 - `sql-database.js` awaits `crypto.ready` and calls `assertConfigured()` before migrations, so a missing or malformed key fails the boot with a plain message. The encryption migration converts existing plaintext rows and files and needs the key too.
+
+### Mail rules
+
+A facility's mail rules are tags, not text. `database/mail-rules.js` is the vocabulary: `MAIL_RULES` (`tag`, `category`, default English `label` and `description`), `MAIL_RULE_CATEGORIES` (display order), `MAIL_RULE_CONFLICTS` (pairs that cannot both hold), `MAIL_RULE_PARAMETERS` (a description of the typed limits for clients), and the Sequelize validators. `Prisons.mailRules` is a JSON array of tags (`NOT NULL`, default `[]`); the three rules that carry a value are their own columns: `pageLimit`, `photoLimit` (integers, at least 1, nullable) and `mailLanguages` (JSON array of two-letter ISO 639-1 codes, nullable). All four are in `PRISON_FIELDS`, so they travel through the ordinary create and update and through moderation submissions with no extra code.
+
+- Column validators refuse unknown tags, duplicates, and conflicting pairs. The one cross-column rule (`photoLimit` on a facility tagged `no_photos`) lives in `Prison.#checkPhotoRules`, called by `createPrison` and by `updatePrison` against the merged stored and incoming values, because a column validator sees one column.
+- `GET /prison/mail-rules` (`PrisonController.mailRules`) serves the vocabulary; it is public and static.
+- List filters `mailRule` and `language` (`READ_CONFIG` in `prison.controller.js`) use `json_each` subqueries. The tag is checked against the vocabulary and the language against `/^[a-z]{2}$/` before either reaches the SQL literal. A filter's `build` may throw a `ValidationError`; `readOptions` collects it with the other parameter errors.
+- To add a tag, add an entry to `MAIL_RULES`. To rename or remove one, write a migration that rewrites `Prisons.mailRules`; stored values are not checked on read.
+- History: until `2026.09.17T01.00.00.mail-rule-tags` rules were free-text `Rules` records attached through `RulePassthrough`, with their own `/rule` endpoints. The migration maps the seeded titles to tags and limits (a frozen table inside the migration), keeps the words of any hand-written rule in the facility's `notes`, and drops both tables; `down` rebuilds them from the tags.
 
 ### Retention
 
@@ -632,11 +634,11 @@ There is no `paranoid` mode; every `destroy` is a hard delete, and the foreign k
 
 ## Seeds
 
-`database/seeds/all.seeds.js` runs seed functions sequentially in dependency order: User, Prison, Prisoner, Rule, Chat, Message, Chapter. Each checks `count === 0` before inserting, so seeding is idempotent and safe to leave enabled. After running it logs one line, for example `Seed data: users: 41 seeded, prisons: 52 seeded, ...` or `users: already populated, ...`.
+`database/seeds/all.seeds.js` runs seed functions sequentially in dependency order: User, Prison, Prisoner, Chat, Message, Chapter. Each checks `count === 0` before inserting, so seeding is idempotent and safe to leave enabled. After running it logs one line, for example `Seed data: users: 41 seeded, prisons: 52 seeded, ...` or `users: already populated, ...`.
 
 Each `<model>.seed.js` reads its sibling `<model>Seed.json` (`{ "seeds": [ ... ] }`) and calls the model's `createBulkXs`, which is `bulkCreate` with `individualHooks: true` (so user passwords get hashed) and `ignoreDuplicates: true`. Messages use `validate: true` instead; their `chat` is resolved by the message hook at insert time.
 
-Row counts: 41 users, 52 prisons, 40 prisoners, 44 rules, 40 chats, 40 messages, 1 chapter. Prisoner N is in prison N, chat N pairs user id N with prisoner N. Seeded rules are not attached to any prison.
+Row counts: 41 users, 52 prisons, 40 prisoners, 40 chats, 40 messages, 1 chapter. Prisoner N is in prison N, chat N pairs user id N with prisoner N. Every seeded prison has `mailRules` and, for many, limits; "Test Prison" has a fixed, readable set.
 
 User ids do not come out in seed-file order; in one run `admin` received id 3. Do not hardcode seeded ids in tests.
 
@@ -646,7 +648,7 @@ User ids do not come out in seed-file order; in one run `admin` received id 3. D
 
 List readers return `findAndCountAll` results, `{ rows, count }`, and controllers send them through `RouteController.handlePage(res, result, limits)`, which puts `rows` in `data` and adds `total`, `page`, and `page_size` to the envelope. Counts use `distinct: true` wherever a has-many include could multiply rows.
 
-The directory models (Prison, Prisoner, Rule, Chapter) take an options object: `getAllPrisons({ full, limit, offset, publishedOnly, where })`, `getPrisonByID(id, { full, publishedOnly })`, and so on. `publishedOnly` adds `recordStatus = 'published'` to the query and to the embedded prisoners/prisons/chapters, hides chats from prisoner embeds, and drops the staff-only columns (`Prisoner.publicAttributes()` / `Prison.publicAttributes()` exclude `verificationNotes`). Create helpers take the whole body and `pick` the allowed field list (`PRISONER_FIELDS`, `PRISON_FIELDS`, `CHAPTER_FIELDS`), so adding a column means adding it to the schema, the migration, and that list. Chat, Message, and User readers are still positional `(…, limit, offset)`; convert them to the same style when you next touch them.
+The directory models (Prison, Prisoner, Chapter) take an options object: `getAllPrisons({ full, limit, offset, publishedOnly, where })`, `getPrisonByID(id, { full, publishedOnly })`, and so on. `publishedOnly` adds `recordStatus = 'published'` to the query and to the embedded prisoners/prisons/chapters, hides chats from prisoner embeds, and drops the staff-only columns (`Prisoner.publicAttributes()` / `Prison.publicAttributes()` exclude `verificationNotes`). Create helpers take the whole body and `pick` the allowed field list (`PRISONER_FIELDS`, `PRISON_FIELDS`, `CHAPTER_FIELDS`), so adding a column means adding it to the schema, the migration, and that list. Chat, Message, and User readers are still positional `(…, limit, offset)`; convert them to the same style when you next touch them.
 
 Chat list readers add a `lastMessageAt` attribute (a correlated `MAX(createdAt)` subquery) and order by it descending with empty chats last; the literal is repeated in `ORDER BY` rather than referenced by alias so it survives the subquery Sequelize wraps around limited queries with includes. `Chat.attachLastMessages(rows)` then fetches the newest message per chat in one query and sets a `last_message` summary on each row. Text search uses `Op.like` with `%term%`; SQLite's `LIKE` is case-insensitive for ASCII, and `%`/`_` in the term act as wildcards.
 
@@ -766,14 +768,13 @@ The codebase was idle from June 2025 to September 2026. The first thing the revi
 Known gaps, roughly in the order they are worth tackling:
 
 1. **Chat uniqueness.** `POST /chat/chat` can create duplicate user/prisoner pairs; the message hook always picks the oldest. A unique index on `(user, prisoner)` plus `findOrCreate` in the controller would close it.
-2. **Detach a rule from a prison.** There is `addRule` but no `removeRule`.
+2. **Mail rule follow-ups.** Proposed edits to an existing record are validated at review, not when proposed, so a bad tag reaches the queue before it is refused; the letter form does not yet check a letter against the facility's rules server-side (clients do).
 3. **Message `full=true`** on the single read embeds `relay_group` and `status_history`; on lists it is still ignored. `chat_details` / `user_details` / `prisoner_details` includes are a few lines if clients want them.
-4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-rule response. Fix together with a front-end release, since clients may match on them.
+4. **Typos in `info` strings** ("retireved", "Succeessfully") and the `updatedRows` key on the attach-relay response. Fix together with a front-end release, since clients may match on them.
 5. **Token refresh.** Logout and revocation exist; there is still no refresh, so a week-long token simply expires and the client logs in again.
 6. **Key rotation and e2e follow-ups.** No script re-wraps the server envelopes under a new `ENCRYPTION_KEY` yet (unwrap with the old key, wrap with the new, update `keyLabel`). In e2e mode: a way for a group to rotate its keypair (re-seal every envelope it holds), and group-only envelopes for anonymous-writer letters whose account has no keys.
 7. **Moderation follow-ups.** Anonymous corrections from the public footer (a submission with no `submittedBy`, rate-limited), group invitations with vouching, site settings, and email or in-app notification of decisions to submitters.
 8. **Storage.** Attachment files live on local disk; object storage would be a change inside `services/files.js` only. Directory writes to facilities and prisoners are still open to every active chapter account (groups may only edit their own group record).
 9. **Request logging.** None. Rate limiting covers the unauthenticated endpoints only and lives in one process' memory; authenticated write endpoints are not limited, and a second API instance would need a shared store.
-10. **`RulePassthrough` in responses.** The join-row object rides along inside embedded rules and prisons; hide it with `through: { attributes: [] }` on the includes if clients find it noisy.
-11. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
-12. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.
+10. **Positional model signatures.** Replace `(…, full, limit, offset)` with an options object to prevent the argument-order bugs this codebase has had before.
+11. **Leftovers.** `Utilities.objectToStringButSafe` is unused; `ABC-3.postman_collection_old.json` can go once nobody needs it for reference.

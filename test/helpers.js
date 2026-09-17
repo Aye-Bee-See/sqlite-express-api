@@ -33,7 +33,6 @@ export const {
 	User,
 	Prison,
 	Prisoner,
-	Rule,
 	Chapter,
 	Chat,
 	Message,
@@ -214,6 +213,5 @@ export async function makeFixtures() {
 		prison: prison.id,
 		inmateID: 'P-2'
 	});
-	const rule = await Rule.createRule({ title: 'No pictures', description: 'Text only' });
-	return { admin, group, chapter, writer, alice, bob, prison, prisoner1, prisoner2, rule };
+	return { admin, group, chapter, writer, alice, bob, prison, prisoner1, prisoner2 };
 }

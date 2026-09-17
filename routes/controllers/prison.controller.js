@@ -3,6 +3,14 @@ import { Op, literal } from 'sequelize';
 import RouteController from '#rtControllers/route.controller.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
 import { ROUTING_METHODS } from '#db/validators.js';
+import {
+	MAIL_RULES,
+	MAIL_RULE_CATEGORIES,
+	MAIL_RULE_CONFLICTS,
+	MAIL_RULE_PARAMETERS,
+	MAIL_RULE_TAGS
+} from '#db/mail-rules.js';
+import ValidationError from '#services/ValidationError.js';
 import { staleVerificationWhere } from '#db/record-status.js';
 import { audit } from '#rtServices/audit.services.js';
 
@@ -13,6 +21,37 @@ const READ_CONFIG = {
 		country: {},
 		routing: { allowed: ROUTING_METHODS },
 		stale: { allowed: ['true'], build: () => staleVerificationWhere() },
+		// mailRule=<tag>: facilities carrying that tag. The value is checked
+		// against the vocabulary before it reaches the SQL.
+		mailRule: {
+			allowed: MAIL_RULE_TAGS,
+			build: (tag) => ({
+				id: {
+					[Op.in]: literal(
+						"(SELECT `Prisons`.`id` FROM `Prisons`, json_each(`Prisons`.`mailRules`) WHERE json_each.value = '" +
+							tag +
+							"')"
+					)
+				}
+			})
+		},
+		// language=<code>: facilities that accept mail in it; no restriction counts.
+		language: {
+			build: (code) => {
+				if (!/^[a-z]{2}$/.test(code)) {
+					throw new ValidationError('language must be a two-letter ISO 639-1 code in lower case.');
+				}
+				return {
+					id: {
+						[Op.in]: literal(
+							"(SELECT `Prisons`.`id` FROM `Prisons` WHERE `Prisons`.`mailLanguages` IS NULL OR json_array_length(`Prisons`.`mailLanguages`) = 0 OR EXISTS (SELECT 1 FROM json_each(`Prisons`.`mailLanguages`) WHERE json_each.value = '" +
+								code +
+								"'))"
+						)
+					}
+				};
+			}
+		},
 		// relay=true: at least one active relay group; relay=false: none.
 		relay: {
 			allowed: ['true', 'false'],
@@ -40,8 +79,7 @@ export default class PrisonController extends RouteController {
 		this.update = this.update.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
-		this.addRule = this.addRule.bind(this);
-		this.removeRule = this.removeRule.bind(this);
+		this.mailRules = this.mailRules.bind(this);
 		this.addRelay = this.addRelay.bind(this);
 		this.removeRelay = this.removeRelay.bind(this);
 
@@ -73,6 +111,19 @@ export default class PrisonController extends RouteController {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}
+	}
+
+	/**
+	 * GET /prison/mail-rules: the rule tags a facility may carry, grouped by
+	 * category, with default English wording, and the typed limits beside them.
+	 */
+	mailRules(req, res) {
+		this.#handleSuccess(res, {
+			categories: MAIL_RULE_CATEGORIES,
+			rules: MAIL_RULES,
+			conflicts: MAIL_RULE_CONFLICTS,
+			parameters: MAIL_RULE_PARAMETERS
+		});
 	}
 
 	// get one prison
@@ -109,33 +160,6 @@ export default class PrisonController extends RouteController {
 			this.requireAffected(updatedRows, 'Prison ' + newPrison.id);
 			await audit(req, 'prison.update', 'prison', newPrison.id, { fields: newPrison });
 			this.#handleSuccess(res, { updatedRows, newPrison });
-		} catch (err) {
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
-		}
-	}
-
-	async addRule(req, res) {
-		const { rule, prison } = req.body;
-
-		try {
-			const updatedRows = await Prison.addRule(rule, prison);
-			await audit(req, 'prison.rule.add', 'prison', prison, { rule });
-			this.#handleSuccess(res, { updatedRows, rule, prison });
-		} catch (err) {
-			const errorVar = !(err instanceof Error) ? new Error(err) : err;
-			this.#handleErr(res, errorVar);
-		}
-	}
-
-	/** DELETE /prison/rule { rule, prison }: detach a rule. */
-	async removeRule(req, res) {
-		const { rule, prison } = req.body;
-		try {
-			const removed = await Prison.removeRule(rule, prison);
-			this.requireAffected(removed, 'Rule ' + rule + ' on prison ' + prison);
-			await audit(req, 'prison.rule.remove', 'prison', prison, { rule });
-			this.#handleSuccess(res, removed);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

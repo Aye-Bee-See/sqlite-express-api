@@ -42,21 +42,6 @@ const endpoints = {
 			remove: '/member-key'
 		}
 	},
-	rule: {
-		get: {
-			many: '/rules',
-			one: '/rule'
-		},
-		post: {
-			create: '/rule'
-		},
-		put: {
-			update: '/rule'
-		},
-		delete: {
-			remove: '/rule'
-		}
-	},
 	prisoner: {
 		get: {
 			many: '/prisoners',
@@ -77,19 +62,18 @@ const endpoints = {
 	prison: {
 		get: {
 			many: '/prisons',
-			one: '/prison'
+			one: '/prison',
+			mailRules: '/mail-rules'
 		},
 		post: {
 			create: '/prison'
 		},
 		put: {
 			update: '/prison',
-			addRule: '/rule',
 			addRelay: '/relay'
 		},
 		delete: {
 			remove: '/prison',
-			removeRule: '/rule',
 			removeRelay: '/relay'
 		}
 	},
@@ -314,46 +298,6 @@ const messages = {
 			}
 		}
 	},
-	rule: {
-		get: {
-			many: {
-				success: { condition: { par: 'Successfully retireved rule list' } },
-				error: {
-					condition: {
-						par: 'Error getting rules list',
-						prison: 'Error getting rules by prison'
-					}
-				}
-			},
-			one: {
-				success: { condition: { par: 'Success getting rule by ID' } },
-				error: { condition: { par: 'Error getting rule by ID' } }
-			}
-		},
-		post: {
-			create: {
-				success: { condition: { par: 'Successfully created rule' } },
-				error: { condition: { par: 'Error creating rule' } }
-			}
-		},
-		put: {
-			update: {
-				success: { condition: { par: 'Succeessfully updated rule' } },
-				error: { condition: { par: 'Error updating rule.' } }
-			}
-		},
-		delete: {
-			remove: {
-				success: { condition: { par: 'Succeessfully deleted rule' } },
-				error: {
-					condition: {
-						par: 'Error deleting rule',
-						absent: 'No such rule'
-					}
-				}
-			}
-		}
-	},
 	prisoner: {
 		get: {
 			many: {
@@ -415,6 +359,10 @@ const messages = {
 			one: {
 				success: { condition: { par: 'Success getting prison by ID' } },
 				error: { condition: { par: 'Error getting prison by ID' } }
+			},
+			mailRules: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the mail rule vocabulary.' } }
 			}
 		},
 		post: {
@@ -427,10 +375,6 @@ const messages = {
 			update: {
 				success: { condition: { par: 'Succeessfully updated prison' } },
 				error: { condition: { par: 'Error updating prison.' } }
-			},
-			addRule: {
-				success: { condition: { par: 'Successfully added rule to prison' } },
-				error: { condition: { par: 'Error adding rule to prison.' } }
 			},
 			addRelay: {
 				success: { condition: { par: 'Successfully added relay group to prison' } },
@@ -446,10 +390,6 @@ const messages = {
 						absent: 'No such prison'
 					}
 				}
-			},
-			removeRule: {
-				success: { condition: { par: 'Successfully removed rule from prison' } },
-				error: { condition: { par: 'Error removing rule from prison.' } }
 			},
 			removeRelay: {
 				success: { condition: { par: 'Successfully removed relay group from prison' } },
@@ -720,7 +660,6 @@ export { endpoints, messages, monster };
 
 export const {
 	user: userMsg,
-	rule: ruleMsg,
 	prisoner: prisonerMsg,
 	prison: prisonMsg,
 	message: messageMsg,
@@ -734,7 +673,6 @@ export const {
 
 export const {
 	user: userEnd,
-	rule: ruleEnd,
 	prisoner: prisonerEnd,
 	prison: prisonEnd,
 	message: messageEnd,

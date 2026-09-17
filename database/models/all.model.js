@@ -2,7 +2,6 @@ import Chat from '#models/chat.model.js';
 import Message from '#models/message.model.js';
 import Prison from '#models/prison.model.js';
 import Prisoner from '#models/prisoner.model.js';
-import Rule from '#models/rule.model.js';
 import User from '#models/user.model.js';
 import Chapter from '#models/chapter.model.js';
 import PrisonerSupport from '#models/prisoner-support.model.js';
@@ -76,7 +75,6 @@ export {
 	Prisoner,
 	PrisonerSupport,
 	RevokedToken,
-	Rule,
 	Submission,
 	User
 };

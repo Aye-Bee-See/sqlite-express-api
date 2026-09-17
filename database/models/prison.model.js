@@ -2,9 +2,9 @@ import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
-import Rule from '#models/rule.model.js';
 import Chapter from '#models/chapter.model.js';
 import { NotFoundError } from '#services/HttpError.js';
+import ValidationError from '#services/ValidationError.js';
 import { publishedWhere } from '#db/record-status.js';
 
 /** Fields a client may set on create. */
@@ -14,6 +14,10 @@ export const PRISON_FIELDS = [
 	'country',
 	'routing',
 	'scanService',
+	'mailRules',
+	'pageLimit',
+	'photoLimit',
+	'mailLanguages',
 	'notes',
 	'verifiedBy',
 	'verifiedAt',
@@ -49,12 +53,6 @@ export default class Prison extends Model {
 			onDelete: 'RESTRICT',
 			onUpdate: 'CASCADE'
 		});
-		this.belongsToMany(models.Rule, {
-			as: 'rules',
-			through: 'RulePassthrough',
-			foreignKey: 'prison',
-			otherKey: 'rule'
-		});
 		this.belongsToMany(models.Chapter, {
 			as: 'relay_groups',
 			through: 'PrisonRelay',
@@ -75,9 +73,8 @@ export default class Prison extends Model {
 	}
 
 	/**
-	 * Includes for full=true: prisoners, rules, and relay groups. Embedded
-	 * prisoners and groups are limited to published ones for non-staff
-	 * (rules have no status).
+	 * Includes for full=true: prisoners and relay groups, limited to
+	 * published ones for non-staff.
 	 */
 	static #includes(publishedOnly) {
 		const publishedOnlyOpts = publishedOnly ? { where: publishedWhere(true), required: false } : {};
@@ -88,7 +85,6 @@ export default class Prison extends Model {
 				...Prisoner.publicAttributes(publishedOnly),
 				...publishedOnlyOpts
 			},
-			{ model: Rule, as: 'rules' },
 			{
 				model: Chapter,
 				as: 'relay_groups',
@@ -100,7 +96,22 @@ export default class Prison extends Model {
 
 	// Create
 	static async createPrison(fields) {
-		return await this.create(pick(fields, PRISON_FIELDS));
+		const clean = pick(fields, PRISON_FIELDS);
+		Prison.#checkPhotoRules(clean);
+		return await this.create(clean);
+	}
+
+	/**
+	 * A facility that takes no photos has no photo limit to state; the two
+	 * live in different columns, so the columns' own validators cannot see it.
+	 * @throws {ValidationError}
+	 */
+	static #checkPhotoRules({ mailRules, photoLimit }) {
+		if (Array.isArray(mailRules) && mailRules.includes('no_photos') && photoLimit != null) {
+			throw new ValidationError(
+				'photoLimit cannot be set on a facility tagged no_photos; send photoLimit: null or drop the tag.'
+			);
+		}
 	}
 
 	/**
@@ -163,6 +174,15 @@ export default class Prison extends Model {
 
 	// Update
 	static async updatePrison(prison) {
+		if (prison.mailRules !== undefined || prison.photoLimit !== undefined) {
+			const current = await this.findByPk(prison.id, { attributes: ['mailRules', 'photoLimit'] });
+			if (current) {
+				Prison.#checkPhotoRules({
+					mailRules: prison.mailRules !== undefined ? prison.mailRules : current.mailRules,
+					photoLimit: prison.photoLimit !== undefined ? prison.photoLimit : current.photoLimit
+				});
+			}
+		}
 		return await this.update({ ...prison }, { where: { id: prison.id } });
 	}
 
@@ -182,25 +202,6 @@ export default class Prison extends Model {
 			throw new NotFoundError('Prison ' + prisonId + ' not found');
 		}
 		return [prison, related];
-	}
-
-	/**
-	 * Attach an existing rule to an existing prison (idempotent).
-	 * @returns {Promise<Prison>} the prison with its relations loaded
-	 */
-	static async addRule(ruleId, prisonId) {
-		const [prison, rule] = await this.#pair(prisonId, Rule, ruleId, 'Rule');
-		await prison.addRule(rule);
-		return await this.getPrisonByID(prisonId, { full: true });
-	}
-
-	/**
-	 * Detach a rule from a prison.
-	 * @returns {Promise<number>} links removed (0 when there was none)
-	 */
-	static async removeRule(ruleId, prisonId) {
-		const [prison, rule] = await this.#pair(prisonId, Rule, ruleId, 'Rule');
-		return await prison.removeRule(rule);
 	}
 
 	/**

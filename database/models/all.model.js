@@ -13,6 +13,7 @@ import Submission from '#models/submission.model.js';
 import AuditLog from '#models/audit-log.model.js';
 import OrgMemberKey from '#models/org-member-key.model.js';
 import RevokedToken from '#models/revoked-token.model.js';
+import SessionRun from '#models/session-run.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -75,6 +76,7 @@ export {
 	Prisoner,
 	PrisonerSupport,
 	RevokedToken,
+	SessionRun,
 	Submission,
 	User
 };

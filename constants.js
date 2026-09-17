@@ -113,12 +113,23 @@ export const rateLimits = {
 	// Claim token checks per address per window.
 	claimPerIp: envCount('RATE_LIMIT_CLAIM_PER_IP', 20),
 	claimWindowMinutes: envCount('RATE_LIMIT_CLAIM_WINDOW_MINUTES', 60),
+	// Invitation token checks and acceptances per address per window.
+	invitePerIp: envCount('RATE_LIMIT_INVITE_PER_IP', 20),
+	inviteWindowMinutes: envCount('RATE_LIMIT_INVITE_WINDOW_MINUTES', 60),
 	// Recovery: starts per username and per address, finishes per username, per window.
 	recoverStartPerUser: envCount('RATE_LIMIT_RECOVER_START_PER_USER', 5),
 	recoverStartPerIp: envCount('RATE_LIMIT_RECOVER_START_PER_IP', 30),
 	recoverFinishPerUser: envCount('RATE_LIMIT_RECOVER_FINISH_PER_USER', 5),
 	recoverWindowMinutes: envCount('RATE_LIMIT_RECOVER_WINDOW_MINUTES', 60)
 };
+
+/** How long an invitation token works. */
+export const invitationDays = envCount('INVITATION_DAYS', 14);
+/**
+ * Whether a group that joins by invitation is active (and listed) at once,
+ * on the strength of the vouch, or waits for an admin. Default: waits.
+ */
+export const invitationAutoActivate = envBool(process.env.INVITATION_AUTO_ACTIVATE, false);
 
 /**
  * Express "trust proxy" setting, so req.ip is the client and not the

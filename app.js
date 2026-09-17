@@ -10,6 +10,7 @@ import MessageRoutes from '#routes/message/message.js';
 import ChatRoutes from '#routes/chat/chat.js';
 import ChapterRoutes from '#routes/chapter/chapter.js';
 import ModerationRoutes from '#routes/moderation/moderation.js';
+import InvitationRoutes from '#routes/invitation/invitation.js';
 import KeysRoutes from '#routes/keys/keys.js';
 import ErrorService from '#rtServices/error.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
@@ -65,6 +66,7 @@ export function createApp() {
 	app.use('/chat', ChatRoutes.Router);
 	app.use('/chapter', ChapterRoutes.Router);
 	app.use('/moderation', ModerationRoutes.Router);
+	app.use('/invitation', InvitationRoutes.Router);
 
 	// Unknown routes get a JSON 404 instead of Express's HTML page.
 	app.use((req, res, next) => {

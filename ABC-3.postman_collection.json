@@ -2144,6 +2144,323 @@
 			]
 		},
 		{
+			"name": "Invitations",
+			"item": [
+				{
+					"name": "Invite A New Group (your group vouches)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/invitation/invitation",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["invitation", "invitation"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"kind\": \"group\",\n    \"inviteeName\": \"Riverside ABC\",\n    \"inviteeEmail\": \"riverside@example.com\",\n    \"note\": \"Met at the bookfair; two of us know them\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Invite A Member To Your Group",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/invitation/invitation",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["invitation", "invitation"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"kind\": \"member\",\n    \"inviteeName\": \"Jo\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "List Invitations",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/invitation/invitations?status=pending&kind=group",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["invitation", "invitations"],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending"
+								},
+								{
+									"key": "kind",
+									"value": "group"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Renew Invitation (new token)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/invitation/invitation",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["invitation", "invitation"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Withdraw Invitation",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/invitation/invitation",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["invitation", "invitation"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Check Invitation Token (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/invitation/invitation?token=PASTE-TOKEN",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["invitation", "invitation"],
+							"query": [
+								{
+									"key": "token",
+									"value": "PASTE-TOKEN"
+								}
+							]
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Group Invitation (public)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/invitation/accept",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["invitation", "accept"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"PASTE-TOKEN\",\n    \"username\": \"riverside\",\n    \"password\": \"longenough\",\n    \"email\": \"riverside@example.com\",\n    \"group\": {\n        \"name\": \"Riverside ABC\",\n        \"location\": {\n            \"city\": \"Riverside\"\n        },\n        \"country\": \"Canada\",\n        \"services\": [\n            \"letter_writing_nights\"\n        ],\n        \"networkRole\": \"collecting\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Accept Member Invitation (public)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/invitation/accept",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["invitation", "accept"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"PASTE-TOKEN\",\n    \"username\": \"jojo\",\n    \"password\": \"longenough\",\n    \"email\": \"jo@example.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Approve A Group That Joined By Invitation (admin)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/chapter/chapter",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["chapter", "chapter"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 2,\n    \"accountStatus\": \"active\",\n    \"recordStatus\": \"published\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('submissionId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
 			"name": "Keys (end-to-end mode)",
 			"item": [
 				{

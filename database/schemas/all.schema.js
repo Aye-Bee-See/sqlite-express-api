@@ -14,6 +14,7 @@ import auditLogSchema from '#schemas/audit-log.schema.js';
 import orgMemberKeySchema from '#schemas/org-member-key.schema.js';
 import revokedTokenSchema from '#schemas/revoked-token.schema.js';
 import sessionRunSchema from '#schemas/session-run.schema.js';
+import invitationSchema from '#schemas/invitation.schema.js';
 
 export default class Schemas {
 	static chat = chatSchema;
@@ -32,4 +33,5 @@ export default class Schemas {
 	static orgMemberKey = orgMemberKeySchema;
 	static revokedToken = revokedTokenSchema;
 	static sessionRun = sessionRunSchema;
+	static invitation = invitationSchema;
 }

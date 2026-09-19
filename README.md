@@ -172,9 +172,9 @@ On a fresh database the JSON files in `database/seeds/` are loaded:
 
 ### Seeded mail rules
 
-There is no separate rules seed file any more. Since mail rules became tags ([Mail rules](#mail-rules)), they are part of `database/seeds/prisonSeed.json`, and the vocabulary itself is code (`database/mail-rules.js`), not data:
+There is no rules seed file, for two different reasons. The **master list** of 39 rules is not seed data at all: a migration puts it in the `MailRules` table, so production has it too, and admins extend it from there ([Mail rules](#mail-rules)). Which rules each seeded prison **has** is seed data, and lives with the prisons in `database/seeds/prisonSeed.json`, as a list of tags that the seeder links to the master list:
 
-- Every seeded prison has `mailRules`: most carry the common ones (`return_address_required`, `full_name_and_number`, `mail_read_by_staff`, `no_enclosures`) plus two to six others. 34 of the 39 tags appear somewhere; 6 prisons are `no_photos`.
+- Every seeded prison has `mailRules`: most carry the common ones (`return_address_required`, `full_name_and_number`, `mail_read_by_staff`, `no_enclosures`) plus two to six others. 34 of the 39 rules are in use somewhere; 6 prisons are `no_photos`.
 - 38 prisons have a `pageLimit` (5, 10, or 20), 41 a `photoLimit` (3, 5, or 10; never together with `no_photos`), and 22 a `mailLanguages` list (`["en"]` or `["en", "es"]`).
 - "Test Prison" has a fixed, readable set for trying things out: `return_address_required`, `full_name_and_number`, `plain_envelopes`, `ink_blue_or_black`, `no_polaroids`, `mail_read_by_staff`, with `pageLimit` 10, `photoLimit` 5, and `mailLanguages` `["en", "es"]`.
 

@@ -666,7 +666,7 @@
 					"response": []
 				},
 				{
-					"name": "Mail Rule Vocabulary (public)",
+					"name": "Master List Of Mail Rules (public)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -675,6 +675,89 @@
 							"host": ["localhost"],
 							"port": "3000",
 							"path": ["prison", "mail-rules"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add A Rule To The Master List (admin)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/mail-rule",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["prison", "mail-rule"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tag\": \"no_crayon\",\n    \"category\": \"paper_and_ink\",\n    \"label\": \"No crayon\",\n    \"description\": \"Letters or drawings in crayon are refused.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('mailRuleId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Reword Or Retire A Rule (admin)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/mail-rule",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["prison", "mail-rule"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": {{mailRuleId}},\n    \"label\": \"No crayon or chalk\",\n    \"retired\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete An Unused Rule (admin)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/prison/mail-rule",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["prison", "mail-rule"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": {{mailRuleId}}\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						}
 					},
 					"response": []
@@ -2693,6 +2776,11 @@
 		},
 		{
 			"key": "invitationToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "mailRuleId",
 			"value": "",
 			"type": "string"
 		}

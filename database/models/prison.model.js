@@ -3,21 +3,14 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Chapter from '#models/chapter.model.js';
-import MailRule from '#models/mail-rule.model.js';
-import { createSerialQueue } from '#services/serial.js';
+import MailRule, { oneRuleChangeAtATime } from '#models/mail-rule.model.js';
+import { inTransaction } from '#services/serial.js';
 import { NotFoundError } from '#services/HttpError.js';
 import ValidationError from '#services/ValidationError.js';
 import { publishedWhere } from '#db/record-status.js';
 
 const PHOTO_RULES_CLASH =
 	'photoLimit cannot be set on a facility tagged no_photos; send photoLimit: null or drop the tag.';
-
-/**
- * A facility's rules and its photo limit are checked against each other and
- * then written to two tables. One at a time, so two partial updates cannot
- * each pass the check and clash together.
- */
-const oneRuleWriteAtATime = createSerialQueue();
 
 /** Fields a client may set on create. */
 export const PRISON_FIELDS = [
@@ -72,6 +65,13 @@ export default class Prison extends Model {
 			validate: {
 				// Runs wherever a facility is validated: create, a proposed new facility,
 				// and a proposed edit (where the half that is not proposed is the stored one).
+				// Sequelize skips a field's validators when the value is null, so say it here:
+				// omit mailRules to leave the rules alone, send [] for none.
+				mailRulesNotNull() {
+					if (this.getDataValue('mailRules') === null) {
+						throw new Error('mailRules cannot be null; send [] for a facility with no rules.');
+					}
+				},
 				async photoRules() {
 					const mailRules =
 						this.mailRules ?? (this.id ? await Prison.ruleTagsOf(this.id) : undefined);
@@ -143,12 +143,22 @@ export default class Prison extends Model {
 	// Create
 	static async createPrison(fields) {
 		const clean = pick(fields, PRISON_FIELDS);
-		// Validation resolves the tags against the master list before anything is written.
-		const created = await this.create(clean);
-		if (Array.isArray(clean.mailRules) && clean.mailRules.length > 0) {
-			await created.setMail_rule_details(await MailRule.resolve(clean.mailRules));
-		}
-		return await this.findByPk(created.id, { include: this.#includes(false, false) });
+		// In the master list's queue, so no rule can be deleted between resolving
+		// it and linking to it; and the row and its links are one transaction, so
+		// a failure leaves no facility without the rules it was sent with.
+		const id = await oneRuleChangeAtATime(async () => {
+			// Validation (which resolves the tags) happens before the transaction opens.
+			await this.build(clean).validate();
+			const rules = await MailRule.resolve(clean.mailRules ?? []);
+			return await inTransaction(this.sequelize, async (transaction) => {
+				const created = await this.create(clean, { transaction, validate: false });
+				if (rules.length > 0) {
+					await created.setMail_rule_details(rules, { transaction });
+				}
+				return created.id;
+			});
+		});
+		return await this.findByPk(id, { include: this.#includes(false, false) });
 	}
 
 	/** Ids of the rules a facility carries now. */
@@ -245,7 +255,10 @@ export default class Prison extends Model {
 		if (mailRules === undefined && columns.photoLimit === undefined) {
 			return await this.update(columns, { where: { id: prison.id } });
 		}
-		return await oneRuleWriteAtATime(async () => {
+		// Checked against each other, then written to two tables: one queue (shared
+		// with master-list changes) and one transaction, so two partial updates cannot
+		// each pass and clash together, and nothing is left half written.
+		return await oneRuleChangeAtATime(async () => {
 			const stored = await this.findByPk(prison.id, { attributes: ['id', 'photoLimit'] });
 			if (!stored) {
 				return [0];
@@ -262,16 +275,17 @@ export default class Prison extends Model {
 			if (clash) {
 				throw new ValidationError(PHOTO_RULES_CLASH);
 			}
-			// Columns first: they can still fail validation, and then the rules are untouched.
-			if (Object.keys(columns).some((field) => field !== 'id')) {
-				// The model's own photo check runs here too; give it the rules as they
-				// will be, not as they are stored (mailRules is virtual: no column is written).
-				const values = rules ? { ...columns, mailRules: rules.map((rule) => rule.tag) } : columns;
-				await this.update(values, { where: { id: stored.id } });
-			}
-			if (rules) {
-				await stored.setMail_rule_details(rules);
-			}
+			await inTransaction(this.sequelize, async (transaction) => {
+				if (Object.keys(columns).some((field) => field !== 'id')) {
+					// The model's own photo check runs here too; give it the rules as they
+					// will be, not as they are stored (mailRules is virtual: no column is written).
+					const values = rules ? { ...columns, mailRules: rules.map((rule) => rule.tag) } : columns;
+					await this.update(values, { where: { id: stored.id }, transaction });
+				}
+				if (rules) {
+					await stored.setMail_rule_details(rules, { transaction });
+				}
+			});
 			return [1];
 		});
 	}

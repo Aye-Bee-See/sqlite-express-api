@@ -3,6 +3,15 @@ import Schemas from '#schemas/all.schema.js';
 import { MAIL_RULE_CATEGORIES, MAIL_RULE_CONFLICTS } from '#db/mail-rules.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
+import { createSerialQueue } from '#services/serial.js';
+
+/**
+ * Everything that changes the master list, or a facility's links to it,
+ * runs through this one queue. A rule cannot be deleted between a facility
+ * resolving it and linking to it, and two admins cannot both pass the
+ * look-alike check and add the same rule in different words.
+ */
+export const oneRuleChangeAtATime = createSerialQueue();
 
 /** What a client sees of a rule, on the master list and embedded in a facility. */
 const PUBLIC_ATTRIBUTES = ['id', 'tag', 'category', 'label', 'description', 'retiredAt'];
@@ -99,7 +108,11 @@ export default class MailRule extends Model {
 	 * Add a rule to the master list.
 	 * @throws {ValidationError} bad fields; {HttpError} 409 when the list already says it
 	 */
-	static async createRule({ tag, category, label, description }, createdBy = null) {
+	static async createRule(fields, createdBy = null) {
+		return await oneRuleChangeAtATime(() => this.#createRule(fields, createdBy));
+	}
+
+	static async #createRule({ tag, category, label, description }, createdBy) {
 		const candidate = this.build({ tag, category, label, description, createdBy });
 		await candidate.validate();
 		const existing = await this.lookalike({ tag, label });
@@ -123,7 +136,11 @@ export default class MailRule extends Model {
 	 * @param {{category?: string, label?: string, description?: string, retired?: boolean}} changes
 	 * @returns {Promise<MailRule|null>} null when there is no such rule
 	 */
-	static async updateRule(id, { tag, category, label, description, retired }) {
+	static async updateRule(id, changes) {
+		return await oneRuleChangeAtATime(() => this.#updateRule(id, changes));
+	}
+
+	static async #updateRule(id, { tag, category, label, description, retired }) {
 		const rule = await this.findByPk(id);
 		if (!rule) {
 			return null;
@@ -157,6 +174,33 @@ export default class MailRule extends Model {
 				: {})
 		});
 		return await rule.save();
+	}
+
+	/**
+	 * Delete a rule no facility carries.
+	 * @returns {Promise<MailRule|null>} the deleted rule, or null when there is none
+	 * @throws {HttpError} 409 when facilities carry it
+	 */
+	static async deleteRule(id) {
+		return await oneRuleChangeAtATime(async () => {
+			const rule = await this.findByPk(id);
+			if (!rule) {
+				return null;
+			}
+			const prisons = await this.usage(rule.id);
+			if (prisons > 0) {
+				throw new HttpError(
+					409,
+					prisons +
+						' facilit' +
+						(prisons === 1 ? 'y carries' : 'ies carry') +
+						' this rule. Retire it instead (PUT /prison/mail-rule { id, retired: true }).',
+					'RuleInUseError'
+				);
+			}
+			await rule.destroy();
+			return rule;
+		});
 	}
 
 	/** How many facilities carry this rule. */

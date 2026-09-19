@@ -14,3 +14,21 @@ export function createSerialQueue() {
 		return result;
 	};
 }
+
+const oneTransactionAtATime = createSerialQueue();
+
+/**
+ * Run `work` in a database transaction, one transaction at a time in this
+ * process. SQLite has a single writer in any case, and an in-memory
+ * database (tests) has a single connection, on which a second BEGIN fails
+ * with "cannot start a transaction within a transaction". Queues that call
+ * this may be different ones; always take the caller's queue first and this
+ * one second, so they cannot wait on each other.
+ * @template T
+ * @param {import('sequelize').Sequelize} sequelize
+ * @param {(transaction: import('sequelize').Transaction) => Promise<T>} work
+ * @returns {Promise<T>}
+ */
+export function inTransaction(sequelize, work) {
+	return oneTransactionAtATime(() => sequelize.transaction(work));
+}

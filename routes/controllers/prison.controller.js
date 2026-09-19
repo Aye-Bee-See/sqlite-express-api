@@ -7,7 +7,6 @@ import { MAIL_RULE_CATEGORIES, MAIL_RULE_CONFLICTS, MAIL_RULE_PARAMETERS } from 
 import MailRule from '#models/mail-rule.model.js';
 import { MAIL_RULE_TAG } from '#schemas/mail-rule.schema.js';
 import AuthzService from '#rtServices/authz.services.js';
-import { HttpError } from '#services/HttpError.js';
 import ValidationError from '#services/ValidationError.js';
 import { staleVerificationWhere } from '#db/record-status.js';
 import { audit } from '#rtServices/audit.services.js';
@@ -190,22 +189,12 @@ export default class PrisonController extends RouteController {
 	/** DELETE /prison/mail-rule { id } (admin): only a rule no facility carries; otherwise retire it. */
 	async removeMailRule(req, res) {
 		try {
+			// The usage check and the delete are one step in the model, in the same
+			// queue as facility rule writes, so a facility cannot link to it in between.
 			const rule = this.requireFound(
-				await MailRule.findByPk(req.body.id),
+				await MailRule.deleteRule(req.body.id),
 				'Mail rule ' + req.body.id
 			);
-			const prisons = await MailRule.usage(rule.id);
-			if (prisons > 0) {
-				throw new HttpError(
-					409,
-					prisons +
-						' facilit' +
-						(prisons === 1 ? 'y carries' : 'ies carry') +
-						' this rule. Retire it instead (PUT /prison/mail-rule { id, retired: true }).',
-					'RuleInUseError'
-				);
-			}
-			await rule.destroy();
 			await audit(req, 'mail-rule.delete', 'mail-rule', rule.id, { tag: rule.tag });
 			this.#handleSuccess(res, PrisonController.#presentRule(rule));
 		} catch (err) {

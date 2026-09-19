@@ -238,3 +238,106 @@ test('deleting a facility removes its links, not the rules', async () => {
 	);
 	assert.equal(n, 0);
 });
+
+test('two admins adding the same rule in different words at once: one rule', async () => {
+	const results = await Promise.all([
+		addRule({ tag: 'only_french', category: 'content', label: 'Letters in French' }),
+		addRule({ tag: 'french_only', category: 'content', label: 'French letters' })
+	]);
+	assert.deepEqual(
+		results.map((r) => r.status).sort(),
+		[201, 409],
+		JSON.stringify(results.map((r) => r.body))
+	);
+	assert.equal(await MailRule.count({ where: { tag: ['only_french', 'french_only'] } }), 1);
+});
+
+test('deleting a rule and linking a facility to it at once never leaves a dangling state', async () => {
+	for (let round = 0; round < 5; round += 1) {
+		const tag = 'race_rule_' + round;
+		const created = await addRule({ tag, category: 'content', label: 'Race rule ' + round });
+		assert.equal(created.status, 201, JSON.stringify(created.body));
+		const target = await Prison.createPrison({ prisonName: 'Race target ' + round, address: {} });
+		const [removed, linked] = await Promise.all([
+			del('/prison/mail-rule', { id: created.body.data.id }, admin),
+			put('/prison/prison', { id: target.id, mailRules: [tag], notes: 'round ' + round }, admin)
+		]);
+		const statuses = removed.status + ', ' + linked.status;
+		// Either the rule went first and the facility is told it is not on the list,
+		// or the facility went first and the rule is now in use.
+		assert.ok(
+			(removed.status === 200 && linked.status === 400) ||
+				(removed.status === 409 && linked.status === 200),
+			statuses
+		);
+		const after = (await get('/prison/prison?id=' + target.id)).body.data;
+		if (linked.status === 200) {
+			assert.deepEqual(after.mailRules, [tag]);
+			assert.equal(after.notes, 'round ' + round);
+		} else {
+			assert.deepEqual(after.mailRules, []);
+			assert.equal(after.notes, null, 'a refused update writes no columns either');
+		}
+	}
+});
+
+test('a facility and its rules are written together or not at all', async (t) => {
+	const failing = t.mock.method(Prison.prototype, 'setMail_rule_details', async () => {
+		throw new Error('disk full');
+	});
+	const before = await Prison.count();
+	const created = await post(
+		'/prison/prison',
+		{ prisonName: 'Half made', address: {}, mailRules: ['no_maps'] },
+		admin
+	);
+	assert.equal(created.status, 500);
+	assert.equal(await Prison.count(), before, 'no facility without the rules it was sent with');
+
+	const target = await Prison.findByPk(f.prison.id, { attributes: ['id', 'notes', 'pageLimit'] });
+	const updated = await put(
+		'/prison/prison',
+		{ id: f.prison.id, mailRules: ['plain_paper'], notes: 'should not stick', pageLimit: 3 },
+		admin
+	);
+	assert.equal(updated.status, 500);
+	const unchanged = await Prison.findByPk(f.prison.id, {
+		attributes: ['id', 'notes', 'pageLimit']
+	});
+	assert.equal(unchanged.notes, target.notes, 'the columns were rolled back with the links');
+	assert.equal(unchanged.pageLimit, target.pageLimit);
+	assert.equal(failing.mock.callCount(), 2);
+
+	t.mock.restoreAll();
+	const retried = await put(
+		'/prison/prison',
+		{ id: f.prison.id, mailRules: ['plain_paper'], pageLimit: 3 },
+		admin
+	);
+	assert.equal(retried.status, 200, JSON.stringify(retried.body));
+});
+
+test('null is not a list of rules', async () => {
+	const created = await post(
+		'/prison/prison',
+		{ prisonName: 'Null rules', address: {}, mailRules: null },
+		admin
+	);
+	assert.equal(created.status, 400, JSON.stringify(created.body));
+	assert.match(created.body.errors.join(' '), /mailRules cannot be null; send \[\]/);
+	const updated = await put('/prison/prison', { id: f.prison.id, mailRules: null }, admin);
+	assert.equal(updated.status, 400);
+	const proposed = await post(
+		'/moderation/submission',
+		{ resource: 'prison', fields: { prisonName: 'Proposed', address: {}, mailRules: null } },
+		alice
+	);
+	assert.equal(proposed.status, 400);
+	const none = await post(
+		'/prison/prison',
+		{ prisonName: 'No rules', address: {}, mailRules: [] },
+		admin
+	);
+	assert.equal(none.status, 201);
+	assert.deepEqual(none.body.data.mailRules, []);
+});

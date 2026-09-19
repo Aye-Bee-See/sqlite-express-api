@@ -36,6 +36,8 @@ async function setKeys(who, password) {
 	const { privateKey, fields } = client.accountKeys(password, 'RECOVERY-' + password);
 	const res = await put('/auth/keys', fields, who);
 	assert.equal(res.status, 200, JSON.stringify(res.body));
+	// First keys for an account with no letters yet: nothing to catch up.
+	assert.deepEqual(res.body.data.caughtUp, { letters: 0, sealed: 0, dropped: 0 });
 	return { publicKey: fields.publicKey, privateKey };
 }
 

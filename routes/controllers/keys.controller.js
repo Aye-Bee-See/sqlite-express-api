@@ -11,6 +11,7 @@ import * as crypto from '#services/crypto.js';
 import { audit } from '#rtServices/audit.services.js';
 import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
 import { inTransaction } from '#services/serial.js';
+import { catchUpReader } from '#db/rewrap-e2e.js';
 
 /** How long a recovery challenge stays valid. */
 const RECOVERY_CHALLENGE_MS = 10 * 60 * 1000;
@@ -35,6 +36,7 @@ export default class KeysController extends RouteController {
 		this.getMany = this.getMany.bind(this);
 		this.rotationMaterial = this.rotationMaterial.bind(this);
 		this.rotate = this.rotate.bind(this);
+		this.readiness = this.readiness.bind(this);
 
 		this.#handleErr = super.handleErr;
 		this.#handleSuccess = super.handleSuccess;
@@ -136,6 +138,21 @@ export default class KeysController extends RouteController {
 		return bundle;
 	}
 
+	/**
+	 * A reader has just got a public key: seal their server-held letters to
+	 * them. The keys are saved already, so a failure here is logged, not
+	 * returned; `npm run encryption:rewrap` does the same work later.
+	 * @returns {Promise<{letters: number, sealed: number, dropped: number}|null>}
+	 */
+	static async catchUp(readerType, readerId) {
+		try {
+			return await catchUpReader({ readerType, readerId });
+		} catch (err) {
+			console.error('[keys] catch-up failed for ' + readerType + ' ' + readerId, err);
+			return null;
+		}
+	}
+
 	/** GET /auth/keys: the caller's key bundle. (getOne, for the base controller's interface.) */
 	async getOne(req, res, next) {
 		try {
@@ -184,7 +201,12 @@ export default class KeysController extends RouteController {
 				);
 			}
 			await audit(req, 'user.keys', 'user', req.user.id, { fields: Object.keys(fields) });
-			this.#handleSuccess(res, await KeysController.keyBundle(req.user.id));
+			const bundle = await KeysController.keyBundle(req.user.id);
+			if (where.publicKey === null) {
+				// First keys: letters the server still holds a key for become theirs now.
+				bundle.caughtUp = await KeysController.catchUp('user', req.user.id);
+			}
+			this.#handleSuccess(res, bundle);
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -388,7 +410,9 @@ export default class KeysController extends RouteController {
 				chapter: chapter.id,
 				publicKey,
 				keyVersion: 1,
-				member: member.id
+				member: member.id,
+				// Letters the server still holds a key for, and this group relays or manages.
+				caughtUp: await KeysController.catchUp('chapter', chapter.id)
 			});
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -825,6 +849,105 @@ export default class KeysController extends RouteController {
 				writers: writers.size,
 				members: [...members.keys()],
 				removed: result.removed
+			});
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * GET /auth/encryption-readiness (admin): who still has to set up keys.
+	 * The switch to e2e needs every active group that relays mail to have a
+	 * key, because nothing can be sealed to a group without one; everybody
+	 * else can catch up afterwards, at their next sign-in.
+	 */
+	async readiness(req, res, next) {
+		try {
+			const { sequelize } = Chapter;
+			const one = async (sql) => {
+				const [[row]] = await sequelize.query(sql);
+				return row;
+			};
+			const [groups] = await sequelize.query(
+				`SELECT c.id, c.name, c.networkRole, c.publicKey IS NOT NULL AS hasKey,
+					(SELECT COUNT(*) FROM PrisonRelay r WHERE r.chapter = c.id) AS relayFacilities,
+					(SELECT COUNT(*) FROM User u WHERE u.chapterId = c.id AND u.role = 'chapter') AS members,
+					(SELECT COUNT(*) FROM User u WHERE u.chapterId = c.id AND u.role = 'chapter' AND u.publicKey IS NOT NULL) AS membersWithKeys,
+					(SELECT COUNT(*) FROM OrgMemberKeys k WHERE k.chapterId = c.id) AS holders,
+					(SELECT COUNT(*) FROM User w WHERE w.managedBy = c.id AND w.publicKey IS NULL) AS unclaimedWritersWithoutKeys
+				FROM Chapters c WHERE c.accountStatus = 'active' ORDER BY c.id`
+			);
+			const relays = (g) => g.networkRole !== 'collecting' || g.relayFacilities > 0;
+			const brief = (g) => ({
+				id: g.id,
+				name: g.name,
+				networkRole: g.networkRole,
+				relayFacilities: g.relayFacilities,
+				members: g.members,
+				membersWithKeys: g.membersWithKeys
+			});
+			const withoutKey = groups.filter((g) => !g.hasKey);
+			const blocking = withoutKey.filter(relays);
+			const users = await one(
+				`SELECT COUNT(*) AS total,
+					SUM(publicKey IS NOT NULL) AS withKeys,
+					SUM(publicKey IS NULL AND EXISTS (SELECT 1 FROM Messages m WHERE m.user = User.id)) AS withoutKeysWithLetters
+				FROM User WHERE role = 'user' AND managedBy IS NULL AND anonymousForChapter IS NULL`
+			);
+			const letters = await one(
+				`SELECT COUNT(*) AS serverHeld,
+					COUNT(DISTINCT CASE WHEN u.publicKey IS NULL AND u.anonymousForChapter IS NULL THEN u.id END) AS writersWaited,
+					COUNT(DISTINCT CASE WHEN c.id IS NOT NULL AND c.publicKey IS NULL THEN c.id END) AS groupsWaited
+				FROM LetterKeys k
+				JOIN Messages m ON m.id = k.message
+				LEFT JOIN User u ON u.id = m.user
+				LEFT JOIN Chapters c ON c.id = m.relayChapter
+				WHERE k.readerType = 'server'`
+			);
+			let serverKeyConfigured = true;
+			try {
+				crypto.masterKey();
+			} catch {
+				serverKeyConfigured = false;
+			}
+			const blockers = blocking.map(
+				(g) =>
+					'Group ' +
+					g.id +
+					' (' +
+					g.name +
+					') relays mail and has no group key: after the switch nobody could send through it.'
+			);
+			this.#handleSuccess(res, {
+				mode: crypto.isE2E() ? 'e2e' : 'server',
+				// Without it the server cannot seal old letters to readers who turn up late.
+				serverKeyConfigured,
+				ready: blockers.length === 0,
+				blockers,
+				groups: {
+					active: groups.length,
+					withKey: groups.length - withoutKey.length,
+					withoutKey: withoutKey.map((g) => ({ ...brief(g), blocksTheSwitch: relays(g) })),
+					// Members who have their own keys and are still waiting for a holder to hand them the group's.
+					membersWaitingForGroupKey: groups
+						.filter((g) => g.hasKey && g.membersWithKeys > g.holders)
+						.map((g) => ({ ...brief(g), holders: g.holders })),
+					unclaimedWritersWithoutKeys: groups
+						.filter((g) => g.unclaimedWritersWithoutKeys > 0)
+						.map((g) => ({ id: g.id, name: g.name, writers: g.unclaimedWritersWithoutKeys }))
+				},
+				writers: {
+					total: Number(users.total),
+					withKeys: Number(users.withKeys || 0),
+					withoutKeys: Number(users.total) - Number(users.withKeys || 0),
+					// The ones with something at stake; the rest lose nothing by turning up late.
+					withoutKeysWithLetters: Number(users.withoutKeysWithLetters || 0)
+				},
+				letters: {
+					serverHeld: Number(letters.serverHeld),
+					waitingForWriters: Number(letters.writersWaited),
+					waitingForGroups: Number(letters.groupsWaited)
+				}
 			});
 		} catch (err) {
 			this.#fail(res, next, err);

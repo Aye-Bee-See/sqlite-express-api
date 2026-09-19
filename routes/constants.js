@@ -29,7 +29,8 @@ const endpoints = {
 			many: '/member-keys',
 			publicKey: '/public-key',
 			recoverChallenge: '/recover',
-			rotationMaterial: '/chapter-rotation'
+			rotationMaterial: '/chapter-rotation',
+			readiness: '/encryption-readiness'
 		},
 		post: {
 			create: '/recover',
@@ -136,7 +137,8 @@ const endpoints = {
 		get: {
 			many: '/messages',
 			one: '/message',
-			retention: '/retention'
+			retention: '/retention',
+			missingEnvelopes: '/envelopes/missing'
 		},
 		post: {
 			create: '/message',
@@ -451,6 +453,10 @@ const messages = {
 			rotationMaterial: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading rotation material.' } }
+			},
+			readiness: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading encryption readiness.' } }
 			}
 		},
 		post: {
@@ -591,6 +597,10 @@ const messages = {
 			retention: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading retention settings.' } }
+			},
+			missingEnvelopes: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing missing envelopes.' } }
 			}
 		},
 		post: {

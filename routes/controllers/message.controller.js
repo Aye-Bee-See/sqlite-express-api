@@ -40,6 +40,7 @@ export default class MessageController extends RouteController {
 		this.update = this.update.bind(this);
 		this.updateStatus = this.updateStatus.bind(this);
 		this.createEnvelope = this.createEnvelope.bind(this);
+		this.missingEnvelopes = this.missingEnvelopes.bind(this);
 		this.retention = this.retention.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
@@ -313,6 +314,31 @@ export default class MessageController extends RouteController {
 				readerId: envelope.readerId
 			});
 			this.#handleSuccess(res, envelope);
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * GET /messaging/envelopes/missing: letters the caller's group can open
+	 * whose writer has keys by now and no envelope yet. The group's client
+	 * fills them in with POST /messaging/envelope; only it can, because only
+	 * a reader can open the content key.
+	 */
+	async missingEnvelopes(req, res, next) {
+		try {
+			if (!crypto.isE2E()) {
+				throw new HttpError(
+					409,
+					'Envelopes are managed by the server in server mode.',
+					'EncryptionModeError'
+				);
+			}
+			const chapterId = await AuthzService.activeChapterOf(req);
+			if (!chapterId) {
+				throw AuthzService.forbidden('Only a member of an active group holds group envelopes.');
+			}
+			this.#handleSuccess(res, await LetterKey.missingForWriters(chapterId));
 		} catch (err) {
 			this.#fail(res, next, err);
 		}

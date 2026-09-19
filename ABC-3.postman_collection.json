@@ -1761,6 +1761,20 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Envelopes Missing For Writers (group, e2e)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/envelopes/missing",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "envelopes", "missing"]
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -2736,6 +2750,20 @@
 									"language": "json"
 								}
 							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Encryption Readiness (admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/encryption-readiness",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "encryption-readiness"]
 						}
 					},
 					"response": []

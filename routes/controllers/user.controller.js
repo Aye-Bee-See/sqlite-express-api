@@ -325,6 +325,19 @@ export default class UserController extends RouteController {
 							new ValidationError('publicKey must be a base64 X25519 public key (32 bytes).')
 						);
 					}
+					if (
+						!target.publicKey &&
+						(typeof newUser.orgWrappedPrivateKey !== 'string' ||
+							newUser.orgWrappedPrivateKey === '')
+					) {
+						// An unclaimed writer cannot sign in: without the group's sealed copy
+						// nobody holds the private half, and letters sealed to the key are lost.
+						return next(
+							new ValidationError(
+								"Send orgWrappedPrivateKey (and orgKeyVersion) with the writer's first publicKey."
+							)
+						);
+					}
 					custodyKeyed = !target.publicKey;
 					if (target.publicKey && target.publicKey !== newUser.publicKey) {
 						return next(

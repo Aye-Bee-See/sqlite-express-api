@@ -233,7 +233,13 @@ export async function catchUpReader({ readerType, readerId }) {
 		}
 		report.letters += 1;
 		report.sealed += result.sealed;
-		if (crypto.isE2E() && result.missing.length === 0) {
+		// Let go of the server's copy only when every reader's envelope is good: a
+		// group envelope sealed to a key that was rotated away meanwhile is not.
+		if (
+			crypto.isE2E() &&
+			result.missing.length === 0 &&
+			(await LetterKey.staleGroupEnvelopes(row.message)).length === 0
+		) {
 			await row.destroy();
 			report.dropped += 1;
 		}

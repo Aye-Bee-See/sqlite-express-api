@@ -146,7 +146,9 @@ export default class KeysController extends RouteController {
 	 */
 	static async catchUp(readerType, readerId) {
 		try {
-			return await catchUpReader({ readerType, readerId });
+			// In the rotation queue: a group key read here cannot be rotated away before
+			// the envelope sealed to it is stored and the server's copy dropped.
+			return await withGroupKeyLock(() => catchUpReader({ readerType, readerId }));
 		} catch (err) {
 			console.error('[keys] catch-up failed for ' + readerType + ' ' + readerId, err);
 			return null;
@@ -187,11 +189,25 @@ export default class KeysController extends RouteController {
 			) {
 				throw new ValidationError('Send publicKey together with the first wrapped private key.');
 			}
+			if (
+				fields.publicKey !== undefined &&
+				!user.publicKey &&
+				fields.wrappedPrivateKey === undefined
+			) {
+				// A public key nobody could ever use the private half of: letters sealed to
+				// it (old ones, at once, by the catch-up below) would be lost to everyone.
+				throw new ValidationError(
+					'Send wrappedPrivateKey, kdfSalt, and kdfParams together with the first publicKey.'
+				);
+			}
 			const where = { id: req.user.id };
 			if (fields.publicKey !== undefined && !user.publicKey) {
 				// First set: only if nobody set it in the meantime.
 				where.publicKey = null;
 			}
+			// The moment the account can first open what is sealed to it: a first key, or
+			// the wrapped private key arriving for a public key stored without one.
+			const becameUsable = !user.wrappedPrivateKey && fields.wrappedPrivateKey !== undefined;
 			const [count] = await User.update(fields, { where });
 			if (count === 0) {
 				throw new HttpError(
@@ -202,8 +218,8 @@ export default class KeysController extends RouteController {
 			}
 			await audit(req, 'user.keys', 'user', req.user.id, { fields: Object.keys(fields) });
 			const bundle = await KeysController.keyBundle(req.user.id);
-			if (where.publicKey === null) {
-				// First keys: letters the server still holds a key for become theirs now.
+			if (becameUsable) {
+				// Letters the server still holds a key for become theirs now.
 				bundle.caughtUp = await KeysController.catchUp('user', req.user.id);
 			}
 			this.#handleSuccess(res, bundle);
@@ -874,7 +890,7 @@ export default class KeysController extends RouteController {
 					(SELECT COUNT(*) FROM User u WHERE u.chapterId = c.id AND u.role = 'chapter') AS members,
 					(SELECT COUNT(*) FROM User u WHERE u.chapterId = c.id AND u.role = 'chapter' AND u.publicKey IS NOT NULL) AS membersWithKeys,
 					(SELECT COUNT(*) FROM OrgMemberKeys k WHERE k.chapterId = c.id) AS holders,
-					(SELECT COUNT(*) FROM User w WHERE w.managedBy = c.id AND w.publicKey IS NULL) AS unclaimedWritersWithoutKeys
+					(SELECT COUNT(*) FROM User w WHERE w.managedBy = c.id AND w.anonymousForChapter IS NULL AND w.publicKey IS NULL) AS unclaimedWritersWithoutKeys
 				FROM Chapters c WHERE c.accountStatus = 'active' ORDER BY c.id`
 			);
 			const relays = (g) => g.networkRole !== 'collecting' || g.relayFacilities > 0;

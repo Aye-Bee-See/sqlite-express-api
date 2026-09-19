@@ -16,7 +16,8 @@ const {
 	Chat,
 	Message,
 	LetterKey,
-	Prison
+	Prison,
+	Chapter
 } = await import('./helpers.js');
 const client = await import('./e2e-client.js');
 const crypto = await import('../services/crypto.js');
@@ -58,7 +59,7 @@ async function serverHeldLetter(userId, text) {
 		readerType: 'chapter',
 		readerId: f.group.id,
 		wrappedKey: client.seal(groupKeys.publicKey, contentKey),
-		keyVersion: 1
+		keyVersion: (await Chapter.findByPk(f.group.id)).keyVersion
 	});
 	return message;
 }
@@ -206,6 +207,134 @@ test('a reply can be recorded for a writer who has no keys, and reaches him when
 		keys.privateKey
 	);
 	assert.equal(opened.text, 'A reply from inside');
+});
+
+test('a public key nobody holds the private half of is refused, so no letter can be lost to it', async () => {
+	const carol = await makeUser({ role: 'user', username: 'carol' });
+	const who = { token: carol.token };
+	const held = await serverHeldLetter(carol.id, 'Carol, before the switch');
+	const keys = client.accountKeys(carol.password, 'RECOVERY');
+
+	const bare = await put('/auth/keys', { publicKey: keys.fields.publicKey }, who);
+	assert.equal(bare.status, 400, JSON.stringify(bare.body));
+	assert.match(bare.body.errors[0], /together with the first publicKey/);
+	assert.equal(await LetterKey.count({ where: { message: held.id, readerType: 'server' } }), 1);
+	assert.equal((await User.findByPk(carol.id)).publicKey, null);
+
+	// The same for a group keying an unclaimed writer, who could never sign in to repair it.
+	const writerKeys = client.keypair();
+	const heldForWriter = await serverHeldLetter(f.writer.id, 'For the managed writer');
+	const half = await put(
+		'/auth/user',
+		{ id: f.writer.id, publicKey: writerKeys.publicKey },
+		member
+	);
+	assert.equal(half.status, 400, JSON.stringify(half.body));
+	assert.match(half.body.errors[0], /orgWrappedPrivateKey/);
+	assert.equal(
+		await LetterKey.count({ where: { message: heldForWriter.id, readerType: 'server' } }),
+		1
+	);
+
+	// Complete material works, and only then does the server let go.
+	const full = await put('/auth/keys', keys.fields, who);
+	assert.deepEqual(full.body.data.caughtUp, { letters: 1, sealed: 1, dropped: 1 });
+	const prepared = await put(
+		'/auth/user',
+		{
+			id: f.writer.id,
+			publicKey: writerKeys.publicKey,
+			orgWrappedPrivateKey: client.seal(groupKeys.publicKey, bytes(writerKeys.privateKey)),
+			orgKeyVersion: 1
+		},
+		member
+	);
+	assert.equal(prepared.status, 200, JSON.stringify(prepared.body));
+	assert.equal(
+		await LetterKey.count({ where: { message: heldForWriter.id, readerType: 'server' } }),
+		0
+	);
+});
+
+test('an account stored with a bare public key catches up when its private half arrives', async () => {
+	// A row from before bare keys were refused.
+	const dave = await makeUser({ role: 'user', username: 'dave' });
+	const keys = client.accountKeys(dave.password, 'RECOVERY');
+	await User.update({ publicKey: keys.fields.publicKey }, { where: { id: dave.id } });
+	await serverHeldLetter(dave.id, 'Dave, before the switch');
+	const { publicKey: _same, ...rest } = keys.fields;
+	void _same;
+	const res = await put('/auth/keys', rest, { token: dave.token });
+	assert.equal(res.status, 200, JSON.stringify(res.body));
+	assert.deepEqual(res.body.data.caughtUp, { letters: 1, sealed: 1, dropped: 1 });
+});
+
+test("the report does not count a group's anonymous account as a writer waiting for keys", async () => {
+	// Sending with no `user` makes the group's anonymous writer, which never has keys.
+	const anonymous = client.encryptLetter('From nobody in particular', [
+		{ readerType: 'chapter', readerId: f.group.id, publicKey: groupKeys.publicKey, keyVersion: 1 }
+	]);
+	const sent = await post(
+		'/messaging/message',
+		{ ...anonymous.fields, sender: 'user', prisoner: f.prisoner2.id },
+		member
+	);
+	assert.equal(sent.status, 201, JSON.stringify(sent.body));
+	assert.equal(await User.count({ where: { anonymousForChapter: f.group.id } }), 1);
+	const report = (await get('/auth/encryption-readiness', admin)).body.data;
+	assert.deepEqual(report.groups.unclaimedWritersWithoutKeys, []);
+});
+
+test('a catch-up and a rotation at the same moment never strand a letter', async () => {
+	const eve = await makeUser({ role: 'user', username: 'eve' });
+	const held = await serverHeldLetter(eve.id, 'Eve, before the switch');
+	// Take the group's envelope away so the catch-up has to seal one to the group as well.
+	await LetterKey.destroy({ where: { message: held.id, readerType: 'chapter' } });
+
+	const material = (await get('/auth/chapter-rotation?chapter=' + f.group.id, member)).body.data;
+	const next = client.keypair();
+	const open = (sealed) => client.open(sealed, groupKeys.publicKey, groupKeys.privateKey);
+	const rotation = {
+		chapter: f.group.id,
+		keyVersion: material.keyVersion,
+		publicKey: next.publicKey,
+		envelopes: material.envelopes.map((e) => ({
+			id: e.id,
+			wrappedKey: client.seal(next.publicKey, open(e.wrappedKey))
+		})),
+		writers: material.writers.map((w) => ({
+			id: w.id,
+			orgWrappedPrivateKey: client.seal(next.publicKey, open(w.orgWrappedPrivateKey))
+		})),
+		members: [
+			{
+				user: f.chapter.id,
+				wrappedOrgPrivateKey: client.seal(memberKeys.publicKey, bytes(next.privateKey))
+			}
+		]
+	};
+	const keys = client.accountKeys(eve.password, 'RECOVERY');
+	const [rotated, keyed] = await Promise.all([
+		post('/auth/chapter-rotation', rotation, member),
+		put('/auth/keys', keys.fields, { token: eve.token })
+	]);
+	assert.equal(keyed.status, 200, JSON.stringify(keyed.body));
+	// Either order is fine. If the catch-up went first the rotation's material is
+	// stale (409, fetch again); if the rotation went first the catch-up seals to the new key.
+	assert.ok([200, 409].includes(rotated.status), String(rotated.status));
+	const current = rotated.status === 200 ? next : groupKeys;
+	const groupEnvelope = await LetterKey.findOne({
+		where: { message: held.id, readerType: 'chapter', readerId: f.group.id }
+	});
+	assert.ok(groupEnvelope, 'the group has an envelope for the letter');
+	assert.doesNotThrow(
+		() => client.open(groupEnvelope.wrappedKey, current.publicKey, current.privateKey),
+		'and it opens with the key the group holds now'
+	);
+	assert.deepEqual(await LetterKey.staleGroupEnvelopes(held.id), []);
+	if (rotated.status === 200) {
+		groupKeys = next;
+	}
 });
 
 test('the final cut-off drops what still waits, and says whose letters those are', async () => {

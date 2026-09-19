@@ -15,6 +15,7 @@ import OrgMemberKey from '#models/org-member-key.model.js';
 import RevokedToken from '#models/revoked-token.model.js';
 import SessionRun from '#models/session-run.model.js';
 import Invitation from '#models/invitation.model.js';
+import MailRule from '#models/mail-rule.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -79,6 +80,7 @@ export {
 	RevokedToken,
 	SessionRun,
 	Invitation,
+	MailRule,
 	Submission,
 	User
 };

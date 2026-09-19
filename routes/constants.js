@@ -68,15 +68,18 @@ const endpoints = {
 			mailRules: '/mail-rules'
 		},
 		post: {
-			create: '/prison'
+			create: '/prison',
+			createMailRule: '/mail-rule'
 		},
 		put: {
 			update: '/prison',
-			addRelay: '/relay'
+			addRelay: '/relay',
+			updateMailRule: '/mail-rule'
 		},
 		delete: {
 			remove: '/prison',
-			removeRelay: '/relay'
+			removeRelay: '/relay',
+			removeMailRule: '/mail-rule'
 		}
 	},
 	chapter: {
@@ -387,6 +390,10 @@ const messages = {
 			create: {
 				success: { condition: { par: 'Successfully created prison' } },
 				error: { condition: { par: 'Error creating prison' } }
+			},
+			createMailRule: {
+				success: { condition: { par: 'Rule added to the master list.' } },
+				error: { condition: { par: 'Error adding the rule.' } }
 			}
 		},
 		put: {
@@ -397,6 +404,10 @@ const messages = {
 			addRelay: {
 				success: { condition: { par: 'Successfully added relay group to prison' } },
 				error: { condition: { par: 'Error adding relay group to prison.' } }
+			},
+			updateMailRule: {
+				success: { condition: { par: 'Rule updated.' } },
+				error: { condition: { par: 'Error updating the rule.' } }
 			}
 		},
 		delete: {
@@ -412,6 +423,10 @@ const messages = {
 			removeRelay: {
 				success: { condition: { par: 'Successfully removed relay group from prison' } },
 				error: { condition: { par: 'Error removing relay group from prison.' } }
+			},
+			removeMailRule: {
+				success: { condition: { par: 'Rule removed from the master list.' } },
+				error: { condition: { par: 'Error removing the rule.' } }
 			}
 		}
 	},

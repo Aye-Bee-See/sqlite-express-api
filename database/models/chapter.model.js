@@ -3,6 +3,7 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Prison from '#models/prison.model.js';
+import MailRule from '#models/mail-rule.model.js';
 import { publishedWhere } from '#db/record-status.js';
 
 /** Fields a client may set on create. */
@@ -91,7 +92,8 @@ export default class Chapter extends Model {
 				as: 'relay_prisons',
 				through: { attributes: [] },
 				...Prison.publicAttributes(publishedOnly),
-				...publishedOnlyOpts
+				...publishedOnlyOpts,
+				include: [MailRule.detailsInclude()]
 			}
 		];
 	}

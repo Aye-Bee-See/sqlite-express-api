@@ -3,13 +3,11 @@ import { Op, literal } from 'sequelize';
 import RouteController from '#rtControllers/route.controller.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
 import { ROUTING_METHODS } from '#db/validators.js';
-import {
-	MAIL_RULES,
-	MAIL_RULE_CATEGORIES,
-	MAIL_RULE_CONFLICTS,
-	MAIL_RULE_PARAMETERS,
-	MAIL_RULE_TAGS
-} from '#db/mail-rules.js';
+import { MAIL_RULE_CATEGORIES, MAIL_RULE_CONFLICTS, MAIL_RULE_PARAMETERS } from '#db/mail-rules.js';
+import MailRule from '#models/mail-rule.model.js';
+import { MAIL_RULE_TAG } from '#schemas/mail-rule.schema.js';
+import AuthzService from '#rtServices/authz.services.js';
+import { HttpError } from '#services/HttpError.js';
 import ValidationError from '#services/ValidationError.js';
 import { staleVerificationWhere } from '#db/record-status.js';
 import { audit } from '#rtServices/audit.services.js';
@@ -24,16 +22,21 @@ const READ_CONFIG = {
 		// mailRule=<tag>: facilities carrying that tag. The value is checked
 		// against the vocabulary before it reaches the SQL.
 		mailRule: {
-			allowed: MAIL_RULE_TAGS,
-			build: (tag) => ({
-				id: {
-					[Op.in]: literal(
-						"(SELECT `Prisons`.`id` FROM `Prisons`, json_each(`Prisons`.`mailRules`) WHERE json_each.value = '" +
-							tag +
-							"')"
-					)
+			build: (tag) => {
+				// Only the shape of a tag reaches the SQL; one that is not on the list matches nothing.
+				if (!MAIL_RULE_TAG.test(tag)) {
+					throw new ValidationError('mailRule must be a rule tag from GET /prison/mail-rules.');
 				}
-			})
+				return {
+					id: {
+						[Op.in]: literal(
+							"(SELECT `PrisonMailRules`.`prison` FROM `PrisonMailRules` JOIN `MailRules` ON `MailRules`.`id` = `PrisonMailRules`.`rule` WHERE `MailRules`.`tag` = '" +
+								tag +
+								"')"
+						)
+					}
+				};
+			}
 		},
 		// language=<code>: facilities that accept mail in it; no restriction counts.
 		language: {
@@ -80,6 +83,9 @@ export default class PrisonController extends RouteController {
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
 		this.mailRules = this.mailRules.bind(this);
+		this.createMailRule = this.createMailRule.bind(this);
+		this.updateMailRule = this.updateMailRule.bind(this);
+		this.removeMailRule = this.removeMailRule.bind(this);
 		this.addRelay = this.addRelay.bind(this);
 		this.removeRelay = this.removeRelay.bind(this);
 
@@ -117,13 +123,95 @@ export default class PrisonController extends RouteController {
 	 * GET /prison/mail-rules: the rule tags a facility may carry, grouped by
 	 * category, with default English wording, and the typed limits beside them.
 	 */
-	mailRules(req, res) {
-		this.#handleSuccess(res, {
-			categories: MAIL_RULE_CATEGORIES,
-			rules: MAIL_RULES,
-			conflicts: MAIL_RULE_CONFLICTS,
-			parameters: MAIL_RULE_PARAMETERS
-		});
+	async mailRules(req, res) {
+		try {
+			// Staff also see retired rules, to restore one or to read a facility that still has it.
+			const includeRetired = req.query.retired === 'true' && !AuthzService.publishedOnly(req);
+			const rules = await MailRule.list({ includeRetired });
+			this.#handleSuccess(res, {
+				categories: MAIL_RULE_CATEGORIES,
+				rules: rules.map((rule) => PrisonController.#presentRule(rule)),
+				conflicts: MAIL_RULE_CONFLICTS,
+				parameters: MAIL_RULE_PARAMETERS
+			});
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	static #presentRule(rule, extra = {}) {
+		return {
+			id: rule.id,
+			tag: rule.tag,
+			category: rule.category,
+			label: rule.label,
+			description: rule.description,
+			retired: Boolean(rule.retiredAt),
+			...extra
+		};
+	}
+
+	/** POST /prison/mail-rule { tag, category, label, description? } (admin): add to the master list. */
+	async createMailRule(req, res) {
+		try {
+			const rule = await MailRule.createRule(req.body, req.user.id);
+			await audit(req, 'mail-rule.create', 'mail-rule', rule.id, { tag: rule.tag });
+			this.#handleSuccess(res, PrisonController.#presentRule(rule));
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/**
+	 * PUT /prison/mail-rule { id, category?, label?, description?, retired? } (admin):
+	 * reword, recategorise, retire, or restore. The tag never changes.
+	 */
+	async updateMailRule(req, res) {
+		try {
+			const rule = this.requireFound(
+				await MailRule.updateRule(req.body.id, req.body),
+				'Mail rule ' + req.body.id
+			);
+			await audit(req, 'mail-rule.update', 'mail-rule', rule.id, {
+				fields: Object.keys(req.body).filter((field) => field !== 'id')
+			});
+			this.#handleSuccess(
+				res,
+				PrisonController.#presentRule(rule, { prisons: await MailRule.usage(rule.id) })
+			);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/** DELETE /prison/mail-rule { id } (admin): only a rule no facility carries; otherwise retire it. */
+	async removeMailRule(req, res) {
+		try {
+			const rule = this.requireFound(
+				await MailRule.findByPk(req.body.id),
+				'Mail rule ' + req.body.id
+			);
+			const prisons = await MailRule.usage(rule.id);
+			if (prisons > 0) {
+				throw new HttpError(
+					409,
+					prisons +
+						' facilit' +
+						(prisons === 1 ? 'y carries' : 'ies carry') +
+						' this rule. Retire it instead (PUT /prison/mail-rule { id, retired: true }).',
+					'RuleInUseError'
+				);
+			}
+			await rule.destroy();
+			await audit(req, 'mail-rule.delete', 'mail-rule', rule.id, { tag: rule.tag });
+			this.#handleSuccess(res, PrisonController.#presentRule(rule));
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
 	}
 
 	// get one prison

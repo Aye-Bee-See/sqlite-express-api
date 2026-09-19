@@ -21,15 +21,11 @@ test('prison create, read, update, delete', async () => {
 	assert.equal(created.body.name, 'prison create');
 	assert.equal(created.body.info, 'Successfully created prison');
 	const id = created.body.data.id;
-	assert.deepEqual(Object.keys(created.body.data).sort(), [
-		'address',
-		'createdAt',
-		'id',
-		'mailRules',
-		'prisonName',
-		'recordStatus',
-		'updatedAt'
-	]);
+	// A created facility comes back as a read of it would: every column, and its (empty) rules.
+	for (const field of ['address', 'id', 'prisonName', 'recordStatus', 'mailRules', 'pageLimit']) {
+		assert.ok(field in created.body.data, field);
+	}
+	assert.deepEqual(created.body.data.mail_rule_details, []);
 	assert.deepEqual(created.body.data.mailRules, [], 'a new facility starts with no rule tags');
 
 	const one = await get('/prison/prison?id=' + id, t);

@@ -1,12 +1,12 @@
 /**
- * The mail rule vocabulary. A facility's rules are tags from this list
- * (Prison.mailRules) plus three typed limits (pageLimit, photoLimit,
- * mailLanguages), so clients can translate them, draw icons, and check a
- * letter against them. The label and description are the default English
- * text, served by GET /prison/mail-rules.
+ * What the code knows about mail rules. The master list itself is data: the
+ * MailRules table, which admins extend (database/models/mail-rule.model.js).
+ * A facility links to entries of that list and has three typed limits
+ * beside them (pageLimit, photoLimit, mailLanguages).
  *
- * Adding a tag is safe at any time. Renaming or removing one needs a
- * migration that rewrites Prisons.mailRules.
+ * Here: the categories a rule may belong to and the order pages show them
+ * in, the pairs of rules that contradict each other, the description of the
+ * typed limits for clients, and the validators for those limits.
  */
 
 /** Display groups, in the order a facility page lists them. */
@@ -21,280 +21,7 @@ export const MAIL_RULE_CATEGORIES = [
 	'handling'
 ];
 
-export const MAIL_RULES = [
-	// addressing
-	{
-		tag: 'return_address_required',
-		category: 'addressing',
-		label: 'Return address required',
-		description: 'Every envelope needs a full sender name and postal address or it is refused.'
-	},
-	{
-		tag: 'full_name_and_number',
-		category: 'addressing',
-		label: 'Full name and number',
-		description:
-			"Address mail with the prisoner's full legal name and inmate number; nicknames are not delivered."
-	},
-	{
-		tag: 'plain_envelopes',
-		category: 'addressing',
-		label: 'Plain envelopes only',
-		description: 'White or manila envelopes with no stickers, tape, drawings, or coloured ink.'
-	},
-	{
-		tag: 'no_stickers_or_labels',
-		category: 'addressing',
-		label: 'No stickers or labels',
-		description:
-			'Address labels, stickers, and stamps other than postage are not allowed on the envelope.'
-	},
-	{
-		tag: 'one_letter_per_envelope',
-		category: 'addressing',
-		label: 'One letter per envelope',
-		description: 'Envelopes containing letters for more than one prisoner are returned.'
-	},
-	{
-		tag: 'registered_post_recommended',
-		category: 'addressing',
-		label: 'Registered post recommended',
-		description:
-			'Ordinary international post is often lost; send letters by registered or tracked mail.'
-	},
-
-	// paper_and_ink
-	{
-		tag: 'plain_paper',
-		category: 'paper_and_ink',
-		label: 'Plain paper only',
-		description: 'White lined or unlined paper; no cardstock, construction paper, or scented paper.'
-	},
-	{
-		tag: 'ink_blue_or_black',
-		category: 'paper_and_ink',
-		label: 'Blue or black ink only',
-		description: 'Letters written in pencil, marker, crayon, or coloured ink are rejected.'
-	},
-	{
-		tag: 'typed_letters_allowed',
-		category: 'paper_and_ink',
-		label: 'Typed letters allowed',
-		description: 'Typed and printed letters are accepted as long as the pages are unbound.'
-	},
-	{
-		tag: 'handwritten_only',
-		category: 'paper_and_ink',
-		label: 'Handwritten letters only',
-		description: 'Typed or printed letters are refused; write by hand.'
-	},
-	{
-		tag: 'postcards_only',
-		category: 'paper_and_ink',
-		label: 'Postcards only',
-		description:
-			'This facility accepts standard-size postcards only; enclosed letters are returned.'
-	},
-	{
-		tag: 'no_greeting_cards',
-		category: 'paper_and_ink',
-		label: 'No greeting cards',
-		description:
-			'Cards with layers, glitter, pop-ups, or musical parts are refused; a flat card is accepted.'
-	},
-	{
-		tag: 'no_scents_or_lipstick',
-		category: 'paper_and_ink',
-		label: 'No perfume or lipstick',
-		description:
-			'Scented, stained, or lipstick-marked paper is treated as contaminated and destroyed.'
-	},
-	{
-		tag: 'no_glue_tape_or_staples',
-		category: 'paper_and_ink',
-		label: 'No glue, tape, or staples',
-		description: 'Nothing may be glued, taped, or stapled to the pages.'
-	},
-
-	// content
-	{
-		tag: 'no_maps',
-		category: 'content',
-		label: 'No maps',
-		description: 'Maps, including hand-drawn ones, are treated as escape material and confiscated.'
-	},
-	{
-		tag: 'no_coded_messages',
-		category: 'content',
-		label: 'No coded messages',
-		description:
-			'Letters containing ciphers, symbols, or unexplained abbreviations are held for investigation.'
-	},
-	{
-		tag: 'no_drawings_by_others',
-		category: 'content',
-		label: 'No drawings by others',
-		description:
-			'Hand-drawn artwork is accepted only from the sender; drawings by children or others are refused.'
-	},
-	{
-		tag: 'no_third_party_mail',
-		category: 'content',
-		label: 'No third-party mail',
-		description: 'Mail that forwards or relays a message from someone else is refused.'
-	},
-
-	// photos
-	{
-		tag: 'no_photos',
-		category: 'photos',
-		label: 'No pictures',
-		description: 'Letters must be text only; photographs and printed images are returned.'
-	},
-	{
-		tag: 'no_polaroids',
-		category: 'photos',
-		label: 'No polaroids',
-		description: 'Instant-film photographs are refused because the backing can hide contraband.'
-	},
-	{
-		tag: 'no_explicit_photos',
-		category: 'photos',
-		label: 'No nude or suggestive photos',
-		description:
-			'Photographs showing nudity, underwear, or sexually suggestive poses are destroyed.'
-	},
-	{
-		tag: 'no_gang_imagery',
-		category: 'photos',
-		label: 'No gang signs in photos',
-		description: 'Photographs showing hand signs, gang colours, or gang tattoos are refused.'
-	},
-
-	// enclosures
-	{
-		tag: 'no_enclosures',
-		category: 'enclosures',
-		label: 'Nothing enclosed',
-		description:
-			'Nothing may be enclosed with a letter: no stamps, cash, cards, or objects of any kind.'
-	},
-	{
-		tag: 'no_stamps_enclosed',
-		category: 'enclosures',
-		label: 'Stamps not accepted',
-		description: 'Enclosed postage stamps are confiscated; stamps must be bought at the commissary.'
-	},
-	{
-		tag: 'no_money',
-		category: 'enclosures',
-		label: 'No money orders',
-		description: "Funds cannot be sent by mail; use the facility's deposit service."
-	},
-	{
-		tag: 'no_clippings',
-		category: 'enclosures',
-		label: 'No newspaper clippings',
-		description:
-			'Cuttings and printed articles are refused; write out or describe the content instead.'
-	},
-	{
-		tag: 'printed_pages_allowed',
-		category: 'enclosures',
-		label: 'Printed internet pages allowed',
-		description:
-			'Printed web pages are accepted if they are plain black-and-white text with no images.'
-	},
-
-	// publications
-	{
-		tag: 'books_from_publisher_only',
-		category: 'publications',
-		label: 'Books from publishers only',
-		description:
-			'Books must ship new from a publisher or approved bookseller, never from an individual.'
-	},
-	{
-		tag: 'paperbacks_only',
-		category: 'publications',
-		label: 'Paperbacks only',
-		description: 'Hardcover books are refused; send paperback editions.'
-	},
-
-	// senders
-	{
-		tag: 'approved_senders_only',
-		category: 'senders',
-		label: 'No unknown senders',
-		description: "Only senders on the prisoner's approved correspondence list are delivered."
-	},
-	{
-		tag: 'sender_approval_form',
-		category: 'senders',
-		label: 'Sender approval form',
-		description:
-			"New correspondents must file the facility's approval form before their first letter is delivered."
-	},
-	{
-		tag: 'no_inter_prisoner_mail',
-		category: 'senders',
-		label: 'No mail between prisoners',
-		description:
-			'Correspondence with anyone held in another facility requires prior written approval.'
-	},
-
-	// handling
-	{
-		tag: 'mail_read_by_staff',
-		category: 'handling',
-		label: 'Mail opened and read',
-		description: 'All incoming mail except legal mail is opened and read by staff before delivery.'
-	},
-	{
-		tag: 'legal_mail_marked',
-		category: 'handling',
-		label: 'Legal mail marked clearly',
-		description:
-			"Mail from a lawyer must be marked Legal Mail with the firm's address or it is opened as ordinary mail."
-	},
-	{
-		tag: 'originals_destroyed',
-		category: 'handling',
-		label: 'Scanned, not delivered',
-		description:
-			'Incoming mail is scanned by a vendor and shown on a tablet; the paper original is destroyed.'
-	},
-	{
-		tag: 'scanned_in_greyscale',
-		category: 'handling',
-		label: 'Scanned mail: no colour',
-		description:
-			'Because mail is scanned in greyscale, colour drawings and photos arrive as black and white.'
-	},
-	{
-		tag: 'digital_mail_only',
-		category: 'handling',
-		label: 'Digital mail only',
-		description:
-			"Letters must be sent through the facility's electronic mail service; postal mail is returned."
-	},
-	{
-		tag: 'delivery_not_confirmed',
-		category: 'handling',
-		label: 'Delivery not confirmed',
-		description: 'The facility does not confirm delivery; expect delays of four to eight weeks.'
-	},
-	{
-		tag: 'holiday_card_limit',
-		category: 'handling',
-		label: 'Holiday mail limits',
-		description: 'In December only, up to two cards per sender are accepted.'
-	}
-];
-
-export const MAIL_RULE_TAGS = MAIL_RULES.map((rule) => rule.tag);
-
-/** Pairs of tags that cannot both hold for one facility. */
+/** Pairs of rule tags that cannot both hold for one facility. */
 export const MAIL_RULE_CONFLICTS = [['typed_letters_allowed', 'handwritten_only']];
 
 /** The typed limits that sit beside the tags, described for clients. */
@@ -314,38 +41,10 @@ export const MAIL_RULE_PARAMETERS = {
 	},
 	mailLanguages: {
 		type: 'array',
-		items: 'ISO 639-1 language code, lower case',
+		items: 'ISO 639-1 language tag, lower case',
 		label: 'Accepted languages',
 		description:
 			'Mail must be written in one of these languages. Null or empty means no restriction.'
-	}
-};
-
-/** Sequelize validator for Prison.mailRules. */
-export const mailRulesValidator = {
-	isMailRuleList(value) {
-		if (value === null || value === undefined) {
-			return;
-		}
-		if (!Array.isArray(value)) {
-			throw new Error('mailRules must be an array of rule tags (see GET /prison/mail-rules).');
-		}
-		const unknown = value.filter((tag) => !MAIL_RULE_TAGS.includes(tag));
-		if (unknown.length > 0) {
-			throw new Error(
-				'Unknown mail rule ' +
-					unknown.map((tag) => JSON.stringify(tag)).join(', ') +
-					'; the tags are listed by GET /prison/mail-rules.'
-			);
-		}
-		if (new Set(value).size !== value.length) {
-			throw new Error('mailRules lists a tag more than once.');
-		}
-		for (const [a, b] of MAIL_RULE_CONFLICTS) {
-			if (value.includes(a) && value.includes(b)) {
-				throw new Error('mailRules cannot hold both ' + a + ' and ' + b + '.');
-			}
-		}
 	}
 };
 
@@ -357,10 +56,10 @@ export const mailLanguagesValidator = {
 		}
 		const ok =
 			Array.isArray(value) &&
-			value.every((code) => typeof code === 'string' && /^[a-z]{2}$/.test(code));
+			value.every((tag) => typeof tag === 'string' && /^[a-z]{2}$/.test(tag));
 		if (!ok) {
 			throw new Error(
-				'mailLanguages must be an array of two-letter ISO 639-1 codes in lower case, for example ["en", "es"].'
+				'mailLanguages must be an array of two-letter ISO 639-1 tags in lower case, for example ["en", "es"].'
 			);
 		}
 		if (new Set(value).size !== value.length) {

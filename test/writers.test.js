@@ -374,6 +374,33 @@ test("a group's shared anonymous account cannot be handed to anyone", async () =
 		/cannot be claimed/
 	);
 
+	// It never has keys either: its letters are sealed to the group alone, and a key
+	// on it would make every anonymous letter look like it had a reader nobody is.
+	const client = await import('./e2e-client.js');
+	await client.ready;
+	const keys = client.keypair();
+	const attempts = [
+		{ publicKey: keys.publicKey },
+		{ orgWrappedPrivateKey: 'sealed-to-the-group', orgKeyVersion: 1 },
+		{ publicKey: keys.publicKey, orgWrappedPrivateKey: 'sealed-to-the-group', orgKeyVersion: 1 }
+	];
+	for (const who of [chapter, { token: f.admin.token }]) {
+		for (const fields of attempts) {
+			const res = await put('/auth/user', { id: anon.id, ...fields }, who);
+			assert.equal(res.status, 400, JSON.stringify(fields) + ' -> ' + JSON.stringify(res.body));
+		}
+	}
+	const keyless = await User.scope('withKeys').findByPk(anon.id);
+	assert.equal(keyless.publicKey, null);
+	assert.equal(keyless.orgWrappedPrivateKey, null);
+	// Ordinary fields on it can still be edited by its group.
+	const renamed = await put(
+		'/auth/user',
+		{ id: anon.id, managerNote: 'Letter night walk-ins' },
+		chapter
+	);
+	assert.equal(renamed.status, 200, JSON.stringify(renamed.body));
+
 	// The way to do it: a managed writer of their own, which can be handed off.
 	const own = await post('/auth/writer', { name: 'Walk-in from letter night' }, chapter);
 	assert.equal(own.status, 201);

@@ -861,6 +861,19 @@ Public. Body: `{"token": "…", "username": "sam", "password": "longenough", "em
 
 Everything in this section applies only when `ENCRYPTION_MODE=e2e`. The primitives are libsodium's: X25519 keypairs, sealed boxes (`crypto_box_seal`) for envelopes and wrapped keys, XChaCha20-Poly1305 (`crypto_aead_xchacha20poly1305_ietf`, no associated data; not `crypto_secretbox`, which is XSalsa20) for bodies and files. The server never runs a key derivation; the client chooses one (the design recommends Argon2id) and stores its salt and parameters beside each wrapped key as `kdfSalt` / `kdfParams`. The parameters are opaque to the server except for their shape: an object with a string `kdf` naming the function, otherwise a `400`. The agreed schema, shared by the web and Android clients so an account made on one unlocks on the other, is `{ "kdf": "argon2id", "alg": 2, "opslimit": 2, "memlimit": 67108864 }`: `alg` is libsodium's algorithm id (Argon2id 1.3 is 2) so a future library default cannot silently change how an old key was wrapped, and the costs are stored per account so they can be raised later without touching existing accounts. The same shape applies to `recoveryKdfParams` and `claimKdfParams`.
 
+#### What it protects against, and what it does not
+
+A key made on one device works on another because the private key lives on the server, locked: every client fetches the same bundle (`wrappedPrivateKey`, `kdfSalt`, `kdfParams`) and opens it with a key derived from the same password. The server never sees that derived key, a recovery code, a claim secret, or an unlocked private key.
+
+| Threat                                                        | Protected? |
+| ------------------------------------------------------------- | ---------- |
+| The database or a backup is stolen                            | Yes        |
+| An admin, or the hosting company, browses the data            | Yes        |
+| A demand for stored data                                      | Yes        |
+| The running server is modified to record passwords at sign-in | **No**     |
+
+The last row is a real limit of what is built. `POST /auth/login` receives the password itself (it has to, to check it against the bcrypt hash), and the password is what the locking key is derived from. A server that has been tampered with could therefore record a password and unlock that account's private key. The fix is for clients to derive two values from the password, one to sign in with and one that locks the key and never leaves the device; it changes the sign-in contract for every client, so it is a proposal under discussion rather than something the API can do alone. Until it is adopted, do not describe this mode as protecting against a compromised server. Two limits no API change removes: a web client runs whatever code its host serves, and the server always sees who writes to whom and when.
+
 #### Account keys
 
 Register with the key fields (`publicKey`, `wrappedPrivateKey`, `kdfSalt`, `kdfParams`, `recoveryWrappedPrivateKey`, `recoverySalt`, `recoveryKdfParams`) or set them afterwards with `PUT /auth/keys`. The public key can be set once and never changes; every envelope is sealed to it. Login returns the caller's key bundle under `keys`, and `GET /auth/keys` returns it again:

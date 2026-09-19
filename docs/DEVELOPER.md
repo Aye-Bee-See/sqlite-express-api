@@ -656,6 +656,8 @@ Content-free by design: a push is a doorbell, the feed says what happened.
 
 ### End-to-end mode
 
+**A limit to keep in mind:** sign-in sends the password to the API (`authService` checks it with bcrypt), and the locking key for `wrappedPrivateKey` is derived from that same password. The stored data is safe; a server modified to record passwords is not defended against. The proposed fix (clients derive a sign-in value and a locking value from one Argon2id run and send only the first; the API adds a pre-sign-in endpoint for the salt and an `authScheme` flag) is a client contract change and is not built. Do not add wording anywhere that says the server "never sees a password".
+
 `crypto.isE2E()` switches the same code paths to browser-held keys:
 
 - Key material lives on `User` (`publicKey` visible; `wrappedPrivateKey`, `kdfSalt`, `kdfParams`, the recovery pair, `orgWrappedPrivateKey`, and the recovery challenge hidden by the default scope and read through the `withKeys` scope / `User.getUserWithKeys`), on `Chapter.publicKey`, on `OrgMemberKeys` (group private key sealed per member), and on `ClaimTokens` (writer private key wrapped with the token). `KEY_COLUMNS` / `KEY_INPUT` in `user.model.js` name them; `#stripPassword` deletes every key column from user responses. `keys.controller.js` (mounted at `/auth`; its handlers are named `getOne` / `update` / `create` / `remove` / `getMany` to satisfy the base interface: own bundle, re-wrap, recovery finish, member-key removal, member list) plus `publicKey`, `recoverChallenge`, `chapterKeys`, `putMemberKey`, `rotationMaterial`, `rotate`.

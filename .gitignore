@@ -3,3 +3,6 @@ database.sqlite
 jwt
 .env
 uploads/
+# Firebase service-account keys never belong in the repository.
+*service-account*.json
+*firebase-adminsdk*.json

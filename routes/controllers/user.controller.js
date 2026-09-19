@@ -9,6 +9,7 @@ import KeysController from '#rtControllers/keys.controller.js';
 import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
 import authService from '#rtServices/auth.services.js';
 import RevokedToken from '#models/revoked-token.model.js';
+import Device from '#models/device.model.js';
 import { KEY_COLUMNS, KEY_INPUT } from '#models/user.model.js';
 import { retentionMaxDays } from '#constants';
 import * as crypto from '#services/crypto.js';
@@ -720,6 +721,8 @@ export default class UserController extends RouteController {
 					? new Date(payload.exp * 1000)
 					: new Date(Date.now() + 6.048e8);
 				await RevokedToken.revoke(payload.jti, req.user.id, expiresAt);
+				// The device that signed in with this token stops ringing; others carry on.
+				await Device.forgetSession(payload.jti);
 			}
 			await RevokedToken.sweep();
 			await audit(req, 'user.logout', 'user', req.user.id, {

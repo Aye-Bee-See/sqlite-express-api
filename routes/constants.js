@@ -98,6 +98,22 @@ const endpoints = {
 			remove: '/chapter'
 		}
 	},
+	notification: {
+		get: {
+			many: '/notifications',
+			one: '/devices'
+		},
+		post: {
+			create: '/device'
+		},
+		put: {
+			update: '/notifications/read',
+			updateDevice: '/device'
+		},
+		delete: {
+			remove: '/device'
+		}
+	},
 	invitation: {
 		get: {
 			many: '/invitations',
@@ -490,6 +506,40 @@ const messages = {
 			}
 		}
 	},
+	notification: {
+		get: {
+			many: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading notifications.' } }
+			},
+			one: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing devices.' } }
+			}
+		},
+		post: {
+			create: {
+				success: { condition: { par: 'Device registered.' } },
+				error: { condition: { par: 'Error registering the device.' } }
+			}
+		},
+		put: {
+			update: {
+				success: { condition: { par: 'Marked as read.' } },
+				error: { condition: { par: 'Error marking notifications.' } }
+			},
+			updateDevice: {
+				success: { condition: { par: 'Device updated.' } },
+				error: { condition: { par: 'Error updating the device.' } }
+			}
+		},
+		delete: {
+			remove: {
+				success: { condition: { par: 'Device removed.' } },
+				error: { condition: { par: 'Error removing the device.' } }
+			}
+		}
+	},
 	invitation: {
 		get: {
 			many: {
@@ -754,6 +804,7 @@ export const {
 	chapter: chapterMsg,
 	moderation: moderationMsg,
 	invitation: invitationMsg,
+	notification: notificationMsg,
 	keys: keysMsg
 } = messages;
 
@@ -768,5 +819,6 @@ export const {
 	chapter: chapterEnd,
 	moderation: moderationEnd,
 	invitation: invitationEnd,
+	notification: notificationEnd,
 	keys: keysEnd
 } = endpoints;

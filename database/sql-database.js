@@ -41,6 +41,8 @@ export const RevokedToken = Models.RevokedToken.init(sequelize, Sequelize);
 export const SessionRun = Models.SessionRun.init(sequelize, Sequelize);
 export const Invitation = Models.Invitation.init(sequelize, Sequelize);
 export const MailRule = Models.MailRule.init(sequelize, Sequelize);
+export const Device = Models.Device.init(sequelize, Sequelize);
+export const Notification = Models.Notification.init(sequelize, Sequelize);
 
 Prisoner.associate(Models);
 Prison.associate(Models);
@@ -58,6 +60,8 @@ OrgMemberKey.associate(Models);
 RevokedToken.associate(Models);
 Invitation.associate(Models);
 MailRule.associate(Models);
+Device.associate(Models);
+Notification.associate(Models);
 
 /** How often expired revocations are cleared while the server runs. */
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
@@ -87,12 +91,13 @@ export const ready = (async () => {
 	await ensureAdmin();
 	await RevokedToken.sweep();
 	await SessionRun.sweep();
+	await Notification.sweep();
 	// Expired logout entries are also swept on every logout; this covers a
 	// server that runs for days without one. unref() keeps it from holding
 	// the process open (tests, one-off scripts).
 	setInterval(
 		() =>
-			Promise.all([RevokedToken.sweep(), SessionRun.sweep()]).catch((err) =>
+			Promise.all([RevokedToken.sweep(), SessionRun.sweep(), Notification.sweep()]).catch((err) =>
 				console.error('[sessions] sweep failed', err)
 			),
 		SWEEP_INTERVAL_MS

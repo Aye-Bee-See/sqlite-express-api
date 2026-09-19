@@ -2,7 +2,7 @@ import express from 'express';
 import passport from 'passport';
 import { default as bodyParser } from 'body-parser';
 import cors from 'cors';
-import { encryptionMode, corsOrigins, trustProxy } from '#constants';
+import { encryptionMode, corsOrigins, trustProxy, quietBoot } from '#constants';
 import { default as authRouter } from '#routes/user/user.js';
 import prisonRoutes from '#routes/prison/prison.js';
 import PrisonerRoutes from '#routes/prisoner/prisoner.js';
@@ -11,6 +11,8 @@ import ChatRoutes from '#routes/chat/chat.js';
 import ChapterRoutes from '#routes/chapter/chapter.js';
 import ModerationRoutes from '#routes/moderation/moderation.js';
 import InvitationRoutes from '#routes/invitation/invitation.js';
+import NotificationRoutes from '#routes/notification/notification.js';
+import * as push from '#services/push.js';
 import KeysRoutes from '#routes/keys/keys.js';
 import ErrorService from '#rtServices/error.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
@@ -29,6 +31,8 @@ import { ready } from '#db/sql-database.js';
  */
 export function createApp() {
 	const app = express();
+	// Loads the FCM key when one is configured; without it devices register and nothing rings.
+	push.configure(quietBoot ? () => {} : console.log);
 	// Behind a reverse proxy, TRUST_PROXY makes req.ip the client address (rate limits key on it).
 	app.set('trust proxy', trustProxy);
 
@@ -55,11 +59,14 @@ export function createApp() {
 		// encryptionMode lets a client refuse to post plaintext to an e2e server.
 		res
 			.status(databaseReady ? 200 : 503)
-			.json({ status: databaseReady ? 'ok' : 'starting', encryptionMode });
+			// push: the services this API can send through today; [] means devices
+			// may register and nothing will ring.
+			.json({ status: databaseReady ? 'ok' : 'starting', encryptionMode, push: push.available() });
 	});
 
 	app.use('/auth', authRouter.Router);
 	app.use('/auth', KeysRoutes.Router);
+	app.use('/auth', NotificationRoutes.Router);
 	app.use('/prison', prisonRoutes.Router);
 	app.use('/prisoner', PrisonerRoutes.Router);
 	app.use('/messaging', MessageRoutes.Router);

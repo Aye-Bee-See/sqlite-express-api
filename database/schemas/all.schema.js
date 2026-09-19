@@ -16,6 +16,8 @@ import revokedTokenSchema from '#schemas/revoked-token.schema.js';
 import sessionRunSchema from '#schemas/session-run.schema.js';
 import invitationSchema from '#schemas/invitation.schema.js';
 import mailRuleSchema from '#schemas/mail-rule.schema.js';
+import deviceSchema from '#schemas/device.schema.js';
+import notificationSchema from '#schemas/notification.schema.js';
 
 export default class Schemas {
 	static chat = chatSchema;
@@ -36,4 +38,6 @@ export default class Schemas {
 	static sessionRun = sessionRunSchema;
 	static invitation = invitationSchema;
 	static mailRule = mailRuleSchema;
+	static device = deviceSchema;
+	static notification = notificationSchema;
 }

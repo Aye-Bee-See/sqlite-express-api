@@ -71,7 +71,7 @@ after(stopServer);
 
 test('health announces the encryption mode', async () => {
 	const res = await get('/health');
-	assert.deepEqual(res.body, { status: 'ok', encryptionMode: 'e2e' });
+	assert.deepEqual(res.body, { status: 'ok', encryptionMode: 'e2e', push: [] });
 });
 
 test('kdfParams must name the KDF, on registration, key updates, and password re-wraps', async () => {

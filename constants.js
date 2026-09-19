@@ -123,6 +123,23 @@ export const rateLimits = {
 	recoverWindowMinutes: envCount('RATE_LIMIT_RECOVER_WINDOW_MINUTES', 60)
 };
 
+/** How long an entry stays in an account's notification feed. */
+export const notificationDays = envCount('NOTIFICATION_DAYS', 30);
+
+/**
+ * Push notifications. They are content-free by design: a push says that
+ * something happened, never what. `serviceAccountFile` is the path to a
+ * Firebase service-account key (JSON); without it nothing is sent and
+ * devices may still register. iOS gets a visible, generic alert because
+ * Apple does not deliver silent pushes reliably; the wording is set here so
+ * it can stay bland.
+ */
+export const push = {
+	serviceAccountFile: process.env.FCM_SERVICE_ACCOUNT_FILE || '',
+	iosAlertTitle: process.env.PUSH_IOS_ALERT_TITLE || 'New activity',
+	iosAlertBody: process.env.PUSH_IOS_ALERT_BODY || 'Open the app to see it.'
+};
+
 /** How long an invitation token works. */
 export const invitationDays = envCount('INVITATION_DAYS', 14);
 /**

@@ -8,6 +8,7 @@ import Attachment from '#models/attachment.model.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { sniffType } from '#services/files.js';
 import { audit } from '#rtServices/audit.services.js';
+import { notify, membersOf } from '#rtServices/notify.services.js';
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
 import User from '#models/user.model.js';
@@ -80,6 +81,23 @@ export default class MessageController extends RouteController {
 			writerIds: scope.writerIds || [],
 			all: scope.kind === 'all'
 		};
+	}
+
+	/**
+	 * A reply tells the writer; a new letter tells the group that will print it.
+	 * (notify never throws and never tells the account that did it.)
+	 */
+	async #announce(req, message) {
+		const what = { chat: message.chat, message: message.id };
+		if (message.sender === 'prisoner') {
+			await notify([message.user], { event: 'letter.reply', ...what }, { actor: req.user.id });
+		} else if (message.relayChapter) {
+			await notify(
+				await membersOf(message.relayChapter),
+				{ event: 'letter.queued', ...what },
+				{ actor: req.user.id }
+			);
+		}
 	}
 
 	/** In e2e mode, attach the caller's envelopes to message rows. */
@@ -203,6 +221,7 @@ export default class MessageController extends RouteController {
 				envelopes: req.body.envelopes
 			});
 			await this.#withEnvelopes([message], req, scope);
+			await this.#announce(req, message);
 			this.#handleSuccess(res, message);
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -276,6 +295,16 @@ export default class MessageController extends RouteController {
 			const from = message.status;
 			const updated = await Message.changeStatus(message, status, req.user.id);
 			await audit(req, 'letter.status', 'message', updated.id, { from, to: status });
+			await notify(
+				[updated.user],
+				{
+					event: 'letter.status',
+					chat: updated.chat,
+					message: updated.id,
+					detail: { status: updated.status }
+				},
+				{ actor: req.user.id }
+			);
 			await this.#withEnvelopes([updated], req, await threadScope(req));
 			this.#handleSuccess(res, updated);
 		} catch (err) {

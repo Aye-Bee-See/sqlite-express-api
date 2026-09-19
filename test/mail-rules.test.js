@@ -1,7 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, stopServer, get, post, put, makeFixtures, Prison } from './helpers.js';
-import { MAIL_RULES, MAIL_RULE_CATEGORIES, MAIL_RULE_TAGS } from '../database/mail-rules.js';
+import { MAIL_RULE_CATEGORIES } from '../database/mail-rules.js';
+import MailRule from '../database/models/mail-rule.model.js';
 
 let f;
 let admin;
@@ -28,7 +29,7 @@ before(async () => {
 });
 after(stopServer);
 
-test('the vocabulary is public, complete, and well formed', async () => {
+test('the master list is public, complete, and well formed', async () => {
 	const res = await get('/prison/mail-rules');
 	assert.equal(res.status, 200);
 	assert.equal((await get('/prison/mail-rules', alice)).status, 200);
@@ -39,18 +40,28 @@ test('the vocabulary is public, complete, and well formed', async () => {
 	);
 	const { categories, rules, conflicts, parameters } = res.body.data;
 	assert.deepEqual(categories, MAIL_RULE_CATEGORIES);
-	assert.equal(rules.length, MAIL_RULES.length);
+	assert.equal(rules.length, 39, 'the rules the migration put on the list');
+	assert.equal(rules.length, await MailRule.count({ where: { retiredAt: null } }));
 	assert.deepEqual(Object.keys(parameters).sort(), ['mailLanguages', 'pageLimit', 'photoLimit']);
 	assert.ok(conflicts.every((pair) => pair.length === 2));
 
-	assert.equal(new Set(MAIL_RULE_TAGS).size, MAIL_RULE_TAGS.length, 'tags are unique');
+	const tags = rules.map((rule) => rule.tag);
+	assert.equal(new Set(tags).size, tags.length, 'tags are unique');
+	const order = rules.map((rule) => categories.indexOf(rule.category));
+	assert.deepEqual(
+		order,
+		[...order].sort((a, b) => a - b),
+		'listed category by category'
+	);
 	for (const rule of rules) {
+		assert.ok(Number.isInteger(rule.id));
+		assert.equal(rule.retired, false);
 		assert.match(rule.tag, /^[a-z]+(_[a-z]+)*$/, rule.tag + ' is snake case');
 		assert.ok(categories.includes(rule.category), rule.tag + ' has a known category');
 		assert.ok(rule.label && rule.description, rule.tag + ' has default wording');
 	}
 	for (const tag of conflicts.flat()) {
-		assert.ok(MAIL_RULE_TAGS.includes(tag));
+		assert.ok(tags.includes(tag));
 	}
 });
 
@@ -58,11 +69,18 @@ test('facility reads carry the tags and the typed limits, with or without a toke
 	for (const who of [{}, alice, admin]) {
 		const res = await get('/prison/prison?id=' + strict.id, who);
 		assert.equal(res.status, 200);
+		// Master-list order (addressing, paper and ink, ..., photos), however they were sent.
 		assert.deepEqual(res.body.data.mailRules, [
-			'no_polaroids',
+			'return_address_required',
 			'ink_blue_or_black',
-			'return_address_required'
+			'no_polaroids'
 		]);
+		assert.deepEqual(
+			res.body.data.mail_rule_details.map((rule) => rule.tag),
+			res.body.data.mailRules,
+			'the same rules in the same order, with their wording'
+		);
+		assert.ok(res.body.data.mail_rule_details.every((rule) => rule.label && rule.category));
 		assert.equal(res.body.data.pageLimit, 5);
 		assert.equal(res.body.data.photoLimit, 3);
 		assert.deepEqual(res.body.data.mailLanguages, ['en', 'es']);
@@ -102,7 +120,7 @@ test('staff set rules through the ordinary facility create and update', async ()
 	);
 	assert.equal(updated.status, 200, JSON.stringify(updated.body));
 	const read = (await get('/prison/prison?id=' + id)).body.data;
-	assert.deepEqual(read.mailRules, ['postcards_only', 'no_stickers_or_labels']);
+	assert.deepEqual(read.mailRules, ['no_stickers_or_labels', 'postcards_only']);
 	assert.deepEqual(read.mailLanguages, ['ru']);
 	assert.equal(read.pageLimit, 2, 'fields that were not sent are kept');
 
@@ -123,8 +141,10 @@ test('free text, duplicates, conflicts, and bad limits are refused', async () =>
 	const id = open.id;
 	const attempt = async (fields) => await put('/prison/prison', { id, ...fields }, admin);
 	const cases = [
-		[{ mailRules: ['No pictures'] }, /Unknown mail rule "No pictures"/],
-		[{ mailRules: 'no_photos' }, /must be an array/],
+		[{ mailRules: ['No pictures'] }, /Not on the master list of mail rules: "No pictures"/],
+		[{ mailRules: ['only_english'] }, /Not on the master list/],
+		[{ mailRules: [7] }, /must be an array of rule tags/],
+		[{ mailRules: 'no_photos' }, /must be an array of rule tags/],
 		[{ mailRules: ['no_maps', 'no_maps'] }, /more than once/],
 		[{ mailRules: ['typed_letters_allowed', 'handwritten_only'] }, /cannot hold both/],
 		[{ pageLimit: 0 }, /pageLimit must be a whole number of at least 1/],
@@ -239,9 +259,11 @@ test('lists filter by tag and by language', async () => {
 	const combined = await ids('mailRule=no_polaroids&language=es&q=strict');
 	assert.deepEqual(combined, [strict.id]);
 
-	const unknown = await get('/prison/prisons?mailRule=no_fun');
-	assert.equal(unknown.status, 400);
-	assert.match(unknown.body.errors[0], /mailRule must be one of/);
+	// A well-formed tag that is not on the list matches nothing; anything else is refused.
+	assert.deepEqual(await ids('mailRule=no_fun'), []);
+	const malformed = await get("/prison/prisons?mailRule=no_fun'%20OR%201=1--");
+	assert.equal(malformed.status, 400);
+	assert.match(malformed.body.errors[0], /mailRule must be a rule tag/);
 	const injected = await get("/prison/prisons?language=e'--");
 	assert.equal(injected.status, 400);
 	assert.match(injected.body.errors[0], /two-letter ISO 639-1/);
@@ -269,7 +291,7 @@ test('anyone signed in can propose rule changes; approval applies them', async (
 		alice
 	);
 	assert.equal(bad.status, 400);
-	assert.match(bad.body.errors.join(' '), /Unknown mail rule "be nice"/);
+	assert.match(bad.body.errors.join(' '), /Not on the master list of mail rules: "be nice"/);
 	// The photo rule is checked against the stored half of the facility.
 	const clash = await post(
 		'/moderation/submission',
@@ -294,7 +316,7 @@ test('anyone signed in can propose rule changes; approval applies them', async (
 	const approved = await put('/moderation/approve', { id: proposed.body.data.id }, admin);
 	assert.equal(approved.status, 200, JSON.stringify(approved.body));
 	const after = (await get('/prison/prison?id=' + open.id)).body.data;
-	assert.deepEqual(after.mailRules, ['no_greeting_cards', 'plain_paper']);
+	assert.deepEqual(after.mailRules, ['plain_paper', 'no_greeting_cards'], 'in master-list order');
 	assert.equal(after.pageLimit, 10);
 });
 

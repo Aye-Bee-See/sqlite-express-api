@@ -1,14 +1,23 @@
-import { Model, Op, literal } from 'sequelize';
+import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Chapter from '#models/chapter.model.js';
+import MailRule from '#models/mail-rule.model.js';
+import { createSerialQueue } from '#services/serial.js';
 import { NotFoundError } from '#services/HttpError.js';
 import ValidationError from '#services/ValidationError.js';
 import { publishedWhere } from '#db/record-status.js';
 
 const PHOTO_RULES_CLASH =
 	'photoLimit cannot be set on a facility tagged no_photos; send photoLimit: null or drop the tag.';
+
+/**
+ * A facility's rules and its photo limit are checked against each other and
+ * then written to two tables. One at a time, so two partial updates cannot
+ * each pass the check and clash together.
+ */
+const oneRuleWriteAtATime = createSerialQueue();
 
 /** Fields a client may set on create. */
 export const PRISON_FIELDS = [
@@ -45,12 +54,28 @@ export default class Prison extends Model {
 	static init(sequelize) {
 		return super.init(Schemas.prison, {
 			sequelize,
-			hooks: Hooks.prison || null,
+			hooks: {
+				...(Hooks.prison || {}),
+				// Rules come back in master-list order, like `mailRules`. (Sequelize runs
+				// no hooks for a facility embedded in another record; there only
+				// `mailRules` is ordered.)
+				afterFind(found) {
+					for (const prison of [found].flat()) {
+						const details = prison && prison.mail_rule_details;
+						if (Array.isArray(details)) {
+							details.sort(MailRule.inListOrder);
+						}
+					}
+				}
+			},
 			modelName: 'Prison',
 			validate: {
-				// Runs wherever a whole facility is validated: create, and a proposed new facility.
-				photoRules() {
-					if (Prison.photoRulesClash(this)) {
+				// Runs wherever a facility is validated: create, a proposed new facility,
+				// and a proposed edit (where the half that is not proposed is the stored one).
+				async photoRules() {
+					const mailRules =
+						this.mailRules ?? (this.id ? await Prison.ruleTagsOf(this.id) : undefined);
+					if (Prison.photoRulesClash({ mailRules, photoLimit: this.photoLimit })) {
 						throw new Error(PHOTO_RULES_CLASH);
 					}
 				}
@@ -70,6 +95,12 @@ export default class Prison extends Model {
 			foreignKey: 'prison',
 			otherKey: 'chapter'
 		});
+		this.belongsToMany(models.MailRule, {
+			as: 'mail_rule_details',
+			through: 'PrisonMailRules',
+			foreignKey: 'prison',
+			otherKey: 'rule'
+		});
 		this.belongsTo(models.Chapter, {
 			as: 'verified_by_group',
 			foreignKey: 'verifiedBy',
@@ -87,9 +118,13 @@ export default class Prison extends Model {
 	 * Includes for full=true: prisoners and relay groups, limited to
 	 * published ones for non-staff.
 	 */
-	static #includes(publishedOnly) {
+	static #includes(publishedOnly, full = true) {
+		if (!full) {
+			return [MailRule.detailsInclude()];
+		}
 		const publishedOnlyOpts = publishedOnly ? { where: publishedWhere(true), required: false } : {};
 		return [
+			MailRule.detailsInclude(),
 			{
 				model: Prisoner,
 				as: 'prisoners',
@@ -107,7 +142,31 @@ export default class Prison extends Model {
 
 	// Create
 	static async createPrison(fields) {
-		return await this.create(pick(fields, PRISON_FIELDS));
+		const clean = pick(fields, PRISON_FIELDS);
+		// Validation resolves the tags against the master list before anything is written.
+		const created = await this.create(clean);
+		if (Array.isArray(clean.mailRules) && clean.mailRules.length > 0) {
+			await created.setMail_rule_details(await MailRule.resolve(clean.mailRules));
+		}
+		return await this.findByPk(created.id, { include: this.#includes(false, false) });
+	}
+
+	/** Ids of the rules a facility carries now. */
+	static async ruleIdsOf(prisonId) {
+		const [rows] = await this.sequelize.query(
+			'SELECT `rule` FROM `PrisonMailRules` WHERE `prison` = :prisonId',
+			{ replacements: { prisonId } }
+		);
+		return rows.map((row) => row.rule);
+	}
+
+	/** Codes of the rules a facility carries now. */
+	static async ruleTagsOf(prisonId) {
+		const [rows] = await this.sequelize.query(
+			'SELECT r.`tag` AS tag FROM `PrisonMailRules` p JOIN `MailRules` r ON r.`id` = p.`rule` WHERE p.`prison` = :prisonId',
+			{ replacements: { prisonId } }
+		);
+		return rows.map((row) => row.tag);
 	}
 
 	/**
@@ -124,7 +183,11 @@ export default class Prison extends Model {
 	 *  @param {array} prisonArray  - Array of prison params
 	 */
 	static async createBulkPrisons(prisonArray) {
-		return await this.bulkCreate(prisonArray, { individualHooks: true, ignoreDuplicates: true });
+		const created = [];
+		for (const fields of prisonArray) {
+			created.push(await this.createPrison(fields));
+		}
+		return created;
 	}
 
 	/**
@@ -155,7 +218,7 @@ export default class Prison extends Model {
 		return await this.findAndCountAll({
 			...this.publicAttributes(publishedOnly),
 			where: { ...where, ...publishedWhere(publishedOnly) },
-			include: full ? this.#includes(publishedOnly) : [],
+			include: this.#includes(publishedOnly, full),
 			limit,
 			offset,
 			distinct: true,
@@ -172,36 +235,45 @@ export default class Prison extends Model {
 		return await this.findOne({
 			...this.publicAttributes(publishedOnly),
 			where: { id, ...publishedWhere(publishedOnly) },
-			include: full ? this.#includes(publishedOnly) : []
+			include: this.#includes(publishedOnly, full)
 		});
 	}
 
 	// Update
 	static async updatePrison(prison) {
-		// When only one half of the photo rule is sent, the other half is the
-		// stored one. Make it a condition of the write rather than a read
-		// beforehand, so two partial updates cannot each pass and clash together.
-		if (Prison.photoRulesClash(prison)) {
-			throw new ValidationError(PHOTO_RULES_CLASH);
+		const { mailRules, ...columns } = prison;
+		if (mailRules === undefined && columns.photoLimit === undefined) {
+			return await this.update(columns, { where: { id: prison.id } });
 		}
-		const where = { id: prison.id };
-		const tagging = Array.isArray(prison.mailRules) && prison.mailRules.includes('no_photos');
-		let guarded = true;
-		if (tagging && prison.photoLimit === undefined) {
-			where.photoLimit = null;
-		} else if (prison.photoLimit != null && prison.mailRules === undefined) {
-			where[Op.and] = literal(
-				"NOT EXISTS (SELECT 1 FROM json_each(`mailRules`) WHERE json_each.value = 'no_photos')"
-			);
-		} else {
-			guarded = false;
-		}
-		const result = await this.update({ ...prison }, { where });
-		// Nothing written under a guard: either no such facility, or the stored half clashes.
-		if (guarded && result[0] === 0 && (await this.count({ where: { id: prison.id } })) > 0) {
-			throw new ValidationError(PHOTO_RULES_CLASH);
-		}
-		return result;
+		return await oneRuleWriteAtATime(async () => {
+			const stored = await this.findByPk(prison.id, { attributes: ['id', 'photoLimit'] });
+			if (!stored) {
+				return [0];
+			}
+			const rules =
+				mailRules === undefined
+					? null
+					: await MailRule.resolve(mailRules, await this.ruleIdsOf(stored.id));
+			// Whichever half was not sent is the stored one.
+			const clash = Prison.photoRulesClash({
+				mailRules: rules ? rules.map((rule) => rule.tag) : await this.ruleTagsOf(stored.id),
+				photoLimit: columns.photoLimit !== undefined ? columns.photoLimit : stored.photoLimit
+			});
+			if (clash) {
+				throw new ValidationError(PHOTO_RULES_CLASH);
+			}
+			// Columns first: they can still fail validation, and then the rules are untouched.
+			if (Object.keys(columns).some((field) => field !== 'id')) {
+				// The model's own photo check runs here too; give it the rules as they
+				// will be, not as they are stored (mailRules is virtual: no column is written).
+				const values = rules ? { ...columns, mailRules: rules.map((rule) => rule.tag) } : columns;
+				await this.update(values, { where: { id: stored.id } });
+			}
+			if (rules) {
+				await stored.setMail_rule_details(rules);
+			}
+			return [1];
+		});
 	}
 
 	/**

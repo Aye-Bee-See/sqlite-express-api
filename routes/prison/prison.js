@@ -52,6 +52,15 @@ class PrisonRoutes {
 			this.#Controller.mailRules
 		);
 
+		// The master list is the admins' to change.
+		const admin = [
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireRole(AuthzService.ADMIN)
+		];
+		this.Router.post(prisonEnd.post.createMailRule, ...admin, this.#Controller.createMailRule);
+		this.Router.put(prisonEnd.put.updateMailRule, ...admin, this.#Controller.updateMailRule);
+		this.Router.delete(prisonEnd.delete.removeMailRule, ...admin, this.#Controller.removeMailRule);
+
 		// Update
 
 		this.Router.put(

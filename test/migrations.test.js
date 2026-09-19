@@ -154,7 +154,7 @@ test('the mail rule migration turns attached rule records into tags and limits',
 	await attach(2, 7);
 	await attach(2, 4);
 
-	await runMigrations(old, { quiet: true });
+	await createMigrator(old, { quiet: true }).up({ to: MIGRATION });
 	const [rows] = await old.query(
 		'SELECT id, mailRules, pageLimit, photoLimit, mailLanguages, notes FROM Prisons ORDER BY id'
 	);
@@ -217,6 +217,54 @@ test('the session run migration keeps existing sessions and gives a new database
 	const [none] = await fresh.query('SELECT COUNT(*) AS n FROM SessionRuns');
 	assert.equal(none[0].n, 0, 'a new or reset database honours no earlier token');
 	await fresh.close();
+});
+
+test('the master list migration turns stored tags into links and back', async () => {
+	const old = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const MIGRATION = '2026.09.19T00.00.00.mail-rules-table.js';
+	const names = (await createMigrator(old, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(old, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	const now = "datetime('now'), datetime('now')";
+	await old.query(
+		'INSERT INTO Prisons (id, prisonName, address, mailRules, notes, createdAt, updatedAt) VALUES ' +
+			"(1, 'Tagged', '{}', '[\"no_polaroids\",\"plain_paper\"]', NULL, " +
+			now +
+			"), (2, 'Bare', '{}', '[]', NULL, " +
+			now +
+			"), (3, 'Hand edited', '{}', '[\"no_maps\",\"only_english\"]', 'Slow mail', " +
+			now +
+			')'
+	);
+
+	await createMigrator(old, { quiet: true }).up({ to: MIGRATION });
+	const [rules] = await old.query('SELECT tag FROM MailRules');
+	assert.equal(rules.length, 39, 'the list as it stood in code');
+	const [links] = await old.query(
+		'SELECT p.prison, r.tag FROM PrisonMailRules p JOIN MailRules r ON r.id = p.rule ORDER BY p.prison, r.tag'
+	);
+	assert.deepEqual(
+		links.map((l) => l.prison + ':' + l.tag),
+		['1:no_polaroids', '1:plain_paper', '3:no_maps']
+	);
+	const [[edited]] = await old.query('SELECT notes FROM Prisons WHERE id = 3');
+	assert.equal(
+		edited.notes,
+		'Slow mail\nMail rule tags not in the master list: only_english',
+		'a string that was never on the list is kept as words, not as a rule'
+	);
+	const columns = await old.getQueryInterface().describeTable('Prisons');
+	assert.equal(columns.mailRules, undefined, 'the unchecked column is gone');
+	const [[count]] = await old.query('SELECT COUNT(*) AS n FROM Prisons');
+	assert.equal(count.n, 3, 'dropping it kept the facilities');
+
+	const migration = await import('../database/migrations/' + MIGRATION);
+	await migration.down({ context: old.getQueryInterface() });
+	const [restored] = await old.query('SELECT id, mailRules FROM Prisons ORDER BY id');
+	assert.deepEqual(
+		restored.map((row) => JSON.parse(row.mailRules).sort()),
+		[['no_polaroids', 'plain_paper'], [], ['no_maps']]
+	);
+	await old.close();
 });
 
 test('every migration can be reverted and re-applied', async () => {

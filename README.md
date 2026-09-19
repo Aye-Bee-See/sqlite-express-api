@@ -24,7 +24,7 @@ This README is written for people who **use** the API: front-end developers, int
 | **User**           | An account. Has a `role` of `admin`, `user`, `chapter`, or `banned`. A `user` is a person on the outside writing letters; a `chapter` is a partner organisation that prints and mails them; an `admin` manages everything.                                                                                                                                                  |
 | **Prison**         | A correctional facility. Has a name and a free-form JSON `address`.                                                                                                                                                                                                                                                                                                         |
 | **Prisoner**       | An incarcerated person that users can write to. Belongs to one prison. Stores birth name, chosen name, inmate ID, release date, a bio, and a status.                                                                                                                                                                                                                        |
-| **Mail rule**      | What a prison's mail room enforces, such as "no polaroids". A rule is a tag from a fixed vocabulary, stored on the prison; page limits, photo limits, and accepted languages are typed fields beside the tags.                                                                                                                                                              |
+| **Mail rule**      | What a prison's mail room enforces, such as "no polaroids". There is one master list of rules, kept in the database and extended by admins; a prison has one or more of them. Page limits, photo limits, and accepted languages are typed fields on the prison.                                                                                                             |
 | **Chat**           | A thread between exactly one user and one prisoner. Chats are created automatically the first time a message is sent between a pair, and can also be created directly.                                                                                                                                                                                                      |
 | **Message**        | One letter or text within a chat. `sender` is either `user` or `prisoner`. A letter has a lifecycle `status` (`queued`, `printed`, `mailed`; replies are `received`) and a relay group that prints and mails it; see [Letter lifecycle](#letter-lifecycle).                                                                                                                 |
 | **Managed writer** | A `user` account a group created for someone who writes through it (for example at a letter-writing night). The group sends letters on the writer's behalf until the writer claims the account with a one-time token; see [Managed writers](#managed-writers).                                                                                                              |
@@ -161,14 +161,24 @@ The server only sends CORS headers for the origins in `CORS_ORIGIN`. Browser cli
 
 On a fresh database the JSON files in `database/seeds/` are loaded:
 
-| Resource  | Rows | Notes                                                                                                              |
-| --------- | ---- | ------------------------------------------------------------------------------------------------------------------ |
-| Users     | 41   | One admin plus forty regular users.                                                                                |
-| Prisons   | 52   | "Test Prison", then Greek-letter names ("Alpha Prison", "Beta Prison", ...). Each has a one-line street address.   |
-| Prisoners | 40   | Prisoner N is in prison N. Each has a birth name, chosen name, inmate ID, release date, and bio. `status` is null. |
-| Chats     | 40   | Chat N pairs user N with prisoner N.                                                                               |
-| Messages  | 40   | One short greeting per chat, all sent by the user side.                                                            |
-| Chapters  | 1    | "Test Chapter".                                                                                                    |
+| Resource  | Rows | Notes                                                                                                                                                                                                                          |
+| --------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Users     | 41   | One admin plus forty regular users.                                                                                                                                                                                            |
+| Prisons   | 52   | "Test Prison", then Greek-letter names ("Alpha Prison", "Beta Prison", ...), all in the United States with `direct` routing and a one-line street address. **Mail rules are seeded here**, as tags on each prison (see below). |
+| Prisoners | 40   | Prisoner N is in prison N. Each has a birth name, chosen name, inmate ID, release date, bio, country, interests, and a `status` (28 `incarcerated`, 7 `pretrial`, 5 `free`), so the status filter has something to find.       |
+| Chats     | 40   | Chat N pairs user N with prisoner N.                                                                                                                                                                                           |
+| Messages  | 40   | One short greeting per chat, all sent by the user side.                                                                                                                                                                        |
+| Chapters  | 1    | "Test Chapter": active, `networkRole` `both`, three services. No `chapter`-role account is seeded; create one as the admin (`POST /auth/user` with `role` and `chapterId`) or through an [invitation](#invitations).           |
+
+### Seeded mail rules
+
+There is no rules seed file, for two different reasons. The **master list** of 39 rules is not seed data at all: a migration puts it in the `MailRules` table, so production has it too, and admins extend it from there ([Mail rules](#mail-rules)). Which rules each seeded prison **has** is seed data, and lives with the prisons in `database/seeds/prisonSeed.json`, as a list of tags that the seeder links to the master list:
+
+- Every seeded prison has `mailRules`: most carry the common ones (`return_address_required`, `full_name_and_number`, `mail_read_by_staff`, `no_enclosures`) plus two to six others. 34 of the 39 rules are in use somewhere; 6 prisons are `no_photos`.
+- 38 prisons have a `pageLimit` (5, 10, or 20), 41 a `photoLimit` (3, 5, or 10; never together with `no_photos`), and 22 a `mailLanguages` list (`["en"]` or `["en", "es"]`).
+- "Test Prison" has a fixed, readable set for trying things out: `return_address_required`, `full_name_and_number`, `plain_envelopes`, `ink_blue_or_black`, `no_polaroids`, `mail_read_by_staff`, with `pageLimit` 10, `photoLimit` 5, and `mailLanguages` `["en", "es"]`.
+
+Seeding only fills empty tables. A database created before mail rules became tags keeps its prisons, with `mailRules: []`; boot once with `DB_RESET=true` to get the rules above.
 
 ### Credentials
 
@@ -190,7 +200,7 @@ These work without a token:
 - `POST /auth/user` registers an account. It always gets the `user` role.
 - `POST /auth/login` returns a token.
 - `GET /auth/claim` and `POST /auth/claim` check and use a claim token; see [Managed writers](#managed-writers).
-- Every **GET** on prisons, prisoners, and chapters (the public directory), and the mail rule vocabulary. Anonymous callers see only records whose `recordStatus` is `published`; see [Record status](#record-status).
+- Every **GET** on prisons, prisoners, and chapters (the public directory), and the master list of mail rules. Anonymous callers see only records whose `recordStatus` is `published`; see [Record status](#record-status).
 - `GET /health`.
 
 Everything else, including every write, requires a bearer token. A token that is present but invalid is rejected with `401` even on public routes.
@@ -287,6 +297,7 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 | Read draft and pending directory records                                | No                    | Yes                               | Yes     |
 | Create, update, delete prisons, prisoners, chapters                     | No                    | Yes                               | Yes     |
 | Set a prison's mail rules                                               | No                    | Yes                               | Yes     |
+| Add to, reword, retire, or delete from the master list of mail rules    | No                    | No                                | Yes     |
 | Read, create, update, delete chats and messages                         | **Own threads only**  | **Managed writers' threads only** | All     |
 | Send a message as the prisoner side (`sender: prisoner`)                | No (forced to `user`) | Yes                               | Yes     |
 | Propose a directory change or record ([Moderation](#moderation))        | Yes                   | Yes                               | Yes     |
@@ -520,7 +531,7 @@ Directory lists accept these in addition to `page` and `page_size`:
 | `networkRole`   | chapters                                    | `collecting` or `relay`; groups marked `both` match either.                                                                                                                                     |
 | `accountStatus` | chapters                                    | `pending`, `active`, or `suspended`.                                                                                                                                                            |
 | `relay`         | prisons                                     | `true`: facilities with at least one active relay group; `false`: facilities with none.                                                                                                         |
-| `mailRule`      | prisons                                     | One tag from the [mail rule vocabulary](#mail-rules): facilities carrying it. An unknown tag is a `400`.                                                                                        |
+| `mailRule`      | prisons                                     | One tag from the [master list of mail rules](#mail-rules): facilities carrying it. A tag that is not on the list matches nothing; anything not shaped like a tag is a `400`.                    |
 | `language`      | prisons                                     | A two-letter ISO 639-1 code: facilities that accept mail in that language, which includes every facility with no language restriction.                                                          |
 | `prison`        | prisoners                                   | Only records attached to that prison.                                                                                                                                                           |
 | `recordStatus`  | prisons, prisoners, chapters (staff only)   | See below.                                                                                                                                                                                      |
@@ -915,35 +926,38 @@ The group's browser generates the writer's keypair: `POST /auth/writer` requires
 
 ### Prisons
 
-| Method | Path                 | Auth             | Purpose                                                     |
-| ------ | -------------------- | ---------------- | ----------------------------------------------------------- |
-| POST   | `/prison/prison`     | Admin or chapter | Create a prison                                             |
-| GET    | `/prison/prisons`    | Public           | List prisons                                                |
-| GET    | `/prison/prison`     | Public           | Get one prison by id                                        |
-| PUT    | `/prison/prison`     | Admin or chapter | Update a prison                                             |
-| GET    | `/prison/mail-rules` | Public           | The mail rule vocabulary: tags, categories, default wording |
-| PUT    | `/prison/relay`      | Admin or chapter | Attach a relay group to a prison                            |
-| DELETE | `/prison/relay`      | Admin or chapter | Detach a relay group from a prison                          |
-| DELETE | `/prison/prison`     | Admin or chapter | Delete a prison                                             |
+| Method | Path                 | Auth             | Purpose                                                  |
+| ------ | -------------------- | ---------------- | -------------------------------------------------------- |
+| POST   | `/prison/prison`     | Admin or chapter | Create a prison                                          |
+| GET    | `/prison/prisons`    | Public           | List prisons                                             |
+| GET    | `/prison/prison`     | Public           | Get one prison by id                                     |
+| PUT    | `/prison/prison`     | Admin or chapter | Update a prison                                          |
+| GET    | `/prison/mail-rules` | Public           | The master list of mail rules: tags, categories, wording |
+| POST   | `/prison/mail-rule`  | Admin            | Add a rule to the master list                            |
+| PUT    | `/prison/mail-rule`  | Admin            | Reword, recategorise, retire, or restore a rule          |
+| DELETE | `/prison/mail-rule`  | Admin            | Delete a rule no facility carries                        |
+| PUT    | `/prison/relay`      | Admin or chapter | Attach a relay group to a prison                         |
+| DELETE | `/prison/relay`      | Admin or chapter | Detach a relay group from a prison                       |
+| DELETE | `/prison/prison`     | Admin or chapter | Delete a prison                                          |
 
 #### Prison fields
 
-| Field               | Type     | Notes                                                                                                                                |
-| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `prisonName`        | string   | Required.                                                                                                                            |
-| `country`           | string   | Free text.                                                                                                                           |
-| `routing`           | string   | How mail reaches the facility: `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                            |
-| `scanService`       | string   | Details of the scan service, if any.                                                                                                 |
-| `mailRules`         | array    | Tags from the [mail rule vocabulary](#mail-rules). Default `[]`. No free text, no duplicates.                                        |
-| `pageLimit`         | integer  | Most single-sided pages per letter; `null` for no limit. At least 1.                                                                 |
-| `photoLimit`        | integer  | Most loose photographs per envelope; `null` for no stated limit. At least 1. Cannot be set on a facility tagged `no_photos`.         |
-| `mailLanguages`     | array    | Two-letter ISO 639-1 codes, lower case, that mail must be written in, for example `["en", "es"]`; `null` or `[]` for no restriction. |
-| `notes`             | string   | Public notes, e.g. delivery risk.                                                                                                    |
-| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                                                         |
-| `verifiedAt`        | datetime | When it was verified.                                                                                                                |
-| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                                                  |
-| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status).                                       |
-| `address`           | object   | Required. Free-form JSON; the seeds use `{"street": "..."}`.                                                                         |
+| Field               | Type     | Notes                                                                                                                                                                                           |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prisonName`        | string   | Required.                                                                                                                                                                                       |
+| `country`           | string   | Free text.                                                                                                                                                                                      |
+| `routing`           | string   | How mail reaches the facility: `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                       |
+| `scanService`       | string   | Details of the scan service, if any.                                                                                                                                                            |
+| `mailRules`         | array    | The tags of this facility's rules, each one an entry of the [master list](#mail-rules). Default `[]`. Read in master-list order; `mail_rule_details` carries the same rules with their wording. |
+| `pageLimit`         | integer  | Most single-sided pages per letter; `null` for no limit. At least 1.                                                                                                                            |
+| `photoLimit`        | integer  | Most loose photographs per envelope; `null` for no stated limit. At least 1. Cannot be set on a facility tagged `no_photos`.                                                                    |
+| `mailLanguages`     | array    | Two-letter ISO 639-1 codes, lower case, that mail must be written in, for example `["en", "es"]`; `null` or `[]` for no restriction.                                                            |
+| `notes`             | string   | Public notes, e.g. delivery risk.                                                                                                                                                               |
+| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                                                                                                                    |
+| `verifiedAt`        | datetime | When it was verified.                                                                                                                                                                           |
+| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                                                                                                             |
+| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status).                                                                                                  |
+| `address`           | object   | Required. Free-form JSON; the seeds use `{"street": "..."}`.                                                                                                                                    |
 
 #### POST /prison/prison
 
@@ -1051,7 +1065,11 @@ Body: `{"id": 53, "prisonName": "Doc Prison Renamed"}` plus any other fields to 
 
 #### Mail rules
 
-A facility's mail rules are data, not prose. `mailRules` holds tags from a fixed vocabulary, and the three rules that carry a value are typed fields beside it: `pageLimit`, `photoLimit`, and `mailLanguages`. Clients translate the tags, draw icons for them, and check a letter against them (block image attachments for `no_photos`, warn past `pageLimit`). There is no free-text rule; anything the vocabulary cannot say belongs in the facility's `notes`, or in a new tag.
+There is one master list of mail rules, and a facility has one or more of them. A facility never has rule text of its own: `mailRules` on a facility is a list of references into the master list, written as each rule's `tag`. `"only_english"` and `"english_only"` cannot both exist, because a tag that is not on the list is refused, and the list itself refuses a second rule that says what an existing one says.
+
+The master list is a database table (`MailRules`), and the link between a facility and its rules is a join table with foreign keys (`PrisonMailRules`), so the database enforces it as well as the API. Three rules carry a value rather than a yes or no, and are typed fields on the facility instead: `pageLimit`, `photoLimit`, and `mailLanguages`. So "English only" is `mailLanguages: ["en"]`, not a rule on the list.
+
+##### The master list
 
 ```bash
 curl -s http://localhost:3000/prison/mail-rules
@@ -1072,10 +1090,12 @@ curl -s http://localhost:3000/prison/mail-rules
 		],
 		"rules": [
 			{
+				"id": 20,
 				"tag": "no_polaroids",
 				"category": "photos",
 				"label": "No polaroids",
-				"description": "Instant-film photographs are refused because the backing can hide contraband."
+				"description": "Instant-film photographs are refused because the backing can hide contraband.",
+				"retired": false
 			}
 		],
 		"conflicts": [["typed_letters_allowed", "handwritten_only"]],
@@ -1101,9 +1121,11 @@ curl -s http://localhost:3000/prison/mail-rules
 }
 ```
 
-(`rules` abbreviated; the full list is in `database/mail-rules.js`.) The endpoint is public and its content only changes with a release, so clients can cache it or compile the tags in as an enum. `label` and `description` are default English wording; a client with its own translations needs only the tags. `categories` is the display order. A client should ignore a tag it does not know rather than fail, so that a newer server can add one.
+(`rules` abbreviated. A new database starts with 39 rules, put there by a migration, so production has them too; they are not seed data.) Rules are listed category by category, in the order of `categories`, which is also the order a facility's `mailRules` come back in. `label` and `description` are default English wording; a client with its own translations keys them on `tag`, which never changes. Because admins can add rules, a client should fetch this list rather than compile it in, and show the `label` for a tag it has no translation for. Retired rules are left out; staff get them too with `?retired=true`.
 
-Rules are set with the ordinary `POST /prison/prison` and `PUT /prison/prison` (admin or chapter), and proposed by anyone signed in through [moderation](#moderation), like any other facility field:
+##### A facility's rules
+
+Every facility read carries `mailRules` (the tags) and `mail_rule_details` (the same rules with `id`, `tag`, `category`, `label`, `description`, `retiredAt`), including a facility embedded in a prisoner or group read. Rules are set with the ordinary `POST /prison/prison` and `PUT /prison/prison` (admin or chapter), and proposed by anyone signed in through [moderation](#moderation), like any other facility field:
 
 ```bash
 curl -s -X PUT http://localhost:3000/prison/prison \
@@ -1111,9 +1133,28 @@ curl -s -X PUT http://localhost:3000/prison/prison \
   -d '{"id":1,"mailRules":["no_polaroids","ink_blue_or_black"],"pageLimit":10,"mailLanguages":["en","es"]}'
 ```
 
-`mailRules` is replaced whole, so send the full list. A `400` follows an unknown tag, a duplicate, both tags of a conflicting pair, a limit below 1, a language that is not a two-letter lower-case code, or `photoLimit` on a facility tagged `no_photos`. `GET /prison/prisons?mailRule=no_photos` and `?language=es` filter the list (see [Searching, filtering, and sorting lists](#searching-filtering-and-sorting-lists)).
+`mailRules` is replaced whole, so send the full list. A `400` follows a tag that is not on the master list, a duplicate, both tags of a conflicting pair, a retired rule the facility does not already have, a limit below 1, a language that is not a two-letter lower-case code, or `photoLimit` on a facility tagged `no_photos`. `GET /prison/prisons?mailRule=no_photos` and `?language=es` filter the list (see [Searching, filtering, and sorting lists](#searching-filtering-and-sorting-lists)).
 
-Adding a tag is a one-line change to `database/mail-rules.js`. Renaming or removing one needs a migration that rewrites stored values.
+##### Changing the master list (admin)
+
+```bash
+curl -s -X POST http://localhost:3000/prison/mail-rule \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"tag":"no_crayon","category":"paper_and_ink","label":"No crayon","description":"Letters or drawings in crayon are refused."}'
+```
+
+| Field         | Notes                                                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `tag`         | Required, unique, lower_snake_case, 3 to 40 characters. **Never changes once created**, because clients key translations and icons on it. |
+| `category`    | Required; one of `categories`.                                                                                                            |
+| `label`       | Required, 3 to 80 characters.                                                                                                             |
+| `description` | Optional.                                                                                                                                 |
+
+`POST` returns `201` with the rule. It answers `409` `DuplicateRuleError`, naming the existing rule, when the list already says the same thing in other words: the same words in another order (`only_english` beside `english_only`), a singular for a plural (`no_polaroid` beside `no_polaroids`), or a label that matches an existing tag or label that way. That check catches slips, not synonyms ("No instant photos" would pass), which is why only admins can add rules.
+
+`PUT /prison/mail-rule {"id": 40, "label": "...", "category": "...", "description": "...", "retired": true}` rewords, recategorises, retires, or restores a rule, and returns it with `prisons`, the number of facilities that carry it. Facilities hold a link, not a copy, so new wording shows everywhere at once. Sending a different `tag` is a `409` `RuleTagError`. A **retired** rule stays on the facilities that have it and can be kept through edits, but cannot be added to another facility and leaves the public list.
+
+`DELETE /prison/mail-rule {"id": 40}` works only for a rule no facility carries; otherwise it is a `409` `RuleInUseError` that says how many do, and the rule should be retired instead. Deleting a facility removes its links, never a rule. All three are recorded in the audit log (`mail-rule.create`, `.update`, `.delete`).
 
 #### PUT /prison/relay and DELETE /prison/relay
 

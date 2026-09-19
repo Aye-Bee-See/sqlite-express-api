@@ -3,6 +3,7 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
 import Prison from '#models/prison.model.js';
+import MailRule from '#models/mail-rule.model.js';
 import Chapter from '#models/chapter.model.js';
 import PrisonerSupport from '#models/prisoner-support.model.js';
 import modelsService from '#models/models.service.js';
@@ -107,7 +108,9 @@ export default class Prisoner extends Model {
 				model: Prison,
 				as: 'prison_details',
 				...Prison.publicAttributes(publishedOnly),
-				...publishedOnlyOpts
+				...publishedOnlyOpts,
+				// The facility's mail rules travel with it (they are rows, not a column).
+				include: [MailRule.detailsInclude()]
 			},
 			{
 				model: Chapter,

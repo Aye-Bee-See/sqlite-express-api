@@ -194,6 +194,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     │   ├── mail-rule.model.js        MailRule: the master list; resolve tags, lookalike check, retire, usage.
     │   ├── device.model.js           Device: push tokens per signed-in device; register (moves with the phone), reachable, forget*.
     │   ├── notification.model.js     Notification: the per-account feed; record, feed, markRead, sweep.
+    │   ├── idempotency-key.model.js  IdempotencyKey: claim (unique index decides a race), complete, release, sweep.
     │   ├── chapter.model.js
     │   ├── submission.model.js       Submission: RESOURCES registry (fields, submittable, create/update), propose, revise, approve, reject, withdraw, currentValues, pendingCounts.
     │   └── audit-log.model.js        AuditLog: record, list (newest first). Append-only, no updatedAt.
@@ -628,6 +629,15 @@ Content-free by design: a push is a doorbell, the feed says what happened.
 - **Tables.** `Devices` (`token` unique; the default scope hides `token` and `sessionId`, `withToken` is for the sender) and `Notifications` (`chat`, `message`, `submission` all `CASCADE`, so retention and deletion take the entries with them; `detail` is small non-secret JSON). `Notification.sweep` runs with the session sweeps.
 - **Sessions.** A device remembers the `jti` that registered it. Single logout calls `Device.forgetSession(jti)`; `User.revokeSessions` (logout everywhere, admin revocation, password change, recovery) calls `Device.forgetUser`, which is why clients register again after a password change. `Device.register` upserts by token and moves the token to the new account when a phone changes hands, resetting `muted` and `label`.
 - **Controller.** `NotificationController` maps the base interface onto two resources: `create` registers a device, `getOne` lists the caller's devices, `remove` deletes one, `getMany` is the feed, `update` marks read; `updateDevice` is the extra.
+
+### Idempotency keys
+
+`Idempotency-Key` on `POST /messaging/message` and `POST /messaging/attachment`, so a retried send cannot become a second letter in a prisoner's hands. `routes/services/idempotency.services.js` `begin(req, res, scope, parts)` returns `null` (no header), `{ replay: id }` (the first attempt made this), or `{ complete, release }` for a first attempt. The controller calls it after validation that needs no database write and as late as possible before the create, reports back with `complete(id)`, and calls `release()` from its `catch`, so a key is remembered only for an attempt that made something.
+
+- **No bodies are stored.** `IdempotencyKeys` holds `(userId, scope, key)` (unique), a SHA-256 `fingerprint` of the parts that must match on a retry, `state`, and `resourceId`. A replay re-reads the letter; storing the response would have put plaintext letters (server mode) in a new table. If the resource is gone the answer is 410, never a re-creation.
+- **Races.** `IdempotencyKey.claim` inserts and lets the unique index decide; the loser reads the row: another fingerprint is 422, `processing` is 409 with `Retry-After`, `done` is a replay. A `processing` row older than `STALE_ATTEMPT_MS` (its process died) is taken over with a conditional update on `updatedAt < cutoff`, which also moves `updatedAt`, so only one retry wins.
+- **What is fingerprinted.** For a letter: sender, prisoner, resolved writer, and in server mode the text. Not ciphertext: an outbox may encrypt again before retrying. For an attachment: letter, file name, and (server mode) size.
+- A replay skips the audit entry and (once push notifications are merged) the notification. `IdempotencyKey.sweep` runs with the other sweeps (`IDEMPOTENCY_DAYS`). `app.js` lists `idempotency-key` in the CORS `allowedHeaders` and exposes `Idempotent-Replayed` and `Retry-After`; without the first a browser refuses to send the header at all.
 
 ### Invitations
 

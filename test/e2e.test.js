@@ -828,3 +828,39 @@ test('a forwarded group sees only the letters it holds envelopes for', async () 
 	assert.equal(own.body.data.messages.length, 2);
 	assert.ok(own.body.data.messages.every((m) => m.envelopes.length === 1));
 });
+
+test('an Idempotency-Key retry that was encrypted afresh is still the same letter', async () => {
+	const readers = [
+		{ readerType: 'user', readerId: f.alice.id, publicKey: keys.alice.publicKey },
+		{ readerType: 'chapter', readerId: f.group.id, publicKey: groupKeys.publicKey }
+	];
+	const body = { sender: 'user', prisoner: f.prisoner1.id, relayChapter: f.group.id };
+	const withKey = { ...alice, headers: { 'Idempotency-Key': 'e2e-retry-0001' } };
+	const first = client.encryptLetter('Written on the train', readers);
+	const sent = await post('/messaging/message', { ...first.fields, ...body }, withKey);
+	assert.equal(sent.status, 201, JSON.stringify(sent.body));
+
+	// The outbox encrypts again before retrying: new content key, new nonce, new ciphertext.
+	const second = client.encryptLetter('Written on the train', readers);
+	assert.notEqual(second.fields.ciphertext, first.fields.ciphertext);
+	const retry = await post('/messaging/message', { ...second.fields, ...body }, withKey);
+	assert.equal(retry.status, 201, JSON.stringify(retry.body));
+	assert.equal(retry.headers.get('idempotent-replayed'), 'true');
+	assert.equal(retry.body.data.id, sent.body.data.id);
+	// What comes back is the stored letter, which opens with the FIRST attempt's key.
+	assert.equal(retry.body.data.ciphertext, first.fields.ciphertext);
+	const opened = client.decryptLetter(
+		retry.body.data,
+		retry.body.data.envelopes[0],
+		keys.alice.publicKey,
+		keys.alice.privateKey
+	);
+	assert.equal(opened.text, 'Written on the train');
+
+	const elsewhere = await post(
+		'/messaging/message',
+		{ ...second.fields, ...body, prisoner: f.prisoner2.id },
+		withKey
+	);
+	assert.equal(elsewhere.status, 422, 'the same key for a different prisoner is refused');
+});

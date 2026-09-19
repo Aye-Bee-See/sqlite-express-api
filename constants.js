@@ -140,6 +140,9 @@ export const push = {
 	iosAlertBody: process.env.PUSH_IOS_ALERT_BODY || 'Open the app to see it.'
 };
 
+/** How long an Idempotency-Key is remembered: long enough for a phone that was offline for weeks. */
+export const idempotencyDays = envCount('IDEMPOTENCY_DAYS', 30);
+
 /** How long an invitation token works. */
 export const invitationDays = envCount('INVITATION_DAYS', 14);
 /**

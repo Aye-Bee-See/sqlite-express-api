@@ -41,7 +41,9 @@ export function createApp() {
 		cors({
 			origin: corsOrigins,
 			methods: 'GET, POST, OPTIONS, PUT, PATCH, DELETE',
-			allowedHeaders: 'X-Requested-With,content-type, authorization',
+			allowedHeaders: 'X-Requested-With,content-type, authorization, idempotency-key',
+			// Without this a browser hides them from the page's script.
+			exposedHeaders: 'Idempotent-Replayed, Retry-After',
 			credentials: false
 		})
 	);

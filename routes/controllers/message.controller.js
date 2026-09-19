@@ -9,6 +9,7 @@ import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { sniffType } from '#services/files.js';
 import { audit } from '#rtServices/audit.services.js';
 import { notify, membersOf } from '#rtServices/notify.services.js';
+import { begin as beginIdempotent, markReplayed } from '#rtServices/idempotency.services.js';
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
 import User from '#models/user.model.js';
@@ -198,6 +199,7 @@ export default class MessageController extends RouteController {
 	 */
 	async create(req, res, next) {
 		const { messageText, prisoner, relayChapter, relayNote } = req.body;
+		let idempotent = null;
 		try {
 			const scope = await threadScope(req);
 			const sender = scope.kind === 'own' ? 'user' : req.body.sender;
@@ -215,15 +217,46 @@ export default class MessageController extends RouteController {
 			} else {
 				Object.assign(fields, { messageText, relayNote });
 			}
+			// With an Idempotency-Key a retry gets the letter the first attempt made, not
+			// a second one. Who it is from and to must match; in server mode the text too
+			// (in e2e a retry may have been encrypted afresh, so ciphertext cannot be compared).
+			idempotent = await beginIdempotent(req, res, 'message', [
+				sender,
+				Number(prisoner),
+				Number(user),
+				crypto.isE2E() ? null : (messageText ?? null)
+			]);
+			if (idempotent && 'replay' in idempotent) {
+				const original = await Message.findByPk(idempotent.replay);
+				idempotent = null;
+				if (!original) {
+					throw new HttpError(
+						410,
+						'The letter this Idempotency-Key created no longer exists; it will not be sent again.',
+						'IdempotencyError'
+					);
+				}
+				await this.#withEnvelopes([original], req, scope);
+				markReplayed(res);
+				return this.#handleSuccess(res, original);
+			}
 			const message = await Message.createLetter(fields, {
 				callerChapter: scope.chapterId || null,
 				changedBy: req.user.id,
 				envelopes: req.body.envelopes
 			});
+			if (idempotent) {
+				await idempotent.complete(message.id);
+				idempotent = null;
+			}
 			await this.#withEnvelopes([message], req, scope);
 			await this.#announce(req, message);
 			this.#handleSuccess(res, message);
 		} catch (err) {
+			// Nothing was made: free the key, so a corrected request may use it again.
+			if (idempotent && idempotent.release) {
+				await idempotent.release().catch(() => {});
+			}
 			this.#fail(res, next, err);
 		}
 	}
@@ -417,6 +450,7 @@ export default class MessageController extends RouteController {
 	 */
 	async createAttachment(req, res, next) {
 		const { message: messageId } = req.body;
+		let idempotent = null;
 		try {
 			if (!req.file) {
 				throw new ValidationError('Send the file in a multipart field named "file".');
@@ -442,6 +476,27 @@ export default class MessageController extends RouteController {
 					);
 				}
 			}
+			// The same key on a retried upload returns the file already stored. The
+			// letter, the name, and the size must match; bytes are not compared (in
+			// e2e a retry may carry fresh ciphertext).
+			idempotent = await beginIdempotent(req, res, 'attachment', [
+				message.id,
+				req.file.originalname,
+				crypto.isE2E() ? null : req.file.size
+			]);
+			if (idempotent && 'replay' in idempotent) {
+				const original = await Attachment.findByPk(idempotent.replay);
+				idempotent = null;
+				if (!original) {
+					throw new HttpError(
+						410,
+						'The attachment this Idempotency-Key created no longer exists; it will not be stored again.',
+						'IdempotencyError'
+					);
+				}
+				markReplayed(res);
+				return this.#handleSuccess(res, original);
+			}
 			const attachment = await Attachment.attach({
 				message: message.id,
 				buffer: req.file.buffer,
@@ -450,8 +505,15 @@ export default class MessageController extends RouteController {
 				uploadedBy: req.user.id,
 				nonce
 			});
+			if (idempotent) {
+				await idempotent.complete(attachment.id);
+				idempotent = null;
+			}
 			this.#handleSuccess(res, attachment);
 		} catch (err) {
+			if (idempotent && idempotent.release) {
+				await idempotent.release().catch(() => {});
+			}
 			this.#fail(res, next, err);
 		}
 	}

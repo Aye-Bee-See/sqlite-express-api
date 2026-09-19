@@ -72,8 +72,20 @@ export default class Device extends Model {
 		return await this.destroy({ where: { userId } });
 	}
 
-	/** The push service said this token is dead. */
-	static async forgetToken(token) {
-		return await this.destroy({ where: { token } });
+	/**
+	 * Just before a send: is this row still that account's, with that token,
+	 * and unmuted? A phone can change hands between an event and its push.
+	 */
+	static async stillReachable({ id, userId, token }) {
+		return (await this.count({ where: { id, userId, token, muted: false } })) === 1;
+	}
+
+	/**
+	 * The push service said this token is dead. Only the row as it was rung is
+	 * removed: if the token has since been registered by someone else, their
+	 * registration is theirs to lose.
+	 */
+	static async forgetExactly({ id, userId, token }) {
+		return await this.destroy({ where: { id, userId, token } });
 	}
 }

@@ -1938,11 +1938,11 @@ Signing out removes the device that signed in; "log out everywhere", an admin's 
 
 #### What is sent
 
-- **Android and web:** a data-only, high-priority message. The app wakes, fetches the feed, decrypts if needed, and words the notification itself, on the device.
+- **Android and web:** a data-only, high-priority message (for a browser, Web Push `Urgency: high`). The app or service worker wakes, fetches the feed, decrypts if needed, and words the notification itself, on the device.
 - **iOS:** Apple throttles or drops silent pushes, so a visible alert goes with it: `PUSH_IOS_ALERT_TITLE` / `PUSH_IOS_ALERT_BODY` ("New activity" / "Open the app to see it."), marked `mutable-content` so the app's notification service extension can fetch the feed and replace the wording on the device.
 - One collapse key, so a burst of events rings once.
 
-A push is never awaited and never fails a request: the letter is saved first, and a missed doorbell is logged.
+A push is never awaited and never fails a request: the letter is saved first, and a missed doorbell is logged. Each request to the push service is given ten seconds, a few devices are rung at a time, and one event never waits behind another. Just before a device is rung the API checks that it is still that account's and still unmuted, so a phone that changed hands a moment ago does not ring for its previous owner.
 
 #### The feed
 
@@ -1997,7 +1997,7 @@ The account that did the thing is never told about it, and accounts nobody can s
 
 #### Turning it on
 
-Create a Firebase project, add the Android (and later iOS) app to it, and download a **service-account key** (Project settings, Service accounts, Generate new private key). Put the JSON file somewhere outside the repository and point `FCM_SERVICE_ACCOUNT_FILE` at it. The boot log says `Push: FCM ready for project …`, and `GET /health` shows `"push": ["fcm"]`. A missing or broken file is reported and the API runs on without push. For iOS, upload an APNs authentication key to the same Firebase project; nothing changes in the API.
+Create a Firebase project, add the Android (and later iOS) app to it, and download a **service-account key** (Project settings, Service accounts, Generate new private key). Put the JSON file somewhere outside the repository and point `FCM_SERVICE_ACCOUNT_FILE` at it. The boot log says `Push: FCM ready for project …`, and `GET /health` shows `"push": ["fcm"]`. A missing or broken file, including a private key that cannot sign, is reported at boot and the API runs on without push. For iOS, upload an APNs authentication key to the same Firebase project; nothing changes in the API.
 
 Phones without Google services cannot receive FCM. The sender takes pluggable providers (`services/push.js`), so an open one such as UnifiedPush can be added beside it; until then those devices rely on fetching the feed.
 

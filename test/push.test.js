@@ -459,6 +459,138 @@ test('the FCM provider signs in with the service account and sends the documente
 	assert.equal((await provider.send(device)).gone, false);
 });
 
+test('a phone that changes hands between the event and the push does not ring for the old owner', async () => {
+	const token = tokenFor('handed-over');
+	await post('/auth/device', { token, platform: 'android' }, alice);
+	// The list of devices to ring is taken when the event happens...
+	const snapshot = await Device.reachable([f.alice.id]);
+	const mine = snapshot.filter((d) => d.token === token);
+	assert.equal(mine.length, 1);
+	// ...and before its turn comes, someone else signs in on that phone.
+	await post('/auth/device', { token, platform: 'android' }, member);
+	sent = [];
+	const hooks = {
+		confirm: (device) => Device.stillReachable(device),
+		forget: (device) => Device.forgetExactly(device)
+	};
+	await push.ring(mine, hooks);
+	assert.deepEqual(sent, [], "Alice's event is not delivered to the member's phone");
+
+	// And a late "this token is dead" about Alice's registration leaves the member's alone.
+	const deadSnapshot = mine.map((d) => ({ ...d.get(), token }));
+	await Device.forgetExactly(deadSnapshot[0]);
+	assert.equal(await Device.scope('withToken').count({ where: { token } }), 1);
+	const row = await Device.scope('withToken').findOne({ where: { token } });
+	assert.equal(row.userId, f.chapter.id);
+
+	// Muting between the event and the push is honoured too.
+	const own = await Device.reachable([f.chapter.id]);
+	await Device.update({ muted: true }, { where: { token } });
+	sent = [];
+	await push.ring(
+		own.filter((d) => d.token === token),
+		hooks
+	);
+	assert.deepEqual(sent, []);
+});
+
+test('a browser gets Web Push settings, not the Android block', async () => {
+	const web = push.fcmMessage({ platform: 'web', token: tokenFor('browser') }).message;
+	assert.deepEqual(web.data, { type: 'sync' });
+	assert.deepEqual(web.webpush, { headers: { Urgency: 'high', Topic: 'sync' } });
+	assert.equal(web.android, undefined);
+	assert.equal(web.apns, undefined);
+	const android = push.fcmMessage({ platform: 'android', token: tokenFor('phone') }).message;
+	assert.equal(android.webpush, undefined);
+});
+
+test('a key that cannot sign is reported at boot, not at the first push', async () => {
+	const { writeFileSync, mkdtempSync } = await import('node:fs');
+	const { join } = await import('node:path');
+	const { tmpdir } = await import('node:os');
+	const dir = mkdtempSync(join(tmpdir(), 'abc-push-'));
+	const account = (private_key) => ({
+		project_id: 'abc-test',
+		client_email: 'push@abc-test.iam.gserviceaccount.com',
+		private_key
+	});
+	const errors = [];
+	const original = console.error;
+	console.error = (line) => errors.push(String(line));
+	try {
+		push.reset();
+		const bad = join(dir, 'bad.json');
+		writeFileSync(
+			bad,
+			JSON.stringify(account('-----BEGIN PRIVATE KEY-----\nnot a key\n-----END PRIVATE KEY-----\n'))
+		);
+		push.configure(() => {}, bad);
+		assert.deepEqual(push.available(), [], 'not announced as ready');
+		assert.match(errors.join('\n'), /could not be used/);
+
+		const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+		const good = join(dir, 'good.json');
+		writeFileSync(
+			good,
+			JSON.stringify(account(privateKey.export({ type: 'pkcs8', format: 'pem' })))
+		);
+		push.configure(() => {}, good);
+		assert.deepEqual(push.available(), ['fcm']);
+	} finally {
+		console.error = original;
+		push.reset();
+	}
+});
+
+test('a push service that hangs is given up on, and does not hold up anyone else', async () => {
+	const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+	const hanging = (url, init) =>
+		new Promise((resolve, reject) => {
+			init.signal.addEventListener('abort', () => reject(init.signal.reason));
+		});
+	const provider = push.createFcmProvider({
+		serviceAccount: {
+			project_id: 'abc-test',
+			client_email: 'push@abc-test.iam.gserviceaccount.com',
+			private_key: privateKey.export({ type: 'pkcs8', format: 'pem' })
+		},
+		fetch: hanging,
+		timeoutMs: 50
+	});
+	const started = Date.now();
+	await assert.rejects(provider.send({ platform: 'android', token: tokenFor('stuck') }));
+	assert.ok(Date.now() - started < 2000, 'bounded by the timeout, not by the service');
+
+	// Events do not queue behind each other: a slow device in one does not delay the next.
+	const finished = [];
+	push.reset();
+	push.use({
+		name: 'fcm',
+		async send(device) {
+			await new Promise((resolve) =>
+				setTimeout(resolve, device.token.startsWith('slow') ? 300 : 0)
+			);
+			finished.push(device.token);
+			return { ok: true, gone: false };
+		}
+	});
+	const always = { confirm: async () => true, forget: async () => {} };
+	const slow = push.ring(
+		[{ provider: 'fcm', platform: 'android', token: 'slow-device-token-000000' }],
+		always
+	);
+	const fast = push.ring(
+		[{ provider: 'fcm', platform: 'android', token: 'fast-device-token-000000' }],
+		always
+	);
+	await fast;
+	assert.deepEqual(finished, ['fast-device-token-000000']);
+	await slow;
+	await push.idle();
+	assert.equal(finished.length, 2);
+	push.reset();
+});
+
 test('old feed entries are swept', async () => {
 	const stale = await Notification.create({ userId: f.alice.id, event: 'letter.reply' });
 	await Notification.update(

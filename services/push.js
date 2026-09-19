@@ -16,12 +16,18 @@ import { push as config } from '#constants';
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
+/** No request to a push service may hang: a doorbell is not worth waiting for. */
+export const SEND_TIMEOUT_MS = 10_000;
+/** Devices rung at once for one event. */
+const PARALLEL_SENDS = 5;
+
 /** The whole payload. Deliberately the same for every event. */
 export const SYNC_DATA = Object.freeze({ type: 'sync' });
 
 /**
  * What FCM is asked to deliver to one device.
- * - Android and web: data only, high priority; the app decides what to show.
+ * - Android and web: data only, high priority (each in its own platform block;
+ *   FCM ignores `android` for a browser); the app decides what to show.
  * - iOS: Apple throttles or drops silent pushes, so a visible, generic alert
  *   goes with it, marked mutable so the app's notification extension can
  *   fetch and reword it on the device.
@@ -40,6 +46,10 @@ export function fcmMessage(device) {
 				}
 			}
 		};
+	} else if (device.platform === 'web') {
+		// FCM ignores the android block for Web Push; urgency and the collapse
+		// "topic" travel as Web Push headers.
+		message.webpush = { headers: { Urgency: 'high', Topic: 'sync' } };
 	} else {
 		message.android = { priority: 'high', collapse_key: 'sync' };
 	}
@@ -49,9 +59,14 @@ export function fcmMessage(device) {
 /**
  * Firebase Cloud Messaging over its HTTP v1 API, with a service-account
  * key: no SDK, one signed JWT exchanged for a short-lived access token.
- * @param {{serviceAccount: {project_id: string, client_email: string, private_key: string}, fetch?: typeof fetch, now?: () => number}} options
+ * @param {{serviceAccount: {project_id: string, client_email: string, private_key: string}, fetch?: typeof fetch, now?: () => number, timeoutMs?: number}} options
  */
-export function createFcmProvider({ serviceAccount, fetch: fetchImpl = fetch, now = Date.now }) {
+export function createFcmProvider({
+	serviceAccount,
+	fetch: fetchImpl = fetch,
+	now = Date.now,
+	timeoutMs = SEND_TIMEOUT_MS
+}) {
 	let cached = null; // { token, expiresAt }
 
 	async function accessToken() {
@@ -72,6 +87,7 @@ export function createFcmProvider({ serviceAccount, fetch: fetchImpl = fetch, no
 		);
 		const res = await fetchImpl(GOOGLE_TOKEN_URL, {
 			method: 'POST',
+			signal: AbortSignal.timeout(timeoutMs),
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 			body: new URLSearchParams({
 				grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -99,6 +115,7 @@ export function createFcmProvider({ serviceAccount, fetch: fetchImpl = fetch, no
 				'https://fcm.googleapis.com/v1/projects/' + serviceAccount.project_id + '/messages:send',
 				{
 					method: 'POST',
+					signal: AbortSignal.timeout(timeoutMs),
 					headers: {
 						Authorization: 'Bearer ' + (await accessToken()),
 						'Content-Type': 'application/json'
@@ -124,7 +141,7 @@ export function createFcmProvider({ serviceAccount, fetch: fetchImpl = fetch, no
 }
 
 const providers = new Map();
-let pending = Promise.resolve();
+const inFlight = new Set();
 
 /** Register (or replace) a provider. */
 export function use(provider) {
@@ -146,18 +163,21 @@ export function available() {
 }
 
 /** Load the FCM provider from FCM_SERVICE_ACCOUNT_FILE, when set. Called once at boot. */
-export function configure(log = console.log) {
-	if (!config.serviceAccountFile) {
+export function configure(log = console.log, file = config.serviceAccountFile) {
+	if (!file) {
 		log('Push: no FCM_SERVICE_ACCOUNT_FILE; devices may register, nothing is sent.');
 		return;
 	}
 	try {
-		const serviceAccount = JSON.parse(readFileSync(config.serviceAccountFile, 'utf8'));
+		const serviceAccount = JSON.parse(readFileSync(file, 'utf8'));
 		for (const field of ['project_id', 'client_email', 'private_key']) {
 			if (typeof serviceAccount[field] !== 'string' || serviceAccount[field] === '') {
 				throw new Error('missing ' + field);
 			}
 		}
+		// A private key that cannot sign would only fail at the first push, after
+		// devices had been told they are deliverable. Find out now.
+		jwt.sign({ probe: true }, serviceAccount.private_key, { algorithm: 'RS256' });
 		use(createFcmProvider({ serviceAccount }));
 		log('Push: FCM ready for project ' + serviceAccount.project_id + '.');
 	} catch (err) {
@@ -168,34 +188,55 @@ export function configure(log = console.log) {
 
 /**
  * Ring these devices. Never throws and never makes a request wait: the
- * write it announces has already happened.
- * @param {{provider: string, platform: string, token: string}[]} devices
- * @param {(token: string) => Promise<unknown>} forget called for a token the service says is dead
+ * write it announces has already happened. Events do not queue behind each
+ * other, a few devices are rung at a time, and every request is bounded by
+ * SEND_TIMEOUT_MS, so one slow device cannot hold up anyone else's doorbell.
+ *
+ * The device list is a snapshot, and a push token can change hands before
+ * its turn comes (someone else signs in on that phone). So each device is
+ * confirmed just before sending, and forgotten only as the row it was.
+ *
+ * @param {{id: number, userId: number, provider: string, platform: string, token: string}[]} devices
+ * @param {{confirm: (device: object) => Promise<boolean>, forget: (device: object) => Promise<unknown>}} hooks
+ *   `confirm`: is this still that account's unmuted device? `forget`: the service says the token is dead.
  */
-export function ring(devices, forget) {
-	const work = async () => {
-		for (const device of devices) {
-			const provider = providers.get(device.provider);
-			if (!provider) {
-				continue;
+export function ring(devices, { confirm, forget }) {
+	const queue = [...devices];
+	const sendOne = async (device) => {
+		const provider = providers.get(device.provider);
+		if (!provider) {
+			return;
+		}
+		try {
+			if (!(await confirm(device))) {
+				return;
 			}
-			try {
-				const result = await provider.send(device);
-				if (result.gone) {
-					await forget(device.token);
-				} else if (!result.ok) {
-					console.error('[push] ' + provider.name + ' refused a message: ' + result.error);
-				}
-			} catch (err) {
-				console.error('[push] ' + provider.name + ' failed: ' + err.message);
+			const result = await provider.send(device);
+			if (result.gone) {
+				await forget(device);
+			} else if (!result.ok) {
+				console.error('[push] ' + provider.name + ' refused a message: ' + result.error);
 			}
+		} catch (err) {
+			console.error('[push] ' + provider.name + ' failed: ' + err.message);
 		}
 	};
-	pending = pending.then(work, work);
-	return pending;
+	const worker = async () => {
+		for (let device = queue.shift(); device; device = queue.shift()) {
+			await sendOne(device);
+		}
+	};
+	const work = Promise.all(
+		Array.from({ length: Math.min(PARALLEL_SENDS, queue.length) }, worker)
+	).then(() => {});
+	inFlight.add(work);
+	work.finally(() => inFlight.delete(work));
+	return work;
 }
 
 /** Resolves when everything rung so far has been sent. For tests and shutdown. */
-export function idle() {
-	return pending;
+export async function idle() {
+	while (inFlight.size > 0) {
+		await Promise.all([...inFlight]);
+	}
 }

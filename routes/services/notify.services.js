@@ -33,7 +33,10 @@ export async function notify(userIds, what, { actor = null } = {}) {
 			return [];
 		}
 		const entries = await Notification.record(recipients, what);
-		push.ring(await Device.reachable(recipients), (token) => Device.forgetToken(token));
+		push.ring(await Device.reachable(recipients), {
+			confirm: (device) => Device.stillReachable(device),
+			forget: (device) => Device.forgetExactly(device)
+		});
 		return entries;
 	} catch (err) {
 		console.error('[notify] ' + what.event + ' was not announced', err);

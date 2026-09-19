@@ -286,8 +286,17 @@ export default class LetterKey extends Model {
 			}
 			return envelope;
 		});
-		if (!writer.anonymousForChapter && !seen.has('user:' + writer.id)) {
+		// A writer who has set up keys must be able to read their own thread. One
+		// who has not (yet) has nothing to seal to: the letter is stored for the
+		// group alone, and a group member's client adds the writer's envelope
+		// when they get keys (LetterKey.missingForWriters).
+		if (!writer.anonymousForChapter && writer.publicKey && !seen.has('user:' + writer.id)) {
 			throw new ValidationError('The writer (user ' + writer.id + ') needs an envelope.');
+		}
+		if (!writer.publicKey && seen.has('user:' + writer.id)) {
+			throw new ValidationError(
+				'User ' + writer.id + ' has no public key yet, so nothing can be sealed to them.'
+			);
 		}
 		if (relayChapter && !seen.has('chapter:' + relayChapter)) {
 			throw new ValidationError(
@@ -347,6 +356,35 @@ export default class LetterKey extends Model {
 			row.setDataValue('envelopes', map.get(Number(row.id)) || []);
 		}
 		return rows;
+	}
+
+	/**
+	 * Letters this group can open whose writer now has keys and still no
+	 * envelope: replies recorded while the writer had none, mostly. A member's
+	 * client opens the group's envelope, seals the content key to the writer,
+	 * and posts it to /messaging/envelope.
+	 * @param {number} chapterId
+	 * @param {number} limit
+	 * @returns {Promise<{message: number, chat: number, readerType: 'user', readerId: number, publicKey: string, wrappedKey: string, keyVersion: number}[]>}
+	 */
+	static async missingForWriters(chapterId, limit = 100) {
+		const [rows] = await this.sequelize.query(
+			`SELECT m.id AS message, m.chat AS chat, u.id AS readerId, u.publicKey AS publicKey,
+				g.wrappedKey AS wrappedKey, g.keyVersion AS keyVersion
+			FROM LetterKeys g
+			JOIN Messages m ON m.id = g.message
+			JOIN User u ON u.id = m.user
+			WHERE g.readerType = 'chapter' AND g.readerId = :chapterId
+				AND u.publicKey IS NOT NULL AND u.anonymousForChapter IS NULL
+				AND NOT EXISTS (
+					SELECT 1 FROM LetterKeys w
+					WHERE w.message = m.id AND w.readerType = 'user' AND w.readerId = u.id
+				)
+			ORDER BY m.id ASC
+			LIMIT :limit`,
+			{ replacements: { chapterId, limit } }
+		);
+		return rows.map((row) => ({ ...row, readerType: 'user' }));
 	}
 
 	/** Does this reader hold an envelope (or a managed writer's) for the message? */

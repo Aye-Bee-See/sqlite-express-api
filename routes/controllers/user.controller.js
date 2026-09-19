@@ -229,6 +229,7 @@ export default class UserController extends RouteController {
 	async update(req, res, next) {
 		const newUser = req.body;
 		let sealedTo = null;
+		let custodyKeyed = false;
 		if (newUser.role !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can change a user's role."));
 		}
@@ -324,6 +325,20 @@ export default class UserController extends RouteController {
 							new ValidationError('publicKey must be a base64 X25519 public key (32 bytes).')
 						);
 					}
+					if (
+						!target.publicKey &&
+						(typeof newUser.orgWrappedPrivateKey !== 'string' ||
+							newUser.orgWrappedPrivateKey === '')
+					) {
+						// An unclaimed writer cannot sign in: without the group's sealed copy
+						// nobody holds the private half, and letters sealed to the key are lost.
+						return next(
+							new ValidationError(
+								"Send orgWrappedPrivateKey (and orgKeyVersion) with the writer's first publicKey."
+							)
+						);
+					}
+					custodyKeyed = !target.publicKey;
 					if (target.publicKey && target.publicKey !== newUser.publicKey) {
 						return next(
 							new HttpError(
@@ -371,6 +386,11 @@ export default class UserController extends RouteController {
 					})
 				: await User.updateUser(newUser);
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
+			if (custodyKeyed) {
+				// The group gave an unclaimed writer their first keys: the writer's
+				// server-held letters can be sealed to them now.
+				await KeysController.catchUp('user', newUser.id);
+			}
 			if (
 				AuthzService.isAdmin(req) &&
 				(newUser.role !== undefined || newUser.chapterId !== undefined)

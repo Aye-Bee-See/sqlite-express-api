@@ -3,6 +3,7 @@ import { default as passport } from 'passport';
 import { keysEnd } from '#routes/constants.js';
 import { default as keysCtrlr } from '#rtControllers/keys.controller.js';
 import { limiters } from '#rtServices/ratelimit.services.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 /** Key material routes, mounted under /auth beside the user routes. */
 class KeysRoutes {
@@ -40,6 +41,14 @@ class KeysRoutes {
 		this.Router.get(keysEnd.get.many, authenticate, this.#Controller.getMany);
 		this.Router.get(keysEnd.get.rotationMaterial, authenticate, this.#Controller.rotationMaterial);
 		this.Router.post(keysEnd.post.rotate, authenticate, this.#Controller.rotate);
+
+		// Who still has to set up keys before (or after) the switch to e2e.
+		this.Router.get(
+			keysEnd.get.readiness,
+			authenticate,
+			AuthzService.requireRole(AuthzService.ADMIN),
+			this.#Controller.readiness
+		);
 	}
 }
 

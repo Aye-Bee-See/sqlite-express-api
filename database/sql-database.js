@@ -100,10 +100,12 @@ export const ready = (async () => {
 	if (crypto.isE2E()) {
 		const leftover = await LetterKey.count({ where: { readerType: 'server' } });
 		if (leftover > 0) {
-			warn(
-				'ENCRYPTION_MODE=e2e but ' +
-					leftover +
-					' letter(s) still carry a server envelope; run `npm run encryption:rewrap` once readers have keys.'
+			// Expected while some readers have not set up keys: those letters wait
+			// under the server's key and are sealed to each reader when they do.
+			log(
+				leftover +
+					' letter(s) still wait for a reader to set up keys (GET /auth/encryption-readiness says who). ' +
+					'They are sealed to each reader on arrival; `npm run encryption:rewrap -- --drop-all-server-keys` ends the wait.'
 			);
 		}
 	}

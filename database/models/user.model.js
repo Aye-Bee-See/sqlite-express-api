@@ -4,6 +4,7 @@ import Schemas from '#schemas/all.schema.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
 import ValidationError from '#services/ValidationError.js';
+import { HttpError } from '#services/HttpError.js';
 
 /** Case-insensitive substring match on username, email, and name. */
 function searchWhere(q) {
@@ -329,6 +330,16 @@ export default class User extends Model {
 	}
 
 	/**
+	 * Can this account be handed to a person? An unclaimed managed writer can.
+	 * A group's shared anonymous account never: it is not one person, it holds
+	 * the anonymous letters of everybody the group ever wrote for, and whoever
+	 * claimed it would own them all and receive the next ones too.
+	 */
+	static isClaimable(user) {
+		return User.isUnclaimedManaged(user) && !user.anonymousForChapter;
+	}
+
+	/**
 	 * Create an account under a chapter's custody. The writer gets a generated
 	 * username, an unguessable password (login is refused until claimed
 	 * anyway), and a placeholder email unless one is given.
@@ -422,6 +433,9 @@ export default class User extends Model {
 	 * @returns {Promise<[number]>} affected row count
 	 */
 	static async claim(user, { username, password, email, keys = {} }) {
+		if (!User.isClaimable(user)) {
+			throw new HttpError(409, 'This account cannot be claimed.', 'ClaimError');
+		}
 		const values = {
 			username,
 			password,

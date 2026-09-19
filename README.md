@@ -771,7 +771,7 @@ A group often writes on behalf of people who have no account: someone at a lette
 - The group's `chapter` accounts see its threads, send letters as it, record prisoner replies, and may edit its `name`, `email`, and `managerNote` or delete it.
 - The group can hand the writer a **claim token** (valid 72 hours, shown once). The writer visits the claim page, picks a username and password, and the account becomes theirs: the group loses access to it and its threads, and `claimedAt` / `claimedFrom` record the hand-over.
 
-Every group also has one **anonymous writer**, created the first time a `chapter` account sends a letter or creates a chat without naming a `user`. It is a managed writer like any other (it appears in the list and can even be claimed), and all of the group's anonymous letters share it.
+Every group also has one **anonymous writer**, created the first time a `chapter` account sends a letter or creates a chat without naming a `user`. It appears in the writers list like a managed writer, and all of the group's anonymous letters share it. **It can never be claimed**: it is not one person, and whoever claimed it would own the anonymous letters of everyone the group ever wrote for, and receive the next ones. `POST /auth/writer/token` for it is a `409` (`ClaimError`), and it never has keys. When someone who wrote anonymously wants an account of their own, create a managed writer for them (`POST /auth/writer`), send their next letters under it, and hand that account over; their earlier anonymous letters stay with the group.
 
 #### POST /auth/writer
 

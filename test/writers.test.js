@@ -12,7 +12,8 @@ import {
 	makeUser,
 	User,
 	Chapter,
-	ClaimToken
+	ClaimToken,
+	Message
 } from './helpers.js';
 
 let f;
@@ -334,7 +335,79 @@ test('omitting the writer sends as the group anonymous writer', async () => {
 	assert.ok(
 		(await get('/auth/writers?page_size=100', chapter)).body.data.some((w) => w.id === anon.id)
 	);
-	assert.equal((await post('/auth/writer/token', { writer: anon.id }, chapter)).status, 201);
+});
+
+test("a group's shared anonymous account cannot be handed to anyone", async () => {
+	// Two different people at a letter night, both sent anonymously.
+	await post(
+		'/messaging/message',
+		{ messageText: 'From one person', sender: 'user', prisoner: f.prisoner1.id },
+		chapter
+	);
+	await post(
+		'/messaging/message',
+		{ messageText: 'From somebody else', sender: 'user', prisoner: f.prisoner2.id },
+		chapter
+	);
+	const anon = await User.findOne({ where: { anonymousForChapter: f.group.id } });
+	const lettersBefore = await Message.count({ where: { user: anon.id } });
+	assert.ok(lettersBefore >= 2);
+
+	for (const who of [chapter, { token: f.admin.token }]) {
+		const res = await post('/auth/writer/token', { writer: anon.id }, who);
+		assert.equal(res.status, 409, JSON.stringify(res.body));
+		assert.equal(res.body.name, 'ClaimError');
+		assert.match(JSON.stringify(res.body), /shared by everyone it writes for/);
+	}
+
+	// A token issued for it before this was refused must not work either.
+	const { token } = await ClaimToken.issue(anon.id, f.chapter.id);
+	assert.equal((await get('/auth/claim?token=' + token)).status, 410);
+	const claim = await post('/auth/claim', { token, username: 'grabber', password: 'longenough' });
+	assert.equal(claim.status, 410, JSON.stringify(claim.body));
+	const still = await User.findByPk(anon.id);
+	assert.equal(still.claimedAt, null);
+	assert.equal(still.username, 'anon-' + f.group.id);
+	assert.equal(await Message.count({ where: { user: anon.id } }), lettersBefore);
+	await assert.rejects(
+		User.claim(still, { username: 'grabber', password: 'longenough' }),
+		/cannot be claimed/
+	);
+
+	// It never has keys either: its letters are sealed to the group alone, and a key
+	// on it would make every anonymous letter look like it had a reader nobody is.
+	const client = await import('./e2e-client.js');
+	await client.ready;
+	const keys = client.keypair();
+	const attempts = [
+		{ publicKey: keys.publicKey },
+		{ orgWrappedPrivateKey: 'sealed-to-the-group', orgKeyVersion: 1 },
+		{ publicKey: keys.publicKey, orgWrappedPrivateKey: 'sealed-to-the-group', orgKeyVersion: 1 }
+	];
+	for (const who of [chapter, { token: f.admin.token }]) {
+		for (const fields of attempts) {
+			const res = await put('/auth/user', { id: anon.id, ...fields }, who);
+			assert.equal(res.status, 400, JSON.stringify(fields) + ' -> ' + JSON.stringify(res.body));
+		}
+	}
+	const keyless = await User.scope('withKeys').findByPk(anon.id);
+	assert.equal(keyless.publicKey, null);
+	assert.equal(keyless.orgWrappedPrivateKey, null);
+	// Ordinary fields on it can still be edited by its group.
+	const renamed = await put(
+		'/auth/user',
+		{ id: anon.id, managerNote: 'Letter night walk-ins' },
+		chapter
+	);
+	assert.equal(renamed.status, 200, JSON.stringify(renamed.body));
+
+	// The way to do it: a managed writer of their own, which can be handed off.
+	const own = await post('/auth/writer', { name: 'Walk-in from letter night' }, chapter);
+	assert.equal(own.status, 201);
+	assert.equal(
+		(await post('/auth/writer/token', { writer: own.body.data.id }, chapter)).status,
+		201
+	);
 });
 
 test('a claimed writer keeps their threads and the group loses access', async () => {

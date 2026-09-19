@@ -41,12 +41,17 @@ export async function begin(req, res, scope, parts) {
 		);
 	}
 	const fingerprint = fingerprintOf(parts);
-	const { row, claimed } = await IdempotencyKey.claim({
-		userId: req.user.id,
-		scope,
-		key,
-		fingerprint
-	});
+	let claim;
+	try {
+		claim = await IdempotencyKey.claim({ userId: req.user.id, scope, key, fingerprint });
+	} catch (err) {
+		if (err instanceof HttpError && err.status === 409) {
+			// An unsettled claim is answered like an in-flight one: say when to come back.
+			res.set('Retry-After', '1');
+		}
+		throw err;
+	}
+	const { row, claimed } = claim;
 	if (claimed) {
 		return {
 			complete: (resourceId) => IdempotencyKey.complete(row.id, resourceId),

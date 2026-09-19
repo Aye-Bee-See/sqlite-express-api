@@ -223,6 +223,48 @@ test('an attempt whose process died can be taken over, once', async () => {
 	assert.equal(made.size, 1, 'only one retry takes the dead attempt over');
 });
 
+test('losing the race for a key more than once is still not an error', async (t) => {
+	const unique = () =>
+		Object.assign(new Error('Validation error'), { name: 'SequelizeUniqueConstraintError' });
+	const settled = { id: 1, state: 'done', fingerprint: 'f', resourceId: 7 };
+	const claimArgs = { userId: f.alice.id, scope: 'message', key: randomUUID(), fingerprint: 'f' };
+
+	// Insert loses; the row is gone by the time we look; the second insert loses too;
+	// this time the winner's row is there. That used to be an unguarded insert and a 500.
+	const create = t.mock.method(IdempotencyKey, 'create', async () => {
+		throw unique();
+	});
+	let reads = 0;
+	const findOne = t.mock.method(IdempotencyKey, 'findOne', async () => {
+		reads += 1;
+		return reads === 1 ? null : settled;
+	});
+	assert.deepEqual(await IdempotencyKey.claim(claimArgs), { row: settled, claimed: false });
+	assert.equal(create.mock.callCount(), 2);
+	assert.equal(findOne.mock.callCount(), 2);
+
+	// And if it never settles, the caller is told to come back rather than looping for ever.
+	findOne.mock.mockImplementation(async () => null);
+	await assert.rejects(IdempotencyKey.claim(claimArgs), (err) => {
+		assert.equal(err.status, 409);
+		assert.equal(err.name, 'IdempotencyError');
+		return true;
+	});
+	t.mock.restoreAll();
+
+	// Through the API that is a 409 with Retry-After, like any in-flight key.
+	const lettersBefore = await Message.count();
+	t.mock.method(IdempotencyKey, 'create', async () => {
+		throw unique();
+	});
+	t.mock.method(IdempotencyKey, 'findOne', async () => null);
+	const res = await post('/messaging/message', letter('Stormy'), keyed(alice, randomUUID()));
+	assert.equal(res.status, 409, JSON.stringify(res.body));
+	assert.equal(res.headers.get('retry-after'), '1');
+	t.mock.restoreAll();
+	assert.equal(await Message.count(), lettersBefore, 'and no letter was made');
+});
+
 test('attachments: a retried upload returns the file already stored', async () => {
 	const sent = await post('/messaging/message', letter('With a photo'), alice);
 	const key = randomUUID();

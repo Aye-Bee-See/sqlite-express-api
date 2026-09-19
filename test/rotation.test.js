@@ -350,7 +350,8 @@ test('rotating re-seals everything and leaves the removed member out', async () 
 
 	const log = await AuditLog.findOne({ where: { action: 'chapter.keys.rotate' } });
 	assert.ok(log, 'the rotation is audited');
-	assert.doesNotMatch(JSON.stringify(log), new RegExp(newGroup.publicKey.slice(0, 12)));
+	// A plain substring check: the key is random base64 and may hold characters a RegExp would choke on.
+	assert.equal(JSON.stringify(log).includes(newGroup.publicKey.slice(0, 12)), false);
 });
 
 test('the members who stay open old letters with the new group key', async () => {

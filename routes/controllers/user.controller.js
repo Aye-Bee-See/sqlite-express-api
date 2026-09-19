@@ -308,6 +308,13 @@ export default class UserController extends RouteController {
 				if (!(await AuthzService.mayManageUser(req, target))) {
 					return next(await AuthzService.refusalFor(req));
 				}
+				if (
+					target.anonymousForChapter &&
+					(newUser.publicKey !== undefined || newUser.orgWrappedPrivateKey !== undefined)
+				) {
+					// The shared anonymous account never has keys: its letters are sealed to the group alone.
+					return next(new ValidationError("A group's anonymous account does not have keys."));
+				}
 				// A managing group may also prepare an unclaimed writer for end-to-end
 				// mode: set the keypair it generated (public key once, its sealed copy).
 				const allowed = [
@@ -562,7 +569,16 @@ export default class UserController extends RouteController {
 		const { writer: writerId } = req.body;
 		try {
 			const writer = this.requireFound(await User.findByPk(writerId), 'Writer ' + writerId);
-			if (!User.isUnclaimedManaged(writer)) {
+			if (writer.anonymousForChapter) {
+				return next(
+					new HttpError(
+						409,
+						"A group's anonymous account is shared by everyone it writes for and cannot be handed to one person. Create a managed writer for them instead.",
+						'ClaimError'
+					)
+				);
+			}
+			if (!User.isClaimable(writer)) {
 				return next(new HttpError(409, 'This account is not an unclaimed managed writer.'));
 			}
 			if (!this.#manages(req, writer)) {
@@ -631,7 +647,9 @@ export default class UserController extends RouteController {
 			throw err;
 		}
 		const writer = await User.findByPk(record.userId);
-		if (!writer || !User.isUnclaimedManaged(writer)) {
+		// isClaimable also turns away a token that was issued for a shared anonymous
+		// account before that was refused.
+		if (!writer || !User.isClaimable(writer)) {
 			const err = new HttpError(410, 'This account can no longer be claimed.', 'ClaimTokenError');
 			err.condition = 'used';
 			throw err;

@@ -17,6 +17,8 @@ import {
 } from './helpers.js';
 import IdempotencyKey, { STALE_ATTEMPT_MS } from '../database/models/idempotency-key.model.js';
 import AuditLog from '../database/models/audit-log.model.js';
+import Notification from '../database/models/notification.model.js';
+import * as push from '../services/push.js';
 
 let f;
 let alice;
@@ -75,6 +77,39 @@ test('a retry with the same key gets the same letter, not a second one', async (
 	await post('/messaging/message', letter('No key'), alice);
 	await post('/messaging/message', letter('No key'), alice);
 	assert.equal(await Message.count({ where: { user: f.alice.id } }), 3);
+});
+
+test('a retry rings nobody a second time', async () => {
+	const rung = [];
+	push.use({
+		name: 'fcm',
+		async send(device) {
+			rung.push(device.token);
+			return { ok: true, gone: false };
+		}
+	});
+	try {
+		const phone = 'member-phone-push-token-0123456789';
+		await post('/auth/device', { token: phone, platform: 'android' }, member);
+		const key = randomUUID();
+		// A new letter tells the group that will print it: once.
+		const first = await post('/messaging/message', letter('Ring once'), keyed(alice, key));
+		assert.equal(first.status, 201, JSON.stringify(first.body));
+		await push.idle();
+		assert.deepEqual(rung, [phone]);
+		const feed = () => Notification.count({ where: { message: first.body.data.id } });
+		assert.equal(await feed(), 1);
+
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			const retry = await post('/messaging/message', letter('Ring once'), keyed(alice, key));
+			assert.equal(retry.headers.get('idempotent-replayed'), 'true');
+		}
+		await push.idle();
+		assert.deepEqual(rung, [phone], 'no second doorbell');
+		assert.equal(await feed(), 1, 'and no second entry in the feed');
+	} finally {
+		push.reset();
+	}
 });
 
 test('a double click: two requests at once with one key make one letter', async () => {

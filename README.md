@@ -142,7 +142,7 @@ There are two modes, chosen by `ENCRYPTION_MODE`:
 - **`server`** (the default): the only reader is the server, and the content keys are wrapped with `ENCRYPTION_KEY`. The API decrypts letters for authorised callers, and the request and response shapes are exactly what this document describes (`messageText`, `relayNote`, plain file downloads). This protects a copied database file or upload directory, which hold ciphertext only. It does not protect against someone with the running server and its key.
 - **`e2e`**: readers hold the keys. Every account and every group has an X25519 keypair; the browser encrypts each letter with a fresh content key and seals that key to each reader's public key (the _envelopes_). The server stores ciphertext and envelopes, returns each caller the envelopes they can open, and never sees a password-derived key, a recovery code, or an unwrapped private key. `messageText` and `relayNote` are always `null`; clients send and receive `ciphertext` and `nonce` instead, and attachment files travel as ciphertext. See [End-to-end mode](#end-to-end-mode).
 
-The storage shape is the same in both modes, so switching is a re-wrap of content keys, never a re-encryption of letters. The step-by-step procedure, with its checks and its rollback limits, is in [docs/E2E-MIGRATION.md](docs/E2E-MIGRATION.md). In short: once readers have public keys, `npm run encryption:rewrap` seals every server-held content key to its readers (writer, relay group, managing group), reports letters whose readers still lack keys, and with `--drop-server-keys` removes the server envelopes it no longer needs. Then set `ENCRYPTION_MODE=e2e` and restart; boot warns while any server envelope remains.
+The storage shape is the same in both modes, so switching is a re-wrap of content keys, never a re-encryption of letters. The step-by-step procedure, with its checks and its rollback limits, is in [docs/E2E-MIGRATION.md](docs/E2E-MIGRATION.md). In short: clients make keys at sign-in, and each person's existing letters are sealed to them as they do. The switch needs only that every active group that relays mail has its key (`GET /auth/encryption-readiness`); `npm run encryption:rewrap` sweeps up the rest and, with `--drop-server-keys`, removes the server envelopes no longer needed. Then set `ENCRYPTION_MODE=e2e` and restart, keeping `ENCRYPTION_KEY`: letters still waiting for a reader stay under it and become theirs at their first sign-in. `--drop-all-server-keys` ends the wait for good.
 
 Operational rules:
 
@@ -589,33 +589,34 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 ### Users
 
-| Method | Path                     | Auth                  | Purpose                                                                                       |
-| ------ | ------------------------ | --------------------- | --------------------------------------------------------------------------------------------- |
-| POST   | `/auth/user`             | Public                | Register (role `user`); admins may set other roles                                            |
-| POST   | `/auth/login`            | Public                | Log in and receive a token                                                                    |
-| POST   | `/auth/logout`           | Any                   | End this token, or every token for the account with `{"everywhere": true}`                    |
-| POST   | `/auth/revoke`           | Admin                 | End every token for an account without banning it                                             |
-| GET    | `/auth/users`            | Admin                 | List users, optionally by role                                                                |
-| GET    | `/auth/user`             | Self or admin         | Get one user by id, email, or username; a group may read its unclaimed writers                |
-| PUT    | `/auth/user`             | Self or admin         | Update a user; a group may edit its unclaimed writers' name, email, note                      |
-| DELETE | `/auth/user`             | Self or admin         | Delete a user; a group may delete its unclaimed writers                                       |
-| POST   | `/auth/writer`           | Group                 | Create a managed writer under the caller's group                                              |
-| GET    | `/auth/writers`          | Group                 | List the group's managed writers (admins: all, or `?chapter=`)                                |
-| POST   | `/auth/writer/token`     | Group                 | Generate or regenerate a writer's claim token                                                 |
-| DELETE | `/auth/writer/token`     | Group                 | Revoke a writer's claim token                                                                 |
-| GET    | `/auth/claim`            | Public                | Check a claim token                                                                           |
-| POST   | `/auth/claim`            | Public                | Claim a managed account                                                                       |
-| GET    | `/auth/keys`             | Any                   | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
-| PUT    | `/auth/keys`             | Any                   | Set the public key once; re-wrap the private key (password change, recovery code)             |
-| GET    | `/auth/public-key`       | Any                   | A user's or group's public key, to seal an envelope to                                        |
-| GET    | `/auth/recover`          | Public                | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
-| POST   | `/auth/recover`          | Public                | Finish recovery with the opened challenge and a re-wrapped key                                |
-| PUT    | `/auth/chapter-keys`     | Group member or admin | Give a group its keypair (once) and the first member the wrapped group key                    |
-| PUT    | `/auth/member-key`       | Key holder or admin   | Hand the wrapped group key to a member                                                        |
-| DELETE | `/auth/member-key`       | Key holder or admin   | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
-| GET    | `/auth/member-keys`      | Group member or admin | Which members hold the group key                                                              |
-| GET    | `/auth/chapter-rotation` | Key holder            | Everything sealed to the group key, for re-sealing                                            |
-| POST   | `/auth/chapter-rotation` | Key holder            | Replace the group keypair; members left out lose access                                       |
+| Method | Path                         | Auth                  | Purpose                                                                                       |
+| ------ | ---------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| POST   | `/auth/user`                 | Public                | Register (role `user`); admins may set other roles                                            |
+| POST   | `/auth/login`                | Public                | Log in and receive a token                                                                    |
+| POST   | `/auth/logout`               | Any                   | End this token, or every token for the account with `{"everywhere": true}`                    |
+| POST   | `/auth/revoke`               | Admin                 | End every token for an account without banning it                                             |
+| GET    | `/auth/users`                | Admin                 | List users, optionally by role                                                                |
+| GET    | `/auth/user`                 | Self or admin         | Get one user by id, email, or username; a group may read its unclaimed writers                |
+| PUT    | `/auth/user`                 | Self or admin         | Update a user; a group may edit its unclaimed writers' name, email, note                      |
+| DELETE | `/auth/user`                 | Self or admin         | Delete a user; a group may delete its unclaimed writers                                       |
+| POST   | `/auth/writer`               | Group                 | Create a managed writer under the caller's group                                              |
+| GET    | `/auth/writers`              | Group                 | List the group's managed writers (admins: all, or `?chapter=`)                                |
+| POST   | `/auth/writer/token`         | Group                 | Generate or regenerate a writer's claim token                                                 |
+| DELETE | `/auth/writer/token`         | Group                 | Revoke a writer's claim token                                                                 |
+| GET    | `/auth/claim`                | Public                | Check a claim token                                                                           |
+| POST   | `/auth/claim`                | Public                | Claim a managed account                                                                       |
+| GET    | `/auth/keys`                 | Any                   | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
+| PUT    | `/auth/keys`                 | Any                   | Set the public key once; re-wrap the private key (password change, recovery code)             |
+| GET    | `/auth/public-key`           | Any                   | A user's or group's public key, to seal an envelope to                                        |
+| GET    | `/auth/recover`              | Public                | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
+| POST   | `/auth/recover`              | Public                | Finish recovery with the opened challenge and a re-wrapped key                                |
+| PUT    | `/auth/chapter-keys`         | Group member or admin | Give a group its keypair (once) and the first member the wrapped group key                    |
+| PUT    | `/auth/member-key`           | Key holder or admin   | Hand the wrapped group key to a member                                                        |
+| DELETE | `/auth/member-key`           | Key holder or admin   | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
+| GET    | `/auth/member-keys`          | Group member or admin | Which members hold the group key                                                              |
+| GET    | `/auth/chapter-rotation`     | Key holder            | Everything sealed to the group key, for re-sealing                                            |
+| POST   | `/auth/chapter-rotation`     | Key holder            | Replace the group keypair; members left out lose access                                       |
+| GET    | `/auth/encryption-readiness` | Admin                 | Who still has to set up keys, and whether the switch to e2e can go ahead                      |
 
 #### User fields
 
@@ -906,11 +907,13 @@ What rotation cannot do: the server checks that everything was re-sealed, not th
 
 #### Sending and reading letters
 
-`POST /messaging/message` takes `ciphertext`, `nonce`, optional `relayNoteCiphertext` and `relayNoteNonce`, and `envelopes` (each `{ readerType, readerId, wrappedKey }`, plus `keyVersion` when the reader is a group). The server checks the readers: the writer (always required, except for a group's anonymous writer), the relay group (required when the letter has one), the group managing the writer, and any active relay group of the facility. Anything else is a `400`. `messageText` is refused.
+`POST /messaging/message` takes `ciphertext`, `nonce`, optional `relayNoteCiphertext` and `relayNoteNonce`, and `envelopes` (each `{ readerType, readerId, wrappedKey }`, plus `keyVersion` when the reader is a group). The server checks the readers: the writer (required once the writer has a public key; never for a group's anonymous writer), the relay group (required when the letter has one), the group managing the writer, and any active relay group of the facility. Anything else is a `400`. `messageText` is refused.
 
 Ciphertext and nonce always travel as a pair, for the body and for the relay note. In e2e mode a letter's `user`, `prisoner`, and `relayChapter` cannot change after sending, because the envelopes fix its readers; forward instead. Every read returns `ciphertext`, `nonce`, and `envelopes` filtered to the caller: a writer gets their own; a group member gets the group's, plus the envelopes of unclaimed writers the group manages (it holds their sealed keys); admins get them all but can open none. `last_message` on chat rows carries the same, and a thread's embedded messages are limited to the ones the caller holds an envelope for (a group that was forwarded one letter does not receive the rest of the thread's ciphertext). Editing a queued letter means sending new `ciphertext` and `nonce` under the same content key.
 
 `POST /messaging/envelope { message, readerType, readerId, wrappedKey, keyVersion }` lets a current reader forward the letter to one more permitted reader, typically a partner relay group (`keyVersion` is that group's): `201`, `400` for a reader the letter may not have, `403` for a caller without an envelope, `409` if that reader already has one or has rotated its key. In server mode this endpoint is a `409`.
+
+A **writer who has no keys yet** (they have not signed in since the switch) can still receive a reply: the group records it with the group's envelope alone, and an envelope for a writer without a public key is a `400`. The writer sees that the letter exists, with `envelopes: []`, and cannot open it until they set up keys and a member of the group adds their envelope. `GET /messaging/envelopes/missing` (a member of an active group) lists what is waiting: `[{ message, chat, readerType: "user", readerId, publicKey, wrappedKey, keyVersion }]`, where `wrappedKey` is the group's own envelope for that letter. The member's client opens it, seals the content key to `publicKey`, and posts it to `/messaging/envelope`. Group clients should do this quietly after sign-in.
 
 #### Attachments
 
@@ -919,6 +922,44 @@ Encrypt the file with the letter's content key and upload the ciphertext with a 
 #### Managed writers and claiming
 
 The group's browser generates the writer's keypair: `POST /auth/writer` requires `publicKey`, `orgWrappedPrivateKey` (the private key sealed to the group), and `orgKeyVersion` (the group key version it was sealed to; the same goes for setting `orgWrappedPrivateKey` through `PUT /auth/user`), and `GET /auth/writers` returns `orgWrappedPrivateKey` to the managing group so it can read and print for the writer. The browser also makes the claim token: `POST /auth/writer/token` takes `tokenHash` (SHA-256 hex of the upper-cased token), `claimWrappedPrivateKey`, `claimSalt`, and `claimKdfParams`; the response has no token, because the server never learns it. `GET /auth/claim?token=` returns that material with the writer's `publicKey`, and `POST /auth/claim` requires the private key re-wrapped under the new password and a recovery code. Claiming clears the group's sealed copy; the group keeps the envelopes it already holds on letters it relayed.
+
+#### Latecomers
+
+Nobody has to be chased for keys. When an account gets its **first** public key (`PUT /auth/keys`), when a group gets its key (`PUT /auth/chapter-keys`), and when a group gives an unclaimed writer keys (`PUT /auth/user`), the API seals to that reader every letter it still holds a key for and they are a reader of, then answers with `caughtUp: { letters, sealed, dropped }` (`null` once `ENCRYPTION_KEY` has been removed, because then there is nothing the server could open). In e2e mode it also drops its own copy of a letter as soon as every required reader has theirs. This works in both modes, so people pick up their old letters as they sign in, before or after the switch.
+
+`GET /auth/encryption-readiness` (admin) answers "can we switch, and who is missing":
+
+```json
+{
+	"mode": "server",
+	"serverKeyConfigured": true,
+	"ready": false,
+	"blockers": [
+		"Group 3 (Riverside ABC) relays mail and has no group key: after the switch nobody could send through it."
+	],
+	"groups": {
+		"active": 4,
+		"withKey": 3,
+		"withoutKey": [
+			{
+				"id": 3,
+				"name": "Riverside ABC",
+				"networkRole": "relay",
+				"relayFacilities": 2,
+				"members": 2,
+				"membersWithKeys": 1,
+				"blocksTheSwitch": true
+			}
+		],
+		"membersWaitingForGroupKey": [],
+		"unclaimedWritersWithoutKeys": [{ "id": 1, "name": "Test Chapter", "writers": 4 }]
+	},
+	"writers": { "total": 40, "withKeys": 31, "withoutKeys": 9, "withoutKeysWithLetters": 6 },
+	"letters": { "serverHeld": 12, "waitingForWriters": 6, "waitingForGroups": 1 }
+}
+```
+
+`ready` is the only hard requirement: every active group that relays mail (its `networkRole` is not `collecting`, or it is attached to a facility) has a group key, because nothing can be sealed to a group without one. Writers without keys block nothing. The operator's steps are in [docs/E2E-MIGRATION.md](docs/E2E-MIGRATION.md).
 
 #### Recovery
 
@@ -1449,19 +1490,20 @@ Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data":
 
 ### Messages
 
-| Method | Path                     | Auth                 | Purpose                                                       |
-| ------ | ------------------------ | -------------------- | ------------------------------------------------------------- |
-| POST   | `/messaging/message`     | Scoped               | Send a message (creates the chat if needed)                   |
-| GET    | `/messaging/messages`    | Scoped               | List messages                                                 |
-| GET    | `/messaging/message`     | Scoped               | Get one message by id                                         |
-| PUT    | `/messaging/message`     | Scoped               | Update a message (while still queued, unless admin)           |
-| PUT    | `/messaging/status`      | Relay group or admin | Move a letter to `printed` or `mailed`                        |
-| DELETE | `/messaging/message`     | Scoped               | Delete a message (while still queued, unless admin)           |
-| POST   | `/messaging/attachment`  | Scoped               | Upload a file to a message (multipart)                        |
-| GET    | `/messaging/attachments` | Scoped               | List a message's attachments                                  |
-| GET    | `/messaging/attachment`  | Scoped               | Download one attachment                                       |
-| GET    | `/messaging/retention`   | Any                  | The retention rules and the window that applies to the caller |
-| DELETE | `/messaging/attachment`  | Scoped               | Delete one attachment                                         |
+| Method | Path                           | Auth                 | Purpose                                                                     |
+| ------ | ------------------------------ | -------------------- | --------------------------------------------------------------------------- |
+| POST   | `/messaging/message`           | Scoped               | Send a message (creates the chat if needed)                                 |
+| GET    | `/messaging/messages`          | Scoped               | List messages                                                               |
+| GET    | `/messaging/message`           | Scoped               | Get one message by id                                                       |
+| PUT    | `/messaging/message`           | Scoped               | Update a message (while still queued, unless admin)                         |
+| PUT    | `/messaging/status`            | Relay group or admin | Move a letter to `printed` or `mailed`                                      |
+| DELETE | `/messaging/message`           | Scoped               | Delete a message (while still queued, unless admin)                         |
+| POST   | `/messaging/attachment`        | Scoped               | Upload a file to a message (multipart)                                      |
+| GET    | `/messaging/attachments`       | Scoped               | List a message's attachments                                                |
+| GET    | `/messaging/attachment`        | Scoped               | Download one attachment                                                     |
+| GET    | `/messaging/retention`         | Any                  | The retention rules and the window that applies to the caller               |
+| GET    | `/messaging/envelopes/missing` | Group (e2e)          | Letters the group can open whose writer has keys by now and no envelope yet |
+| DELETE | `/messaging/attachment`        | Scoped               | Delete one attachment                                                       |
 
 The scope is the same as for chats: own messages for a `user`; the group's managed writers' messages plus the letters the group relays for a `chapter` account; everything for an admin.
 

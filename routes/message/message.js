@@ -74,6 +74,12 @@ class MessageRoutes {
 		);
 
 		this.Router.get(
+			messageEnd.get.missingEnvelopes,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.missingEnvelopes
+		);
+
+		this.Router.get(
 			messageEnd.get.retention,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.retention

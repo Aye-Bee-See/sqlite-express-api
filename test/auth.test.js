@@ -24,7 +24,7 @@ after(stopServer);
 test('health reports ok once the database is ready', async () => {
 	const res = await get('/health');
 	assert.equal(res.status, 200);
-	assert.deepEqual(res.body, { status: 'ok', encryptionMode: 'server' });
+	assert.deepEqual(res.body, { status: 'ok', encryptionMode: 'server', push: [] });
 });
 
 test('login returns a token and a user without a password hash', async () => {

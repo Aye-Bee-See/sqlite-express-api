@@ -152,7 +152,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   │   ├── message.controller.js     Scope checks via threadScope().
 │   │   ├── chapter.controller.js
 │   │   ├── moderation.controller.js  create/getMany/getOne/update/remove (proposals), approve/reject, audit, summary.
-│   │   └── invitation.controller.js  Invitations: create, list, renew, withdraw; public token check and accept.
+│   │   ├── invitation.controller.js  Invitations: create, list, renew, withdraw; public token check and accept.
+│   │   └── notification.controller.js  Devices and the notification feed, under /auth.
 │   ├── user/user.js                  Route classes. All seven follow the same template.
 │   ├── prison/prison.js
 │   ├── prisoner/prisoner.js
@@ -161,6 +162,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
 │   ├── chapter/chapter.js
 │   ├── moderation/moderation.js   Proposals, review, audit log, summary.
 │   ├── invitation/invitation.js   Invitations; the token check and accept are public and rate limited.
+│   ├── notification/notification.js  Device registration and the feed (third router mounted at /auth).
 │   └── keys/keys.js               Key routes, mounted under /auth beside the user routes.
 └── database/
     ├── connection.js                 The Sequelize instance; no models, so the CLI can import it alone.
@@ -190,6 +192,8 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     │   ├── session-run.model.js      SessionRun: when this database issued tokens; recordIssue, covers, sweep.
     │   ├── invitation.model.js       Invitation: issue, renew, revoke, lookup, consume / release / complete.
     │   ├── mail-rule.model.js        MailRule: the master list; resolve tags, lookalike check, retire, usage.
+    │   ├── device.model.js           Device: push tokens per signed-in device; register (moves with the phone), reachable, forget*.
+    │   ├── notification.model.js     Notification: the per-account feed; record, feed, markRead, sweep.
     │   ├── chapter.model.js
     │   ├── submission.model.js       Submission: RESOURCES registry (fields, submittable, create/update), propose, revise, approve, reject, withdraw, currentValues, pendingCounts.
     │   └── audit-log.model.js        AuditLog: record, list (newest first). Append-only, no updatedAt.
@@ -614,6 +618,16 @@ There is one master list of rules and a facility links to entries of it; a facil
 - **Master list management** (`MailRule.createRule`, `updateRule`, `usage`; `PrisonController.createMailRule` / `updateMailRule` / `removeMailRule`, admin only). `lookalike` refuses a rule whose tag or label has the same words as an existing one, ignoring order, case, punctuation, and a plural `s`. It catches slips, not synonyms. `tag` is immutable (409 `RuleTagError`). Delete is refused while `usage > 0` (409 `RuleInUseError`); retiring sets `retiredAt`.
 - **Filters.** `mailRule` checks the value against the tag pattern (`MAIL_RULE_TAG`) before it reaches the SQL literal, then matches through the join; a well-formed tag that is not on the list matches nothing. `language` is unchanged.
 - **History.** Rules were free-text `Rules` records with their own `/rule` endpoints until `2026.09.17T01.00.00.mail-rule-tags`, which made them tags in a JSON column checked against a list in code. `2026.09.19T00.00.00.mail-rules-table` moved the list into the database and the column into a join table; a stored string that was not on the list is kept as words in the facility's `notes`. Both migrations can be reverted.
+
+### Push notifications
+
+Content-free by design: a push is a doorbell, the feed says what happened.
+
+- **`services/push.js`.** `SYNC_DATA` (`{ type: 'sync' }`) is the entire payload for every event; `fcmMessage(device)` builds what FCM is asked to deliver (Android and web: data-only, high priority; iOS: the same data plus a generic visible alert from `PUSH_IOS_ALERT_*`, `mutable-content`, because Apple does not deliver silent pushes reliably). Do not add fields to it: anything here reaches Google, Apple, and lock screens. `createFcmProvider` speaks FCM's HTTP v1 API with a service-account key and no SDK: an RS256 JWT (the existing `jsonwebtoken` dependency) exchanged at `oauth2.googleapis.com/token` for an access token that is cached until a minute before it expires. `fetch` and `now` are injectable, which is how `test/push.test.js` checks the request shape without credentials; **it has not been exercised against the real service yet**. Only the error code `UNREGISTERED` forgets a device: `INVALID_ARGUMENT` could be a bug in our payload and `SENDER_ID_MISMATCH` a wrong key, and neither should wipe tokens. Providers are pluggable (`use`, `reset`, `available`); `configure` loads FCM from `FCM_SERVICE_ACCOUNT_FILE` at `createApp()` and a bad file is reported, not fatal. `configure` also signs a probe JWT, so a key that cannot sign is reported at boot rather than at the first push. `ring(devices, { confirm, forget })` returns at once: each call is its own piece of work (events never queue behind each other), at most `PARALLEL_SENDS` devices at a time, and every request carries `AbortSignal.timeout(SEND_TIMEOUT_MS)`. The device list is a snapshot, so `confirm` (`Device.stillReachable`: same row, same account, same token, unmuted) runs just before each send, and `forget` (`Device.forgetExactly`) removes only the row as it was rung, never a registration the token has since moved to. `idle()` lets tests wait for everything in flight. A browser gets a `webpush` block (`Urgency: high`, `Topic: sync`), because FCM ignores `android` for Web Push.
+- **`routes/services/notify.services.js`.** `notify(userIds, what, { actor })` drops duplicates, the actor, banned accounts, and accounts nobody can sign in to (`User.isUnclaimedManaged`), writes one `Notifications` row per recipient, and rings their unmuted devices. It never throws. Call sites: `MessageController.#announce` (a prisoner's reply tells the writer; a new letter with a relay group tells `membersOf` that group), `updateStatus` (`letter.status` with `detail.status`), and `ModerationController.#announceDecision`. To add an event, add it to `NOTIFICATION_EVENTS` and call `notify`.
+- **Tables.** `Devices` (`token` unique; the default scope hides `token` and `sessionId`, `withToken` is for the sender) and `Notifications` (`chat`, `message`, `submission` all `CASCADE`, so retention and deletion take the entries with them; `detail` is small non-secret JSON). `Notification.sweep` runs with the session sweeps.
+- **Sessions.** A device remembers the `jti` that registered it. Single logout calls `Device.forgetSession(jti)`; `User.revokeSessions` (logout everywhere, admin revocation, password change, recovery) calls `Device.forgetUser`, which is why clients register again after a password change. `Device.register` upserts by token and moves the token to the new account when a phone changes hands, resetting `muted` and `label`.
+- **Controller.** `NotificationController` maps the base interface onto two resources: `create` registers a device, `getOne` lists the caller's devices, `remove` deletes one, `getMany` is the feed, `update` marks read; `updateDevice` is the extra.
 
 ### Invitations
 

@@ -16,6 +16,8 @@ import RevokedToken from '#models/revoked-token.model.js';
 import SessionRun from '#models/session-run.model.js';
 import Invitation from '#models/invitation.model.js';
 import MailRule from '#models/mail-rule.model.js';
+import Device from '#models/device.model.js';
+import Notification from '#models/notification.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -81,6 +83,8 @@ export {
 	SessionRun,
 	Invitation,
 	MailRule,
+	Device,
+	Notification,
 	Submission,
 	User
 };

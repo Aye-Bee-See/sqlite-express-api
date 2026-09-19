@@ -2514,6 +2514,151 @@
 			]
 		},
 		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "Register This Device For Pushes",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/device",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "device"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"<FCM registration token>\",\n    \"platform\": \"android\",\n    \"label\": \"Pixel\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.id) {",
+									"    pm.collectionVariables.set('deviceId', String(body.data.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "My Devices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/devices",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "devices"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mute Or Rename A Device",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/device",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "device"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": {{deviceId}},\n    \"muted\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Remove A Device",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/device",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "device"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": {{deviceId}}\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "My Notification Feed",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/notifications?unread=true",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "notifications"],
+							"query": [
+								{
+									"key": "unread",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Notifications Read",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/notifications/read",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "notifications", "read"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Keys (end-to-end mode)",
 			"item": [
 				{
@@ -2809,6 +2954,11 @@
 		},
 		{
 			"key": "mailRuleId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "deviceId",
 			"value": "",
 			"type": "string"
 		}

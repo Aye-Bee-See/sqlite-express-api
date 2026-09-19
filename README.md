@@ -60,29 +60,32 @@ Copy `.env.example` to `.env` and edit it. `.env` is git-ignored.
 cp .env.example .env
 ```
 
-| Variable                   | Required | Default                         | Purpose                                                                                                                                            |
-| -------------------------- | -------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `JWT_SECRET`               | Yes      | none                            | Secret used to sign and verify login tokens. Login fails without it.                                                                               |
-| `PORT`                     | Yes      | none                            | TCP port to listen on.                                                                                                                             |
-| `ADMIN_USERNAME`           | No       | none                            | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                  |
-| `ADMIN_PASSWORD`           | No       | none                            | Password for that account, at least 7 characters.                                                                                                  |
-| `ADMIN_EMAIL`              | No       | none                            | Email for that account.                                                                                                                            |
-| `CORS_ORIGIN`              | No       | `http://localhost:3001`         | Browser origins allowed by CORS, comma-separated.                                                                                                  |
-| `DB_RESET`                 | No       | `false`                         | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                        |
-| `DB_SEED`                  | No       | `true`                          | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                              |
-| `DB_LOGGING`               | No       | `false`                         | `true` prints every SQL statement.                                                                                                                 |
-| `DB_STORAGE`               | No       | `database.sqlite`               | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                         |
-| `UPLOAD_DIR`               | No       | `uploads`                       | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.              |
-| `UPLOAD_MAX_BYTES`         | No       | `20971520`                      | Largest accepted upload (20 MiB).                                                                                                                  |
-| `RATE_LIMIT_*`             | No       | see [Rate limits](#rate-limits) | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                            |
-| `TRUST_PROXY`              | No       | none                            | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                     |
-| `ENCRYPTION_MODE`          | No       | `server`                        | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                           |
-| `ENCRYPTION_KEY`           | Yes      | none                            | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                     |
-| `RETENTION_DEFAULT_DAYS`   | No       | `90`                            | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention). |
-| `RETENTION_MAX_DAYS`       | No       | none                            | Caps what a writer may choose, including \"forever\".                                                                                              |
-| `INVITATION_DAYS`          | No       | `14`                            | How long an invitation token works. See [Invitations](#invitations).                                                                               |
-| `INVITATION_AUTO_ACTIVATE` | No       | `false`                         | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.           |
-| `NODE_ENV`                 | No       | none                            | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                         |
+| Variable                                      | Required | Default                                   | Purpose                                                                                                                                                             |
+| --------------------------------------------- | -------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JWT_SECRET`                                  | Yes      | none                                      | Secret used to sign and verify login tokens. Login fails without it.                                                                                                |
+| `PORT`                                        | Yes      | none                                      | TCP port to listen on.                                                                                                                                              |
+| `ADMIN_USERNAME`                              | No       | none                                      | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                                   |
+| `ADMIN_PASSWORD`                              | No       | none                                      | Password for that account, at least 7 characters.                                                                                                                   |
+| `ADMIN_EMAIL`                                 | No       | none                                      | Email for that account.                                                                                                                                             |
+| `CORS_ORIGIN`                                 | No       | `http://localhost:3001`                   | Browser origins allowed by CORS, comma-separated.                                                                                                                   |
+| `DB_RESET`                                    | No       | `false`                                   | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                                         |
+| `DB_SEED`                                     | No       | `true`                                    | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                                               |
+| `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement.                                                                                                                                  |
+| `DB_STORAGE`                                  | No       | `database.sqlite`                         | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                                          |
+| `UPLOAD_DIR`                                  | No       | `uploads`                                 | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.                               |
+| `UPLOAD_MAX_BYTES`                            | No       | `20971520`                                | Largest accepted upload (20 MiB).                                                                                                                                   |
+| `RATE_LIMIT_*`                                | No       | see [Rate limits](#rate-limits)           | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                                             |
+| `TRUST_PROXY`                                 | No       | none                                      | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                                      |
+| `ENCRYPTION_MODE`                             | No       | `server`                                  | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                                            |
+| `ENCRYPTION_KEY`                              | Yes      | none                                      | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                                      |
+| `RETENTION_DEFAULT_DAYS`                      | No       | `90`                                      | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention).                  |
+| `RETENTION_MAX_DAYS`                          | No       | none                                      | Caps what a writer may choose, including \"forever\".                                                                                                               |
+| `INVITATION_DAYS`                             | No       | `14`                                      | How long an invitation token works. See [Invitations](#invitations).                                                                                                |
+| `INVITATION_AUTO_ACTIVATE`                    | No       | `false`                                   | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.                            |
+| `FCM_SERVICE_ACCOUNT_FILE`                    | No       | none                                      | Path to a Firebase service-account key (JSON), kept out of git. Without it devices may register and no push is sent. See [Push notifications](#push-notifications). |
+| `PUSH_IOS_ALERT_TITLE`, `PUSH_IOS_ALERT_BODY` | No       | `New activity`, `Open the app to see it.` | The only visible words a push ever carries (iOS). Keep them bland.                                                                                                  |
+| `NOTIFICATION_DAYS`                           | No       | `30`                                      | How long an entry stays in an account's notification feed.                                                                                                          |
+| `NODE_ENV`                                    | No       | none                                      | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                                          |
 
 ### Start
 
@@ -105,7 +108,7 @@ Created admin account "bootadmin" (id 42).
 Database ready.
 ```
 
-The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting","encryptionMode":"server"}` until the database is ready and `200 {"status":"ok","encryptionMode":"server"}` afterwards; it needs no token. `encryptionMode` is `server` or `e2e`, so a client can tell which letter contract to speak before it posts anything.
+The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting","encryptionMode":"server","push":[]}` until the database is ready and `200 {"status":"ok","encryptionMode":"server","push":[]}` afterwards; it needs no token. `push` lists the push services the API can send through today (`["fcm"]` once a key is configured; see [Push notifications](#push-notifications)). `encryptionMode` is `server` or `e2e`, so a client can tell which letter contract to speak before it posts anything.
 
 ### Running the tests
 
@@ -309,6 +312,7 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 | Read, edit, delete a group's unclaimed managed writers                  | No                    | Own group                         | Yes     |
 | Read own user record; update or delete own account                      | Yes                   | Yes                               | Yes     |
 | Read, update, delete other users; list users                            | No                    | No                                | Yes     |
+| Register own devices; read and mark own notification feed               | Yes                   | Yes                               | Yes     |
 | Revoke every session of another account                                 | No                    | No                                | Yes     |
 | Change a role, or create a non-`user` account                           | No                    | No                                | Yes     |
 
@@ -351,16 +355,17 @@ To get the first admin on a fresh database, either log in as the seeded `admin`,
 
 All examples use `http://localhost:3000`. Each resource lives under its own prefix, and the resource name is repeated in the path:
 
-| Prefix        | Resource               | Singular path            | Plural path               |
-| ------------- | ---------------------- | ------------------------ | ------------------------- |
-| `/auth`       | Users                  | `/auth/user`             | `/auth/users`             |
-| `/prison`     | Prisons                | `/prison/prison`         | `/prison/prisons`         |
-| `/prisoner`   | Prisoners              | `/prisoner/prisoner`     | `/prisoner/prisoners`     |
-| `/chat`       | Chats                  | `/chat/chat`             | `/chat/chats`             |
-| `/messaging`  | Messages               | `/messaging/message`     | `/messaging/messages`     |
-| `/chapter`    | Chapters               | `/chapter/chapter`       | `/chapter/chapters`       |
-| `/moderation` | Submissions, audit log | `/moderation/submission` | `/moderation/submissions` |
-| `/invitation` | Invitations            | `/invitation/invitation` | `/invitation/invitations` |
+| Prefix        | Resource                   | Singular path            | Plural path                            |
+| ------------- | -------------------------- | ------------------------ | -------------------------------------- |
+| `/auth`       | Users                      | `/auth/user`             | `/auth/users`                          |
+| `/prison`     | Prisons                    | `/prison/prison`         | `/prison/prisons`                      |
+| `/prisoner`   | Prisoners                  | `/prisoner/prisoner`     | `/prisoner/prisoners`                  |
+| `/chat`       | Chats                      | `/chat/chat`             | `/chat/chats`                          |
+| `/messaging`  | Messages                   | `/messaging/message`     | `/messaging/messages`                  |
+| `/chapter`    | Chapters                   | `/chapter/chapter`       | `/chapter/chapters`                    |
+| `/moderation` | Submissions, audit log     | `/moderation/submission` | `/moderation/submissions`              |
+| `/invitation` | Invitations                | `/invitation/invitation` | `/invitation/invitations`              |
+| `/auth`       | Devices, notification feed | `/auth/device`           | `/auth/devices`, `/auth/notifications` |
 
 Note the odd one out: messages are mounted at `/messaging`, while chats are at `/chat`.
 
@@ -1903,6 +1908,98 @@ Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest
 ```
 
 `staleVerification` matches the `stale=true` list filter on prisoners and prisons. Not yet built: anonymous corrections from the public footer and site settings.
+
+### Push notifications
+
+A push from this API is a doorbell and nothing else. It passes through Google and Apple and may land on a lock screen, so it never carries letter text, a name, a facility, or even an id: the whole payload is `{"type": "sync"}`, the same for every event. What happened is in the account's **notification feed**, which the app fetches over its own connection after the push wakes it. In end-to-end mode the server could not put letter text in a push even if it wanted to.
+
+What Google and Apple still learn is that the device has this app and when it is rung. That cannot be avoided with their services. A person can stay out of it by not registering a device; the feed works without push.
+
+| Method | Path                       | Auth | Purpose                                                |
+| ------ | -------------------------- | ---- | ------------------------------------------------------ |
+| POST   | `/auth/device`             | Any  | Register this device for pushes, or refresh it         |
+| GET    | `/auth/devices`            | Any  | The caller's devices (never their tokens)              |
+| PUT    | `/auth/device`             | Any  | Mute or rename one of the caller's devices             |
+| DELETE | `/auth/device`             | Any  | Stop pushes to a device                                |
+| GET    | `/auth/notifications`      | Any  | The caller's feed, newest first, with the unread count |
+| PUT    | `/auth/notifications/read` | Any  | Mark entries read                                      |
+
+#### Registering
+
+```bash
+curl -s -X POST http://localhost:3000/auth/device \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"token":"<FCM registration token>","platform":"android","label":"Pixel"}'
+```
+
+`platform` is `android`, `ios`, or `web`; `provider` is `fcm` (the default, and the only one today; iOS is reached through FCM as well). The response has the device without its token, `created`, and `deliverable`: whether the API can actually send through that provider today (`GET /health` lists the same under `push`). Call this **after every sign-in, after a password change, and whenever the push service issues a new token**; registering the same token again only refreshes it. A token belongs to one account at a time: when someone else signs in on the same phone, it moves to them and the previous account stops ringing there.
+
+Signing out removes the device that signed in; "log out everywhere", an admin's revocation, a password change, and recovery remove all of the account's devices. A token the push service reports as unregistered is forgotten. `PUT /auth/device {"id": 3, "muted": true}` silences one device without signing out.
+
+#### What is sent
+
+- **Android and web:** a data-only, high-priority message (for a browser, Web Push `Urgency: high`). The app or service worker wakes, fetches the feed, decrypts if needed, and words the notification itself, on the device.
+- **iOS:** Apple throttles or drops silent pushes, so a visible alert goes with it: `PUSH_IOS_ALERT_TITLE` / `PUSH_IOS_ALERT_BODY` ("New activity" / "Open the app to see it."), marked `mutable-content` so the app's notification service extension can fetch the feed and replace the wording on the device.
+- One collapse key, so a burst of events rings once.
+
+A push is never awaited and never fails a request: the letter is saved first, and a missed doorbell is logged. Each request to the push service is given ten seconds, a few devices are rung at a time, and one event never waits behind another. Just before a device is rung the API checks that it is still that account's and still unmuted, so a phone that changed hands a moment ago does not ring for its previous owner.
+
+#### The feed
+
+```bash
+curl -s 'http://localhost:3000/auth/notifications?since=41' -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+	"data": [
+		{
+			"id": 43,
+			"event": "letter.status",
+			"chat": 12,
+			"message": 88,
+			"submission": null,
+			"detail": { "status": "mailed" },
+			"readAt": null,
+			"createdAt": "2026-09-19T10:02:11.000Z"
+		},
+		{
+			"id": 42,
+			"event": "letter.reply",
+			"chat": 12,
+			"message": 91,
+			"submission": null,
+			"detail": null,
+			"readAt": null,
+			"createdAt": "2026-09-19T09:40:00.000Z"
+		}
+	],
+	"total": 2,
+	"page": 1,
+	"page_size": 10,
+	"unread": 2,
+	"success": true,
+	"status": 200,
+	"name": "notification many"
+}
+```
+
+`since` is the id of the newest entry the client already has; `unread=true` filters; `page` and `page_size` work as everywhere. Entries hold ids and states, never letter content. `PUT /auth/notifications/read` takes `{"ids": [42, 43]}`, `{"upTo": 43}`, or `{}` for everything, and answers `{ "marked": 2, "unread": 0 }`. Entries are kept for `NOTIFICATION_DAYS` (30), and an entry about a letter goes when the letter does (retention, deletion).
+
+| Event                | Who is told                                                             | `detail`                                         |
+| -------------------- | ----------------------------------------------------------------------- | ------------------------------------------------ |
+| `letter.reply`       | The writer, when a prisoner's reply is recorded on their thread         | none                                             |
+| `letter.status`      | The writer, when their letter is printed or mailed                      | `{ "status": "printed" }`                        |
+| `letter.queued`      | The members of the relay group, when a letter arrives for them to print | none                                             |
+| `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }` |
+
+The account that did the thing is never told about it, and accounts nobody can sign in to (unclaimed and anonymous writers, banned accounts) are skipped.
+
+#### Turning it on
+
+Create a Firebase project, add the Android (and later iOS) app to it, and download a **service-account key** (Project settings, Service accounts, Generate new private key). Put the JSON file somewhere outside the repository and point `FCM_SERVICE_ACCOUNT_FILE` at it. The boot log says `Push: FCM ready for project …`, and `GET /health` shows `"push": ["fcm"]`. A missing or broken file, including a private key that cannot sign, is reported at boot and the API runs on without push. For iOS, upload an APNs authentication key to the same Firebase project; nothing changes in the API.
+
+Phones without Google services cannot receive FCM. The sender takes pluggable providers (`services/push.js`), so an open one such as UnifiedPush can be added beside it; until then those devices rely on fetching the feed.
 
 ### Invitations
 

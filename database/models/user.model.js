@@ -139,6 +139,9 @@ export default class User extends Model {
 	static async revokeSessions(userId) {
 		const at = new Date();
 		await this.update({ sessionsRevokedAt: at }, { where: { id: userId } });
+		// Signed out everywhere means no device should keep ringing for this account.
+		// The app registers again after the next sign-in.
+		await this.sequelize.models.Device.forgetUser(userId);
 		return at;
 	}
 

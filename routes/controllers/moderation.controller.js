@@ -8,6 +8,7 @@ import Chapter from '#models/chapter.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import { audit } from '#rtServices/audit.services.js';
+import { notify } from '#rtServices/notify.services.js';
 import { SUBMISSION_RESOURCES, SUBMISSION_STATUSES } from '#schemas/submission.schema.js';
 import { RECORD_STATUSES, staleVerificationWhere } from '#db/record-status.js';
 
@@ -51,6 +52,19 @@ export default class ModerationController extends RouteController {
 		}
 		const errorVar = !(err instanceof Error) ? new Error(err) : err;
 		this.#handleErr(res, errorVar);
+	}
+
+	/** Tell the person who proposed it what was decided. (The reviewer's note stays in the submission.) */
+	static async #announceDecision(req, submission) {
+		await notify(
+			[submission.submittedBy],
+			{
+				event: 'submission.decided',
+				submission: submission.id,
+				detail: { status: submission.status, resource: submission.resource }
+			},
+			{ actor: req.user.id }
+		);
 	}
 
 	/**
@@ -209,6 +223,7 @@ export default class ModerationController extends RouteController {
 				result.targetId,
 				{ viaSubmission: result.id, fields: result.appliedChanges }
 			);
+			await ModerationController.#announceDecision(req, result);
 			this.#handleSuccess(res, this.#present(req, result));
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -238,6 +253,7 @@ export default class ModerationController extends RouteController {
 				resource: result.resource,
 				decisionNote: result.decisionNote
 			});
+			await ModerationController.#announceDecision(req, result);
 			this.#handleSuccess(res, this.#present(req, result));
 		} catch (err) {
 			this.#fail(res, next, err);

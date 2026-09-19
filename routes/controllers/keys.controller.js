@@ -10,6 +10,7 @@ import { HttpError } from '#services/HttpError.js';
 import * as crypto from '#services/crypto.js';
 import { audit } from '#rtServices/audit.services.js';
 import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
+import { inTransaction } from '#services/serial.js';
 
 /** How long a recovery challenge stays valid. */
 const RECOVERY_CHALLENGE_MS = 10 * 60 * 1000;
@@ -716,7 +717,7 @@ export default class KeysController extends RouteController {
 			const nextVersion = chapter.keyVersion + 1;
 			// One at a time, so the loser of a race fails its version check rather than a BEGIN.
 			const result = await withGroupKeyLock(() =>
-				Chapter.sequelize.transaction(async (transaction) => {
+				inTransaction(Chapter.sequelize, async (transaction) => {
 					// Claim the rotation first: only one request can move this version on.
 					const [claimed] = await Chapter.update(
 						{ publicKey, keyVersion: nextVersion, keyRotatedAt: new Date() },

@@ -18,6 +18,7 @@ import invitationSchema from '#schemas/invitation.schema.js';
 import mailRuleSchema from '#schemas/mail-rule.schema.js';
 import deviceSchema from '#schemas/device.schema.js';
 import notificationSchema from '#schemas/notification.schema.js';
+import idempotencyKeySchema from '#schemas/idempotency-key.schema.js';
 
 export default class Schemas {
 	static chat = chatSchema;
@@ -40,4 +41,5 @@ export default class Schemas {
 	static mailRule = mailRuleSchema;
 	static device = deviceSchema;
 	static notification = notificationSchema;
+	static idempotencyKey = idempotencyKeySchema;
 }

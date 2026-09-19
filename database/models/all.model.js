@@ -18,6 +18,7 @@ import Invitation from '#models/invitation.model.js';
 import MailRule from '#models/mail-rule.model.js';
 import Device from '#models/device.model.js';
 import Notification from '#models/notification.model.js';
+import IdempotencyKey from '#models/idempotency-key.model.js';
 
 /********************************************
  * How to understand sequelize associations *
@@ -85,6 +86,7 @@ export {
 	MailRule,
 	Device,
 	Notification,
+	IdempotencyKey,
 	Submission,
 	User
 };

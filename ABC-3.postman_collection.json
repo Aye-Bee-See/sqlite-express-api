@@ -1316,7 +1316,14 @@
 					"name": "Create Message (creates chat if needed)",
 					"request": {
 						"method": "POST",
-						"header": [],
+						"header": [
+							{
+								"key": "Idempotency-Key",
+								"value": "{{$guid}}",
+								"type": "text",
+								"description": "One value per letter; repeat it on a retry and you get the same letter back, not a second one."
+							}
+						],
 						"url": {
 							"raw": "localhost:3000/messaging/message",
 							"host": ["localhost"],
@@ -1489,7 +1496,14 @@
 					"name": "Send Letter With Relay Group And Note",
 					"request": {
 						"method": "POST",
-						"header": [],
+						"header": [
+							{
+								"key": "Idempotency-Key",
+								"value": "{{$guid}}",
+								"type": "text",
+								"description": "One value per letter; repeat it on a retry and you get the same letter back, not a second one."
+							}
+						],
 						"url": {
 							"raw": "localhost:3000/messaging/message",
 							"host": ["localhost"],
@@ -1683,7 +1697,14 @@
 					"name": "Send Encrypted Letter (e2e)",
 					"request": {
 						"method": "POST",
-						"header": [],
+						"header": [
+							{
+								"key": "Idempotency-Key",
+								"value": "{{$guid}}",
+								"type": "text",
+								"description": "One value per letter; repeat it on a retry and you get the same letter back, not a second one."
+							}
+						],
 						"url": {
 							"raw": "localhost:3000/messaging/message",
 							"host": ["localhost"],

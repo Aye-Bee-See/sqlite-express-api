@@ -114,7 +114,7 @@ export const del = (path, body, o = {}) => api('DELETE', path, { ...o, body });
  * Send a multipart upload.
  * @param {string} path
  * @param {{fields?: object, file?: {name: string, type: string, bytes: Buffer|Uint8Array}, field?: string}} parts
- * @param {{token?: string}} [o]
+ * @param {{token?: string, headers?: object}} [o]
  */
 export async function upload(path, { fields = {}, file, field = 'file' } = {}, o = {}) {
 	const form = new FormData();
@@ -124,7 +124,10 @@ export async function upload(path, { fields = {}, file, field = 'file' } = {}, o
 	if (file) {
 		form.append(field, new Blob([file.bytes], { type: file.type }), file.name);
 	}
-	const headers = o.token ? { Authorization: 'Bearer ' + o.token } : {};
+	const headers = {
+		...(o.headers || {}),
+		...(o.token ? { Authorization: 'Bearer ' + o.token } : {})
+	};
 	const res = await fetch(baseUrl + path, { method: 'POST', headers, body: form });
 	const text = await res.text();
 	let parsed = text;

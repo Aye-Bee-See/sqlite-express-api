@@ -80,6 +80,7 @@ cp .env.example .env
 | `ENCRYPTION_KEY`                              | Yes      | none                                      | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                                      |
 | `RETENTION_DEFAULT_DAYS`                      | No       | `90`                                      | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention).                  |
 | `RETENTION_MAX_DAYS`                          | No       | none                                      | Caps what a writer may choose, including \"forever\".                                                                                                               |
+| `IDEMPOTENCY_DAYS`                            | No       | `30`                                      | How long an `Idempotency-Key` is remembered. Long, so a phone that was offline for weeks still cannot send a second copy.                                           |
 | `INVITATION_DAYS`                             | No       | `14`                                      | How long an invitation token works. See [Invitations](#invitations).                                                                                                |
 | `INVITATION_AUTO_ACTIVATE`                    | No       | `false`                                   | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.                            |
 | `FCM_SERVICE_ACCOUNT_FILE`                    | No       | none                                      | Path to a Firebase service-account key (JSON), kept out of git. Without it devices may register and no push is sent. See [Push notifications](#push-notifications). |
@@ -495,7 +496,8 @@ Unknown paths return the same shape with status `404` and `"info": "Cannot GET /
 | Role or ownership does not permit the action                                                                                | 403    |
 | No record with that id (read, update, or delete), or unknown parent in a list filter, or unknown path                       | 404    |
 | State conflict: a letter status move the lifecycle forbids, a submission already decided, a key already set                 | 409    |
-| Claim token used or expired                                                                                                 | 410    |
+| Claim or invitation token used or expired; an `Idempotency-Key` whose letter was since deleted                              | 410    |
+| An `Idempotency-Key` reused for a different request                                                                         | 422    |
 | Rate limited on login, claim checks, or recovery; `Retry-After` gives the wait in seconds (see [Rate limits](#rate-limits)) | 429    |
 | Internal fault                                                                                                              | 500    |
 
@@ -1702,6 +1704,29 @@ Every attachment row looks like:
 ```
 
 `GET /messaging/message?id=…&full=true` embeds the same rows under `attachments`.
+
+#### Sending exactly once: `Idempotency-Key`
+
+A client that retries after a lost connection, sends an outbox when it comes back online, or is clicked twice can otherwise mail a prisoner two copies of a letter. Send a header with a value the client makes up **once per letter** (a UUID is ideal) and repeat it on every retry of that letter:
+
+```bash
+curl -s -X POST http://localhost:3000/messaging/message \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: 6f1c2a0e-8d1b-4a53-9c0e-2f6b7f0d9a11' \
+  -d '{"messageText":"Hello","sender":"user","prisoner":1}'
+```
+
+| Situation                                                              | Answer                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First request with this key                                            | Processed as usual: `201`.                                                                                                                                                                                                                               |
+| The same key again, after the first succeeded                          | `201` with the **letter the first attempt made**, as it is now (its status may have moved on), and the header `Idempotent-Replayed: true`. Nothing is created, audited, or notified twice.                                                               |
+| The same key while the first is still being processed (a double click) | `409` `IdempotencyError` with `Retry-After: 1`. Try again in a second and get the letter.                                                                                                                                                                |
+| The same key for a different request                                   | `422` `IdempotencyError`. "Different" means another writer, prisoner, or sender, or (server mode) another text. In end-to-end mode ciphertext is not compared, because a retry may have been encrypted afresh; the stored letter is the first attempt's. |
+| The same key after the letter was deleted                              | `410`: it is not sent again.                                                                                                                                                                                                                             |
+| A refused or failed first attempt (`400`, `403`, `409`, `5xx`)         | The key is free again, so the corrected request may reuse it.                                                                                                                                                                                            |
+| A malformed key                                                        | `400`. Keys are 8 to 128 printable characters without spaces.                                                                                                                                                                                            |
+
+Keys belong to the account that sent them, and are remembered for `IDEMPOTENCY_DAYS` (30). The server keeps the key, a hash of who the letter was from and to, and the id of the letter; never the letter. The header is optional, and without it nothing changes. `POST /messaging/attachment` takes it too (same letter, file name, and size must match), so a retried upload returns the file already stored. Browsers may send it and read `Idempotent-Replayed` (CORS allows both).
 
 #### POST /messaging/attachment
 

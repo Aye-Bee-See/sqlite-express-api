@@ -89,3 +89,24 @@ test('recovery starts and finishes are limited per username', async () => {
 		429
 	);
 });
+
+test('deleting your own account is not a place to guess the password', async () => {
+	const { del } = await import('./helpers.js');
+	const victim = await makeUser({ username: 'guessed' });
+	// Whoever holds the token gets as many guesses as a sign-in allows (3 here), and no more.
+	for (let i = 0; i < 3; i += 1) {
+		const res = await del('/auth/user', { id: victim.id, password: 'guess-' + i }, victim);
+		assert.equal(res.status, 403);
+	}
+	// Deleting somebody else asks for no password, so it spends none of the budget.
+	const admin = await makeUser({ role: 'admin', username: 'tidyadmin' });
+	for (let i = 0; i < 5; i += 1) {
+		assert.equal((await del('/auth/user', { id: 999000 + i }, admin)).status, 404);
+	}
+	const spare = await makeUser({ username: 'spare' });
+	assert.equal((await del('/auth/user', { id: spare.id }, admin)).status, 200);
+
+	const blocked = await del('/auth/user', { id: victim.id, password: victim.password }, victim);
+	assert.equal(blocked.status, 429, 'even the right password waits now');
+	assert.ok(blocked.headers.get('retry-after'));
+});

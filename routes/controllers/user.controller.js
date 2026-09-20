@@ -6,6 +6,8 @@ import ClaimToken from '#models/claim-token.model.js';
 import OrgMemberKey from '#models/org-member-key.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { inTransaction } from '#services/serial.js';
+import { eraseAccount, eraseRefusal } from '#db/erase-account.js';
+import bcrypt from 'bcrypt';
 import { audit } from '#rtServices/audit.services.js';
 import KeysController from '#rtControllers/keys.controller.js';
 import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
@@ -469,17 +471,53 @@ export default class UserController extends RouteController {
 	}
 
 	// Delete
+	/**
+	 * DELETE /auth/user { id, password? }: delete an account and everything the person
+	 * wrote or received through it (see database/erase-account.js). Your own account
+	 * needs your password again: a borrowed phone or a stolen token is not enough.
+	 * Admins may delete anyone; a group, its unclaimed managed writers.
+	 */
 	async remove(req, res, next) {
-		const { id } = req.body;
+		const { id, password } = req.body;
 		try {
-			if (!AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req)) {
-				const target = await User.findByPk(id);
-				if (target && !(await AuthzService.mayManageUser(req, target))) {
-					return next(await AuthzService.refusalFor(req));
+			if (id === undefined || id === null || id === '') {
+				throw new ValidationError('id is required.');
+			}
+			const target = this.requireFound(await User.findByPk(id), 'User ' + id);
+			if (!(await AuthzService.mayManageUser(req, target))) {
+				return next(await AuthzService.refusalFor(req));
+			}
+			const self = String(target.id) === String(req.user.id);
+			if (self) {
+				if (typeof password !== 'string' || password === '') {
+					throw new ValidationError('Send your password to delete your own account.');
+				}
+				const stored = await User.getUserWithPassword({ id: target.id });
+				if (!stored || !(await bcrypt.compare(password, stored.password))) {
+					return next(AuthzService.forbidden('The password is wrong; nothing was deleted.'));
 				}
 			}
-			const deletedRows = await User.deleteUser(id);
-			this.#handleSuccess(res, this.requireAffected(deletedRows, 'User ' + id));
+			// The check and the delete are one step, under the lock every change of a
+			// group's key holders takes: two admins, or two key holders, leaving at the
+			// same moment must not each see the other as the one who stays. (Own queue
+			// first, the transaction queue inside eraseAccount second, as everywhere.)
+			const report = await withGroupKeyLock(async () => {
+				const refusal = await eraseRefusal(target);
+				if (refusal) {
+					throw refusal;
+				}
+				return this.requireFound(await eraseAccount(target.id), 'User ' + id);
+			});
+			// No name is kept. The actor is left out when people delete themselves: the
+			// row the entry would point at is gone.
+			await audit(self ? null : req, 'user.delete', 'user', target.id, {
+				by: self ? 'self' : AuthzService.isAdmin(req) ? 'admin' : 'group',
+				letters: report.letters,
+				replies: report.replies,
+				attachments: report.attachments,
+				threads: report.threads
+			});
+			this.#handleSuccess(res, report);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

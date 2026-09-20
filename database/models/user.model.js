@@ -527,7 +527,5 @@ export default class User extends Model {
 
 	// Delete
 
-	static async deleteUser(id) {
-		return await this.destroy({ where: { id: id } });
-	}
+	// Deleting an account is more than one row: see database/erase-account.js.
 }

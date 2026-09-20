@@ -273,16 +273,17 @@ A token whose user has since been deleted or banned is rejected with `401`.
 
 The endpoints that need no token are limited, so nobody can guess passwords, enumerate usernames through recovery, or scan claim and invitation tokens at speed. A limited request gets `429` with a `Retry-After` header (seconds) and the general error shape, `"name": "RateLimitError"`. Counts live in the API process and reset on restart.
 
-| What                                          | Default           | Environment variable                                                     |
-| --------------------------------------------- | ----------------- | ------------------------------------------------------------------------ |
-| Failed sign-ins per username                  | 10 per 15 minutes | `RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`  |
-| Sign-in attempts per address                  | 60 per 15 minutes | `RATE_LIMIT_LOGIN_PER_IP`                                                |
-| Claim token checks per address                | 20 per hour       | `RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`             |
-| Invitation checks and acceptances per address | 20 per hour       | `RATE_LIMIT_INVITE_PER_IP`, `RATE_LIMIT_INVITE_WINDOW_MINUTES`           |
-| Recovery starts per username                  | 5 per hour        | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES` |
-| Recovery starts per address                   | 30 per hour       | `RATE_LIMIT_RECOVER_START_PER_IP`                                        |
-| Recovery finishes per username                | 5 per hour        | `RATE_LIMIT_RECOVER_FINISH_PER_USER`                                     |
-| Recovery finishes per address                 | 30 per hour       | `RATE_LIMIT_RECOVER_FINISH_PER_IP`                                       |
+| What                                           | Default           | Environment variable                                                                           |
+| ---------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------- |
+| Failed sign-ins per username                   | 10 per 15 minutes | `RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`                        |
+| Sign-in attempts per address                   | 60 per 15 minutes | `RATE_LIMIT_LOGIN_PER_IP`                                                                      |
+| Claim token checks per address                 | 20 per hour       | `RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`                                   |
+| Invitation checks and acceptances per address  | 20 per hour       | `RATE_LIMIT_INVITE_PER_IP`, `RATE_LIMIT_INVITE_WINDOW_MINUTES`                                 |
+| Recovery starts per username                   | 5 per hour        | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES`                       |
+| Recovery starts per address                    | 30 per hour       | `RATE_LIMIT_RECOVER_START_PER_IP`                                                              |
+| Recovery finishes per username                 | 5 per hour        | `RATE_LIMIT_RECOVER_FINISH_PER_USER`                                                           |
+| Recovery finishes per address                  | 30 per hour       | `RATE_LIMIT_RECOVER_FINISH_PER_IP`                                                             |
+| Wrong passwords when deleting your own account | 10 per 15 minutes | the sign-in settings (`RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`) |
 
 Successful sign-ins never count against a username; once the failure limit is reached, even the right password is refused until the window ends. Usernames are compared case-insensitively. Set `RATE_LIMIT_ENABLED=false` to switch limiting off, and set `TRUST_PROXY` when the API is behind a reverse proxy, otherwise every client appears to come from the proxy's address and shares one budget.
 
@@ -598,10 +599,11 @@ Embedded users never include the password hash. For anonymous and `user`-role ca
 
 Foreign keys are enforced with `RESTRICT`. Deleting a record that other records still reference fails with status `400` and `"name": "SequelizeForeignKeyConstraintError"`:
 
-- A user with chats or messages.
 - A prisoner with chats or messages.
 - A prison with prisoners.
 - A chat with messages, **except** through `DELETE /chat/chat`, which deletes the chat's messages first.
+
+A **user is the exception**: `DELETE /auth/user` removes the account together with its threads and letters (see [DELETE /auth/user](#delete-authuser)).
 
 Creating or updating a record that points at a nonexistent user, prisoner, chat, or prison fails the same way.
 
@@ -776,7 +778,35 @@ A password sent in the body is not echoed back.
 
 #### DELETE /auth/user
 
-Body: `{"id": 43}`. Returns `"data": 1`. A user who still has chats or messages cannot be deleted (see [Deletes and referential integrity](#deletes-and-referential-integrity)). A group's `chapter` account may delete the group's unclaimed managed writers.
+Delete an account **and everything the person wrote or received through it**: every letter whatever its status (queued, printed, or mailed), every reply recorded for them, the attachments and their files, the envelopes, the status history, and the threads. It cannot be undone, and nothing is kept: the username and email are free again at once.
+
+Body: `{"id": 43, "password": "…"}`.
+
+| Who                         | May delete                                                                   | `password`                                                                                                                                                                                            |
+| --------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Anyone                      | Their own account                                                            | **Required**: the account's current password, so that a borrowed phone or a stolen token is not enough. A wrong one is a `403` and deletes nothing; guesses are limited like failed sign-ins (`429`). |
+| A group's `chapter` account | The group's **unclaimed** managed writers, with the letters written for them | Not needed                                                                                                                                                                                            |
+| Admin                       | Anyone else                                                                  | Not needed                                                                                                                                                                                            |
+
+```json
+{
+	"data": { "deleted": 1, "letters": 3, "replies": 1, "attachments": 1, "threads": 2 },
+	"info": "Successfully deleted user.",
+	"success": true,
+	"status": 200,
+	"name": "user remove"
+}
+```
+
+What goes with the account: its devices, notification feed, claim tokens, idempotency keys, and its copy of a group key. What stays, without the person's name on it: what they did as staff (audit entries, proposals and decisions, invitations, status changes on other people's letters). The audit log records that an account was deleted, by whom (`self`, `group`, or `admin`), and how many letters went; it never records the username. Every token of the account stops working with the request.
+
+Refused with `409` `AccountDeleteError`:
+
+- **the only admin account** (make another admin first);
+- **the last holder of a group's key** in end-to-end mode (hand the key to another member with `PUT /auth/member-key` first, or the group could never read its letters again);
+- **a group's shared anonymous account**, for everyone: it holds the anonymous letters of all the people the group wrote for.
+
+Clients should say in words what will happen before sending this, and in end-to-end mode remind the person that their recovery code and keys become useless.
 
 ### Managed writers
 

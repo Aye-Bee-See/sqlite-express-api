@@ -20,7 +20,8 @@ import {
 	LETTER_STATUSES,
 	OPEN_STATUSES,
 	RETURNED,
-	RETURN_REASONS
+	RETURN_REASONS,
+	HELD_CHOOSE_RELAY
 } from '#db/letter-status.js';
 
 /** What PUT /messaging/message may change. The thread follows from writer and prisoner; status has its own endpoint. */
@@ -325,7 +326,7 @@ export default class Message extends Model {
 	 * @returns {Promise<Message>} the updated message with its history
 	 * @throws {ValidationError} unknown status; {HttpError} 409 for a move the lifecycle does not allow
 	 */
-	static async changeStatus(message, status, changedBy = null, { reason, note } = {}) {
+	static async changeStatus(message, status, changedBy = null, { reason, note, release } = {}) {
 		if (!LETTER_STATUSES.includes(status)) {
 			throw new ValidationError('Status must be one of ' + LETTER_STATUSES.join(', ') + '.');
 		}
@@ -337,8 +338,20 @@ export default class Message extends Model {
 				'LetterStatusError'
 			);
 		}
+		if (message.heldReason && release !== true) {
+			// Held because the person was moved or freed after it was written. Whoever
+			// prints it anyway says so, so that it is a decision and not an oversight.
+			throw new HttpError(
+				409,
+				'This letter is held (' +
+					message.heldReason +
+					'). Send release: true to go ahead with it anyway.',
+				'LetterHeldError'
+			);
+		}
 		const from = message.status;
 		await message.update({
+			heldReason: null,
 			status,
 			statusChangedAt: new Date(),
 			statusChangedBy: changedBy,
@@ -592,6 +605,16 @@ export default class Message extends Model {
 					const [chat] = await Chat.findOrCreateChat(user, prisoner);
 					values.chat = chat.id;
 				}
+			}
+		}
+		if (values.relayChapter !== undefined && values.relayChapter !== null) {
+			// The writer chose who mails it: that was the question a choose_relay hold asked.
+			const held = await this.findByPk(message.id, {
+				attributes: ['id', 'heldReason'],
+				hooks: false
+			});
+			if (held && held.heldReason === HELD_CHOOSE_RELAY) {
+				values.heldReason = null;
 			}
 		}
 		if (Object.keys(values).length === 0) {

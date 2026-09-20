@@ -1603,6 +1603,29 @@
 					"response": []
 				},
 				{
+					"name": "Mark A Mailed Letter Returned (relay group or admin)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/status",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "status"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": 1,\n  \"status\": \"returned\",\n  \"reason\": \"transferred\",\n  \"note\": \"Stamped NOT HERE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "From mailed only. reason is required: refused, rule_violation, transferred, released, bad_address, unknown. note is optional, at most 200 characters, not encrypted, and the writer reads it."
+					}
+				},
+				{
 					"name": "Upload Attachment (multipart)",
 					"request": {
 						"method": "POST",

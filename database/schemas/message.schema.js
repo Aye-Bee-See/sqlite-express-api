@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { LETTER_STATUSES } from '#db/letter-status.js';
+import { LETTER_STATUSES, RETURN_REASONS } from '#db/letter-status.js';
 
 const messageSchema = {
 	chat: {
@@ -94,6 +94,20 @@ const messageSchema = {
 		defaultValue: false
 	},
 	statusChangedBy: {
+		type: DataTypes.INTEGER
+	},
+	/** Why a `returned` letter came back (RETURN_REASONS); null otherwise. Set with the status, never directly. */
+	returnReason: {
+		type: DataTypes.STRING,
+		validate: {
+			isIn: {
+				args: [RETURN_REASONS],
+				msg: 'reason must be one of ' + RETURN_REASONS.join(', ') + '.'
+			}
+		}
+	},
+	/** The returned letter this one was sent again for, if any. */
+	resendOf: {
 		type: DataTypes.INTEGER
 	},
 	user: {

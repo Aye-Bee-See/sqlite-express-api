@@ -204,7 +204,7 @@ export default class MessageController extends RouteController {
 			const scope = await threadScope(req);
 			const sender = scope.kind === 'own' ? 'user' : req.body.sender;
 			const user = await resolveWriter(req, scope, req.body.user, { sender, prisoner });
-			const fields = { sender, prisoner, user, relayChapter };
+			const fields = { sender, prisoner, user, relayChapter, resendOf: req.body.resendOf };
 			if (crypto.isE2E()) {
 				const { ciphertext, nonce, relayNoteCiphertext, relayNoteNonce } = req.body;
 				Object.assign(fields, { ciphertext, nonce, relayNoteCiphertext, relayNoteNonce });
@@ -345,7 +345,7 @@ export default class MessageController extends RouteController {
 	 * lifecycle. Admins, or the group that relays the letter.
 	 */
 	async updateStatus(req, res, next) {
-		const { id, status } = req.body;
+		const { id, status, reason, note } = req.body;
 		try {
 			const message = this.requireFound(await Message.getMessageByID(id), 'Message ' + id);
 			const chapterId = await AuthzService.activeChapterOf(req);
@@ -360,15 +360,22 @@ export default class MessageController extends RouteController {
 				);
 			}
 			const from = message.status;
-			const updated = await Message.changeStatus(message, status, req.user.id);
-			await audit(req, 'letter.status', 'message', updated.id, { from, to: status });
+			const updated = await Message.changeStatus(message, status, req.user.id, { reason, note });
+			await audit(req, 'letter.status', 'message', updated.id, {
+				from,
+				to: status,
+				...(updated.returnReason ? { reason: updated.returnReason } : {})
+			});
 			await notify(
 				[updated.user],
 				{
 					event: 'letter.status',
 					chat: updated.chat,
 					message: updated.id,
-					detail: { status: updated.status }
+					detail: {
+						status: updated.status,
+						...(updated.returnReason ? { reason: updated.returnReason } : {})
+					}
 				},
 				{ actor: req.user.id }
 			);

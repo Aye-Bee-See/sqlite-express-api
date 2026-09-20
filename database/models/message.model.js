@@ -18,7 +18,9 @@ import {
 	canTransition,
 	initialStatusFor,
 	LETTER_STATUSES,
-	OPEN_STATUSES
+	OPEN_STATUSES,
+	RETURNED,
+	RETURN_REASONS
 } from '#db/letter-status.js';
 
 /** What PUT /messaging/message may change. The thread follows from writer and prisoner; status has its own endpoint. */
@@ -81,6 +83,18 @@ export default class Message extends Model {
 		this.belongsTo(models.User, {
 			as: 'status_changed_by',
 			foreignKey: 'statusChangedBy',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+		this.belongsTo(models.Message, {
+			as: 'resend_of',
+			foreignKey: 'resendOf',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
+		this.hasMany(models.Message, {
+			as: 'resent_as',
+			foreignKey: 'resendOf',
 			onDelete: 'SET NULL',
 			onUpdate: 'CASCADE'
 		});
@@ -155,6 +169,7 @@ export default class Message extends Model {
 			callerChapter
 		);
 		const status = initialStatusFor(message.sender);
+		const resendOf = await this.#checkResend(message);
 		let clean = null;
 		if (crypto.isE2E()) {
 			if (message.messageText !== undefined || message.relayNote !== undefined) {
@@ -175,6 +190,7 @@ export default class Message extends Model {
 		}
 		const created = await this.create({
 			...message,
+			resendOf,
 			relayChapter,
 			status,
 			statusChangedAt: new Date(),
@@ -309,10 +325,11 @@ export default class Message extends Model {
 	 * @returns {Promise<Message>} the updated message with its history
 	 * @throws {ValidationError} unknown status; {HttpError} 409 for a move the lifecycle does not allow
 	 */
-	static async changeStatus(message, status, changedBy = null) {
+	static async changeStatus(message, status, changedBy = null, { reason, note } = {}) {
 		if (!LETTER_STATUSES.includes(status)) {
 			throw new ValidationError('Status must be one of ' + LETTER_STATUSES.join(', ') + '.');
 		}
+		const why = Message.#returnDetails(status, reason, note);
 		if (!canTransition(message.status, status)) {
 			throw new HttpError(
 				409,
@@ -321,9 +338,67 @@ export default class Message extends Model {
 			);
 		}
 		const from = message.status;
-		await message.update({ status, statusChangedAt: new Date(), statusChangedBy: changedBy });
-		await MessageStatus.record(message.id, from, status, changedBy);
+		await message.update({
+			status,
+			statusChangedAt: new Date(),
+			statusChangedBy: changedBy,
+			returnReason: why.reason ?? null
+		});
+		await MessageStatus.record(message.id, from, status, changedBy, why);
 		return await this.readLetter(message.id);
+	}
+
+	/**
+	 * A letter that came back says why; no other move takes a reason.
+	 * @returns {{reason?: string, note?: string|null}}
+	 * @throws {ValidationError}
+	 */
+	static #returnDetails(status, reason, note) {
+		if (status !== RETURNED) {
+			if (reason !== undefined || note !== undefined) {
+				throw new ValidationError('reason and note only go with the status returned.');
+			}
+			return {};
+		}
+		if (!RETURN_REASONS.includes(reason)) {
+			throw new ValidationError(
+				'A returned letter needs a reason: one of ' + RETURN_REASONS.join(', ') + '.'
+			);
+		}
+		if (note !== undefined && note !== null && typeof note !== 'string') {
+			throw new ValidationError('note must be text.');
+		}
+		const words = typeof note === 'string' ? note.trim() : '';
+		if (words.length > 200) {
+			throw new ValidationError('note can be at most 200 characters.');
+		}
+		return { reason, note: words === '' ? null : words };
+	}
+
+	/**
+	 * A letter sent again names the returned letter it replaces: the same
+	 * writer's, to the same person. (The text is the client's to send again; in
+	 * end-to-end mode the server could not copy it.)
+	 * @throws {ValidationError}
+	 */
+	static async #checkResend(message) {
+		if (message.resendOf === undefined || message.resendOf === null || message.resendOf === '') {
+			return null;
+		}
+		const original = await this.findByPk(message.resendOf, {
+			attributes: ['id', 'user', 'prisoner', 'status'],
+			hooks: false
+		});
+		const same =
+			original &&
+			String(original.user) === String(message.user) &&
+			String(original.prisoner) === String(message.prisoner);
+		if (!same || original.status !== RETURNED) {
+			throw new ValidationError(
+				"resendOf must be one of this writer's returned letters to the same prisoner."
+			);
+		}
+		return original.id;
 	}
 
 	/** One message with its relay group, status history, and attachments embedded. */
@@ -332,6 +407,8 @@ export default class Message extends Model {
 			include: [
 				{ model: MessageStatus, as: 'status_history' },
 				{ model: Attachment, as: 'attachments' },
+				// For a returned letter: what was sent in its place, if anything.
+				{ association: 'resent_as', attributes: ['id', 'status', 'createdAt'] },
 				relayGroupSummary(publishedOnly)
 			],
 			order: [

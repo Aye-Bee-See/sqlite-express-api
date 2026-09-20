@@ -67,9 +67,10 @@ export function createApp() {
 	// Every JSON body is parsed here at the default 100 KB, except a key rotation's:
 	// its route parses it, with a larger limit, once the caller is authenticated.
 	const json = bodyParser.json();
-	app.use((req, res, next) =>
-		req.method === 'POST' && req.path === ROTATION_PATH ? next() : json(req, res, next)
-	);
+	// Compared as the router will match it: Express ignores case and a trailing slash.
+	const isRotation = (req) =>
+		req.method === 'POST' && req.path.replace(/\/+$/, '').toLowerCase() === ROTATION_PATH;
+	app.use((req, res, next) => (isRotation(req) ? next() : json(req, res, next)));
 	app.use(bodyParser.urlencoded({ extended: true }));
 	app.use(singleIds);
 	app.use(passport.initialize());

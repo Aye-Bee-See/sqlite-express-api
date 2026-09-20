@@ -1,3 +1,5 @@
+import { repairedSql, rebuildTable, raiseSequence } from '../migration-helpers.js';
+
 /**
  * Put back what table rebuilds took away from `Messages` and `Prisons`.
  *
@@ -17,56 +19,45 @@
  * No rows were lost: those migrations ran with foreign keys off. This one
  * rebuilds the two tables from their own CREATE TABLE text with the rules put
  * back, keeps every row and index, and checks the foreign keys before it
- * commits. New migrations drop columns with dropColumn() (migration-helpers.js),
- * which does not rebuild anything.
+ * commits. It is for databases that were damaged before withForeignKeysOff()
+ * learned to restore what a rebuild costs; on a new database it finds nothing
+ * to do.
  */
 
 const REPAIRS = {
 	Messages: {
-		chat: 'RESTRICT',
-		prisoner: 'RESTRICT',
-		user: 'RESTRICT',
-		relayChapter: 'SET NULL',
-		statusChangedBy: 'SET NULL'
+		rules: {
+			chat: { onDelete: 'RESTRICT' },
+			prisoner: { onDelete: 'RESTRICT' },
+			user: { onDelete: 'RESTRICT' },
+			relayChapter: { onDelete: 'SET NULL' },
+			statusChangedBy: { onDelete: 'SET NULL' }
+		},
+		// Where an id of this table may still be written down after its row is gone.
+		// The new counter starts above all of them: a database whose newest letters
+		// (or all of them) were deleted must not hand their ids out again.
+		remembered: [
+			"SELECT MAX(`resourceId`) AS top FROM `IdempotencyKeys` WHERE `scope` = 'message'",
+			'SELECT MAX(`message`) AS top FROM `Notifications`',
+			"SELECT MAX(`targetId`) AS top FROM `AuditLogs` WHERE `resource` = 'message'"
+		]
 	},
-	Prisons: { verifiedBy: 'SET NULL' }
+	Prisons: {
+		rules: { verifiedBy: { onDelete: 'SET NULL' } },
+		remembered: [
+			"SELECT MAX(`targetId`) AS top FROM `AuditLogs` WHERE `resource` = 'prison'",
+			"SELECT MAX(`targetId`) AS top FROM `Submissions` WHERE `resource` = 'prison'"
+		]
+	}
 };
 
-/** The CREATE TABLE text with AUTOINCREMENT and the delete rules restored; null when nothing is missing. */
-export function repairedSql(sql, rules) {
-	let out = sql.replace(/(`id` INTEGER PRIMARY KEY)(?! AUTOINCREMENT)/, '$1 AUTOINCREMENT');
-	for (const [column, onDelete] of Object.entries(rules)) {
-		const bare = new RegExp('(`' + column + '` [^,]*?REFERENCES `\\w+` \\(`id`\\))(?! ON DELETE)');
-		out = out.replace(bare, '$1 ON DELETE ' + onDelete + ' ON UPDATE CASCADE');
+async function highWaterMark(sequelize, queries) {
+	let top = 0;
+	for (const sql of queries) {
+		const [[row]] = await sequelize.query(sql);
+		top = Math.max(top, Number(row.top) || 0);
 	}
-	return out === sql ? null : out;
-}
-
-async function repair(sequelize, table, rules) {
-	const [[found]] = await sequelize.query(
-		"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = :table",
-		{ replacements: { table } }
-	);
-	const fixed = found ? repairedSql(found.sql, rules) : null;
-	if (!fixed) {
-		return;
-	}
-	const [indexes] = await sequelize.query(
-		"SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = :table AND sql IS NOT NULL",
-		{ replacements: { table } }
-	);
-	const spare = table + '_repaired';
-	await sequelize.query('DROP TABLE IF EXISTS `' + spare + '`');
-	await sequelize.query(
-		fixed.replace('CREATE TABLE `' + table + '`', 'CREATE TABLE `' + spare + '`')
-	);
-	// Same columns in the same order: the new table was made from the old one's own text.
-	await sequelize.query('INSERT INTO `' + spare + '` SELECT * FROM `' + table + '`');
-	await sequelize.query('DROP TABLE `' + table + '`');
-	await sequelize.query('ALTER TABLE `' + spare + '` RENAME TO `' + table + '`');
-	for (const index of indexes) {
-		await sequelize.query(index.sql);
-	}
+	return top;
 }
 
 export async function up({ context: queryInterface }) {
@@ -80,9 +71,25 @@ export async function up({ context: queryInterface }) {
 			// Rows that pointed at nothing before are not this migration's to judge (and
 			// must not stop a server from starting); it only must not add any.
 			const [before] = await sequelize.query('PRAGMA foreign_key_check');
-			for (const [table, rules] of Object.entries(REPAIRS)) {
-				await repair(sequelize, table, rules);
+			for (const [table, { rules, remembered }] of Object.entries(REPAIRS)) {
+				const [[found]] = await sequelize.query(
+					"SELECT sql FROM sqlite_master WHERE type = 'table' AND name = :table",
+					{ replacements: { table } }
+				);
+				const fixed = found ? repairedSql(found.sql, { rules }) : null;
+				if (fixed) {
+					await rebuildTable(sequelize, table, fixed);
+				}
+				if (found) {
+					await raiseSequence(sequelize, table, await highWaterMark(sequelize, remembered));
+				}
 			}
+			// Two names for one index. `messages_relay_chapter_status` (letter-lifecycle)
+			// was lost to a rebuild on every database that existed then;
+			// `messages_relay_status` (hot-path-indexes) is the same columns and is the one
+			// every database has. A new database, where rebuilds now keep indexes, would
+			// carry both.
+			await sequelize.query('DROP INDEX IF EXISTS `messages_relay_chapter_status`');
 			const [after] = await sequelize.query('PRAGMA foreign_key_check');
 			if (after.length > before.length) {
 				throw new Error(

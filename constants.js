@@ -99,7 +99,9 @@ export const retentionMaxDays = envDays(RETENTION_MAX_DAYS, null, { min: 1 });
  * caller is authenticated.
  */
 export const rotationMaxBytes =
-	process.env.ROTATION_MAX_BYTES && Number(process.env.ROTATION_MAX_BYTES) > 0
+	// A whole number of bytes: "1e309" is Infinity, which would mean no limit at all.
+	Number.isSafeInteger(Number(process.env.ROTATION_MAX_BYTES)) &&
+	Number(process.env.ROTATION_MAX_BYTES) > 0
 		? Number(process.env.ROTATION_MAX_BYTES)
 		: 32 * 1024 * 1024;
 

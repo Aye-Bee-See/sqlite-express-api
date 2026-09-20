@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { withForeignKeysOff } from '../migration-helpers.js';
 
 /**
  * Group network fields: what a group does in the mail flow (networkRole) and
@@ -21,6 +22,9 @@ export async function up({ context: queryInterface }) {
 }
 
 export async function down({ context: queryInterface }) {
-	await queryInterface.removeColumn('Chapters', 'accountStatus');
-	await queryInterface.removeColumn('Chapters', 'networkRole');
+	// removeColumn rebuilds the table: see withForeignKeysOff.
+	await withForeignKeysOff(queryInterface, async () => {
+		await queryInterface.removeColumn('Chapters', 'accountStatus');
+		await queryInterface.removeColumn('Chapters', 'networkRole');
+	});
 }

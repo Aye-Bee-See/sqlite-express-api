@@ -1,4 +1,4 @@
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import { sequelize } from './connection.js';
 import * as Models from '#models/all.model.js';
 import { retentionDefaultDays, retentionMaxDays } from '#constants';
@@ -70,6 +70,20 @@ async function shortestWindow(User) {
 	return windows.length === 0 ? null : Math.min(...windows);
 }
 
+/**
+ * Writers who chose "for ever" (0), when no site maximum overrides them: their
+ * letters are never due, so they are not read at all.
+ */
+function keptForEver() {
+	if (retentionMaxDays !== null) {
+		return {};
+	}
+	// A subquery, not a list of ids: there may be many such writers.
+	return {
+		user: { [Op.notIn]: literal('(SELECT `id` FROM `User` WHERE `retentionDays` = 0)') }
+	};
+}
+
 let running = null;
 
 export async function runRetention(options = {}) {
@@ -97,6 +111,7 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 					where: {
 						status: ['mailed', 'received'],
 						keep: false,
+						...keptForEver(),
 						[Op.or]: [
 							{ statusChangedAt: { [Op.lte]: cutoff } },
 							{ statusChangedAt: null, createdAt: { [Op.lte]: cutoff } }

@@ -5,11 +5,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { connect } from 'node:net';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 /** Start the real server as a child process; resolves when it exits. */
-function boot(env, { stopAfter } = {}) {
+function boot(env, { stopAfter, onPort } = {}) {
 	return new Promise((resolve, reject) => {
 		const child = spawn(process.execPath, ['index.js'], {
 			cwd: root,
@@ -27,6 +28,11 @@ function boot(env, { stopAfter } = {}) {
 		let output = '';
 		child.stdout.on('data', (chunk) => {
 			output += chunk;
+			const port = onPort && /running on port: (\d+)/.exec(output);
+			if (port) {
+				onPort(Number(port[1]));
+				onPort = null;
+			}
 			if (stopAfter && output.includes(stopAfter)) {
 				stopAfter = null;
 				child.kill('SIGTERM');
@@ -70,6 +76,33 @@ test('SIGTERM lets the server finish and leave cleanly', async () => {
 		assert.equal(code, 0, output);
 		assert.match(output, /SIGTERM received/);
 	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('a failed boot stops even while a request is still open', async () => {
+	// Connections are accepted before the database is ready. One that never ends
+	// must not keep alive a server that has no database.
+	const dir = mkdtempSync(join(tmpdir(), 'abc-boot-'));
+	writeFileSync(join(dir, 'not-a-directory'), '');
+	const sockets = [];
+	try {
+		const { code, output } = await boot(
+			{ DB_STORAGE: join(dir, 'not-a-directory', 'database.sqlite'), PORT: '0' },
+			{
+				onPort: (port) => {
+					// Half a request: headers begun, never finished.
+					const socket = connect(port, '127.0.0.1', () =>
+						socket.write('POST /auth/login HTTP/1.1\r\nHost: x\r\nContent-Length: 100\r\n\r\n{')
+					);
+					socket.on('error', () => {});
+					sockets.push(socket);
+				}
+			}
+		);
+		assert.equal(code, 1, output);
+	} finally {
+		sockets.forEach((socket) => socket.destroy());
 		rmSync(dir, { recursive: true, force: true });
 	}
 });

@@ -13,6 +13,24 @@ const server = app.listen(sysPort, function () {
 	console.log('Express is running on port: ' + server.address().port);
 });
 
+/**
+ * Stop taking connections, let open requests finish, and leave with `code`; after
+ * SHUTDOWN_GRACE_MS leave anyway. A request that never ends must not keep a
+ * server alive that was told to stop, or that has no database.
+ */
+let stopping = false;
+function shutdown(code) {
+	if (stopping) {
+		return;
+	}
+	stopping = true;
+	process.exitCode = code;
+	server.close(() => process.exit(code));
+	// Idle keep-alive connections would hold the server open. (Node 18.2 and later.)
+	server.closeIdleConnections?.();
+	setTimeout(() => process.exit(code), SHUTDOWN_GRACE_MS).unref();
+}
+
 ready.then(
 	() => {
 		console.log('Ready to serve requests.');
@@ -22,24 +40,15 @@ ready.then(
 		// database must not stay up answering 503 for ever: stop, so whatever runs
 		// it (systemd, a container, a person) notices.
 		console.error('Stopping: the database could not be prepared.');
-		process.exitCode = 1;
-		server.close();
+		shutdown(1);
 	}
 );
 
 // Finish the requests in flight, then leave: a deploy or a restart should not cut
 // a letter off half written.
-let stopping = false;
 for (const signal of ['SIGTERM', 'SIGINT']) {
 	process.on(signal, () => {
-		if (stopping) {
-			return;
-		}
-		stopping = true;
 		console.log(signal + ' received: finishing open requests.');
-		server.close(() => process.exit(0));
-		// Idle keep-alive connections would hold the server open.
-		server.closeIdleConnections();
-		setTimeout(() => process.exit(0), SHUTDOWN_GRACE_MS).unref();
+		shutdown(0);
 	});
 }

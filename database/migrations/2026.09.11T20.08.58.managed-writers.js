@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { withForeignKeysOff } from '../migration-helpers.js';
 
 /**
  * Managed writers: accounts a support group creates for people who write
@@ -47,7 +48,10 @@ export async function down({ context: queryInterface }) {
 	await queryInterface.dropTable('ClaimTokens');
 	await queryInterface.removeIndex('User', 'user_managed_by');
 	await queryInterface.removeIndex('User', 'user_anonymous_for_chapter_unique');
-	for (const name of Object.keys(USER_COLUMNS).reverse()) {
-		await queryInterface.removeColumn('User', name);
-	}
+	// removeColumn rebuilds the table: see withForeignKeysOff.
+	await withForeignKeysOff(queryInterface, async () => {
+		for (const name of Object.keys(USER_COLUMNS).reverse()) {
+			await queryInterface.removeColumn('User', name);
+		}
+	});
 }

@@ -618,3 +618,13 @@ test('a rotation body may be far larger than other JSON bodies, and only for a c
 	const list = await post('/auth/chapter-rotation', { chapter: [f.group.id], padding }, first);
 	assert.equal(list.status, 400);
 });
+
+test('the larger limit follows the route however its path is written', async () => {
+	// Express matches these too; the app-wide 100 KB parser must not get to them first.
+	const padding = 'x'.repeat(300 * 1024);
+	for (const path of ['/auth/chapter-rotation/', '/AUTH/Chapter-Rotation']) {
+		const res = await post(path, { chapter: f.group.id, padding }, first);
+		assert.notEqual(res.status, 413, path);
+		assert.ok(res.status >= 400 && res.status < 500, path + ' ' + res.status);
+	}
+});

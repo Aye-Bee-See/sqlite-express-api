@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { withForeignKeysOff } from '../migration-helpers.js';
 
 /**
  * Directory fields for the public site: prisoner profile details,
@@ -111,9 +112,12 @@ export async function up({ context: queryInterface }) {
 export async function down({ context: queryInterface }) {
 	await queryInterface.dropTable('PrisonRelay');
 	await queryInterface.dropTable('PrisonerSupport');
-	for (const [table, columns] of [...ADDITIONS].reverse()) {
-		for (const name of Object.keys(columns).reverse()) {
-			await queryInterface.removeColumn(table, name);
+	// removeColumn rebuilds the table: see withForeignKeysOff.
+	await withForeignKeysOff(queryInterface, async () => {
+		for (const [table, columns] of [...ADDITIONS].reverse()) {
+			for (const name of Object.keys(columns).reverse()) {
+				await queryInterface.removeColumn(table, name);
+			}
 		}
-	}
+	});
 }

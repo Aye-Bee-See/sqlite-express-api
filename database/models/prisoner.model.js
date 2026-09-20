@@ -1,4 +1,4 @@
-import { Model } from 'sequelize';
+import { Model, Op, literal } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
@@ -10,6 +10,10 @@ import PrisonerSupport from '#models/prisoner-support.model.js';
 import modelsService from '#models/models.service.js';
 import { NotFoundError } from '#services/HttpError.js';
 import { publishedWhere, PUBLISHED } from '#db/record-status.js';
+import { ADDRESS_RETURN_REASONS } from '#db/letter-status.js';
+
+/** How long a returned letter keeps a prisoner's address in doubt. */
+export const ADDRESS_DOUBT_DAYS = 60;
 
 /** Fields a client may set on create. Everything else is derived or managed. */
 export const PRISONER_FIELDS = [
@@ -80,6 +84,34 @@ export default class Prisoner extends Model {
 			onDelete: 'RESTRICT',
 			onUpdate: 'CASCADE'
 		});
+	}
+
+	/**
+	 * Prisoners whose address the post has put in doubt: a letter to them came
+	 * back as transferred, released, or undeliverable within the last
+	 * ADDRESS_DOUBT_DAYS, and nobody has edited the record since. Editing the
+	 * record (a new facility, or just confirming it) clears it.
+	 */
+	static addressInDoubtWhere(now = new Date()) {
+		const cutoff = new Date(now.getTime() - ADDRESS_DOUBT_DAYS * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.replace('T', ' ')
+			.replace('Z', ' +00:00');
+		const reasons = ADDRESS_RETURN_REASONS.map((reason) => "'" + reason + "'").join(', ');
+		return {
+			id: {
+				[Op.in]: literal(
+					'(SELECT `m`.`prisoner` FROM `Messages` AS `m` ' +
+						'JOIN `MessageStatuses` AS `s` ON `s`.`message` = `m`.`id` ' +
+						"WHERE `s`.`toStatus` = 'returned' AND `s`.`reason` IN (" +
+						reasons +
+						') ' +
+						'AND `s`.`createdAt` >= ' +
+						this.sequelize.escape(cutoff) +
+						' AND `s`.`createdAt` > `Prisoner`.`updatedAt`)'
+				)
+			}
+		};
 	}
 
 	/** Attribute selection for non-staff readers. */

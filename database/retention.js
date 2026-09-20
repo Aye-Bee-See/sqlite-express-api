@@ -3,6 +3,7 @@ import { sequelize } from './connection.js';
 import * as Models from '#models/all.model.js';
 import { retentionDefaultDays, retentionMaxDays } from '#constants';
 import { removeFile } from '#services/files.js';
+import { SETTLED_STATUSES } from '#db/letter-status.js';
 
 /**
  * Delete letters and replies that have outlived their writer's retention
@@ -42,7 +43,7 @@ export async function purgeIfUnpinned(messageId) {
 		attributes: ['id', 'storedName']
 	});
 	const deleted = await Message.destroy({
-		where: { id: messageId, keep: false, status: ['mailed', 'received'] },
+		where: { id: messageId, keep: false, status: SETTLED_STATUSES },
 		force: true
 	});
 	if (deleted === 0) {
@@ -109,7 +110,7 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 			? []
 			: await Message.findAll({
 					where: {
-						status: ['mailed', 'received'],
+						status: SETTLED_STATUSES,
 						keep: false,
 						...keptForEver(),
 						[Op.or]: [

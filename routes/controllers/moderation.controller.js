@@ -337,6 +337,11 @@ export default class ModerationController extends RouteController {
 					prisoner: await Prisoner.count({ where: staleVerificationWhere() }),
 					prison: await Prison.count({ where: staleVerificationWhere() })
 				},
+				// Prisoners whose mail came back as transferred, released, or undeliverable,
+				// and whose record nobody has touched since (GET /prisoner/prisoners?addressInDoubt=true).
+				addressInDoubt: {
+					prisoner: await Prisoner.count({ where: Prisoner.addressInDoubtWhere() })
+				},
 				resources: Object.fromEntries(
 					Object.entries(RESOURCES).map(([name, spec]) => [name, { submittable: spec.submittable }])
 				)

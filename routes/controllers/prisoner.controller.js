@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import Prisoner from '#models/prisoner.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
@@ -57,6 +58,11 @@ export default class PrisonerController extends RouteController {
 		const { prison, full, page, page_size } = req.query;
 		const limits = this.#handleLimits(page, page_size);
 		const { publishedOnly, where, order } = readOptions(req, READ_CONFIG);
+		if (req.query.addressInDoubt === 'true' && !publishedOnly) {
+			// Staff only (ignored for everyone else, like recordStatus): that somebody's
+			// mail came back is not for the public directory.
+			where[Op.and] = [...(where[Op.and] || []), Prisoner.addressInDoubtWhere()];
+		}
 		const options = {
 			full: full === 'true',
 			limit: limits.limit,

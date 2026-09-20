@@ -138,7 +138,7 @@ Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and 
 
 ### Retention
 
-Letters do not stay forever. Once a letter has been `mailed` (or a prisoner reply recorded) for longer than the writer's window, the API deletes it, with its attachments, envelopes, and status history, and removes a chat left empty. Queued and printed letters are never touched, and neither is a letter the writer pinned with `keep: true`. Every run that deletes something writes one `retention.run` entry to the audit log with the counts, then compacts the database file so the deleted pages do not linger.
+Letters do not stay forever. Once a letter has been `mailed` or `returned` (or a prisoner reply recorded) for longer than the writer's window, the API deletes it, with its attachments, envelopes, and status history, and removes a chat left empty. Queued and printed letters are never touched, and neither is a letter the writer pinned with `keep: true`. Every run that deletes something writes one `retention.run` entry to the audit log with the counts, then compacts the database file so the deleted pages do not linger.
 
 The window is per writer: `retentionDays` on the account, else `RETENTION_DEFAULT_DAYS` (90). `0` means forever. `RETENTION_MAX_DAYS`, when set, caps every choice including forever. A writer's window covers the prisoner replies in their threads, since they sit in the writer's account. A managing group sets the window for its unclaimed managed writers and for its anonymous writer through `PUT /auth/user`, the same way it edits their names. `GET /messaging/retention` tells a client the default, the cap, and the caller's effective window.
 
@@ -541,24 +541,25 @@ All list endpoints are paginated, including `GET /chapter/chapters`.
 
 Directory lists accept these in addition to `page` and `page_size`:
 
-| Parameter       | Where                                       | Effect                                                                                                                                                                                          |
-| --------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `q`             | prisons, prisoners, chapters, users (admin) | Case-insensitive substring match. Prisons match `prisonName`; prisoners match `birthName` or `chosenName`; chapters match `name`; users match `username`, `email`, or `name`. Blank is ignored. |
-| `sort`          | prisons, prisoners, chapters                | `name` (alphabetical: prison name, prisoner chosen then birth name, chapter name), `newest`, or `oldest`. Default is ascending id.                                                              |
-| `status`        | prisoners                                   | `pretrial`, `incarcerated`, or `free`.                                                                                                                                                          |
-| `country`       | prisoners, prisons, chapters                | Exact match on the `country` field.                                                                                                                                                             |
-| `featured`      | prisoners                                   | `true` or `false`.                                                                                                                                                                              |
-| `routing`       | prisons                                     | `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                                                      |
-| `stale`         | prisoners, prisons                          | `true`: records never verified, or verified more than six months ago (`verifiedAt`). For re-verification worklists.                                                                             |
-| `service`       | chapters                                    | One service key (see [Chapter fields](#chapter-fields)); matches groups whose `services` include it.                                                                                            |
-| `networkRole`   | chapters                                    | `collecting` or `relay`; groups marked `both` match either.                                                                                                                                     |
-| `accountStatus` | chapters                                    | `pending`, `active`, or `suspended`.                                                                                                                                                            |
-| `relay`         | prisons                                     | `true`: facilities with at least one active relay group; `false`: facilities with none.                                                                                                         |
-| `mailRule`      | prisons                                     | One tag from the [master list of mail rules](#mail-rules): facilities carrying it. A tag that is not on the list matches nothing; anything not shaped like a tag is a `400`.                    |
-| `language`      | prisons                                     | A two-letter ISO 639-1 code: facilities that accept mail in that language, which includes every facility with no language restriction.                                                          |
-| `prison`        | prisoners                                   | Only records attached to that prison.                                                                                                                                                           |
-| `recordStatus`  | prisons, prisoners, chapters (staff only)   | See below.                                                                                                                                                                                      |
-| `role`          | users (admin)                               | One role.                                                                                                                                                                                       |
+| Parameter        | Where                                       | Effect                                                                                                                                                                                          |
+| ---------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `q`              | prisons, prisoners, chapters, users (admin) | Case-insensitive substring match. Prisons match `prisonName`; prisoners match `birthName` or `chosenName`; chapters match `name`; users match `username`, `email`, or `name`. Blank is ignored. |
+| `sort`           | prisons, prisoners, chapters                | `name` (alphabetical: prison name, prisoner chosen then birth name, chapter name), `newest`, or `oldest`. Default is ascending id.                                                              |
+| `status`         | prisoners                                   | `pretrial`, `incarcerated`, or `free`.                                                                                                                                                          |
+| `country`        | prisoners, prisons, chapters                | Exact match on the `country` field.                                                                                                                                                             |
+| `featured`       | prisoners                                   | `true` or `false`.                                                                                                                                                                              |
+| `routing`        | prisons                                     | `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                                                      |
+| `stale`          | prisoners, prisons                          | `true`: records never verified, or verified more than six months ago (`verifiedAt`). For re-verification worklists.                                                                             |
+| `addressInDoubt` | prisoners (staff only; ignored for others)  | `true`: a letter came back as transferred, released, or undeliverable in the last 60 days and the record has not been edited since.                                                             |
+| `service`        | chapters                                    | One service key (see [Chapter fields](#chapter-fields)); matches groups whose `services` include it.                                                                                            |
+| `networkRole`    | chapters                                    | `collecting` or `relay`; groups marked `both` match either.                                                                                                                                     |
+| `accountStatus`  | chapters                                    | `pending`, `active`, or `suspended`.                                                                                                                                                            |
+| `relay`          | prisons                                     | `true`: facilities with at least one active relay group; `false`: facilities with none.                                                                                                         |
+| `mailRule`       | prisons                                     | One tag from the [master list of mail rules](#mail-rules): facilities carrying it. A tag that is not on the list matches nothing; anything not shaped like a tag is a `400`.                    |
+| `language`       | prisons                                     | A two-letter ISO 639-1 code: facilities that accept mail in that language, which includes every facility with no language restriction.                                                          |
+| `prison`         | prisoners                                   | Only records attached to that prison.                                                                                                                                                           |
+| `recordStatus`   | prisons, prisoners, chapters (staff only)   | See below.                                                                                                                                                                                      |
+| `role`           | users (admin)                               | One role.                                                                                                                                                                                       |
 
 Parameters combine, `total` reflects the filtered result, and every invalid value is reported together in one validation error:
 
@@ -1578,16 +1579,34 @@ The scope is the same as for chats: own messages for a `user`; the group's manag
 
 Every message carries a `status`:
 
-| Status     | Meaning                                             | Set by                                                 |
-| ---------- | --------------------------------------------------- | ------------------------------------------------------ |
-| `queued`   | Written, waiting for the relay group to print it    | The server, on every new letter (`sender: user`)       |
-| `printed`  | Printed by the relay group                          | `PUT /messaging/status` by the relay group or an admin |
-| `mailed`   | In the post                                         | Same, from `printed` only                              |
-| `received` | A prisoner reply, transcribed or scanned by a group | The server, on every reply (`sender: prisoner`)        |
+| Status     | Meaning                                             | Set by                                                      |
+| ---------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| `queued`   | Written, waiting for the relay group to print it    | The server, on every new letter (`sender: user`)            |
+| `printed`  | Printed by the relay group                          | `PUT /messaging/status` by the relay group or an admin      |
+| `mailed`   | In the post                                         | Same, from `printed` only                                   |
+| `received` | A prisoner reply, transcribed or scanned by a group | The server, on every reply (`sender: prisoner`)             |
+| `returned` | The post brought it back. Carries `returnReason`    | `PUT /messaging/status` with a `reason`, from `mailed` only |
 
-Moves are forward only: `queued` to `printed` to `mailed`. Anything else, including moving a reply, is a `409` with `"name": "LetterStatusError"`. Every change is recorded: `statusChangedAt` and `statusChangedBy` on the message, and a history you can read with `full=true` on `GET /messaging/message`.
+Moves are forward only: `queued` to `printed` to `mailed`, and from `mailed` to `returned` if the letter comes back. Anything else, including moving a reply, is a `409` with `"name": "LetterStatusError"`. Every change is recorded: `statusChangedAt` and `statusChangedBy` on the message, and a history you can read with `full=true` on `GET /messaging/message`.
 
 While a letter is `queued` its writer may still edit or delete it. Once printed, only an admin can. Replies stay editable by whoever can see them.
+
+**Returned mail.** Prison mail comes back: refused, the person was moved or released, the address was wrong. The relay group (or an admin) records it with `PUT /messaging/status {"id": 41, "status": "returned", "reason": "transferred", "note": "Stamped NOT HERE"}`. `reason` is required and one of:
+
+| `reason`         | Meaning                                               |
+| ---------------- | ----------------------------------------------------- |
+| `refused`        | The mail room would not pass it on, and named no rule |
+| `rule_violation` | It broke one of the facility's mail rules             |
+| `transferred`    | The person is held somewhere else now                 |
+| `released`       | The person is no longer held                          |
+| `bad_address`    | Undeliverable as addressed                            |
+| `unknown`        | It came back and nothing says why                     |
+
+These are codes for clients to word in the reader's language. `note` is optional, at most 200 characters, shown to the writer, and **not encrypted in any mode**: say what the envelope said, nothing about what the letter said. The letter then carries `returnReason`, its history row carries `reason` and `note`, the writer gets a `letter.status` notification with `{ "status": "returned", "reason": "transferred" }`, and `GET /messaging/messages?status=returned` lists such letters. A returned letter is a record like a mailed one (only `keep` can change, only an admin deletes it) and retention removes it after the writer's window, counted from the day it came back.
+
+**Sending it again.** There is no copy button on the server (in end-to-end mode it could not read the letter to copy it): the client sends a new letter with `"resendOf": 41`. That must be one of the same writer's `returned` letters to the same prisoner, or the request is a `400`. The new letter is routed afresh, so it goes wherever the directory now says the person is. Read with `full=true`, the returned letter lists what replaced it under `resent_as` (`id`, `status`, `createdAt`).
+
+**What returns tell the directory.** A return for `transferred`, `released`, or `bad_address` within the last 60 days, on a prisoner whose record nobody has edited since, puts that address in doubt: staff list such records with `GET /prisoner/prisoners?addressInDoubt=true`, and the moderation summary counts them (`addressInDoubt.prisoner`). Editing the record, to correct it or just to confirm it, answers the doubt. Nothing changes by itself, and the public never sees this (the parameter is ignored for them).
 
 **Relay group.** `relayChapter` names the group that prints and mails the letter. It must be one of the facility's relay groups (see [PUT /prison/relay](#put-prisonrelay-and-delete-prisonrelay)). When the body omits it, the server picks one:
 
@@ -1614,6 +1633,8 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 | `relayNote`                             | string   | Optional instructions for the relay group (page count, language, "include the photo"). Never part of the letter.                                                                                                         |
 | `statusChangedAt`, `statusChangedBy`    |          | Read-only. When the status last changed and which account changed it.                                                                                                                                                    |
 | `keep`                                  | boolean  | Pinned: exempt from retention. The only field a writer may change on a mailed letter.                                                                                                                                    |
+| `returnReason`                          | string   | Read-only. Why a `returned` letter came back; `null` otherwise. Set through `PUT /messaging/status`.                                                                                                                     |
+| `resendOf`                              | integer  | Optional, on create only: the id of the writer's `returned` letter to the same prisoner that this one replaces.                                                                                                          |
 | `prisoner`                              | integer  | Required. Id of the prisoner side.                                                                                                                                                                                       |
 
 #### POST /messaging/message
@@ -1726,7 +1747,7 @@ Body must include `id`; any of `messageText`, `user`, `prisoner`, `relayChapter`
 
 #### PUT /messaging/status
 
-Body: `{"id": 41, "status": "printed"}`. Allowed for admins and for `chapter` accounts whose group is the letter's `relayChapter`; anyone else gets a `403`. Returns the message with `relay_group` and `status_history` embedded (the `full=true` shape). A move the lifecycle does not allow is a `409`:
+Body: `{"id": 41, "status": "printed"}`, or `{"id": 41, "status": "returned", "reason": "refused", "note": "…"}` (see [Letter lifecycle](#letter-lifecycle); `reason` and `note` go with `returned` only, a `400` otherwise). Allowed for admins and for `chapter` accounts whose group is the letter's `relayChapter`; anyone else gets a `403`. Returns the message with `relay_group` and `status_history` embedded (the `full=true` shape). A move the lifecycle does not allow is a `409`:
 
 ```json
 {
@@ -1984,6 +2005,7 @@ Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest
 		"chapter": { "draft": 0, "pending": 0, "published": 1 }
 	},
 	"staleVerification": { "prisoner": 38, "prison": 52 },
+	"addressInDoubt": { "prisoner": 2 },
 	"resources": {
 		"prisoner": { "submittable": ["birthName", "..."] },
 		"prison": { "submittable": ["..."] },
@@ -1992,7 +2014,7 @@ Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest
 }
 ```
 
-`staleVerification` matches the `stale=true` list filter on prisoners and prisons. Not yet built: anonymous corrections from the public footer and site settings.
+`staleVerification` matches the `stale=true` list filter on prisoners and prisons; `addressInDoubt` matches `addressInDoubt=true` on prisoners ([returned mail](#letter-lifecycle)). Not yet built: anonymous corrections from the public footer and site settings.
 
 ### Push notifications
 
@@ -2071,12 +2093,12 @@ curl -s 'http://localhost:3000/auth/notifications?since=41' -H "Authorization: B
 
 `since` is the id of the newest entry the client already has; `unread=true` filters; `page` and `page_size` work as everywhere. Entries hold ids and states, never letter content. `PUT /auth/notifications/read` takes `{"ids": [42, 43]}`, `{"upTo": 43}`, or `{}` for everything, and answers `{ "marked": 2, "unread": 0 }`. Entries are kept for `NOTIFICATION_DAYS` (30), and an entry about a letter goes when the letter does (retention, deletion).
 
-| Event                | Who is told                                                             | `detail`                                         |
-| -------------------- | ----------------------------------------------------------------------- | ------------------------------------------------ |
-| `letter.reply`       | The writer, when a prisoner's reply is recorded on their thread         | none                                             |
-| `letter.status`      | The writer, when their letter is printed or mailed                      | `{ "status": "printed" }`                        |
-| `letter.queued`      | The members of the relay group, when a letter arrives for them to print | none                                             |
-| `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }` |
+| Event                | Who is told                                                             | `detail`                                                                                     |
+| -------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `letter.reply`       | The writer, when a prisoner's reply is recorded on their thread         | none                                                                                         |
+| `letter.status`      | The writer, when their letter is printed, mailed, or returned           | `{ "status": "printed" }`; for a return, `{ "status": "returned", "reason": "transferred" }` |
+| `letter.queued`      | The members of the relay group, when a letter arrives for them to print | none                                                                                         |
+| `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }`                                             |
 
 The account that did the thing is never told about it, and accounts nobody can sign in to (unclaimed and anonymous writers, banned accounts) are skipped.
 

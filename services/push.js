@@ -157,6 +157,11 @@ export function reset(name) {
 	}
 }
 
+/** One configured provider, or undefined. For the push:check command. */
+export function provider(name) {
+	return providers.get(name);
+}
+
 /** The providers that can send right now, for GET /health. */
 export function available() {
 	return [...providers.keys()];

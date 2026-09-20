@@ -494,6 +494,16 @@ test('a phone that changes hands between the event and the push does not ring fo
 	assert.deepEqual(sent, []);
 });
 
+test('the push:check command can reach a configured provider, and only a configured one', () => {
+	const stub = { name: 'fcm', send: async () => ({ ok: true, gone: false }) };
+	push.reset();
+	assert.equal(push.provider('fcm'), undefined);
+	push.use(stub);
+	assert.equal(push.provider('fcm'), stub);
+	assert.equal(push.provider('carrier-pigeon'), undefined);
+	push.reset();
+});
+
 test('a browser gets Web Push settings, not the Android block', async () => {
 	const web = push.fcmMessage({ platform: 'web', token: tokenFor('browser') }).message;
 	assert.deepEqual(web.data, { type: 'sync' });

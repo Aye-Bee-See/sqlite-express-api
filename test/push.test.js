@@ -494,6 +494,34 @@ test('a phone that changes hands between the event and the push does not ring fo
 	assert.deepEqual(sent, []);
 });
 
+test('the push:check command can reach a configured provider, and only a configured one', () => {
+	const stub = { name: 'fcm', send: async () => ({ ok: true, gone: false }) };
+	push.reset();
+	assert.equal(push.provider('fcm'), undefined);
+	push.use(stub);
+	assert.equal(push.provider('fcm'), stub);
+	assert.equal(push.provider('carrier-pigeon'), undefined);
+	push.reset();
+});
+
+test('push:check refuses a mistyped platform before sending anything', async () => {
+	const { spawnSync } = await import('node:child_process');
+	const run = (...args) =>
+		spawnSync(process.execPath, ['services/push-check.js', ...args], {
+			encoding: 'utf8',
+			// No .env and no key: if it got as far as sending, it would say "Not configured" and exit 1.
+			env: { ...process.env, DOTENV_CONFIG_PATH: '/dev/null', FCM_SERVICE_ACCOUNT_FILE: '' }
+		});
+	const typo = run('some-device-token', 'toaster');
+	assert.equal(typo.status, 2);
+	assert.match(typo.stdout, /Unknown platform "toaster"\. Use one of: android, ios, web\./);
+	for (const platform of ['android', 'ios', 'web']) {
+		const ok = run('some-device-token', platform);
+		assert.equal(ok.status, 1, platform);
+		assert.match(ok.stdout, /Not configured/, 'a known platform gets past the check');
+	}
+});
+
 test('a browser gets Web Push settings, not the Android block', async () => {
 	const web = push.fcmMessage({ platform: 'web', token: tokenFor('browser') }).message;
 	assert.deepEqual(web.data, { type: 'sync' });

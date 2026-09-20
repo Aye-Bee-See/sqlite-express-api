@@ -2035,7 +2035,15 @@ The account that did the thing is never told about it, and accounts nobody can s
 
 #### Turning it on
 
-Create a Firebase project, add the Android (and later iOS) app to it, and download a **service-account key** (Project settings, Service accounts, Generate new private key). Put the JSON file somewhere outside the repository and point `FCM_SERVICE_ACCOUNT_FILE` at it. The boot log says `Push: FCM ready for project …`, and `GET /health` shows `"push": ["fcm"]`. A missing or broken file, including a private key that cannot sign, is reported at boot and the API runs on without push. For iOS, upload an APNs authentication key to the same Firebase project; nothing changes in the API.
+Create a Firebase project, add the Android (and later iOS) app to it, and download a **service-account key** (Project settings, Service accounts, Generate new private key). Put the JSON file somewhere outside the repository and point `FCM_SERVICE_ACCOUNT_FILE` at it. The boot log says `Push: FCM ready for project …`, and `GET /health` shows `"push": ["fcm"]`. A missing or broken file, including a private key that cannot sign, is reported at boot and the API runs on without push.
+
+Then ask Google whether it accepts the key, without needing a phone:
+
+```bash
+npm run push:check
+```
+
+It sends one message to a deliberately fake device token. The good answer is `OK. Google accepted the credentials and the request, and refused the fake token`: Google can only say the token is invalid after accepting the service account and understanding the request, and nothing is delivered to anyone. A refusal names the cause (for example the Cloud Messaging API (V1) not being enabled). To ring a real device, pass its registration token: `npm run push:check -- <token> [android|ios|web]`. An unknown platform is refused before anything is sent. For iOS, upload an APNs authentication key to the same Firebase project; nothing changes in the API.
 
 Phones without Google services cannot receive FCM. The sender takes pluggable providers (`services/push.js`), so an open one such as UnifiedPush can be added beside it; until then those devices rely on fetching the feed.
 

@@ -10,6 +10,9 @@ import { join } from 'node:path';
  * imported, because constants.js reads process.env at import time and dotenv
  * does not override variables that are already set.
  */
+// Tests never read the developer's .env (it may hold real keys, such as a Firebase
+// service account): point dotenv at nothing, then pin what the tests need.
+process.env.DOTENV_CONFIG_PATH = '/dev/null';
 process.env.JWT_SECRET = 'test-secret';
 process.env.DB_STORAGE = ':memory:';
 process.env.DB_RESET = 'true';

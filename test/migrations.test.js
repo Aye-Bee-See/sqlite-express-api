@@ -1,6 +1,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
+// Tests never read the developer's .env (it may hold real keys, such as a Firebase
+// service account): point dotenv at nothing, then pin what the tests need.
+process.env.DOTENV_CONFIG_PATH = '/dev/null';
 process.env.JWT_SECRET = 'test-secret';
 process.env.DB_STORAGE = ':memory:';
 process.env.DB_RESET = 'false';

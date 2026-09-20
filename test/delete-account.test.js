@@ -229,3 +229,23 @@ test('what a member did as staff stays, without their name on it', async () => {
 	const history = await MessageStatus.findAll({ where: { message: letter.id } });
 	assert.ok(history.length >= 2 && history.every((row) => row.changedBy !== member.id));
 });
+
+test('two admins leaving at the same moment: one goes, one is told to stay', async () => {
+	// Each would see "another admin exists" if the check and the delete were not one step.
+	for (const admin of await User.findAll({ where: { role: 'admin' } })) {
+		if (admin.id !== f.admin.id) {
+			await admin.destroy();
+		}
+	}
+	const other = await makeUser({ role: 'admin', username: 'admin3' });
+	const results = await Promise.all([
+		del('/auth/user', { id: f.admin.id, password: f.admin.password }, f.admin),
+		del('/auth/user', { id: other.id, password: other.password }, other)
+	]);
+	assert.deepEqual(
+		results.map((r) => r.status).sort(),
+		[200, 409],
+		JSON.stringify(results.map((r) => r.body))
+	);
+	assert.equal(await User.count({ where: { role: 'admin' } }), 1);
+});

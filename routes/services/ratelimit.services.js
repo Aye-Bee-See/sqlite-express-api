@@ -157,7 +157,12 @@ export const limiters = {
 		what: 'attempts to delete this account',
 		windowMs: minutes(rateLimits.loginWindowMinutes),
 		perSubject: rateLimits.loginFailuresPerUser,
-		subject: (req) => (req.user ? 'user-' + req.user.id : undefined),
+		// Only where a password is asked for: an admin or a group deleting somebody
+		// else is not guessing anything, and must not use up this budget.
+		subject: (req) =>
+			req.user && req.body && String(req.body.id) === String(req.user.id)
+				? 'user-' + req.user.id
+				: undefined,
 		failuresOnly: true
 	}),
 	claimCheck: limit({

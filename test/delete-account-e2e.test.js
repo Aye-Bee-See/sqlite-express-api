@@ -37,6 +37,7 @@ before(async () => {
 	second = {
 		token: account.token,
 		id: account.id,
+		password: account.password,
 		keys: client.accountKeys(account.password, 'R2')
 	};
 	assert.equal((await put('/auth/keys', second.keys.fields, second)).status, 200);
@@ -62,9 +63,17 @@ test("the last holder of a group's key cannot delete their account until someone
 	);
 	assert.equal(handed.status, 200, JSON.stringify(handed.body));
 
-	const gone = await del('/auth/user', { id: holder.id, password: holder.password }, holder);
-	assert.equal(gone.status, 200, JSON.stringify(gone.body));
-	assert.equal(await OrgMemberKey.count({ where: { userId: holder.id } }), 0);
+	// Now both hold it, and both leave at the same moment: each must not count the
+	// other as the one who stays.
+	const results = await Promise.all([
+		del('/auth/user', { id: holder.id, password: holder.password }, holder),
+		del('/auth/user', { id: second.id, password: second.password }, second)
+	]);
+	assert.deepEqual(
+		results.map((r) => r.status).sort(),
+		[200, 409],
+		JSON.stringify(results.map((r) => r.body))
+	);
 	assert.equal(
 		await OrgMemberKey.count({ where: { chapterId: f.group.id } }),
 		1,

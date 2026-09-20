@@ -497,11 +497,17 @@ export default class UserController extends RouteController {
 					return next(AuthzService.forbidden('The password is wrong; nothing was deleted.'));
 				}
 			}
-			const refusal = await eraseRefusal(target);
-			if (refusal) {
-				throw refusal;
-			}
-			const report = this.requireFound(await eraseAccount(target.id), 'User ' + id);
+			// The check and the delete are one step, under the lock every change of a
+			// group's key holders takes: two admins, or two key holders, leaving at the
+			// same moment must not each see the other as the one who stays. (Own queue
+			// first, the transaction queue inside eraseAccount second, as everywhere.)
+			const report = await withGroupKeyLock(async () => {
+				const refusal = await eraseRefusal(target);
+				if (refusal) {
+					throw refusal;
+				}
+				return this.requireFound(await eraseAccount(target.id), 'User ' + id);
+			});
 			// No name is kept. The actor is left out when people delete themselves: the
 			// row the entry would point at is gone.
 			await audit(self ? null : req, 'user.delete', 'user', target.id, {

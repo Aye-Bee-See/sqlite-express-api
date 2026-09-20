@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import Message from '#models/message.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
@@ -129,6 +130,12 @@ export default class MessageController extends RouteController {
 		}
 		if (query.relayChapter !== undefined) {
 			filters.relayChapter = query.relayChapter;
+		}
+		if (query.held !== undefined) {
+			if (!['true', 'false'].includes(query.held)) {
+				throw new ValidationError('held must be true or false.');
+			}
+			filters.heldReason = query.held === 'true' ? { [Op.ne]: null } : null;
 		}
 		return filters;
 	}
@@ -345,7 +352,7 @@ export default class MessageController extends RouteController {
 	 * lifecycle. Admins, or the group that relays the letter.
 	 */
 	async updateStatus(req, res, next) {
-		const { id, status, reason, note } = req.body;
+		const { id, status, reason, note, release } = req.body;
 		try {
 			const message = this.requireFound(await Message.getMessageByID(id), 'Message ' + id);
 			const chapterId = await AuthzService.activeChapterOf(req);
@@ -360,7 +367,11 @@ export default class MessageController extends RouteController {
 				);
 			}
 			const from = message.status;
-			const updated = await Message.changeStatus(message, status, req.user.id, { reason, note });
+			const updated = await Message.changeStatus(message, status, req.user.id, {
+				reason,
+				note,
+				release
+			});
 			await audit(req, 'letter.status', 'message', updated.id, {
 				from,
 				to: status,

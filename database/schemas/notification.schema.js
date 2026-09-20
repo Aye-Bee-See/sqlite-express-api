@@ -11,7 +11,10 @@ export const NOTIFICATION_EVENTS = [
 	'letter.reply',
 	'letter.status',
 	'letter.queued',
-	'submission.decided'
+	'submission.decided',
+	// Somebody you write to was moved to another facility, or their status changed (freed).
+	'prisoner.moved',
+	'prisoner.status'
 ];
 
 /** One entry of an account's feed. Holds ids and states, never letter content. */

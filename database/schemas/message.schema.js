@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { LETTER_STATUSES, RETURN_REASONS } from '#db/letter-status.js';
+import { LETTER_STATUSES, RETURN_REASONS, HELD_REASONS } from '#db/letter-status.js';
 
 const messageSchema = {
 	chat: {
@@ -103,6 +103,16 @@ const messageSchema = {
 			isIn: {
 				args: [RETURN_REASONS],
 				msg: 'reason must be one of ' + RETURN_REASONS.join(', ') + '.'
+			}
+		}
+	},
+	/** Why a queued letter is held (HELD_REASONS), set by the server when its prisoner is moved or freed; null otherwise. */
+	heldReason: {
+		type: DataTypes.STRING,
+		validate: {
+			isIn: {
+				args: [HELD_REASONS],
+				msg: 'heldReason must be one of ' + HELD_REASONS.join(', ') + '.'
 			}
 		}
 	},

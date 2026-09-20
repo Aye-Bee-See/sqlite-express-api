@@ -57,3 +57,12 @@ export const OPEN_STATUSES = [QUEUED, RECEIVED];
 export function isOpen(status) {
 	return OPEN_STATUSES.includes(status);
 }
+
+/**
+ * Why a queued letter is held (Messages.heldReason; null means it is not). The
+ * person it is for was moved or freed after it was written.
+ */
+export const HELD_PRISONER_FREE = 'prisoner_free'; // they are out: print it only on purpose
+export const HELD_CHOOSE_RELAY = 'choose_relay'; // moved, and the writer must pick who mails it now
+export const HELD_RESEAL = 'reseal_needed'; // moved (end-to-end mode): sealed to a group that no longer serves them
+export const HELD_REASONS = [HELD_PRISONER_FREE, HELD_CHOOSE_RELAY, HELD_RESEAL];

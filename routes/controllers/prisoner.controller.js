@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import Prisoner from '#models/prisoner.model.js';
 import RouteController from '#rtControllers/route.controller.js';
+import { watchPrisoner, afterPrisonerChange } from '#rtServices/prisoner-change.services.js';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { staleVerificationWhere } from '#db/record-status.js';
@@ -145,10 +146,14 @@ export default class PrisonerController extends RouteController {
 	async update(req, res) {
 		const newPrisoner = req.body;
 		try {
+			const before = await watchPrisoner(newPrisoner.id);
 			const updatedRows = await Prisoner.updatePrisoner(newPrisoner);
 			this.requireAffected(updatedRows, 'Prisoner ' + newPrisoner.id);
 			await audit(req, 'prisoner.update', 'prisoner', newPrisoner.id, { fields: newPrisoner });
-			this.#handleSuccess(res, { updatedRows, newPrisoner });
+			// Moved or freed: their writers are told, and queued letters re-routed or held.
+			const mail = await afterPrisonerChange(req, before);
+			const changed = mail && (mail.moved || mail.freed || mail.released > 0);
+			this.#handleSuccess(res, { updatedRows, newPrisoner, ...(changed ? { mail } : {}) });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

@@ -272,13 +272,14 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"id\": 42\n}",
+							"raw": "{\n  \"id\": 42,\n  \"password\": \"{{password}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
 								}
 							}
-						}
+						},
+						"description": "Deletes the account and every letter, reply, attachment and thread of the person. Your own account needs `password`; an admin deleting someone else, or a group deleting its unclaimed writer, does not. Cannot be undone."
 					},
 					"response": []
 				},

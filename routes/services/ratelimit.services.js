@@ -150,6 +150,16 @@ export const limiters = {
 		subject: (req) => req.body && req.body.username,
 		failuresOnly: true
 	}),
+	// Deleting your own account asks for the password again; a stolen token must
+	// not turn that into a place to guess it. Counted like failed sign-ins.
+	deleteAccount: limit({
+		name: 'delete-account',
+		what: 'attempts to delete this account',
+		windowMs: minutes(rateLimits.loginWindowMinutes),
+		perSubject: rateLimits.loginFailuresPerUser,
+		subject: (req) => (req.user ? 'user-' + req.user.id : undefined),
+		failuresOnly: true
+	}),
 	claimCheck: limit({
 		name: 'claim',
 		what: 'claim token checks',

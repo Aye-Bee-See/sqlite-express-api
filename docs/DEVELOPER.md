@@ -170,6 +170,7 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     ├── migration-helpers.js          withForeignKeysOff(): guards SQLite table rebuilds against cascading deletes. Separate from migrate.js to avoid a circular import.
     ├── letter-status.js              Letter lifecycle statuses and transitions.
     ├── rewrap-e2e.js                 `npm run encryption:rewrap`: seal server-held content keys to readers before switching to e2e.
+    ├── erase-account.js              eraseAccount(), eraseRefusal(): delete a person and everything they wrote or received.
     ├── retention.js                  runRetention(), purgeIfUnpinned(), windowFor(): purge mailed letters and replies past the writer's window.
     ├── retention-cli.js              `npm run retention [-- --dry-run]`: awaits `ready`, then runs the purge (separate file: sql-database.js imports retention.js).
     ├── migrations/                   <timestamp>.<name>.js files exporting up/down; applied ones recorded in SequelizeMeta.
@@ -691,6 +692,8 @@ Registered through `database/hooks/all.hooks.js`:
 ### Deletion semantics
 
 There is no `paranoid` mode; every `destroy` is a hard delete, and the foreign keys decide whether it is allowed. `Chat.deleteChat` deletes the chat's messages first, then the chat, which is why it succeeds where a raw delete would be refused.
+
+**Accounts.** `database/erase-account.js` deletes a person: `eraseAccount(id)` removes, in one transaction, their letters in batches (envelopes, history, attachment rows, and notifications about them cascade), their threads, any envelope sealed to them, and the row; files leave the disk after the commit. Everything else that points at `User` is either `CASCADE` (devices, notifications, claim tokens, idempotency keys, member keys) or `SET NULL` (what they did as staff), so a new table that references `User` must choose one of the two, never `RESTRICT`, or deleting an account breaks. `eraseRefusal(user)` holds the three cases that are refused (the only admin, the last holder of a group key, a group's anonymous account). The controller asks for the password when people delete themselves, behind `limiters.deleteAccount`, and writes the audit entry without an actor in that case (the row it would point at is gone).
 
 ## Seeds
 

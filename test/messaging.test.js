@@ -213,13 +213,13 @@ test('delete a message, then 404; delete a chat removes its messages', async () 
 	assert.deepEqual(left.body.data, []);
 });
 
-test('a user with chats cannot be deleted; chats full=true embeds messages and details', async () => {
-	const refused = await del('/auth/user', { id: f.alice.id }, admin);
-	assert.equal(refused.status, 400);
-	assert.equal(refused.body.name, 'SequelizeForeignKeyConstraintError');
-
+test('a prisoner with chats cannot be deleted; chats full=true embeds messages and details', async () => {
 	const full = await get('/chat/chats?user=' + f.alice.id + '&full=true', admin);
 	const chat = full.body.data[0];
+	// (A user with chats can: DELETE /auth/user takes their threads with them; see delete-account.test.js.)
+	const refused = await del('/prisoner/prisoner', { id: chat.prisoner }, admin);
+	assert.equal(refused.status, 400);
+	assert.equal(refused.body.name, 'SequelizeForeignKeyConstraintError');
 	assert.ok(Array.isArray(chat.messages) && chat.messages.length > 0);
 	assert.equal(chat.user_details.username, 'alice');
 	assert.equal(chat.user_details.password, undefined);

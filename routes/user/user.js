@@ -98,6 +98,7 @@ class UserRoutes {
 			userEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			AuthzService.requireSelfOrAdmin,
+			limiters.deleteAccount,
 			this.#Controller.remove
 		);
 	}

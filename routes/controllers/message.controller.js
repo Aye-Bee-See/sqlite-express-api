@@ -246,14 +246,11 @@ export default class MessageController extends RouteController {
 				envelopes: req.body.envelopes
 			});
 			if (idempotent) {
-				// It exists now, so the key is never freed from here on: a failure to
-				// record it must not let a retry make a second one. The client is told
-				// it was made, which is true, and has no reason to retry.
+				// It exists now, so the key is never freed from here on. complete() does
+				// not throw: it retries, and the client is told the truth either way.
 				const claim = idempotent;
 				idempotent = null;
-				await claim.complete(message.id).catch((err) => {
-					console.error('[idempotency] could not record message ' + message.id, err);
-				});
+				await claim.complete(message.id);
 			}
 			await this.#withEnvelopes([message], req, scope);
 			await this.#announce(req, message);
@@ -543,14 +540,11 @@ export default class MessageController extends RouteController {
 				nonce
 			});
 			if (idempotent) {
-				// It exists now, so the key is never freed from here on: a failure to
-				// record it must not let a retry make a second one. The client is told
-				// it was made, which is true, and has no reason to retry.
+				// It exists now, so the key is never freed from here on. complete() does
+				// not throw: it retries, and the client is told the truth either way.
 				const claim = idempotent;
 				idempotent = null;
-				await claim.complete(attachment.id).catch((err) => {
-					console.error('[idempotency] could not record attachment ' + attachment.id, err);
-				});
+				await claim.complete(attachment.id);
 			}
 			this.#handleSuccess(res, attachment);
 		} catch (err) {
@@ -629,7 +623,16 @@ export default class MessageController extends RouteController {
 			if (current && scope.kind !== 'all' && !isOpen(current.status)) {
 				throw AuthzService.forbidden('A ' + current.status + ' letter can no longer be deleted.');
 			}
-			const deletedRows = await Message.deleteMessage(id);
+			// The status is checked again by the DELETE itself: a letter the relay group
+			// marks printed after the look above is not deleted.
+			const openOnly = scope.kind !== 'all';
+			const deletedRows = await Message.deleteMessage(id, { openOnly });
+			if (deletedRows === 0 && openOnly && current) {
+				const now = await Message.getMessageByID(id);
+				if (now && !isOpen(now.status)) {
+					throw AuthzService.forbidden('A ' + now.status + ' letter can no longer be deleted.');
+				}
+			}
 			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Message ' + id));
 		} catch (err) {
 			this.#fail(res, next, err);

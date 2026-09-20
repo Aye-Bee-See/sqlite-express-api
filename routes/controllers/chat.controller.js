@@ -6,7 +6,6 @@ import { HttpError } from '#services/HttpError.js';
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
 import Message from '#models/message.model.js';
-import { PRINTED, MAILED } from '#db/letter-status.js';
 
 /**
  * Chat controller.
@@ -249,20 +248,16 @@ export default class ChatController extends RouteController {
 		const { id } = req.body;
 		try {
 			const scope = await threadScope(req);
-			const chat = await this.#loadOwned(scope, id);
-			if (chat && scope.kind !== 'all') {
-				const kept = await Message.count({
-					where: { chat: chat.id, status: [PRINTED, MAILED] }
-				});
-				if (kept > 0) {
-					// The same rule as DELETE /messaging/message: a letter that was printed or mailed is a record.
-					throw AuthzService.forbidden(
-						'This thread has letters that were already printed or mailed; it can no longer be deleted.'
-					);
-				}
+			await this.#loadOwned(scope, id);
+			// The same rule as DELETE /messaging/message: a printed or mailed letter is a
+			// record. The model checks it in the transaction that deletes.
+			const { deleted, kept } = await Chat.deleteChat(id, { openOnly: scope.kind !== 'all' });
+			if (kept > 0) {
+				throw AuthzService.forbidden(
+					'This thread has letters that were already printed or mailed; it can no longer be deleted.'
+				);
 			}
-			const deletedRows = await Chat.deleteChat(id);
-			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Chat ' + id));
+			this.#handleSuccess(res, this.requireAffected(deleted, 'Chat ' + id));
 		} catch (err) {
 			if (err && err.status === 403) {
 				return next(err);

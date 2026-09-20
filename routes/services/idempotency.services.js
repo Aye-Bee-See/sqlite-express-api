@@ -20,6 +20,36 @@ function fingerprintOf(parts) {
 	return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }
 
+const COMPLETE_ATTEMPTS = 4;
+const COMPLETE_BACKOFF_MS = 150;
+
+/**
+ * Write down what a key made. The thing exists by now, so this must not throw
+ * (the caller would answer 500 for a letter that was sent) and must not give up
+ * lightly: a claim left `processing` is taken over after STALE_ATTEMPT_MS, and
+ * the retry that takes it over would make a second one. A few spaced attempts
+ * ride out a busy database. If the database stays down for all of them, the
+ * failure is logged with both ids, and the client, told 201, has no reason to retry.
+ */
+async function recordResult(claimId, resourceId, scope) {
+	for (let attempt = 1; attempt <= COMPLETE_ATTEMPTS; attempt += 1) {
+		try {
+			await IdempotencyKey.complete(claimId, resourceId);
+			return true;
+		} catch (err) {
+			if (attempt === COMPLETE_ATTEMPTS) {
+				console.error(
+					'[idempotency] claim ' + claimId + ' could not record ' + scope + ' ' + resourceId,
+					err
+				);
+				return false;
+			}
+			await new Promise((resolve) => setTimeout(resolve, COMPLETE_BACKOFF_MS * attempt));
+		}
+	}
+	return false;
+}
+
 /**
  * @param {object} req
  * @param {object} res gets `Retry-After` when the first attempt is still running
@@ -54,7 +84,7 @@ export async function begin(req, res, scope, parts) {
 	const { row, claimed } = claim;
 	if (claimed) {
 		return {
-			complete: (resourceId) => IdempotencyKey.complete(row.id, resourceId),
+			complete: (resourceId) => recordResult(row.id, resourceId, scope),
 			release: () => IdempotencyKey.release(row.id)
 		};
 	}

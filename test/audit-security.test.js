@@ -19,6 +19,9 @@ import {
 	sequelize
 } from './helpers.js';
 import MailRule from '../database/models/mail-rule.model.js';
+import MessageStatus from '../database/models/message-status.model.js';
+import IdempotencyKey from '../database/models/idempotency-key.model.js';
+import Submission from '../database/models/submission.model.js';
 
 /**
  * One test per finding of the September 2026 audit, so none of them comes back.
@@ -404,6 +407,100 @@ test('a reviewer sees the rule set a proposal would replace, and is not made to 
 	const fresh = (await get('/moderation/submission?id=' + id, f.admin)).body.data.updatedAt;
 	const ok = await put('/moderation/approve', { id, ifUnchangedSince: fresh }, f.admin);
 	assert.equal(ok.status, 200, JSON.stringify(ok.body));
+});
+
+// Checks that are one step with what they guard (review of the audit itself)
+
+test('a letter printed after the caller looked is not deleted, alone or with its thread', async () => {
+	const pal = await makeUser({ username: 'dora' });
+	const sent = await post(
+		'/messaging/message',
+		{ prisoner: f.prisoner2.id, messageText: 'Printed meanwhile', sender: 'user' },
+		pal
+	);
+	const id = sent.body.data.id;
+	// What a relay group does between a writer's permission check and the delete.
+	await Message.update({ status: 'printed' }, { where: { id } });
+	assert.equal(await Message.deleteMessage(id, { openOnly: true }), 0);
+	const chat = await Chat.findOne({ where: { user: pal.id, prisoner: f.prisoner2.id } });
+	assert.deepEqual(await Chat.deleteChat(chat.id, { openOnly: true }), { deleted: 0, kept: 1 });
+	assert.ok(await Message.findByPk(id));
+	assert.equal((await del('/messaging/message', { id }, pal)).status, 403);
+	// An admin still can.
+	assert.deepEqual(await Chat.deleteChat(chat.id), { deleted: 1, kept: 0 });
+});
+
+test('a letter that fails half way leaves nothing, and its Idempotency-Key makes exactly one', async () => {
+	const pal = await makeUser({ username: 'erin' });
+	const body = { prisoner: f.prisoner2.id, messageText: 'Only once', sender: 'user' };
+	const headers = { 'Idempotency-Key': 'audit-half-made-letter' };
+	const record = MessageStatus.record;
+	MessageStatus.record = async () => {
+		throw new Error('the history table is unavailable');
+	};
+	let failed;
+	try {
+		failed = await post('/messaging/message', body, { ...pal, headers });
+	} finally {
+		MessageStatus.record = record;
+	}
+	assert.equal(failed.status, 500);
+	assert.equal(await Message.count({ where: { user: pal.id } }), 0, 'no half-made letter stays');
+	const retried = await post('/messaging/message', body, { ...pal, headers });
+	assert.equal(retried.status, 201, JSON.stringify(retried.body));
+	assert.equal(await Message.count({ where: { user: pal.id } }), 1);
+});
+
+test('recording what an Idempotency-Key made survives a database that is busy for a moment', async () => {
+	const pal = await makeUser({ username: 'fern' });
+	const body = { prisoner: f.prisoner2.id, messageText: 'Recorded late', sender: 'user' };
+	const headers = { 'Idempotency-Key': 'audit-busy-database' };
+	const complete = IdempotencyKey.complete;
+	let failures = 2;
+	IdempotencyKey.complete = async function (...args) {
+		if (failures > 0) {
+			failures -= 1;
+			throw new Error('SQLITE_BUSY: database is locked');
+		}
+		return await complete.apply(this, args);
+	};
+	let first;
+	try {
+		first = await post('/messaging/message', body, { ...pal, headers });
+	} finally {
+		IdempotencyKey.complete = complete;
+	}
+	assert.equal(first.status, 201, JSON.stringify(first.body));
+	const again = await post('/messaging/message', body, { ...pal, headers });
+	assert.equal(again.status, 201);
+	assert.equal(again.headers.get('idempotent-replayed'), 'true');
+	assert.equal(again.body.data.id, first.body.data.id);
+	assert.equal(await Message.count({ where: { user: pal.id } }), 1);
+});
+
+test('a proposal revised between the read and the decision is not decided', async () => {
+	const proposed = await post(
+		'/moderation/submission',
+		{ resource: 'prisoner', target: f.prisoner1.id, fields: { interests: ['Chess and birds'] } },
+		f.alice
+	);
+	assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
+	const id = proposed.body.data.id;
+	// The reviewer's request has read the row; the submitter's revision lands before the decision.
+	const read = await Submission.read(id);
+	await new Promise((resolve) => setTimeout(resolve, 5));
+	const revised = await put(
+		'/moderation/submission',
+		{ id, fields: { interests: ['Swapped in at the last moment'] } },
+		f.alice
+	);
+	assert.equal(revised.status, 200, JSON.stringify(revised.body));
+	await assert.rejects(
+		Submission.approve(read, { reviewer: f.admin.id, ifUnchangedSince: read.updatedAt }),
+		{ name: 'SubmissionChangedError', status: 409 }
+	);
+	assert.equal((await Submission.findByPk(id)).status, 'pending');
+	assert.ok(!JSON.stringify((await Prisoner.findByPk(f.prisoner1.id)).interests).includes('Chess'));
 });
 
 test('the tables behind these tests are intact', async () => {

@@ -1,4 +1,4 @@
-import { Model, literal } from 'sequelize';
+import { Model, Op, literal } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
@@ -10,6 +10,8 @@ import User from '#models/user.model.js';
 import Prison from '#models/prison.model.js';
 import { publishedWhere } from '#db/record-status.js';
 import modelsService from '#models/models.service.js';
+import { inTransaction } from '#services/serial.js';
+import { OPEN_STATUSES } from '#db/letter-status.js';
 
 /** Correlated subquery: when the newest message in the chat was created. */
 const LAST_MESSAGE_AT = literal(
@@ -394,12 +396,41 @@ export default class Chat extends Model {
 
 	/**
 	 * Delete a chat with its messages and their attachment files.
-	 * @returns {Promise<number>} chats removed
+	 * @param {number|string} id
+	 * @param {{openOnly?: boolean}} [options] openOnly: refuse when a letter in it was
+	 *   printed or mailed. Checked inside the transaction that deletes, so a letter
+	 *   marked printed a moment after the caller looked still stops it.
+	 * @returns {Promise<{deleted: number, kept: number}>} chats removed; letters that stopped it
 	 */
-	static async deleteChat(id) {
-		const messages = await Message.findAll({ where: { chat: id }, attributes: ['id'] });
-		await Attachment.purgeForMessages(messages.map((m) => m.id));
-		await Message.destroy({ where: { chat: id } });
-		return await this.destroy({ where: { id: id } });
+	static async deleteChat(id, { openOnly = false } = {}) {
+		let files = [];
+		const result = await inTransaction(this.sequelize, async (transaction) => {
+			if (openOnly) {
+				const kept = await Message.count({
+					where: { chat: id, status: { [Op.notIn]: OPEN_STATUSES } },
+					transaction
+				});
+				if (kept > 0) {
+					return { deleted: 0, kept };
+				}
+			}
+			const messages = await Message.findAll({
+				where: { chat: id },
+				attributes: ['id'],
+				hooks: false,
+				transaction
+			});
+			// Listed now (the cascade removes the rows), removed from disk after the commit.
+			files = await Attachment.storedNamesFor(
+				messages.map((m) => m.id),
+				{ transaction }
+			);
+			await Message.destroy({ where: { chat: id }, transaction });
+			return { deleted: await this.destroy({ where: { id: id }, transaction }), kept: 0 };
+		});
+		if (result.deleted > 0) {
+			await Attachment.removeFiles(files);
+		}
+		return result;
 	}
 }

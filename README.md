@@ -1674,7 +1674,7 @@ Parameters: `id` (required), `full`. Returns the message object, `404` if missin
 
 #### PUT /messaging/message
 
-Body must include `id`; any of `messageText`, `user`, `prisoner`, `relayChapter`, `relayNote`, `keep` may follow (in end-to-end mode, the cipher fields instead of the text ones). Anything else is ignored: a letter's `sender`, `chat`, and dates never change. The writer, the group that manages the writer, or an admin may edit; a group that only mails the letter may not, except to correct a reply (`sender: prisoner`) it recorded. Partial updates work: `{"id": 1, "messageText": "Edited"}` changes only the text. Changing `user` or `prisoner` moves the message to the chat for the new pair, creating it if needed. A `relayChapter` is validated as on create, and a letter moved to another `prisoner` without one is routed again as a new letter would be. `status` and the status timestamps are ignored here; use `PUT /messaging/status`. A `user`-role caller cannot change `user`. Once a letter is `printed` or `mailed`, only an admin may update it; anyone else gets a `403`.
+Body must include `id`; any of `messageText`, `user`, `prisoner`, `relayChapter`, `relayNote`, `keep` may follow (in end-to-end mode, the cipher fields instead of the text ones). Anything else is ignored: a letter's `sender`, `chat`, and dates never change. The writer, the group that manages the writer, or an admin may edit; a group that only mails the letter may not, except to correct a reply (`sender: prisoner`) it recorded. Partial updates work: `{"id": 1, "messageText": "Edited"}` changes only the text. In server mode, changing `user` or `prisoner` moves the message to the chat for the new pair, creating it if needed; a `relayChapter` is validated as on create, and a letter moved to another `prisoner` without one is routed again as a new letter would be. **In end-to-end mode `user`, `prisoner`, and `relayChapter` cannot change** (`400`): the letter's envelopes were sealed for the readers those three imply, and the server cannot re-seal them. Delete the queued letter and send it again, or add a reader with `POST /messaging/envelope`. `status` and the status timestamps are ignored here; use `PUT /messaging/status`. A `user`-role caller cannot change `user`. Once a letter is `printed` or `mailed`, only an admin may update it; anyone else gets a `403`.
 
 ```json
 {
@@ -1702,7 +1702,7 @@ Body: `{"id": 41, "status": "printed"}`. Allowed for admins and for `chapter` ac
 
 #### DELETE /messaging/message
 
-Body: `{"id": 41}`. Returns `"data": 1`. The same people as an edit. Once a letter is `printed` or `mailed`, only an admin may delete it. The message's attachment files are removed with it.
+Body: `{"id": 41}`. Returns `"data": 1`. The same people as an edit. Once a letter is `printed` or `mailed`, only an admin may delete it. The status is part of the delete itself, so a letter that is marked printed while the request is on its way is not deleted (`403`). The message's attachment files are removed with it.
 
 #### Attachments
 

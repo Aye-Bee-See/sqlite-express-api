@@ -86,7 +86,7 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 
 	let order = [['id', 'ASC']];
 	if (sort !== undefined && sort !== '') {
-		if (sorts[sort]) {
+		if (typeof sort === 'string' && Object.hasOwn(sorts, sort)) {
 			order = sorts[sort];
 		} else {
 			errors.push('sort must be one of ' + Object.keys(sorts).join(', ') + '.');

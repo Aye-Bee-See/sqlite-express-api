@@ -28,7 +28,10 @@ export function canTransition(from, to) {
 	return Boolean(TRANSITIONS[from]) && TRANSITIONS[from].includes(to);
 }
 
+/** The statuses in which a letter is still its writer's to edit or delete. */
+export const OPEN_STATUSES = [QUEUED, RECEIVED];
+
 /** Is the letter still editable by its writer (nothing has been printed)? */
 export function isOpen(status) {
-	return status === QUEUED || status === RECEIVED;
+	return OPEN_STATUSES.includes(status);
 }

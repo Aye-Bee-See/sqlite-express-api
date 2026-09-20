@@ -271,7 +271,7 @@ export default class InvitationController extends RouteController {
 		let createdUser = null;
 		try {
 			const { record, chapter } = await this.#usable(token);
-			const keys = KeysController.keyFields(req.body);
+			const keys = KeysController.keyFields(req.body, { newAccount: true });
 			let groupFields = null;
 			if (record.kind === 'group') {
 				groupFields = InvitationController.#groupFields(req.body.group);

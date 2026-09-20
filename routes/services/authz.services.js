@@ -65,7 +65,29 @@ export default class AuthzService {
 	 * @returns {boolean}
 	 */
 	static isStaff(req) {
-		return AuthzService.hasRole(req, AuthzService.ADMIN, AuthzService.CHAPTER);
+		if (AuthzService.isAdmin(req)) {
+			return true;
+		}
+		// A chapter account is staff through its group: an account of a pending
+		// or suspended group reads what anyone can, and nothing more.
+		return AuthzService.hasRole(req, AuthzService.CHAPTER) && req.user.groupActive === true;
+	}
+
+	/**
+	 * Record on a freshly authenticated chapter account whether its group is an
+	 * active member of the network, so the synchronous checks (isStaff,
+	 * publishedOnly) can tell. A plain property: it is not a column and never
+	 * appears in JSON.
+	 * @param {import('sequelize').Model} user
+	 */
+	static async noteGroupStanding(user) {
+		if (!user || user.role !== AuthzService.CHAPTER) {
+			return;
+		}
+		const chapter = user.chapterId
+			? await Chapter.findByPk(user.chapterId, { attributes: ['id', 'accountStatus'] })
+			: null;
+		user.groupActive = Boolean(chapter) && chapter.accountStatus === 'active';
 	}
 
 	/**

@@ -1,5 +1,6 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
+import pick from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import modelsService from '#models/models.service.js';
 import Chat from '#models/chat.model.js';
@@ -13,7 +14,17 @@ import Prisoner from '#models/prisoner.model.js';
 import Chapter from '#models/chapter.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
-import { canTransition, initialStatusFor, LETTER_STATUSES } from '#db/letter-status.js';
+import {
+	canTransition,
+	initialStatusFor,
+	LETTER_STATUSES,
+	OPEN_STATUSES
+} from '#db/letter-status.js';
+
+/** What PUT /messaging/message may change. The thread follows from writer and prisoner; status has its own endpoint. */
+const EDITABLE = ['messageText', 'relayNote', 'user', 'prisoner', 'relayChapter', 'keep'];
+/** Written by clients in end-to-end mode only; in server mode the API fills them. */
+const CIPHER_COLUMNS = ['ciphertext', 'nonce', 'relayNoteCiphertext', 'relayNoteNonce'];
 
 /** The relay group's id and name, carried on every message row (null for non-staff when unpublished). */
 function relayGroupSummary(publishedOnly) {
@@ -169,14 +180,25 @@ export default class Message extends Model {
 			statusChangedAt: new Date(),
 			statusChangedBy: changedBy
 		});
+		try {
+			return await this.#finishLetter(created, clean, changedBy);
+		} catch (err) {
+			// A letter is all there or not there: a row left behind by a failure here
+			// would be mailed without its envelopes or history, and a retry under the
+			// same Idempotency-Key would make a second one beside it.
+			await LetterKey.destroy({ where: { message: created.id } }).catch(() => {});
+			await this.destroy({ where: { id: created.id }, force: true }).catch(() => {});
+			throw err;
+		}
+	}
+
+	static async #finishLetter(created, clean, changedBy) {
 		if (clean) {
 			await LetterKey.issueEnvelopes(created.id, clean);
-			// A rotation that landed since validation would leave this letter
-			// sealed to a key nobody holds: take it back and have the client re-seal.
+			// A rotation that landed since validation would leave this letter sealed to a
+			// key nobody holds: createLetter takes it back, and the client re-seals.
 			const stale = await LetterKey.staleGroupEnvelopes(created.id);
 			if (stale.length > 0) {
-				await LetterKey.destroy({ where: { message: created.id } });
-				await this.destroy({ where: { id: created.id }, force: true });
 				throw staleKeyError(stale);
 			}
 		}
@@ -447,7 +469,9 @@ export default class Message extends Model {
 	 * @returns {Promise<[number]>} affected row count
 	 */
 	static async updateMessage(message) {
-		const values = { ...message };
+		// Only what an edit may touch: never the thread (derived below), the
+		// sender, the status, or the dates. Server mode owns the cipher columns.
+		const values = pick(message, crypto.isE2E() ? [...EDITABLE, ...CIPHER_COLUMNS] : EDITABLE);
 		if (crypto.isE2E()) {
 			if (values.messageText !== undefined || values.relayNote !== undefined) {
 				throw new ValidationError(
@@ -493,16 +517,34 @@ export default class Message extends Model {
 				}
 			}
 		}
+		if (Object.keys(values).length === 0) {
+			// Nothing editable was sent: report whether the letter exists, change nothing.
+			return [await this.count({ where: { id: message.id } })];
+		}
 		return await this.update(values, { where: { id: message.id } });
 	}
 
 	// Delete
 
-	static async deleteMessage(id) {
-		await Attachment.purgeForMessages([Number(id)]);
-		return await this.destroy({
-			where: { id: id },
+	/**
+	 * Delete a letter with its attachment files.
+	 * @param {number|string} id
+	 * @param {{openOnly?: boolean}} [options] openOnly: only while nothing was printed. The
+	 *   status is part of the DELETE itself, so a letter marked printed a moment
+	 *   after the caller looked is not deleted.
+	 * @returns {Promise<number>} letters removed
+	 */
+	static async deleteMessage(id, { openOnly = false } = {}) {
+		// Files are listed first (the cascade removes their rows) and removed only
+		// if the letter really went.
+		const files = await Attachment.storedNamesFor([Number(id)]);
+		const deleted = await this.destroy({
+			where: { id: id, ...(openOnly ? { status: OPEN_STATUSES } : {}) },
 			force: true
 		});
+		if (deleted > 0) {
+			await Attachment.removeFiles(files);
+		}
+		return deleted;
 	}
 }

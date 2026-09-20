@@ -279,6 +279,7 @@ The endpoints that need no token are limited, so nobody can guess passwords, enu
 | Recovery starts per username                  | 5 per hour        | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES` |
 | Recovery starts per address                   | 30 per hour       | `RATE_LIMIT_RECOVER_START_PER_IP`                                        |
 | Recovery finishes per username                | 5 per hour        | `RATE_LIMIT_RECOVER_FINISH_PER_USER`                                     |
+| Recovery finishes per address                 | 30 per hour       | `RATE_LIMIT_RECOVER_FINISH_PER_IP`                                       |
 
 Successful sign-ins never count against a username; once the failure limit is reached, even the right password is refused until the window ends. Usernames are compared case-insensitively. Set `RATE_LIMIT_ENABLED=false` to switch limiting off, and set `TRUST_PROXY` when the API is behind a reverse proxy, otherwise every client appears to come from the proxy's address and shares one budget.
 
@@ -303,27 +304,27 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 
 ### What each role can do
 
-| Action                                                                  | `user`                | `chapter`                         | `admin` |
-| ----------------------------------------------------------------------- | --------------------- | --------------------------------- | ------- |
-| Read published prisons, prisoners, chapters                             | Yes (and anonymous)   | Yes                               | Yes     |
-| Read draft and pending directory records                                | No                    | Yes                               | Yes     |
-| Create, update, delete prisons, prisoners, chapters                     | No                    | Yes                               | Yes     |
-| Set a prison's mail rules                                               | No                    | Yes                               | Yes     |
-| Add to, reword, retire, or delete from the master list of mail rules    | No                    | No                                | Yes     |
-| Read, create, update, delete chats and messages                         | **Own threads only**  | **Managed writers' threads only** | All     |
-| Send a message as the prisoner side (`sender: prisoner`)                | No (forced to `user`) | Yes                               | Yes     |
-| Propose a directory change or record ([Moderation](#moderation))        | Yes                   | Yes                               | Yes     |
-| Approve or reject proposals; read the audit log and summary             | No                    | No                                | Yes     |
-| Move a letter to `printed` / `mailed`                                   | No                    | As its relay group                | Yes     |
-| Create managed writers, issue claim tokens                              | No                    | Own group                         | Yes     |
-| Invite a new group (vouching for it) or a new member of one's own group | No                    | Own group, if active              | Yes     |
-| Approve a group that joined by invitation (`accountStatus`)             | No                    | No                                | Yes     |
-| Read, edit, delete a group's unclaimed managed writers                  | No                    | Own group                         | Yes     |
-| Read own user record; update or delete own account                      | Yes                   | Yes                               | Yes     |
-| Read, update, delete other users; list users                            | No                    | No                                | Yes     |
-| Register own devices; read and mark own notification feed               | Yes                   | Yes                               | Yes     |
-| Revoke every session of another account                                 | No                    | No                                | Yes     |
-| Change a role, or create a non-`user` account                           | No                    | No                                | Yes     |
+| Action                                                                  | `user`                | `chapter`                                                                           | `admin` |
+| ----------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------- | ------- |
+| Read published prisons, prisoners, chapters                             | Yes (and anonymous)   | Yes                                                                                 | Yes     |
+| Read draft and pending directory records                                | No                    | Yes                                                                                 | Yes     |
+| Create, update, delete prisons, prisoners, chapters                     | No                    | Yes                                                                                 | Yes     |
+| Set a prison's mail rules                                               | No                    | Yes                                                                                 | Yes     |
+| Add to, reword, retire, or delete from the master list of mail rules    | No                    | No                                                                                  | Yes     |
+| Read, create, update, delete chats and messages                         | **Own threads only**  | **Managed writers' threads only** (threads it only mails: read, and record replies) | All     |
+| Send a message as the prisoner side (`sender: prisoner`)                | No (forced to `user`) | Yes                                                                                 | Yes     |
+| Propose a directory change or record ([Moderation](#moderation))        | Yes                   | Yes                                                                                 | Yes     |
+| Approve or reject proposals; read the audit log and summary             | No                    | No                                                                                  | Yes     |
+| Move a letter to `printed` / `mailed`                                   | No                    | As its relay group                                                                  | Yes     |
+| Create managed writers, issue claim tokens                              | No                    | Own group                                                                           | Yes     |
+| Invite a new group (vouching for it) or a new member of one's own group | No                    | Own group, if active                                                                | Yes     |
+| Approve a group that joined by invitation (`accountStatus`)             | No                    | No                                                                                  | Yes     |
+| Read, edit, delete a group's unclaimed managed writers                  | No                    | Own group                                                                           | Yes     |
+| Read own user record; update or delete own account                      | Yes                   | Yes                                                                                 | Yes     |
+| Read, update, delete other users; list users                            | No                    | No                                                                                  | Yes     |
+| Register own devices; read and mark own notification feed               | Yes                   | Yes                                                                                 | Yes     |
+| Revoke every session of another account                                 | No                    | No                                                                                  | Yes     |
+| Change a role, or create a non-`user` account                           | No                    | No                                                                                  | Yes     |
 
 "Own threads" means chats whose `user` is the caller's id, and messages whose `user` is the caller's id. For a `user`:
 
@@ -332,6 +333,8 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 - Creating a chat or message always uses the caller's own id as `user`, whatever the body says, and messages are always sent as `user`.
 
 Every refusal is a `403` with the general error shape.
+
+A `chapter` account has these rights **through its group**: while the group is `pending` or `suspended` its accounts read what the public reads (published records, no staff-only fields) and write nothing, group keys included.
 
 A `chapter` account is scoped to its group. It sees the threads of the writers its group manages (see [Managed writers](#managed-writers)) and the threads holding letters its group relays (see [Letter lifecycle](#letter-lifecycle)), can send letters for its writers and transcribe prisoner replies on either, and sees nothing else. A `chapter` account that is not yet a member of a group (no `chapterId`), or whose group is not yet `active` (see [Chapter fields](#chapter-fields)), can read what anyone can but cannot write the directory, create writers, or send and relay letters; every such refusal is a `403` whose `info` says which it is. An admin puts an account in a group with `PUT /auth/user` and activates a group with `PUT /chapter/chapter`.
 
@@ -383,6 +386,7 @@ Note the odd one out: messages are mounted at `/messaging`, while chats are at `
 - **GET** requests take everything as **query-string parameters**: `GET /prison/prison?id=1`.
 - **PUT** and **DELETE** requests take the `id` (and any fields) in a **JSON body**. Yes, `DELETE` requests carry a body.
 - Path-style ids such as `GET /prison/prison/1` are not supported and return a `404`.
+- **One id is one value.** A list where one record's id belongs (`?id=1&id=2`, `{"id": [1, 2]}`; the same for `user`, `prisoner`, `prison`, `chat`, `message`, `chapter`, `target`, and the like) is a `400`, and so is a `PUT` or `DELETE` without its `id`.
 
 ### Request bodies
 
@@ -575,15 +579,15 @@ New records default to `published` until the moderation workflow exists. Staff c
 
 Most read endpoints accept `full=true` to embed related records. The string must be exactly `true`; anything else is treated as `false`.
 
-| Endpoint                     | `full=true` adds                                                                                                                                                                                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Users (list, by id, by role) | `chats`                                                                                                                                                                                                                                                                               |
-| Prisons (list, by id)        | `prisoners`, `relay_groups`. Mail rules are plain fields on the prison and need no `full`                                                                                                                                                                                             |
-| Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`). Without `full`, list rows still carry a small `prison_details` (`id`, `prisonName`, `country`, `routing`) for "Held at" lines                                                                         |
-| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only. Without `full`, rows carry the same small `prison_details` summary as the main list                                                                                                                          |
-| Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons`                                                                                                                                                                                                    |
-| Chats (list, by id, by pair) | `messages` (each with `relay_group`), `user_details`, `prisoner_details` (with `prison_details`). Without `full`, every chat row still carries a light `prisoner_details` (`id`, `birthName`, `chosenName`, `status`, `prison`) with `prison_details` (`id`, `prisonName`, `country`) |
-| Messages                     | On the single read: `relay_group`, `status_history`, `attachments`. Every message row carries `relay_group` (`{ id, name }` or `null`) regardless of `full`; lists ignore `full` otherwise                                                                                            |
+| Endpoint                     | `full=true` adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Users (list, by id, by role) | `chats`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Prisons (list, by id)        | `prisoners`, `relay_groups`. Mail rules are plain fields on the prison and need no `full`                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`). Without `full`, list rows still carry a small `prison_details` (`id`, `prisonName`, `country`, `routing`) for "Held at" lines                                                                                                                                                                                                                                                                                                                |
+| Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only. Without `full`, rows carry the same small `prison_details` summary as the main list                                                                                                                                                                                                                                                                                                                                                                 |
+| Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons`                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Chats (list, by id, by pair) | `messages` (each with `relay_group`), `user_details` (the writer as everyone in the thread may see them: `id`, `name`, `username`, `bio`, `role`, `chapterId`, `managedBy`, `claimedAt`, `anonymousForChapter`, `publicKey`; no email, no manager's note), `prisoner_details` (with `prison_details`; staff-only fields only for staff). Without `full`, every chat row still carries a light `prisoner_details` (`id`, `birthName`, `chosenName`, `status`, `prison`) with `prison_details` (`id`, `prisonName`, `country`) |
+| Messages                     | On the single read: `relay_group`, `status_history`, `attachments`. Every message row carries `relay_group` (`{ id, name }` or `null`) regardless of `full`; lists ignore `full` otherwise                                                                                                                                                                                                                                                                                                                                   |
 
 Embedded users never include the password hash. For anonymous and `user`-role callers, embedded prisoners, prisons, and chapters are limited to published ones, chats are never embedded, and the staff-only `verificationNotes` field is omitted from prisoners and prisons everywhere.
 
@@ -637,7 +641,7 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 | Field                      | Rules                                                                                                                                                                                                                                                                            |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `username`                 | Required, unique, 3 to 16 characters.                                                                                                                                                                                                                                            |
+| `username`                 | Required, unique, 3 to 16 characters. Names starting `anon-` or `writer-` are kept for the accounts groups manage, and so are `@managed.example` addresses.                                                                                                                      |
 | `password`                 | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                                                                                                                                                          |
 | `email`                    | Required, unique, must look like an email address.                                                                                                                                                                                                                               |
 | `role`                     | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later.                                                                                                                                           |
@@ -681,7 +685,7 @@ A duplicate username or email is a general error with `"error": "Username alread
 
 #### POST /auth/login
 
-See [Logging in](#logging-in).
+See [Logging in](#logging-in). `username` and `password` go in the JSON body, as text. In the URL they would be written to access logs, so that is a `400`.
 
 #### GET /auth/users
 
@@ -863,7 +867,7 @@ An unknown or revoked token is a `404`; a used or expired one is a `410`, and `i
 
 #### POST /auth/claim
 
-Public. Body: `{"token": "…", "username": "sam", "password": "longenough", "email": "sam@example.com"}`. `username` and `password` follow the [user field rules](#user-fields); `email` is optional and replaces a placeholder address. On success (`201`) the account is independent: `managedBy` is `null`, `claimedAt` and `claimedFrom` are set, the token is marked used, and the writer can log in. Validation failures (a short password, a taken username) leave the token usable.
+Public. Body: `{"token": "…", "username": "sam", "password": "longenough", "email": "sam@example.com"}`. `username` and `password` are required and follow the [user field rules](#user-fields); `email` is optional and replaces a placeholder address. On success (`201`) the account is independent: `managedBy` is `null`, `claimedAt` and `claimedFrom` are set, the token is marked used, and the writer can log in. Validation failures (a short password, a taken username) leave the token usable. Of two requests with the same token, one wins and the other gets `410`.
 
 ### End-to-end mode
 
@@ -906,7 +910,7 @@ User records never carry wrapped keys; only `publicKey` is visible, and `GET /au
 
 #### Group keys
 
-A group's first member calls `PUT /auth/chapter-keys` with the group's new `publicKey` and the group private key sealed to their own public key (`wrappedOrgPrivateKey`); an admin may do it naming the member with `user`. From then on any member holding the group key hands it to another member with `PUT /auth/member-key` (sealing it to that member's public key). `DELETE /auth/member-key` stops the hand-out but cannot revoke a key a member already opened, and the last holder cannot be removed; rotation (below) does both. The first member must already have a public key of their own. `GET /auth/member-keys?chapter=` lists who holds it. A member reads letters addressed to the group by opening `orgKey.wrappedOrgPrivateKey` from their bundle, then the group's envelope.
+A group's first member calls `PUT /auth/chapter-keys` with the group's new `publicKey` and the group private key sealed to their own public key (`wrappedOrgPrivateKey`); an admin may do it naming the member with `user`. From then on any member holding the group key hands it to another member with `PUT /auth/member-key` (sealing it to that member's public key; send `keyVersion`, the version of the group key you wrapped, and a copy of a key that was rotated away meanwhile is refused with `409` instead of stored). The group key is only ever handed to `chapter`-role accounts of that group. `DELETE /auth/member-key` stops the hand-out but cannot revoke a key a member already opened, and the last holder cannot be removed; rotation (below) does both. The first member must already have a public key of their own. `GET /auth/member-keys?chapter=` lists who holds it. A member reads letters addressed to the group by opening `orgKey.wrappedOrgPrivateKey` from their bundle, then the group's envelope.
 
 Every group key has a version: `keyVersion` is `0` until the group has keys, `1` after set-up, and one more after each rotation. `GET /auth/public-key?chapter=` returns it beside the key, and so do the member's bundle (`orgKey.keyVersion`) and `GET /auth/member-keys` (with `keyRotatedAt`). The server cannot look inside a sealed box, so anything sealed to a group names the version it was sealed to: `keyVersion` on a group envelope, `orgKeyVersion` beside a writer's `orgWrappedPrivateKey`. A missing version is a `400`; a version the group has rotated away is a `409` named `KeyVersionError`, and the client fetches the public key again, re-seals, and retries. A group with no keys cannot be sealed to (`400`).
 
@@ -949,7 +953,7 @@ Encrypt the file with the letter's content key and upload the ciphertext with a 
 
 #### Managed writers and claiming
 
-The group's browser generates the writer's keypair: `POST /auth/writer` requires `publicKey`, `orgWrappedPrivateKey` (the private key sealed to the group), and `orgKeyVersion` (the group key version it was sealed to; the same goes for setting `orgWrappedPrivateKey` through `PUT /auth/user`), and `GET /auth/writers` returns `orgWrappedPrivateKey` to the managing group so it can read and print for the writer. The browser also makes the claim token: `POST /auth/writer/token` takes `tokenHash` (SHA-256 hex of the upper-cased token), `claimWrappedPrivateKey`, `claimSalt`, and `claimKdfParams`; the response has no token, because the server never learns it. `GET /auth/claim?token=` returns that material with the writer's `publicKey`, and `POST /auth/claim` requires the private key re-wrapped under the new password and a recovery code. Claiming clears the group's sealed copy; the group keeps the envelopes it already holds on letters it relayed.
+The group's browser generates the writer's keypair: `POST /auth/writer` requires `publicKey`, `orgWrappedPrivateKey` (the private key sealed to the group), and `orgKeyVersion` (the group key version it was sealed to; the same goes for setting `orgWrappedPrivateKey` through `PUT /auth/user`), and `GET /auth/writers` returns `orgWrappedPrivateKey` to the managing group so it can read and print for the writer. Giving an existing writer their **first** keys is for a member who holds the group key (whoever makes a keypair knows its private half, and the writer's earlier letters are sealed to it next). A keyed writer cannot be moved to another group by an admin: the key is sealed to the group that has it. The browser also makes the claim token: `POST /auth/writer/token` takes `tokenHash` (SHA-256 hex of the upper-cased token), `claimWrappedPrivateKey`, `claimSalt`, and `claimKdfParams`; the response has no token, because the server never learns it. `GET /auth/claim?token=` returns that material with the writer's `publicKey`, and `POST /auth/claim` requires the private key re-wrapped under the new password and a recovery code. Claiming clears the group's sealed copy; the group keeps the envelopes it already holds on letters it relayed.
 
 #### Latecomers
 
@@ -1450,11 +1454,13 @@ With `full=true`:
 				"id": 1,
 				"name": null,
 				"username": "user2",
-				"email": "user2@example.com",
 				"bio": null,
 				"role": "user",
-				"createdAt": "2026-09-11T18:21:42.870Z",
-				"updatedAt": "2026-09-11T18:21:42.870Z"
+				"chapterId": null,
+				"managedBy": null,
+				"claimedAt": null,
+				"anonymousForChapter": null,
+				"publicKey": null
 			},
 			"prisoner_details": {
 				"id": 1,
@@ -1510,11 +1516,11 @@ curl -s 'http://localhost:3000/chat/chat?user=1&prisoner=1' -H "Authorization: B
 
 #### PUT /chat/chat
 
-Body: `{"id": 1, "prisoner": 5}` plus any fields. A `user` may not move a chat to another user. Nonexistent ids are refused.
+Body: `{"id": 1, "prisoner": 5}`; only `user` and `prisoner` can change. For the writer, the group that manages the writer, or an admin: a group that only mails a letter in the thread can read it and gets a `403` here. A `user` may not move a chat to another user, and nobody but an admin moves a thread that already has letters (each letter names its own writer and prisoner). Nonexistent ids are refused.
 
 #### DELETE /chat/chat
 
-Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data": 1`.
+Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data": 1`. For the writer, the group that manages the writer, or an admin (not a group that only mails the thread), and, as with a single letter, only an admin deletes a thread that holds a `printed` or `mailed` letter.
 
 ### Messages
 
@@ -1673,7 +1679,7 @@ Parameters: `id` (required), `full`. Returns the message object, `404` if missin
 
 #### PUT /messaging/message
 
-Body must include `id`; any of `messageText`, `sender`, `user`, `prisoner`, `relayChapter`, `relayNote` may follow. Partial updates work: `{"id": 1, "messageText": "Edited"}` changes only the text. Changing `user` or `prisoner` moves the message to the chat for the new pair, creating it if needed. A `relayChapter` is validated as on create. `status` and the status timestamps are ignored here; use `PUT /messaging/status`. A `user`-role caller cannot change `user`. Once a letter is `printed` or `mailed`, only an admin may update it; anyone else gets a `403`.
+Body must include `id`; any of `messageText`, `user`, `prisoner`, `relayChapter`, `relayNote`, `keep` may follow (in end-to-end mode, the cipher fields instead of the text ones). Anything else is ignored: a letter's `sender`, `chat`, and dates never change. The writer, the group that manages the writer, or an admin may edit; a group that only mails the letter may not, except to correct a reply (`sender: prisoner`) it recorded. Partial updates work: `{"id": 1, "messageText": "Edited"}` changes only the text. In server mode, changing `user` or `prisoner` moves the message to the chat for the new pair, creating it if needed; a `relayChapter` is validated as on create, and a letter moved to another `prisoner` without one is routed again as a new letter would be. **In end-to-end mode `user`, `prisoner`, and `relayChapter` cannot change** (`400`): the letter's envelopes were sealed for the readers those three imply, and the server cannot re-seal them. Delete the queued letter and send it again, or add a reader with `POST /messaging/envelope`. `status` and the status timestamps are ignored here; use `PUT /messaging/status`. A `user`-role caller cannot change `user`. Once a letter is `printed` or `mailed`, only an admin may update it; anyone else gets a `403`.
 
 ```json
 {
@@ -1701,7 +1707,7 @@ Body: `{"id": 41, "status": "printed"}`. Allowed for admins and for `chapter` ac
 
 #### DELETE /messaging/message
 
-Body: `{"id": 41}`. Returns `"data": 1`. Once a letter is `printed` or `mailed`, only an admin may delete it. The message's attachment files are removed with it.
+Body: `{"id": 41}`. Returns `"data": 1`. The same people as an edit. Once a letter is `printed` or `mailed`, only an admin may delete it. The status is part of the delete itself, so a letter that is marked printed while the request is on its way is not deleted (`403`). The message's attachment files are removed with it.
 
 #### Attachments
 
@@ -1914,7 +1920,7 @@ Body `{"id": 7, "fields": {...}, "evidence": "...", "note": "..."}` replaces the
 
 #### PUT /moderation/approve
 
-Body `{"id": 7, "fields": {...}, "decisionNote": "..."}`. `fields` are reviewer edits merged over the payload and may include the reviewer-only fields, so "edit then approve" and "approve and mark verified" are one call. The record is written through the same model code as a direct write, so its validation applies again here (the target may have changed since filing, and reviewer edits have not been checked yet); a failure is a `400` and the proposal stays pending. New records are created `published` unless `fields.recordStatus` says otherwise. Returns the submission with `appliedChanges`.
+Body `{"id": 7, "fields": {...}, "decisionNote": "..."}`. `fields` are reviewer edits merged over the payload and may include the reviewer-only fields, so "edit then approve" and "approve and mark verified" are one call. The record is written through the same model code as a direct write, so its validation applies again here (the target may have changed since filing, and reviewer edits have not been checked yet); a failure is a `400` and the proposal stays pending. New records are created `published` unless `fields.recordStatus` says otherwise. Returns the submission with `appliedChanges`. The submitter may revise a proposal until it is decided, so send `ifUnchangedSince` (the `updatedAt` of the submission as you read it): if it was revised since, the answer is `409` `SubmissionChangedError` and nothing is applied.
 
 #### PUT /moderation/reject
 

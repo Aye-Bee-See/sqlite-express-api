@@ -1,9 +1,11 @@
 import { Model, Op } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
+import pick from '#db/pick.js';
 import { SUBMISSION_KINDS, SUBMISSION_RESOURCES } from '#schemas/submission.schema.js';
 import Prisoner, { PRISONER_FIELDS } from '#models/prisoner.model.js';
 import Prison, { PRISON_FIELDS } from '#models/prison.model.js';
 import Chapter, { CHAPTER_FIELDS } from '#models/chapter.model.js';
+import MailRule from '#models/mail-rule.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { publishedWhere } from '#db/record-status.js';
@@ -33,6 +35,9 @@ export const RESOURCES = {
 		label: 'Prison',
 		fields: PRISON_FIELDS,
 		submittable: PRISON_FIELDS.filter((f) => !REVIEWER_ONLY.includes(f)),
+		// mailRules is read from rows, not a column: without them a reviewer sees
+		// no "before" for a proposal that replaces the whole rule set.
+		include: () => [MailRule.detailsInclude()],
 		create: (fields) => Prison.createPrison(fields),
 		update: (fields) => Prison.updatePrison(fields)
 	},
@@ -47,16 +52,6 @@ export const RESOURCES = {
 		update: (fields) => Chapter.updateChapter(fields)
 	}
 };
-
-function pick(source, fields) {
-	const out = {};
-	for (const field of fields) {
-		if (source[field] !== undefined) {
-			out[field] = source[field];
-		}
-	}
-	return out;
-}
 
 export default class Submission extends Model {
 	static init(sequelize) {
@@ -124,7 +119,11 @@ export default class Submission extends Model {
 		submittedBy,
 		publishedOnly = true
 	}) {
-		const spec = RESOURCES[resource];
+		// hasOwn: "constructor" is a key of every object, and not a resource.
+		const spec =
+			typeof resource === 'string' && Object.hasOwn(RESOURCES, resource)
+				? RESOURCES[resource]
+				: null;
 		if (!spec) {
 			throw new ValidationError('resource must be one of ' + SUBMISSION_RESOURCES.join(', ') + '.');
 		}
@@ -185,12 +184,13 @@ export default class Submission extends Model {
 		}
 		const spec = RESOURCES[submission.resource];
 		const target = await spec.model.findOne({
-			where: { id: submission.targetId, ...publishedWhere(publishedOnly) }
+			where: { id: submission.targetId, ...publishedWhere(publishedOnly) },
+			include: spec.include ? spec.include() : []
 		});
 		if (!target) {
 			return null;
 		}
-		return pick(target.get(), Object.keys(submission.payload));
+		return pick(target.toJSON(), Object.keys(submission.payload));
 	}
 
 	/**
@@ -228,7 +228,9 @@ export default class Submission extends Model {
 	 */
 	static async #transition(submission, values) {
 		const [count] = await this.update(values, {
-			where: { id: submission.id, status: 'pending' }
+			// Still pending, and still the revision that was read: what is decided is
+			// what the reviewer (and this request) saw, not what arrived a moment later.
+			where: { id: submission.id, status: 'pending', updatedAt: submission.updatedAt }
 		});
 		return count === 1;
 	}
@@ -236,7 +238,18 @@ export default class Submission extends Model {
 	/** Reload and throw the 409 for a submission that was decided concurrently. */
 	static async #lost(submission) {
 		const fresh = await this.findByPk(submission.id);
+		if (fresh && fresh.status === 'pending') {
+			throw Submission.#revised(submission);
+		}
 		throw Submission.#alreadyDecided(fresh || submission);
+	}
+
+	static #revised(submission) {
+		return new HttpError(
+			409,
+			'Submission ' + submission.id + ' was revised after you read it. Read it again.',
+			'SubmissionChangedError'
+		);
 	}
 
 	/**
@@ -246,8 +259,19 @@ export default class Submission extends Model {
 	 * @param {{reviewer: number, fields?: object, decisionNote?: string}} decision
 	 * @returns {Promise<Submission>} refreshed
 	 */
-	static async approve(submission, { reviewer, fields = {}, decisionNote }) {
+	static async approve(submission, { reviewer, fields = {}, decisionNote, ifUnchangedSince }) {
 		Submission.#requirePending(submission);
+		if (ifUnchangedSince !== undefined && ifUnchangedSince !== null) {
+			// The submitter may revise until the decision. A reviewer who says what
+			// they read is not made to approve something else.
+			const seen = new Date(ifUnchangedSince);
+			if (Number.isNaN(seen.getTime())) {
+				throw new ValidationError('ifUnchangedSince must be a date (the updatedAt you reviewed).');
+			}
+			if (submission.updatedAt.getTime() > seen.getTime()) {
+				throw Submission.#revised(submission);
+			}
+		}
 		const spec = RESOURCES[submission.resource];
 		const defaults = submission.kind === 'create' ? { recordStatus: 'published' } : {};
 		const changes = { ...defaults, ...submission.payload, ...pick(fields || {}, spec.fields) };

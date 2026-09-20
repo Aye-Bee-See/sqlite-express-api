@@ -2137,13 +2137,14 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"id\": \"{{submissionId}}\",\n    \"fields\": {\n        \"verifiedAt\": \"2026-09-12T00:00:00.000Z\",\n        \"verifiedBy\": 1\n    },\n    \"decisionNote\": \"Confirmed with counsel\"\n}",
+							"raw": "{\n  \"id\": \"{{submissionId}}\",\n  \"fields\": {\n    \"verifiedAt\": \"2026-09-12T00:00:00.000Z\",\n    \"verifiedBy\": 1\n  },\n  \"decisionNote\": \"Confirmed with counsel\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
 								}
 							}
-						}
+						},
+						"description": "Send ifUnchangedSince (the updatedAt you reviewed): 409 SubmissionChangedError if the submitter revised it since."
 					},
 					"response": []
 				},
@@ -2824,13 +2825,14 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"chapter\": 1,\n    \"user\": 2,\n    \"wrappedOrgPrivateKey\": \"<group private key sealed to them>\"\n}",
+							"raw": "{\n  \"chapter\": 1,\n  \"user\": 2,\n  \"wrappedOrgPrivateKey\": \"<group private key sealed to them>\",\n  \"keyVersion\": 1\n}",
 							"options": {
 								"raw": {
 									"language": "json"
 								}
 							}
-						}
+						},
+						"description": "Send keyVersion (the group key version you wrapped): 409 KeyVersionError if the group rotated meanwhile."
 					},
 					"response": []
 				},

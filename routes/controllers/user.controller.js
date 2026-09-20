@@ -3,7 +3,9 @@ import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import ClaimToken from '#models/claim-token.model.js';
+import OrgMemberKey from '#models/org-member-key.model.js';
 import ValidationError from '#services/ValidationError.js';
+import { inTransaction } from '#services/serial.js';
 import { audit } from '#rtServices/audit.services.js';
 import KeysController from '#rtControllers/keys.controller.js';
 import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
@@ -203,7 +205,7 @@ export default class UserController extends RouteController {
 			);
 		}
 		try {
-			const keys = KeysController.keyFields(req.body);
+			const keys = KeysController.keyFields(req.body, { newAccount: true });
 			const user = await User.createUser({
 				username,
 				password,
@@ -242,6 +244,26 @@ export default class UserController extends RouteController {
 				return next(AuthzService.forbidden('Only an admin can change ' + field + '.'));
 			}
 		}
+		if (crypto.isE2E() && newUser.managedBy !== undefined) {
+			const held = await User.scope('withKeys').findByPk(newUser.id, {
+				attributes: ['id', 'managedBy', 'orgWrappedPrivateKey']
+			});
+			if (
+				held &&
+				held.orgWrappedPrivateKey &&
+				String(held.managedBy) !== String(newUser.managedBy)
+			) {
+				// The writer's private key is sealed to the current group's key; no other
+				// group can open it, and the server cannot re-seal what it cannot read.
+				return next(
+					new HttpError(
+						409,
+						"End-to-end mode: this writer's key is sealed to their current group. The writer claims the account, or that group hands over; an admin cannot move it.",
+						'KeyChangeError'
+					)
+				);
+			}
+		}
 		if (newUser.retentionDays !== undefined && newUser.retentionDays !== null) {
 			const days = Number(newUser.retentionDays);
 			if (!Number.isInteger(days) || days < 0) {
@@ -267,7 +289,7 @@ export default class UserController extends RouteController {
 			const custody = !AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req);
 			if (!custody) {
 				// Key material has its own endpoint with the immutability checks.
-				const keyFields = [...KEY_INPUT, 'orgWrappedPrivateKey'].filter(
+				const keyFields = [...new Set([...KEY_INPUT, ...KEY_COLUMNS])].filter(
 					(f) => newUser[f] !== undefined
 				);
 				const rewrap = ['wrappedPrivateKey', 'kdfSalt', 'kdfParams'];
@@ -347,6 +369,16 @@ export default class UserController extends RouteController {
 						);
 					}
 					custodyKeyed = !target.publicKey;
+					if (custodyKeyed && !(await OrgMemberKey.forMember(target.managedBy, req.user.id))) {
+						// Whoever makes this keypair knows its private half, and the writer's
+						// earlier letters are sealed to it next. That is for a member the
+						// group has already trusted with its own key.
+						return next(
+							AuthzService.forbidden(
+								'Only a member who holds the group key can give a writer their first keys.'
+							)
+						);
+					}
 					if (target.publicKey && target.publicKey !== newUser.publicKey) {
 						return next(
 							new HttpError(
@@ -359,9 +391,10 @@ export default class UserController extends RouteController {
 				}
 				if (
 					newUser.orgWrappedPrivateKey !== undefined &&
-					typeof newUser.orgWrappedPrivateKey !== 'string'
+					(typeof newUser.orgWrappedPrivateKey !== 'string' || newUser.orgWrappedPrivateKey === '')
 				) {
-					return next(new ValidationError('orgWrappedPrivateKey must be a string.'));
+					// Empty would erase the only copy of the writer's private key anyone holds.
+					return next(new ValidationError('orgWrappedPrivateKey must be a non-empty string.'));
 				}
 				if (newUser.orgWrappedPrivateKey !== undefined) {
 					// Sealed to the group key: checked against the current version at the write, below.
@@ -383,6 +416,14 @@ export default class UserController extends RouteController {
 						)
 					);
 				}
+			}
+			if (newUser.username !== undefined || newUser.email !== undefined) {
+				// Only a change is checked: a managed writer's own placeholder may be sent back as it is.
+				const before = await User.findByPk(newUser.id, { attributes: ['id', 'username', 'email'] });
+				User.refuseReserved({
+					username: before && newUser.username !== before.username ? newUser.username : undefined,
+					email: before && newUser.email !== before.email ? newUser.email : undefined
+				});
 			}
 			// A group-sealed key is checked and stored as one step, so a rotation
 			// cannot land in between and leave the writer's key sealed to the old one.
@@ -694,6 +735,15 @@ export default class UserController extends RouteController {
 	async claim(req, res) {
 		const { token, username, password, email } = req.body;
 		try {
+			if (
+				typeof username !== 'string' ||
+				username.trim() === '' ||
+				typeof password !== 'string' ||
+				password === ''
+			) {
+				// Without them the account would be claimed with a password nobody knows.
+				throw new ValidationError('Choose a username and a password to claim the account.');
+			}
 			const { record, writer } = await this.#validClaim(token);
 			let keys = {};
 			if (crypto.isE2E()) {
@@ -710,9 +760,21 @@ export default class UserController extends RouteController {
 				}
 				delete keys.publicKey;
 			}
-			await User.claim(writer, { username, password, email, keys });
-			record.usedAt = new Date();
-			await record.save();
+			// The token is spent and the account taken in one step, each only if
+			// still unspent and unclaimed: two requests with one token cannot both win,
+			// and a claim that fails (a taken username) leaves the token usable.
+			await inTransaction(User.sequelize, async (transaction) => {
+				const [spent] = await ClaimToken.update(
+					{ usedAt: new Date() },
+					{ where: { id: record.id, usedAt: null }, transaction }
+				);
+				if (spent !== 1) {
+					const err = new HttpError(410, 'Claim token is used.', 'ClaimTokenError');
+					err.condition = 'used';
+					throw err;
+				}
+				await User.claim(writer, { username, password, email, keys }, { transaction });
+			});
 			await audit(null, 'writer.claim', 'user', writer.id, { claimedFrom: writer.managedBy });
 			const claimed = await User.findByPk(writer.id);
 			this.#handleSuccess(res, this.#stripPassword(claimed, req));

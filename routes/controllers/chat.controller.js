@@ -5,6 +5,7 @@ import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import { HttpError } from '#services/HttpError.js';
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
+import Message from '#models/message.model.js';
 
 /**
  * Chat controller.
@@ -44,6 +45,22 @@ export default class ChatController extends RouteController {
 		const chat = await Chat.getChatByID(id);
 		if (chat && !(await scope.allows(chat))) {
 			throw scope.deny();
+		}
+		return chat;
+	}
+
+	/**
+	 * Load a chat the caller may change or delete. Seeing a thread is not
+	 * enough: a group that only mails a letter in it can read the thread, and
+	 * the thread still belongs to the writer (or the group that manages them).
+	 * @throws {Error} a 403 error when the caller may only read it, or not even that
+	 */
+	async #loadOwned(scope, id) {
+		const chat = await this.#loadAllowed(scope, id);
+		if (chat && !scope.allowsUser(chat.user)) {
+			throw AuthzService.forbidden(
+				'Only the writer, or the group that manages the writer, can change or delete this thread.'
+			);
 		}
 		return chat;
 	}
@@ -197,10 +214,20 @@ export default class ChatController extends RouteController {
 		try {
 			const scope = await threadScope(req);
 			if (scope.kind !== 'all') {
-				await this.#loadAllowed(scope, newChat.id);
+				const chat = await this.#loadOwned(scope, newChat.id);
 				if (newChat.user !== undefined && !scope.allowsUser(newChat.user)) {
 					throw AuthzService.forbidden(
 						'A chat cannot be reassigned to a writer outside your scope.'
+					);
+				}
+				const moves = ['user', 'prisoner'].some(
+					(field) =>
+						newChat[field] !== undefined && String(newChat[field]) !== String(chat?.[field])
+				);
+				if (chat && moves && (await Message.count({ where: { chat: chat.id } })) > 0) {
+					// Each letter names its own writer and prisoner; moving the thread would split them.
+					throw AuthzService.forbidden(
+						'A thread that has letters cannot be moved to another writer or prisoner.'
 					);
 				}
 			}
@@ -221,9 +248,16 @@ export default class ChatController extends RouteController {
 		const { id } = req.body;
 		try {
 			const scope = await threadScope(req);
-			await this.#loadAllowed(scope, id);
-			const deletedRows = await Chat.deleteChat(id);
-			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Chat ' + id));
+			await this.#loadOwned(scope, id);
+			// The same rule as DELETE /messaging/message: a printed or mailed letter is a
+			// record. The model checks it in the transaction that deletes.
+			const { deleted, kept } = await Chat.deleteChat(id, { openOnly: scope.kind !== 'all' });
+			if (kept > 0) {
+				throw AuthzService.forbidden(
+					'This thread has letters that were already printed or mailed; it can no longer be deleted.'
+				);
+			}
+			this.#handleSuccess(res, this.requireAffected(deleted, 'Chat ' + id));
 		} catch (err) {
 			if (err && err.status === 403) {
 				return next(err);

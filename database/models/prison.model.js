@@ -1,5 +1,6 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
+import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Chapter from '#models/chapter.model.js';
@@ -32,16 +33,6 @@ export const PRISON_FIELDS = [
 
 /** Columns hidden from anonymous and user-role callers. */
 export const PRISON_STAFF_ONLY = ['verificationNotes'];
-
-function pick(source, fields) {
-	const out = {};
-	for (const f of fields) {
-		if (source[f] !== undefined) {
-			out[f] = source[f];
-		}
-	}
-	return out;
-}
 
 export default class Prison extends Model {
 	static init(sequelize) {
@@ -251,9 +242,9 @@ export default class Prison extends Model {
 
 	// Update
 	static async updatePrison(prison) {
-		const { mailRules, ...columns } = prison;
+		const { mailRules, ...columns } = pick(prison, PRISON_FIELDS);
 		if (mailRules === undefined && columns.photoLimit === undefined) {
-			return await this.update(columns, { where: { id: prison.id } });
+			return await updateById(this, prison.id, columns);
 		}
 		// Checked against each other, then written to two tables: one queue (shared
 		// with master-list changes) and one transaction, so two partial updates cannot
@@ -276,7 +267,7 @@ export default class Prison extends Model {
 				throw new ValidationError(PHOTO_RULES_CLASH);
 			}
 			await inTransaction(this.sequelize, async (transaction) => {
-				if (Object.keys(columns).some((field) => field !== 'id')) {
+				if (Object.keys(columns).length > 0) {
 					// The model's own photo check runs here too; give it the rules as they
 					// will be, not as they are stored (mailRules is virtual: no column is written).
 					const values = rules ? { ...columns, mailRules: rules.map((rule) => rule.tag) } : columns;

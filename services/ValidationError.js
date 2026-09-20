@@ -6,6 +6,8 @@
  * Both RouteController.handleErr and ErrorService.handler recognise it, so it
  * can be thrown from inside or outside a controller's try block.
  */
+const MISSING_WHERE_VALUE = /^WHERE parameter "(\w+)" has invalid "undefined" value$/;
+
 export default class ValidationError extends Error {
 	/**
 	 * @param {string|string[]} errors one or more messages
@@ -24,6 +26,12 @@ export default class ValidationError extends Error {
 	 * @returns {string[]|null} null when err is not a validation error
 	 */
 	static messagesFrom(err) {
+		// A missing id reaches Sequelize as `where: { id: undefined }`, which it
+		// refuses with a plain Error: the caller's mistake, not a server fault.
+		const missing = err && typeof err.message === 'string' && MISSING_WHERE_VALUE.exec(err.message);
+		if (missing) {
+			return [missing[1] + ' is required.'];
+		}
 		if (!err || !Array.isArray(err.errors)) {
 			return null;
 		}

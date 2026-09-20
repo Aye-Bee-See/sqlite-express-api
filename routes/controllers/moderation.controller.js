@@ -196,7 +196,7 @@ export default class ModerationController extends RouteController {
 
 	/** PUT /moderation/approve { id, fields?, decisionNote? } (admin). */
 	async approve(req, res, next) {
-		const { id, fields, decisionNote } = req.body;
+		const { id, fields, decisionNote, ifUnchangedSince } = req.body;
 		try {
 			const submission = this.requireFound(await Submission.read(id), 'Submission ' + id);
 			if (
@@ -208,7 +208,8 @@ export default class ModerationController extends RouteController {
 			const result = await Submission.approve(submission, {
 				reviewer: req.user.id,
 				fields,
-				decisionNote
+				decisionNote,
+				ifUnchangedSince
 			});
 			await audit(req, 'submission.approve', 'submission', result.id, {
 				resource: result.resource,

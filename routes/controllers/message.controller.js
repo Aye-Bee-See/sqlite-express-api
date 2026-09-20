@@ -246,8 +246,11 @@ export default class MessageController extends RouteController {
 				envelopes: req.body.envelopes
 			});
 			if (idempotent) {
-				await idempotent.complete(message.id);
+				// It exists now, so the key is never freed from here on. complete() does
+				// not throw: it retries, and the client is told the truth either way.
+				const claim = idempotent;
 				idempotent = null;
+				await claim.complete(message.id);
 			}
 			await this.#withEnvelopes([message], req, scope);
 			await this.#announce(req, message);
@@ -258,6 +261,27 @@ export default class MessageController extends RouteController {
 				await idempotent.release().catch(() => {});
 			}
 			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * Reading a letter is not enough to change or delete it. A group that only
+	 * mails a letter reads it, and the words stay the writer's: that group may
+	 * correct or remove a reply it recorded, and nothing else.
+	 * @throws {Error} 403
+	 */
+	#requireOwnSide(scope, message) {
+		if (!message || scope.kind === 'all' || scope.allowsUser(message.user)) {
+			return;
+		}
+		const recordedHere =
+			message.sender === 'prisoner' &&
+			Boolean(scope.chapterId) &&
+			message.relayChapter === scope.chapterId;
+		if (!recordedHere) {
+			throw AuthzService.forbidden(
+				'Only the writer, or the group that manages the writer, can change or delete this letter.'
+			);
 		}
 	}
 
@@ -275,6 +299,7 @@ export default class MessageController extends RouteController {
 			const scope = await threadScope(req);
 			if (scope.kind !== 'all') {
 				const current = await this.#loadAllowed(scope, newMessage.id);
+				this.#requireOwnSide(scope, current);
 				// Pinning (keep) is the one edit allowed on a mailed letter.
 				const onlyKeep = Object.keys(newMessage).every((k) => ['id', 'keep'].includes(k));
 				if (current && !isOpen(current.status) && !onlyKeep) {
@@ -288,8 +313,17 @@ export default class MessageController extends RouteController {
 					);
 				}
 			}
-			if (newMessage.relayChapter !== undefined) {
-				const current = await Message.getMessageByID(newMessage.id);
+			const current =
+				newMessage.relayChapter !== undefined || newMessage.prisoner !== undefined
+					? await Message.getMessageByID(newMessage.id)
+					: null;
+			const moved =
+				current &&
+				newMessage.prisoner !== undefined &&
+				String(newMessage.prisoner) !== String(current.prisoner);
+			if (newMessage.relayChapter !== undefined || moved) {
+				// A letter moved to another prisoner is routed again, as a new letter
+				// would be: the group that mailed to the old facility may not serve the new one.
 				if (current) {
 					newMessage.relayChapter = await Message.resolveRelayChapter(
 						newMessage.prisoner ?? current.prisoner,
@@ -506,8 +540,11 @@ export default class MessageController extends RouteController {
 				nonce
 			});
 			if (idempotent) {
-				await idempotent.complete(attachment.id);
+				// It exists now, so the key is never freed from here on. complete() does
+				// not throw: it retries, and the client is told the truth either way.
+				const claim = idempotent;
 				idempotent = null;
+				await claim.complete(attachment.id);
 			}
 			this.#handleSuccess(res, attachment);
 		} catch (err) {
@@ -582,10 +619,20 @@ export default class MessageController extends RouteController {
 		try {
 			const scope = await threadScope(req);
 			const current = await this.#loadAllowed(scope, id);
+			this.#requireOwnSide(scope, current);
 			if (current && scope.kind !== 'all' && !isOpen(current.status)) {
 				throw AuthzService.forbidden('A ' + current.status + ' letter can no longer be deleted.');
 			}
-			const deletedRows = await Message.deleteMessage(id);
+			// The status is checked again by the DELETE itself: a letter the relay group
+			// marks printed after the look above is not deleted.
+			const openOnly = scope.kind !== 'all';
+			const deletedRows = await Message.deleteMessage(id, { openOnly });
+			if (deletedRows === 0 && openOnly && current) {
+				const now = await Message.getMessageByID(id);
+				if (now && !isOpen(now.status)) {
+					throw AuthzService.forbidden('A ' + now.status + ' letter can no longer be deleted.');
+				}
+			}
 			this.#handleSuccess(res, this.requireAffected(deletedRows, 'Message ' + id));
 		} catch (err) {
 			this.#fail(res, next, err);

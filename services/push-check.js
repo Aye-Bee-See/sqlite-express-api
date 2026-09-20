@@ -1,4 +1,5 @@
 import * as push from '#services/push.js';
+import { DEVICE_PLATFORMS } from '#schemas/device.schema.js';
 
 /**
  * Does Google accept this server's push credentials?
@@ -14,6 +15,14 @@ import * as push from '#services/push.js';
 const [token = 'push-check-this-is-not-a-real-device-token', platform = 'android'] =
 	process.argv.slice(2);
 const real = process.argv.length > 2;
+
+if (!DEVICE_PLATFORMS.includes(platform)) {
+	// fcmMessage() shapes anything it does not recognise as Android; a typo must not send at all.
+	console.log(
+		'Unknown platform "' + platform + '". Use one of: ' + DEVICE_PLATFORMS.join(', ') + '.'
+	);
+	process.exit(2);
+}
 
 push.configure(console.log);
 const fcm = push.provider('fcm');

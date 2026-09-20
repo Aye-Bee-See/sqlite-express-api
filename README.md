@@ -112,6 +112,8 @@ Database ready.
 
 The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting","encryptionMode":"server","push":[]}` until the database is ready and `200 {"status":"ok","encryptionMode":"server","push":[]}` afterwards; it needs no token. `push` lists the push services the API can send through today (`["fcm"]` once a key is configured; see [Push notifications](#push-notifications)). `encryptionMode` is `server` or `e2e`, so a client can tell which letter contract to speak before it posts anything.
 
+If the database cannot be prepared at start-up (a migration fails, the file cannot be opened, `ENCRYPTION_KEY` is wrong), the server logs why and **exits with code 1**; `/health` answers `503` until then and never `200`. On `SIGTERM` or `SIGINT` it finishes the requests in flight (up to 10 seconds) and exits `0`, so a restart does not cut a letter off half sent.
+
 ### Running the tests
 
 ```bash
@@ -123,8 +125,6 @@ The suite runs against an in-memory database and needs no `.env`. It takes a cou
 ### Data persistence
 
 Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
-
-If the database cannot be prepared at start-up (a migration fails, the file cannot be opened, `ENCRYPTION_KEY` is wrong), the server logs why and **exits with code 1**; `/health` answers `503` until then and never `200`. On `SIGTERM` or `SIGINT` it finishes the requests in flight (up to 10 seconds) and exits `0`, so a restart does not cut a letter off half sent.
 
 Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and are referenced by rows in the `Attachments` table; back up both together. Deleting a message or chat through the API removes its files.
 

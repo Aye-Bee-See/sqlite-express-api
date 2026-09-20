@@ -4,6 +4,12 @@ import { keysEnd } from '#routes/constants.js';
 import { default as keysCtrlr } from '#rtControllers/keys.controller.js';
 import { limiters } from '#rtServices/ratelimit.services.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { default as bodyParser } from 'body-parser';
+import { singleIds } from '#rtServices/request-shape.services.js';
+import { rotationMaxBytes } from '#constants';
+
+/** Where a rotation is posted, as the app sees it: app.js leaves its body for this router to parse. */
+export const ROTATION_PATH = '/auth' + keysEnd.post.rotate;
 
 /** Key material routes, mounted under /auth beside the user routes. */
 class KeysRoutes {
@@ -57,7 +63,16 @@ class KeysRoutes {
 			activeStaff,
 			this.#Controller.rotationMaterial
 		);
-		this.Router.post(keysEnd.post.rotate, authenticate, activeStaff, this.#Controller.rotate);
+		this.Router.post(
+			keysEnd.post.rotate,
+			authenticate,
+			activeStaff,
+			// A rotation carries every envelope of the group: too large for the app-wide
+			// parser (which skips this path), and only read for a caller who may rotate.
+			bodyParser.json({ limit: rotationMaxBytes }),
+			singleIds,
+			this.#Controller.rotate
+		);
 
 		// Who still has to set up keys before (or after) the switch to e2e.
 		this.Router.get(

@@ -128,4 +128,7 @@ export const ready = (async () => {
 	log('Database ready.');
 })().catch((err) => {
 	console.error('Database setup failed:', err);
+	// Rejected, not swallowed: whoever awaits `ready` must not carry on as if the
+	// database were there (a server reporting healthy, a script working on nothing).
+	throw err;
 });

@@ -70,11 +70,12 @@ cp .env.example .env
 | `CORS_ORIGIN`                                 | No       | `http://localhost:3001`                   | Browser origins allowed by CORS, comma-separated.                                                                                                                   |
 | `DB_RESET`                                    | No       | `false`                                   | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                                         |
 | `DB_SEED`                                     | No       | `true`                                    | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                                               |
-| `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement.                                                                                                                                  |
+| `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement **with its values** (password hashes, token hashes, wrapped keys). Development only.                                              |
 | `DB_STORAGE`                                  | No       | `database.sqlite`                         | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                                          |
 | `UPLOAD_DIR`                                  | No       | `uploads`                                 | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.                               |
 | `UPLOAD_MAX_BYTES`                            | No       | `20971520`                                | Largest accepted upload (20 MiB).                                                                                                                                   |
 | `RATE_LIMIT_*`                                | No       | see [Rate limits](#rate-limits)           | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                                             |
+| `ROTATION_MAX_BYTES`                          | No       | `33554432` (32 MB)                        | Largest body of `POST /auth/chapter-rotation`, which re-seals every letter of a group in one request (about 150 bytes a letter). Other JSON bodies stay at 100 KB.  |
 | `TRUST_PROXY`                                 | No       | none                                      | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                                      |
 | `ENCRYPTION_MODE`                             | No       | `server`                                  | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                                            |
 | `ENCRYPTION_KEY`                              | Yes      | none                                      | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                                      |
@@ -122,6 +123,8 @@ The suite runs against an in-memory database and needs no `.env`. It takes a cou
 ### Data persistence
 
 Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
+
+If the database cannot be prepared at start-up (a migration fails, the file cannot be opened, `ENCRYPTION_KEY` is wrong), the server logs why and **exits with code 1**; `/health` answers `503` until then and never `200`. On `SIGTERM` or `SIGINT` it finishes the requests in flight (up to 10 seconds) and exits `0`, so a restart does not cut a letter off half sent.
 
 Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and are referenced by rows in the `Attachments` table; back up both together. Deleting a message or chat through the API removes its files.
 

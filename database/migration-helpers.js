@@ -23,3 +23,21 @@ export async function withForeignKeysOff(queryInterface, fn) {
 		await sequelize.query('PRAGMA foreign_keys = ON');
 	}
 }
+
+/**
+ * Drop a column without rebuilding the table. Use this, never
+ * queryInterface.removeColumn or changeColumn: Sequelize rebuilds the table
+ * from describeTable(), which knows nothing of ON DELETE rules, AUTOINCREMENT,
+ * or indexes, and all three are gone afterwards (see the repair-rebuilt-tables
+ * migration). SQLite refuses to drop a column that is indexed, unique, or part
+ * of a key; remove the index first.
+ * @param {import('sequelize').QueryInterface} queryInterface
+ * @param {string} table
+ * @param {string} column
+ */
+export async function dropColumn(queryInterface, table, column) {
+	const quote = (name) => '`' + String(name).replace(/`/g, '``') + '`';
+	await queryInterface.sequelize.query(
+		'ALTER TABLE ' + quote(table) + ' DROP COLUMN ' + quote(column)
+	);
+}

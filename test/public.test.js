@@ -239,3 +239,13 @@ test('prisoner list rows carry a facility summary without full=true', async () =
 	const byPrison = await get('/prisoner/prisoners?prison=' + f.prison.id + '&page_size=100');
 	assert.ok(byPrison.body.data.every((p) => p.prison_details.id === f.prison.id));
 });
+
+test('every answer tells browsers and proxies not to keep, guess, or frame it', async () => {
+	for (const path of ['/health', '/prison/prisons', '/no/such/route']) {
+		const res = await get(path);
+		assert.equal(res.headers.get('cache-control'), 'no-store', path);
+		assert.equal(res.headers.get('x-content-type-options'), 'nosniff', path);
+		assert.equal(res.headers.get('x-frame-options'), 'DENY', path);
+		assert.equal(res.headers.get('x-powered-by'), null, path);
+	}
+});

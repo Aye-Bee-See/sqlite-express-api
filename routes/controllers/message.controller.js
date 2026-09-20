@@ -231,7 +231,13 @@ export default class MessageController extends RouteController {
 				sender,
 				Number(prisoner),
 				Number(user),
-				crypto.isE2E() ? null : (messageText ?? null)
+				crypto.isE2E() ? null : (messageText ?? null),
+				// Which returned letter this one replaces is part of what is being asked.
+				// Added only when present, so that the fingerprint of every other letter
+				// (and of any retry already on its way across a deploy) stays what it was.
+				...(fields.resendOf === undefined || fields.resendOf === null || fields.resendOf === ''
+					? []
+					: ['resendOf', Number(fields.resendOf)])
 			]);
 			if (idempotent && 'replay' in idempotent) {
 				const original = await Message.findByPk(idempotent.replay);

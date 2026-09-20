@@ -266,3 +266,26 @@ test('retention removes a returned letter after the window, counted from the day
 	await runRetention({ now: new Date(Date.now() + 120 * 86400000), log: () => {} });
 	assert.equal(await Message.findByPk(letter.id), null);
 });
+
+test('an Idempotency-Key covers which returned letter is being sent again', async () => {
+	const first = await mailed(f.prisoner2.id);
+	const second = await mailed(f.prisoner2.id);
+	for (const letter of [first, second]) {
+		await put(
+			'/messaging/status',
+			{ id: letter.id, status: 'returned', reason: 'unknown' },
+			f.chapter
+		);
+	}
+	const body = { prisoner: f.prisoner2.id, messageText: 'Once more', sender: 'user' };
+	const options = { ...f.alice, headers: { 'Idempotency-Key': 'resend-of-the-first' } };
+	const sent = await post('/messaging/message', { ...body, resendOf: first.id }, options);
+	assert.equal(sent.status, 201, JSON.stringify(sent.body));
+	const retry = await post('/messaging/message', { ...body, resendOf: first.id }, options);
+	assert.equal(retry.headers.get('idempotent-replayed'), 'true');
+	assert.equal(retry.body.data.id, sent.body.data.id);
+	// The same key for another returned letter is another request, not a replay of this one.
+	const other = await post('/messaging/message', { ...body, resendOf: second.id }, options);
+	assert.equal(other.status, 422, JSON.stringify(other.body));
+	assert.equal((await Message.findByPk(sent.body.data.id)).resendOf, first.id);
+});

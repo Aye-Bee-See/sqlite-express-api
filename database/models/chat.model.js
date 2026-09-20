@@ -10,7 +10,7 @@ import User from '#models/user.model.js';
 import Prison from '#models/prison.model.js';
 import { publishedWhere } from '#db/record-status.js';
 import modelsService from '#models/models.service.js';
-import { inTransaction } from '#services/serial.js';
+import { inTransaction, createSerialQueue } from '#services/serial.js';
 import { OPEN_STATUSES } from '#db/letter-status.js';
 
 /** Correlated subquery: when the newest message in the chat was created. */
@@ -32,6 +32,8 @@ function listOptions() {
 		]
 	};
 }
+
+const oneChatAtATime = createSerialQueue();
 
 /**
  * What a thread says about its writer. Everyone who can read the thread sees
@@ -375,11 +377,27 @@ export default class Chat extends Model {
 		return chats;
 	}
 
+	/**
+	 * The thread of a writer and a prisoner, made if there is none.
+	 * @returns {Promise<[Chat, boolean]>} the chat, and whether it was made now
+	 *
+	 * One at a time in this process, and without a database transaction.
+	 * Sequelize's findOrCreate opens one of its own, and this runs in a hook on
+	 * every letter: forty letters saved together were forty transactions
+	 * competing for SQLite's one write lock, and on an in-memory database (one
+	 * connection) a second BEGIN simply fails. The queue is what keeps two
+	 * letters sent together from making two threads.
+	 */
 	static async findOrCreateChat(user, prisoner) {
-		return await this.findOrCreate({
-			where: { user: user, prisoner: prisoner },
-			defaults: { user: user, prisoner: prisoner },
-			paranoid: false
+		return await oneChatAtATime(async () => {
+			const existing = await this.findOne({
+				where: { user: user, prisoner: prisoner },
+				order: [['id', 'ASC']]
+			});
+			if (existing) {
+				return [existing, false];
+			}
+			return [await this.create({ user: user, prisoner: prisoner }), true];
 		});
 	}
 

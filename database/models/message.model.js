@@ -432,8 +432,17 @@ export default class Message extends Model {
 	 *
 	 *  @param {array} messageArray  - Array of message params
 	 */
+	/**
+	 * Seed data. One after another: each letter's hooks find or make its thread and
+	 * store its key, and bulkCreate with individualHooks would run all of them at
+	 * once for no gain.
+	 */
 	static async createBulkMessages(messageArray) {
-		return await this.bulkCreate(messageArray, { validate: true, individualHooks: true });
+		const created = [];
+		for (const message of messageArray) {
+			created.push(await this.create(message));
+		}
+		return created;
 	}
 
 	/**

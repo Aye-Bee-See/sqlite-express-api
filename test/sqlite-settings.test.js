@@ -19,7 +19,7 @@ process.env.ENCRYPTION_KEY = 'dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdCE=';
 process.env.UPLOAD_DIR = join(dir, 'uploads');
 
 const db = await import('../database/sql-database.js');
-const { BUSY_TIMEOUT_MS } = await import('../database/connection.js');
+const { LOCK_RETRY } = await import('../database/connection.js');
 await db.ready;
 after(async () => {
 	await db.sequelize.close();
@@ -34,13 +34,23 @@ test('a database on disk uses write-ahead logging, and foreign keys stay on', as
 	assert.equal(keys.foreign_keys, 1);
 });
 
-test('every connection waits for a lock, including the one a transaction gets', async () => {
+test('waiting for a lock is done from JavaScript, never inside SQLite', async () => {
+	// SQLite's busy timeout blocks one of Node's four database threads for as long as
+	// it waits; enough waiters, and the transaction that holds the lock cannot run.
 	const [[plain]] = await db.sequelize.query('PRAGMA busy_timeout');
-	assert.equal(plain.timeout, BUSY_TIMEOUT_MS);
+	assert.equal(plain.timeout, 0);
 	await db.sequelize.transaction(async (transaction) => {
 		const [[inside]] = await db.sequelize.query('PRAGMA busy_timeout', { transaction });
-		assert.equal(inside.timeout, BUSY_TIMEOUT_MS, 'a transaction has its own connection on disk');
+		assert.equal(inside.timeout, 0, 'a transaction has its own connection on disk');
 	});
+	assert.deepEqual(db.sequelize.options.retry, LOCK_RETRY);
+	assert.ok(LOCK_RETRY.match.some((pattern) => pattern.test('SQLITE_BUSY: database is locked')));
+	// Long enough to outlast any transaction this API runs.
+	let total = 0;
+	for (let i = 0; i < LOCK_RETRY.max; i += 1) {
+		total += LOCK_RETRY.backoffBase * LOCK_RETRY.backoffExponent ** i;
+	}
+	assert.ok(total > 5000 && total < 20000, 'waits about ten seconds in all: ' + Math.round(total));
 });
 
 test('a read is not blocked while a transaction holds the write lock', async () => {
@@ -59,8 +69,8 @@ test('a read is not blocked while a transaction holds the write lock', async () 
 
 test('a write that meets the lock waits its turn instead of failing', async () => {
 	const { Prison } = db;
-	// Longer than Sequelize's own few retries of SQLITE_BUSY can cover (about half a
-	// second in all): only the busy timeout gets the second write through this.
+	// Longer than Sequelize's default few retries of SQLITE_BUSY would cover (about
+	// half a second in all): only LOCK_RETRY gets the second write through this.
 	const HOLD_MS = 1500;
 	let release;
 	let locked;
@@ -78,8 +88,31 @@ test('a write that meets the lock waits its turn instead of failing', async () =
 	const second = Prison.create({ prisonName: 'Second writer', address: {} });
 	setTimeout(release, HOLD_MS);
 	await Promise.all([holder, second]);
-	// Without a busy timeout it fails at once with SQLITE_BUSY; with one, it is still
-	// waiting when the lock is let go.
+	// Without the retries it fails with SQLITE_BUSY; with them, it is still trying
+	// when the lock is let go.
 	assert.ok(Date.now() - started >= HOLD_MS - 50, 'the second write waited for the lock');
 	assert.equal(await Prison.count({ where: { prisonName: ['First writer', 'Second writer'] } }), 2);
+});
+
+test('many writers at once all get through, and quickly', async () => {
+	// What never finished before: more transactions waiting for the lock than Node
+	// has database threads, each blocking one, starving the transaction that held it.
+	const { Prison } = db;
+	const started = Date.now();
+	await Promise.all(
+		Array.from({ length: 24 }, (_, i) =>
+			db.sequelize.transaction(async (transaction) => {
+				const prison = await Prison.create(
+					{ prisonName: 'Crowd ' + i, address: {} },
+					{ transaction }
+				);
+				await prison.update({ notes: 'second statement in the same transaction' }, { transaction });
+			})
+		)
+	);
+	assert.equal(
+		await Prison.count({ where: { notes: 'second statement in the same transaction' } }),
+		24
+	);
+	assert.ok(Date.now() - started < 5000, 'took ' + (Date.now() - started) + ' ms');
 });

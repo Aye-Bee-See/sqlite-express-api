@@ -123,6 +123,14 @@ The suite runs against an in-memory database and needs no `.env`. It takes a cou
 
 Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
 
+While the server runs, SQLite keeps two files beside the database: `database.sqlite-wal` and `database.sqlite-shm` (write-ahead log; git-ignored). Recent writes live in the `-wal` file until SQLite folds them in, so **never back up by copying `database.sqlite` alone while the server is up**. Take a consistent copy with SQLite itself, which is safe while the server runs:
+
+```bash
+sqlite3 database.sqlite ".backup backup-$(date +%F).sqlite"
+```
+
+Or stop the server first and copy all three files.
+
 Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and are referenced by rows in the `Attachments` table; back up both together. Deleting a message or chat through the API removes its files.
 
 ### Retention

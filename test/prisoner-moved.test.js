@@ -233,3 +233,17 @@ test('nobody can set or clear a hold by editing the letter', async () => {
 	assert.equal((await Message.findByPk(letter.id)).heldReason, 'prisoner_free');
 	assert.equal((await get('/messaging/messages?held=maybe', f.alice)).status, 400);
 });
+
+test('the count a writer is told includes letters that were already waiting', async () => {
+	const someone = await person('Twice');
+	const letter = await write(f.alice, someone.id);
+	await put('/prisoner/prisoner', { id: someone.id, status: 'free' }, f.chapter);
+	assert.equal((await lastTold(f.alice.id, 'prisoner.status')).detail.held, 1);
+
+	// Still free, and now the record says they were moved as well. Nothing new is held
+	// by this edit, and Alice's letter is waiting all the same.
+	const res = await put('/prisoner/prisoner', { id: someone.id, prison: north.id }, f.chapter);
+	assert.equal(res.body.data.mail.held, 0, 'the editor is told what this edit newly held');
+	assert.equal((await Message.findByPk(letter.id)).heldReason, 'prisoner_free');
+	assert.equal((await lastTold(f.alice.id, 'prisoner.moved')).detail.held, 1);
+});

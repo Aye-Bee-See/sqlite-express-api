@@ -72,6 +72,8 @@ async function queuedLettersTo(prisonerId) {
  * @param {object} req the request that made the change (its user is the actor)
  * @param {{id: number, prison: number, status: string|null}|null} before from watchPrisoner()
  * @returns {Promise<{moved: boolean, freed: boolean, rerouted: number, held: number, released: number}|null>}
+ *   `held` and `released` count what this change did; each writer's notification carries how many
+ *   of their letters are waiting afterwards, whenever they were held.
  */
 export async function afterPrisonerChange(req, before) {
 	if (!before) {
@@ -91,7 +93,12 @@ export async function afterPrisonerChange(req, before) {
 		}
 		const actor = req && req.user ? req.user.id : null;
 		const letters = await queuedLettersTo(after.id);
-		const heldByChat = new Map();
+		// Per thread, how many queued letters are waiting once this is done: what each
+		// writer is told. Not only the ones this edit held (that is report.held, for the
+		// editor): a letter already waiting is still waiting.
+		const waitingByChat = new Map();
+		const waits = (letter) =>
+			waitingByChat.set(letter.chat, (waitingByChat.get(letter.chat) || 0) + 1);
 		const { relayIds } = report.moved ? await Prisoner.relayGroupsFor(after) : { relayIds: [] };
 
 		for (const letter of letters) {
@@ -106,6 +113,9 @@ export async function afterPrisonerChange(req, before) {
 			}
 			const rerouted = next.relayChapter !== letter.relayChapter;
 			if (!rerouted && next.heldReason === letter.heldReason) {
+				if (letter.heldReason) {
+					waits(letter);
+				}
 				continue;
 			}
 			// Still queued at the moment of the write: a letter printed meanwhile is left alone.
@@ -129,9 +139,11 @@ export async function afterPrisonerChange(req, before) {
 					{ actor }
 				);
 			}
+			if (next.heldReason) {
+				waits(letter);
+			}
 			if (next.heldReason && !letter.heldReason) {
 				report.held += 1;
-				heldByChat.set(letter.chat, (heldByChat.get(letter.chat) || 0) + 1);
 			} else if (!next.heldReason && letter.heldReason) {
 				report.released += 1;
 			}
@@ -143,7 +155,7 @@ export async function afterPrisonerChange(req, before) {
 				attributes: ['id', 'user']
 			});
 			for (const thread of threads) {
-				const held = heldByChat.get(thread.id) || 0;
+				const held = waitingByChat.get(thread.id) || 0;
 				if (report.moved) {
 					await notify(
 						[thread.user],

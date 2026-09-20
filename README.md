@@ -1394,7 +1394,7 @@ Body: `{"prisoner": 1, "chapter": 2, "description": "Letter collection, US Pacif
 
 Body `{"id": 41, "chosenName": "Doc Updated"}` and `{"id": 41}` respectively. A prisoner with chats or messages cannot be deleted.
 
-**When an edit moves or frees someone** (a new `prison`, or `status` becoming `free`), by a direct edit or by an approved proposal, their writers' mail follows (see [Moved and freed](#moved-and-freed)), and the answer says what happened under `mail`: `{ "moved": true, "freed": false, "rerouted": 1, "held": 0, "released": 0 }`.
+**When an edit moves or frees someone** (a new `prison`, or `status` becoming `free`), by a direct edit or by an approved proposal, their writers' mail follows (see [Moved and freed](#moved-and-freed)), and the answer says what this edit did under `mail` (`held` and `released` count letters it newly held or let go): `{ "moved": true, "freed": false, "rerouted": 1, "held": 0, "released": 0 }`.
 
 ### Chats
 
@@ -2114,14 +2114,14 @@ curl -s 'http://localhost:3000/auth/notifications?since=41' -H "Authorization: B
 
 `since` is the id of the newest entry the client already has; `unread=true` filters; `page` and `page_size` work as everywhere. Entries hold ids and states, never letter content. `PUT /auth/notifications/read` takes `{"ids": [42, 43]}`, `{"upTo": 43}`, or `{}` for everything, and answers `{ "marked": 2, "unread": 0 }`. Entries are kept for `NOTIFICATION_DAYS` (30), and an entry about a letter goes when the letter does (retention, deletion).
 
-| Event                | Who is told                                                             | `detail`                                                                                                  |
-| -------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `letter.reply`       | The writer, when a prisoner's reply is recorded on their thread         | none                                                                                                      |
-| `letter.status`      | The writer, when their letter is printed, mailed, or returned           | `{ "status": "printed" }`; for a return, `{ "status": "returned", "reason": "transferred" }`              |
-| `letter.queued`      | The members of the relay group, when a letter arrives for them to print | none                                                                                                      |
-| `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }`                                                          |
-| `prisoner.moved`     | Everyone with a thread to a prisoner whose facility changed             | `{ "prisoner": 12, "prison": 7, "held": 0 }` (`held`: how many of their queued letters now wait for them) |
-| `prisoner.status`    | The same people, when the prisoner's status becomes `free`              | `{ "prisoner": 12, "status": "free", "held": 2 }`                                                         |
+| Event                | Who is told                                                             | `detail`                                                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `letter.reply`       | The writer, when a prisoner's reply is recorded on their thread         | none                                                                                                                                                     |
+| `letter.status`      | The writer, when their letter is printed, mailed, or returned           | `{ "status": "printed" }`; for a return, `{ "status": "returned", "reason": "transferred" }`                                                             |
+| `letter.queued`      | The members of the relay group, when a letter arrives for them to print | none                                                                                                                                                     |
+| `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }`                                                                                                         |
+| `prisoner.moved`     | Everyone with a thread to a prisoner whose facility changed             | `{ "prisoner": 12, "prison": 7, "held": 0 }` (`held`: how many of their queued letters to this person are waiting for them now, whenever they were held) |
+| `prisoner.status`    | The same people, when the prisoner's status becomes `free`              | `{ "prisoner": 12, "status": "free", "held": 2 }`                                                                                                        |
 
 The account that did the thing is never told about it, and accounts nobody can sign in to (unclaimed and anonymous writers, banned accounts) are skipped.
 

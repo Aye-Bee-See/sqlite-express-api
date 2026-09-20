@@ -63,7 +63,14 @@ export default {
 		const key = pendingKeys.get(instance);
 		pendingKeys.delete(instance);
 		if (key) {
-			await LetterKey.issueServerKey(instance.id, key);
+			try {
+				await LetterKey.issueServerKey(instance.id, key);
+			} catch (err) {
+				// The row is in; without its key nobody could ever read it. Take it back,
+				// so the failed create leaves nothing (and a retry makes the only copy).
+				await instance.destroy({ force: true, hooks: false }).catch(() => {});
+				throw err;
+			}
 		}
 		if (crypto.isE2E()) {
 			instance.setDataValue('messageText', null);

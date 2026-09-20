@@ -128,6 +128,29 @@ export default class Attachment extends Model {
 	 * @param {number[]} messageIds
 	 * @returns {Promise<number>} rows removed
 	 */
+	/**
+	 * The stored file names of these messages' attachments, read before a delete
+	 * whose cascade removes the rows; pass them to removeFiles() once it succeeds.
+	 * @returns {Promise<string[]>}
+	 */
+	static async storedNamesFor(messageIds, options = {}) {
+		if (messageIds.length === 0) {
+			return [];
+		}
+		const rows = await this.scope('withStoredName').findAll({
+			where: { message: messageIds },
+			attributes: ['id', 'storedName'],
+			...options
+		});
+		return rows.map((row) => row.storedName);
+	}
+
+	static async removeFiles(storedNames) {
+		for (const name of storedNames) {
+			await removeFile(name);
+		}
+	}
+
 	static async purgeForMessages(messageIds) {
 		if (messageIds.length === 0) {
 			return 0;

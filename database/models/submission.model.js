@@ -228,7 +228,9 @@ export default class Submission extends Model {
 	 */
 	static async #transition(submission, values) {
 		const [count] = await this.update(values, {
-			where: { id: submission.id, status: 'pending' }
+			// Still pending, and still the revision that was read: what is decided is
+			// what the reviewer (and this request) saw, not what arrived a moment later.
+			where: { id: submission.id, status: 'pending', updatedAt: submission.updatedAt }
 		});
 		return count === 1;
 	}
@@ -236,7 +238,18 @@ export default class Submission extends Model {
 	/** Reload and throw the 409 for a submission that was decided concurrently. */
 	static async #lost(submission) {
 		const fresh = await this.findByPk(submission.id);
+		if (fresh && fresh.status === 'pending') {
+			throw Submission.#revised(submission);
+		}
 		throw Submission.#alreadyDecided(fresh || submission);
+	}
+
+	static #revised(submission) {
+		return new HttpError(
+			409,
+			'Submission ' + submission.id + ' was revised after you read it. Read it again.',
+			'SubmissionChangedError'
+		);
 	}
 
 	/**
@@ -256,11 +269,7 @@ export default class Submission extends Model {
 				throw new ValidationError('ifUnchangedSince must be a date (the updatedAt you reviewed).');
 			}
 			if (submission.updatedAt.getTime() > seen.getTime()) {
-				throw new HttpError(
-					409,
-					'Submission ' + submission.id + ' was revised after you read it. Read it again.',
-					'SubmissionChangedError'
-				);
+				throw Submission.#revised(submission);
 			}
 		}
 		const spec = RESOURCES[submission.resource];

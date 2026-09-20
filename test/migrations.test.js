@@ -280,10 +280,11 @@ test('the indexes the hot queries depend on exist after all migrations', async (
 			'messages_user',
 			'messages_relay_status',
 			'messages_prisoner_user',
-			'messages_status_changed'
+			'messages_status_changed',
+			'messages_resend_of'
 		],
 		Chats: ['chats_user_prisoner', 'chats_prisoner'],
-		MessageStatuses: ['message_statuses_message'],
+		MessageStatuses: ['message_statuses_message', 'message_statuses_to_status_created'],
 		LetterKeys: ['letter_keys_reader'],
 		User: ['user_chapter'],
 		Prisoners: ['prisoners_prison'],
@@ -515,5 +516,49 @@ test('rolling migrations back does not strip the tables again', async () => {
 		`INSERT INTO Messages (chat, sender, prisoner, user, status, createdAt, updatedAt) VALUES (1, 'user', 1, 1, 'queued', ${now}, ${now})`
 	);
 	assert.equal((await live.query('SELECT MAX(id) AS id FROM Messages'))[0][0].id, 4);
+	await live.close();
+});
+
+test('rolling back returned mail makes a returned letter mailed again, on the day it was mailed', async () => {
+	const MIGRATION = '2026.09.20T02.00.00.returned-mail.js';
+	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	await runMigrations(live, { quiet: true });
+	const at = (day) => `'2026-01-${day} 00:00:00.000 +00:00'`;
+	await live.query(
+		`INSERT INTO User (id, username, password, email, role, createdAt, updatedAt) VALUES (1, 'w', 'x', 'w@example.com', 'user', ${at('01')}, ${at('01')}), (2, 'm', 'x', 'm@example.com', 'chapter', ${at('01')}, ${at('01')})`
+	);
+	await live.query(
+		`INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('P', '{}', ${at('01')}, ${at('01')})`
+	);
+	await live.query(
+		`INSERT INTO Prisoners (birthName, prison, createdAt, updatedAt) VALUES ('X', 1, ${at('01')}, ${at('01')})`
+	);
+	await live.query(
+		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${at('01')}, ${at('01')})`
+	);
+	await live.query(
+		`INSERT INTO Messages (id, chat, sender, prisoner, user, status, returnReason, statusChangedAt, statusChangedBy, createdAt, updatedAt) VALUES (1, 1, 'user', 1, 1, 'returned', 'refused', ${at('20')}, NULL, ${at('02')}, ${at('20')})`
+	);
+	await live.query(
+		`INSERT INTO MessageStatuses (message, fromStatus, toStatus, changedBy, reason, createdAt, updatedAt) VALUES (1, 'printed', 'mailed', 2, NULL, ${at('05')}, ${at('05')}), (1, 'mailed', 'returned', NULL, 'refused', ${at('20')}, ${at('20')})`
+	);
+
+	const names = (await createMigrator(live, { quiet: true }).executed()).map((m) => m.name);
+	await createMigrator(live, { quiet: true }).down({ to: MIGRATION });
+	assert.ok(names.includes(MIGRATION));
+	const [[letter]] = await live.query(
+		'SELECT status, statusChangedAt, statusChangedBy FROM Messages WHERE id = 1'
+	);
+	assert.equal(letter.status, 'mailed');
+	assert.ok(
+		String(letter.statusChangedAt).startsWith('2026-01-05'),
+		'retention counts from the day it was mailed: ' + letter.statusChangedAt
+	);
+	assert.equal(letter.statusChangedBy, 2);
+	const [history] = await live.query('SELECT toStatus FROM MessageStatuses WHERE message = 1');
+	assert.deepEqual(
+		history.map((row) => row.toStatus),
+		['mailed']
+	);
 	await live.close();
 });

@@ -19,6 +19,9 @@ export async function up({ context: queryInterface }) {
 		onDelete: 'SET NULL',
 		onUpdate: 'CASCADE'
 	});
+	// resent_as reads by it, and so does every delete of a letter: SET NULL makes
+	// SQLite look for the rows that point at the one going (retention deletes many).
+	await queryInterface.addIndex('Messages', ['resendOf'], { name: 'messages_resend_of' });
 	// "Which prisoners had mail come back lately" reads the history by status and date.
 	await queryInterface.addIndex('MessageStatuses', ['toStatus', 'createdAt'], {
 		name: 'message_statuses_to_status_created'
@@ -27,9 +30,23 @@ export async function up({ context: queryInterface }) {
 
 export async function down({ context: queryInterface }) {
 	await queryInterface.removeIndex('MessageStatuses', 'message_statuses_to_status_created');
-	// A returned letter has no earlier shape to go back to; mailed is what it was before.
+	await queryInterface.removeIndex('Messages', 'messages_resend_of');
+	// A returned letter goes back to what it was before: mailed, on the day and by the
+	// account that mailed it. (statusChangedAt is what retention counts from; left at
+	// the day of the return it would say the letter was mailed then.)
+	const lastMailed = (column) =>
+		'COALESCE((SELECT `s`.`' +
+		column +
+		"` FROM `MessageStatuses` AS `s` WHERE `s`.`message` = `Messages`.`id` AND `s`.`toStatus` = 'mailed' ORDER BY `s`.`id` DESC LIMIT 1), ";
 	await queryInterface.sequelize.query(
-		"UPDATE `Messages` SET `status` = 'mailed' WHERE `status` = 'returned'"
+		"UPDATE `Messages` SET `status` = 'mailed', " +
+			'`statusChangedAt` = ' +
+			lastMailed('createdAt') +
+			'`statusChangedAt`), ' +
+			'`statusChangedBy` = ' +
+			lastMailed('changedBy') +
+			'NULL) ' +
+			"WHERE `status` = 'returned'"
 	);
 	await queryInterface.sequelize.query(
 		"DELETE FROM `MessageStatuses` WHERE `toStatus` = 'returned'"

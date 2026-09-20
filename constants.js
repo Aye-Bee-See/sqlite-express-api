@@ -92,6 +92,19 @@ function envDays(value, fallback, { min = 0 } = {}) {
 export const retentionDefaultDays = envDays(RETENTION_DEFAULT_DAYS, 90);
 // A cap of 0 would read as "forever" (the sentinel), so the cap starts at 1 day.
 export const retentionMaxDays = envDays(RETENTION_MAX_DAYS, null, { min: 1 });
+/**
+ * Largest body POST /auth/chapter-rotation accepts. A rotation re-seals every
+ * letter the group can read in one request, about 150 bytes each, so the
+ * usual 100 KB would stop a group at some 700 letters. Parsed only after the
+ * caller is authenticated.
+ */
+export const rotationMaxBytes =
+	// A whole number of bytes: "1e309" is Infinity, which would mean no limit at all.
+	Number.isSafeInteger(Number(process.env.ROTATION_MAX_BYTES)) &&
+	Number(process.env.ROTATION_MAX_BYTES) > 0
+		? Number(process.env.ROTATION_MAX_BYTES)
+		: 32 * 1024 * 1024;
+
 export const uploadMaxBytes =
 	UPLOAD_MAX_BYTES && Number(UPLOAD_MAX_BYTES) > 0 ? Number(UPLOAD_MAX_BYTES) : 20 * 1024 * 1024;
 

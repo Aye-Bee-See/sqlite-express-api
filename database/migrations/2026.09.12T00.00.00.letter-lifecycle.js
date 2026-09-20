@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { withForeignKeysOff } from '../migration-helpers.js';
 
 /**
  * Letter lifecycle: every message gets a status (queued, printed, mailed for
@@ -45,7 +46,10 @@ export async function up({ context: queryInterface }) {
 export async function down({ context: queryInterface }) {
 	await queryInterface.dropTable('MessageStatuses');
 	await queryInterface.removeIndex('Messages', 'messages_relay_chapter_status');
-	for (const name of Object.keys(MESSAGE_COLUMNS).reverse()) {
-		await queryInterface.removeColumn('Messages', name);
-	}
+	// removeColumn rebuilds the table: see withForeignKeysOff.
+	await withForeignKeysOff(queryInterface, async () => {
+		for (const name of Object.keys(MESSAGE_COLUMNS).reverse()) {
+			await queryInterface.removeColumn('Messages', name);
+		}
+	});
 }

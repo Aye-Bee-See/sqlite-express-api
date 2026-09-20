@@ -70,11 +70,12 @@ cp .env.example .env
 | `CORS_ORIGIN`                                 | No       | `http://localhost:3001`                   | Browser origins allowed by CORS, comma-separated.                                                                                                                   |
 | `DB_RESET`                                    | No       | `false`                                   | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                                         |
 | `DB_SEED`                                     | No       | `true`                                    | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                                               |
-| `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement.                                                                                                                                  |
+| `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement **with its values** (password hashes, token hashes, wrapped keys). Development only.                                              |
 | `DB_STORAGE`                                  | No       | `database.sqlite`                         | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                                          |
 | `UPLOAD_DIR`                                  | No       | `uploads`                                 | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.                               |
 | `UPLOAD_MAX_BYTES`                            | No       | `20971520`                                | Largest accepted upload (20 MiB).                                                                                                                                   |
 | `RATE_LIMIT_*`                                | No       | see [Rate limits](#rate-limits)           | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                                             |
+| `ROTATION_MAX_BYTES`                          | No       | `33554432` (32 MB)                        | Largest body of `POST /auth/chapter-rotation`, which re-seals every letter of a group in one request (about 150 bytes a letter). Other JSON bodies stay at 100 KB.  |
 | `TRUST_PROXY`                                 | No       | none                                      | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                                      |
 | `ENCRYPTION_MODE`                             | No       | `server`                                  | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                                            |
 | `ENCRYPTION_KEY`                              | Yes      | none                                      | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                                      |
@@ -110,6 +111,8 @@ Database ready.
 ```
 
 The server accepts connections as soon as the first line prints. `GET /health` answers `503 {"status":"starting","encryptionMode":"server","push":[]}` until the database is ready and `200 {"status":"ok","encryptionMode":"server","push":[]}` afterwards; it needs no token. `push` lists the push services the API can send through today (`["fcm"]` once a key is configured; see [Push notifications](#push-notifications)). `encryptionMode` is `server` or `e2e`, so a client can tell which letter contract to speak before it posts anything.
+
+If the database cannot be prepared at start-up (a migration fails, the file cannot be opened, `ENCRYPTION_KEY` is wrong), the server logs why and **exits with code 1**; `/health` answers `503` until then and never `200`. On `SIGTERM` or `SIGINT` it finishes the requests in flight (up to 10 seconds) and exits `0`, so a restart does not cut a letter off half sent.
 
 ### Running the tests
 

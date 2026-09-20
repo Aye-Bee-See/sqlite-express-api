@@ -602,3 +602,29 @@ test('key state never travels through the generic group update', async () => {
 		403
 	);
 });
+
+test('a rotation body may be far larger than other JSON bodies, and only for a caller who may rotate', async () => {
+	const padding = 'x'.repeat(300 * 1024);
+	// Parsed after authentication: a stranger's large body is refused unread.
+	const anonymous = await post('/auth/chapter-rotation', { chapter: 1, padding });
+	assert.equal(anonymous.status, 401);
+	// Elsewhere the usual limit stands.
+	const elsewhere = await put('/auth/keys', { padding }, first);
+	assert.equal(elsewhere.status, 413);
+	// Here it is read, and then judged like any rotation (this one is missing everything).
+	const read = await post('/auth/chapter-rotation', { chapter: f.group.id, padding }, first);
+	assert.notEqual(read.status, 413, JSON.stringify(read.body));
+	assert.ok(read.status >= 400 && read.status < 500);
+	const list = await post('/auth/chapter-rotation', { chapter: [f.group.id], padding }, first);
+	assert.equal(list.status, 400);
+});
+
+test('the larger limit follows the route however its path is written', async () => {
+	// Express matches these too; the app-wide 100 KB parser must not get to them first.
+	const padding = 'x'.repeat(300 * 1024);
+	for (const path of ['/auth/chapter-rotation/', '/AUTH/Chapter-Rotation']) {
+		const res = await post(path, { chapter: f.group.id, padding }, first);
+		assert.notEqual(res.status, 413, path);
+		assert.ok(res.status >= 400 && res.status < 500, path + ' ' + res.status);
+	}
+});

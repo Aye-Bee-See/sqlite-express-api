@@ -360,3 +360,160 @@ test('the rotation migration versions existing group keys and their envelopes', 
 	);
 	await old.close();
 });
+
+test('no table has lost its delete rules or its AUTOINCREMENT to a rebuild', async () => {
+	// Sequelize's removeColumn rebuilds a table without either; see the repair migration.
+	const [tables] = await db.sequelize.query(
+		"SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+	);
+	// Join tables and tables keyed by something else never had an id of their own.
+	const noOwnId = [
+		'SequelizeMeta',
+		'PrisonerSupport',
+		'PrisonRelay',
+		'PrisonMailRules',
+		'RevokedTokens'
+	];
+	for (const { name, sql } of tables) {
+		const references = (sql.match(/REFERENCES/g) || []).length;
+		const rules = (sql.match(/ON DELETE/g) || []).length;
+		assert.equal(rules, references, name + ': a REFERENCES clause has no ON DELETE rule');
+		if (!noOwnId.includes(name)) {
+			assert.match(sql, /AUTOINCREMENT/, name + ': ids of deleted rows would be reused');
+		}
+	}
+});
+
+test('the repair migration restores the rules and keeps every row, index, and child row', async () => {
+	const MIGRATION = '2026.09.20T01.00.00.repair-rebuilt-tables.js';
+	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const names = (await createMigrator(live, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(live, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	// Damage the two tables as databases from before the helper learned better were
+	// damaged: a bare Sequelize removeColumn, which rebuilds from describeTable().
+	const qi = live.getQueryInterface();
+	await live.query('PRAGMA foreign_keys = OFF');
+	for (const table of ['Messages', 'Prisons']) {
+		await live.query('ALTER TABLE `' + table + '` ADD COLUMN `scratch` INTEGER');
+		await qi.removeColumn(table, 'scratch');
+	}
+	await live.query('DROP INDEX IF EXISTS `messages_relay_status`');
+	await live.query('PRAGMA foreign_keys = ON');
+	const [[damaged]] = await live.query("SELECT sql FROM sqlite_master WHERE name = 'Messages'");
+	assert.doesNotMatch(damaged.sql, /ON DELETE|AUTOINCREMENT/, 'damaged as old databases are');
+
+	const now = "'2026-01-01 00:00:00.000 +00:00'";
+	await live.query(
+		`INSERT INTO Chapters (name, location, createdAt, updatedAt) VALUES ('G', '{}', ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO User (username, password, email, role, createdAt, updatedAt) VALUES ('w', 'x', 'w@example.com', 'user', ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Prisons (prisonName, address, verifiedBy, createdAt, updatedAt) VALUES ('P', '{}', 1, ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Prisoners (birthName, prison, createdAt, updatedAt) VALUES ('X', 1, ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${now}, ${now})`
+	);
+	for (const id of [1, 2]) {
+		await live.query(
+			`INSERT INTO Messages (id, chat, sender, prisoner, user, status, relayChapter, createdAt, updatedAt) VALUES (${id}, 1, 'user', 1, 1, 'queued', 1, ${now}, ${now})`
+		);
+	}
+	await live.query(
+		`INSERT INTO MessageStatuses (message, toStatus, createdAt, updatedAt) VALUES (2, 'queued', ${now}, ${now})`
+	);
+	// A letter that was purged long ago is still named in the audit log.
+	await live.query(
+		`INSERT INTO AuditLogs (action, resource, targetId, createdAt) VALUES ('message.delete', 'message', 50, ${now})`
+	);
+	const [indexesBefore] = await live.query(
+		"SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'Messages' AND sql IS NOT NULL ORDER BY name"
+	);
+
+	await runMigrations(live, { quiet: true });
+
+	const count = async (table) => (await live.query('SELECT COUNT(*) AS n FROM ' + table))[0][0].n;
+	assert.equal(await count('Messages'), 2);
+	assert.equal(await count('MessageStatuses'), 1, 'rows of tables that point at Messages are kept');
+	assert.equal(await count('Prisoners'), 1);
+	const [indexesAfter] = await live.query(
+		"SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'Messages' AND sql IS NOT NULL ORDER BY name"
+	);
+	assert.deepEqual(
+		indexesAfter.map((i) => i.name).filter((n) => indexesBefore.some((b) => b.name === n)),
+		indexesBefore.map((i) => i.name)
+	);
+	assert.deepEqual((await live.query('PRAGMA foreign_key_check'))[0], []);
+
+	// The rules work again: a group can go, and what pointed at it is set to NULL.
+	await live.query('DELETE FROM Chapters WHERE id = 1');
+	assert.equal(
+		(await live.query('SELECT relayChapter FROM Messages WHERE id = 1'))[0][0].relayChapter,
+		null
+	);
+	assert.equal(
+		(await live.query('SELECT verifiedBy FROM Prisons WHERE id = 1'))[0][0].verifiedBy,
+		null
+	);
+	// Children still follow their letter, and its id is never given to another.
+	await live.query('DELETE FROM Messages WHERE id = 2');
+	assert.equal(await count('MessageStatuses'), 0);
+	await live.query(
+		`INSERT INTO Messages (chat, sender, prisoner, user, status, createdAt, updatedAt) VALUES (1, 'user', 1, 1, 'queued', ${now}, ${now})`
+	);
+	assert.equal(
+		(await live.query('SELECT MAX(id) AS id FROM Messages'))[0][0].id,
+		51,
+		'above every id the database still remembers, not only the rows that are left'
+	);
+	await live.close();
+});
+
+test('rolling migrations back does not strip the tables again', async () => {
+	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	await runMigrations(live, { quiet: true });
+	const now = "'2026-01-01 00:00:00.000 +00:00'";
+	await live.query(
+		`INSERT INTO User (username, password, email, role, createdAt, updatedAt) VALUES ('w', 'x', 'w@example.com', 'user', ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('P', '{}', ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Prisoners (birthName, prison, createdAt, updatedAt) VALUES ('X', 1, ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${now}, ${now})`
+	);
+	for (const id of [1, 2, 3]) {
+		await live.query(
+			`INSERT INTO Messages (id, chat, sender, prisoner, user, status, createdAt, updatedAt) VALUES (${id}, 1, 'user', 1, 1, 'queued', ${now}, ${now})`
+		);
+	}
+	await live.query('DELETE FROM Messages WHERE id = 3');
+
+	// Back past the migrations that drop columns from Messages and from Prisons.
+	await createMigrator(live, { quiet: true }).down({ to: '2026.09.13T03.00.00.retention.js' });
+	for (const table of ['Messages', 'Prisons', 'User', 'Chapters']) {
+		const [[{ sql }]] = await live.query('SELECT sql FROM sqlite_master WHERE name = :table', {
+			replacements: { table }
+		});
+		assert.match(sql, /AUTOINCREMENT/, table);
+		assert.equal(
+			(sql.match(/ON DELETE/g) || []).length,
+			(sql.match(/REFERENCES/g) || []).length,
+			table
+		);
+	}
+	assert.equal((await live.query('SELECT COUNT(*) AS n FROM Messages'))[0][0].n, 2);
+	// The counter came through the rebuilds: the deleted letter's id is not given out again.
+	await live.query(
+		`INSERT INTO Messages (chat, sender, prisoner, user, status, createdAt, updatedAt) VALUES (1, 'user', 1, 1, 'queued', ${now}, ${now})`
+	);
+	assert.equal((await live.query('SELECT MAX(id) AS id FROM Messages'))[0][0].id, 4);
+	await live.close();
+});

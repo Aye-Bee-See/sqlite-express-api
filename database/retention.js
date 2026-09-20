@@ -1,3 +1,4 @@
+import { Op, literal } from 'sequelize';
 import { sequelize } from './connection.js';
 import * as Models from '#models/all.model.js';
 import { retentionDefaultDays, retentionMaxDays } from '#constants';
@@ -53,6 +54,36 @@ export async function purgeIfUnpinned(messageId) {
 	return { deleted: true, attachments: files.length };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Writers are read in batches: SQLite limits how many values one IN list may hold. */
+const WRITER_BATCH = 500;
+
+/**
+ * The shortest window any writer has, in days; null when every letter is kept
+ * for ever. A writer's own setting can be shorter than the site default.
+ */
+async function shortestWindow(User) {
+	const own = await User.min('retentionDays', { where: { retentionDays: { [Op.gt]: 0 } } });
+	const windows = [windowFor(null), windowFor({ retentionDays: own ?? null })].filter(
+		(days) => days !== null
+	);
+	return windows.length === 0 ? null : Math.min(...windows);
+}
+
+/**
+ * Writers who chose "for ever" (0), when no site maximum overrides them: their
+ * letters are never due, so they are not read at all.
+ */
+function keptForEver() {
+	if (retentionMaxDays !== null) {
+		return {};
+	}
+	// A subquery, not a list of ids: there may be many such writers.
+	return {
+		user: { [Op.notIn]: literal('(SELECT `id` FROM `User` WHERE `retentionDays` = 0)') }
+	};
+}
+
 let running = null;
 
 export async function runRetention(options = {}) {
@@ -68,12 +99,38 @@ export async function runRetention(options = {}) {
 
 async function run({ dryRun = false, now = new Date(), log = console.log } = {}) {
 	const { Message, User, Chat, AuditLog, Attachment } = Models;
-	const candidates = await Message.findAll({
-		where: { status: ['mailed', 'received'], keep: false },
-		attributes: ['id', 'user', 'chat', 'status', 'statusChangedAt', 'createdAt'],
-		hooks: false
-	});
+	// Nothing younger than the shortest window anyone has can be due, so the
+	// database leaves those rows out: the run reads the letters that may go, not
+	// every letter ever mailed.
+	const shortest = await shortestWindow(User);
+	const cutoff = shortest === null ? null : new Date(now.getTime() - shortest * DAY_MS);
+	const candidates =
+		cutoff === null
+			? []
+			: await Message.findAll({
+					where: {
+						status: ['mailed', 'received'],
+						keep: false,
+						...keptForEver(),
+						[Op.or]: [
+							{ statusChangedAt: { [Op.lte]: cutoff } },
+							{ statusChangedAt: null, createdAt: { [Op.lte]: cutoff } }
+						]
+					},
+					attributes: ['id', 'user', 'chat', 'status', 'statusChangedAt', 'createdAt'],
+					hooks: false
+				});
 	const writers = new Map();
+	const writerIds = [...new Set(candidates.map((message) => message.user))];
+	for (let i = 0; i < writerIds.length; i += WRITER_BATCH) {
+		const rows = await User.findAll({
+			where: { id: writerIds.slice(i, i + WRITER_BATCH) },
+			attributes: ['id', 'retentionDays']
+		});
+		for (const row of rows) {
+			writers.set(row.id, row);
+		}
+	}
 	const report = {
 		examined: candidates.length,
 		letters: 0,
@@ -84,18 +141,12 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 	};
 	const perChat = new Map(); // chat id -> letters this run removes from it
 	for (const message of candidates) {
-		if (!writers.has(message.user)) {
-			writers.set(
-				message.user,
-				await User.findByPk(message.user, { attributes: ['id', 'retentionDays'] })
-			);
-		}
-		const days = windowFor(writers.get(message.user));
+		const days = windowFor(writers.get(message.user) || null);
 		if (days === null) {
 			continue;
 		}
 		const since = message.statusChangedAt || message.createdAt;
-		if (!since || now.getTime() - new Date(since).getTime() < days * 24 * 60 * 60 * 1000) {
+		if (!since || now.getTime() - new Date(since).getTime() < days * DAY_MS) {
 			continue;
 		}
 		let removed;

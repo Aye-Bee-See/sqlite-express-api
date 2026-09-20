@@ -18,6 +18,7 @@ import ErrorService from '#rtServices/error.services.js';
 import { singleIds } from '#rtServices/request-shape.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
 import { NotFoundError } from '#services/HttpError.js';
+import { ROTATION_PATH } from '#routes/keys/keys.js';
 import { ready } from '#db/sql-database.js';
 
 /**
@@ -37,6 +38,20 @@ export function createApp() {
 	// Behind a reverse proxy, TRUST_PROXY makes req.ip the client address (rate limits key on it).
 	app.set('trust proxy', trustProxy);
 
+	app.disable('x-powered-by');
+	// Every answer is private data or about it: nothing is cached by a browser or
+	// a proxy, nothing is guessed to be another type (an uploaded file served as
+	// a page), and nothing is framed.
+	app.use((req, res, next) => {
+		res.set({
+			'Cache-Control': 'no-store',
+			'X-Content-Type-Options': 'nosniff',
+			'X-Frame-Options': 'DENY',
+			'Referrer-Policy': 'no-referrer'
+		});
+		next();
+	});
+
 	// CORS before any routes are defined
 	app.use(
 		cors({
@@ -49,16 +64,26 @@ export function createApp() {
 		})
 	);
 
-	app.use(bodyParser.json());
+	// Every JSON body is parsed here at the default 100 KB, except a key rotation's:
+	// its route parses it, with a larger limit, once the caller is authenticated.
+	const json = bodyParser.json();
+	// Compared as the router will match it: Express ignores case and a trailing slash.
+	const isRotation = (req) =>
+		req.method === 'POST' && req.path.replace(/\/+$/, '').toLowerCase() === ROTATION_PATH;
+	app.use((req, res, next) => (isRotation(req) ? next() : json(req, res, next)));
 	app.use(bodyParser.urlencoded({ extended: true }));
 	app.use(singleIds);
 	app.use(passport.initialize());
 
 	// Liveness/readiness: 200 once the database is synced and seeded, 503 before.
 	let databaseReady = false;
-	ready.then(() => {
-		databaseReady = true;
-	});
+	ready.then(
+		() => {
+			databaseReady = true;
+		},
+		// A failed setup keeps /health at 503; index.js ends the process.
+		() => {}
+	);
 	app.get('/health', (req, res) => {
 		// encryptionMode lets a client refuse to post plaintext to an e2e server.
 		res

@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { withForeignKeysOff } from '../migration-helpers.js';
 
 /**
  * Add recordStatus (draft | pending | published) to the three directory
@@ -18,7 +19,10 @@ export async function up({ context: queryInterface }) {
 }
 
 export async function down({ context: queryInterface }) {
-	for (const table of TABLES) {
-		await queryInterface.removeColumn(table, 'recordStatus');
-	}
+	// removeColumn rebuilds the table: see withForeignKeysOff.
+	await withForeignKeysOff(queryInterface, async () => {
+		for (const table of TABLES) {
+			await queryInterface.removeColumn(table, 'recordStatus');
+		}
+	});
 }

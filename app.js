@@ -15,6 +15,7 @@ import NotificationRoutes from '#routes/notification/notification.js';
 import * as push from '#services/push.js';
 import KeysRoutes from '#routes/keys/keys.js';
 import ErrorService from '#rtServices/error.services.js';
+import { singleIds } from '#rtServices/request-shape.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
 import { NotFoundError } from '#services/HttpError.js';
 import { ready } from '#db/sql-database.js';
@@ -50,6 +51,7 @@ export function createApp() {
 
 	app.use(bodyParser.json());
 	app.use(bodyParser.urlencoded({ extended: true }));
+	app.use(singleIds);
 	app.use(passport.initialize());
 
 	// Liveness/readiness: 200 once the database is synced and seeded, 503 before.

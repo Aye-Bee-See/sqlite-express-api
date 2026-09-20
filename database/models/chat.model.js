@@ -1,5 +1,6 @@
 import { Model, literal } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
+import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import Message from '#models/message.model.js';
 import Attachment from '#models/attachment.model.js';
@@ -29,6 +30,25 @@ function listOptions() {
 		]
 	};
 }
+
+/**
+ * What a thread says about its writer. Everyone who can read the thread sees
+ * this (the writer, the group that mails it, the group that manages the
+ * writer), so it is less than GET /auth/user gives any one of them: no email,
+ * no manager's note, no session or retention settings.
+ */
+const WRITER_EMBED = [
+	'id',
+	'name',
+	'username',
+	'bio',
+	'role',
+	'chapterId',
+	'managedBy',
+	'claimedAt',
+	'anonymousForChapter',
+	'publicKey'
+];
 
 /** Non-staff only see published embedded records; the rest come back null. */
 function visibility(publishedOnly) {
@@ -130,11 +150,13 @@ export default class Chat extends Model {
 					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
-						as: 'user_details'
+						as: 'user_details',
+						attributes: WRITER_EMBED
 					},
 					{
 						model: Prisoner,
 						as: 'prisoner_details',
+						...Prisoner.publicAttributes(publishedOnly),
 						...visibility(publishedOnly),
 						include: [facilitySummary(publishedOnly)]
 					}
@@ -182,11 +204,13 @@ export default class Chat extends Model {
 					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
-						as: 'user_details'
+						as: 'user_details',
+						attributes: WRITER_EMBED
 					},
 					{
 						model: Prisoner,
 						as: 'prisoner_details',
+						...Prisoner.publicAttributes(publishedOnly),
 						...visibility(publishedOnly),
 						include: [facilitySummary(publishedOnly)]
 					}
@@ -218,11 +242,13 @@ export default class Chat extends Model {
 					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
-						as: 'user_details'
+						as: 'user_details',
+						attributes: WRITER_EMBED
 					},
 					{
 						model: Prisoner,
 						as: 'prisoner_details',
+						...Prisoner.publicAttributes(publishedOnly),
 						...visibility(publishedOnly),
 						include: [facilitySummary(publishedOnly)]
 					}
@@ -241,11 +267,13 @@ export default class Chat extends Model {
 					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
-						as: 'user_details'
+						as: 'user_details',
+						attributes: WRITER_EMBED
 					},
 					{
 						model: Prisoner,
 						as: 'prisoner_details',
+						...Prisoner.publicAttributes(publishedOnly),
 						...visibility(publishedOnly),
 						include: [facilitySummary(publishedOnly)]
 					}
@@ -273,11 +301,13 @@ export default class Chat extends Model {
 					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
 					{
 						model: User,
-						as: 'user_details'
+						as: 'user_details',
+						attributes: WRITER_EMBED
 					},
 					{
 						model: Prisoner,
 						as: 'prisoner_details',
+						...Prisoner.publicAttributes(publishedOnly),
 						...visibility(publishedOnly),
 						include: [facilitySummary(publishedOnly)]
 					}
@@ -357,7 +387,7 @@ export default class Chat extends Model {
 	 * @returns {Promise<[number]>} affected row count
 	 */
 	static async updateChat(chat) {
-		return await this.update({ ...chat }, { where: { id: chat.id } });
+		return await updateById(this, chat.id, pick(chat, ['user', 'prisoner']));
 	}
 
 	// Delete

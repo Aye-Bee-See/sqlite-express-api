@@ -455,7 +455,7 @@ Missing `username` or `password` never reaches the verify function; passport-loc
 
 ### Rate limits
 
-`routes/services/ratelimit.services.js` is a small fixed-window limiter kept in a `Map` (swept every minute, hard-capped in size). `limit({ name, what, windowMs, perIp, perSubject, subject, failuresOnly })` builds a middleware; `limiters` holds the four in use: `login` (failures per username counted on the response's 4xx, all attempts per address), `claimCheck`, `recoverStart`, and `recoverFinish`. Every number comes from `rateLimits` in `constants.js` (`RATE_LIMIT_*`), and `RATE_LIMIT_ENABLED=false` disables it, which the test helper does; `test/ratelimit.test.js` opts back in with small values. A refusal is `next(new HttpError(429, ..., 'RateLimitError'))` after setting `Retry-After`. `app.set('trust proxy', trustProxy)` makes `req.ip` meaningful behind a proxy. One process only: a second API instance would need a shared store.
+`routes/services/ratelimit.services.js` is a small fixed-window limiter kept in a `Map` (swept every minute; when full, the oldest bucket makes room, never the whole table, or a flood of made-up usernames would wipe the counts that protect real ones). `limit({ name, what, windowMs, perIp, perSubject, subject, failuresOnly })` builds a middleware; `limiters` holds the four in use: `login` (failures per username: counted when the request arrives and given back unless the answer is a 4xx, so parallel guesses cannot all slip under the limit; all attempts per address; `bodyCredentialsOnly` runs first, because passport-local would also read credentials from the URL), `claimCheck`, `recoverStart`, and `recoverFinish`. Every number comes from `rateLimits` in `constants.js` (`RATE_LIMIT_*`), and `RATE_LIMIT_ENABLED=false` disables it, which the test helper does; `test/ratelimit.test.js` opts back in with small values. A refusal is `next(new HttpError(429, ..., 'RateLimitError'))` after setting `Retry-After`. `app.set('trust proxy', trustProxy)` makes `req.ip` meaningful behind a proxy. One process only: a second API instance would need a shared store.
 
 ### Token creation
 
@@ -789,6 +789,13 @@ Using a hypothetical `Letter` resource (a printed, mailed artifact):
 - **Errors are returned, not thrown, by `modelInstanceExists`.** Check `instanceof Error` and throw yourself.
 - **Schema changes are migrations.** Model, schema file, and migration change together; `npm test` checks they agree.
 - **The database file is relative to cwd.** Start the server from the repo root.
+
+- **A request body is never spread into a write.** Every model `create` and `update` goes through `pick()` (`database/pick.js`) with that model's list of fields (`PRISONER_FIELDS`, `UPDATABLE` in the user model, `EDITABLE` in the message model). A column that is not on the list cannot be reached by naming it; when you add a column clients may set, add it to the list. `updateById` keeps a 404 truthful when nothing on the list was sent.
+- **One id is one value.** `singleIds` (`routes/services/request-shape.services.js`, mounted in `app.js`) refuses a list where an id belongs, because Sequelize would turn it into `IN (...)` behind a permission check that looked at one row. A new id-carrying parameter name goes on its list. A missing id surfaces as Sequelize's "WHERE parameter has invalid undefined value", which `ValidationError.messagesFrom` renders as a `400`.
+- **Seeing is not owning.** `threadScope().allows*` answers "may read". Changing or deleting a thread or a letter also needs `scope.allowsUser(record.user)` (`#loadOwned` in the chat controller, `#requireOwnSide` in the message controller): a relay group reads the threads it mails and owns none of them.
+- **Staff through the group.** `AuthzService.isStaff` (and so `publishedOnly`) is true for a chapter account only when `req.user.groupActive` is, which the JWT strategy sets from the group's `accountStatus` on every request (`noteGroupStanding`). Never test the role alone for a staff right.
+- **Embeds need their own attribute lists.** An `include` does not inherit what a controller strips from the top-level record. Use `Prisoner.publicAttributes(publishedOnly)`, `Prison.publicAttributes`, and an explicit list for users (`WRITER_EMBED` in the chat model).
+- **Lookups keyed by user input use `Object.hasOwn`.** `sorts[sort]` with `sort=constructor` finds `Object.prototype.constructor`.
 
 ## History: what was fixed in 2026
 

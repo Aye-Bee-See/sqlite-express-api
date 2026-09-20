@@ -36,6 +36,8 @@ export default class RouteController {
 	}
 	static DEFAULT_PAGE_SIZE = 10;
 	static MAX_PAGE_SIZE = 100;
+	/** Far past any real list, and small enough that the offset stays an exact integer. */
+	static MAX_PAGE = 10_000_000;
 
 	/**
 	 * Turn the page / page_size query parameters into Sequelize limit / offset.
@@ -51,7 +53,7 @@ export default class RouteController {
 		const pageNum = blank(page) ? 1 : Number(page);
 		const sizeNum = blank(page_size) ? RouteController.DEFAULT_PAGE_SIZE : Number(page_size);
 		const errors = [];
-		if (!Number.isInteger(pageNum) || pageNum < 1) {
+		if (!Number.isInteger(pageNum) || pageNum < 1 || pageNum > RouteController.MAX_PAGE) {
 			errors.push('page must be a positive integer.');
 		}
 		if (!Number.isInteger(sizeNum) || sizeNum < 1 || sizeNum > RouteController.MAX_PAGE_SIZE) {

@@ -116,10 +116,11 @@ export const rateLimits = {
 	// Invitation token checks and acceptances per address per window.
 	invitePerIp: envCount('RATE_LIMIT_INVITE_PER_IP', 20),
 	inviteWindowMinutes: envCount('RATE_LIMIT_INVITE_WINDOW_MINUTES', 60),
-	// Recovery: starts per username and per address, finishes per username, per window.
+	// Recovery: starts per username and per address, finishes per username and per address, per window.
 	recoverStartPerUser: envCount('RATE_LIMIT_RECOVER_START_PER_USER', 5),
 	recoverStartPerIp: envCount('RATE_LIMIT_RECOVER_START_PER_IP', 30),
 	recoverFinishPerUser: envCount('RATE_LIMIT_RECOVER_FINISH_PER_USER', 5),
+	recoverFinishPerIp: envCount('RATE_LIMIT_RECOVER_FINISH_PER_IP', 30),
 	recoverWindowMinutes: envCount('RATE_LIMIT_RECOVER_WINDOW_MINUTES', 60)
 };
 

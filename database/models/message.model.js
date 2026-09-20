@@ -1,5 +1,6 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
+import pick from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import modelsService from '#models/models.service.js';
 import Chat from '#models/chat.model.js';
@@ -14,6 +15,11 @@ import Chapter from '#models/chapter.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import { canTransition, initialStatusFor, LETTER_STATUSES } from '#db/letter-status.js';
+
+/** What PUT /messaging/message may change. The thread follows from writer and prisoner; status has its own endpoint. */
+const EDITABLE = ['messageText', 'relayNote', 'user', 'prisoner', 'relayChapter', 'keep'];
+/** Written by clients in end-to-end mode only; in server mode the API fills them. */
+const CIPHER_COLUMNS = ['ciphertext', 'nonce', 'relayNoteCiphertext', 'relayNoteNonce'];
 
 /** The relay group's id and name, carried on every message row (null for non-staff when unpublished). */
 function relayGroupSummary(publishedOnly) {
@@ -447,7 +453,9 @@ export default class Message extends Model {
 	 * @returns {Promise<[number]>} affected row count
 	 */
 	static async updateMessage(message) {
-		const values = { ...message };
+		// Only what an edit may touch: never the thread (derived below), the
+		// sender, the status, or the dates. Server mode owns the cipher columns.
+		const values = pick(message, crypto.isE2E() ? [...EDITABLE, ...CIPHER_COLUMNS] : EDITABLE);
 		if (crypto.isE2E()) {
 			if (values.messageText !== undefined || values.relayNote !== undefined) {
 				throw new ValidationError(
@@ -492,6 +500,10 @@ export default class Message extends Model {
 					values.chat = chat.id;
 				}
 			}
+		}
+		if (Object.keys(values).length === 0) {
+			// Nothing editable was sent: report whether the letter exists, change nothing.
+			return [await this.count({ where: { id: message.id } })];
 		}
 		return await this.update(values, { where: { id: message.id } });
 	}

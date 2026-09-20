@@ -1,6 +1,7 @@
 import { Model, Op } from 'sequelize';
 import { randomBytes } from 'node:crypto';
 import Schemas from '#schemas/all.schema.js';
+import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
 import ValidationError from '#services/ValidationError.js';
@@ -41,6 +42,33 @@ export const KEY_INPUT = [
 	'recoveryWrappedPrivateKey',
 	'recoverySalt',
 	'recoveryKdfParams'
+];
+
+/**
+ * What PUT /auth/user may write (the controller decides who may write which).
+ * Not here, on purpose: the recovery columns (PUT /auth/keys and the recovery
+ * flow own them; a settable recovery challenge is an account takeover),
+ * sessionsRevokedAt, and the dates.
+ */
+const UPDATABLE = [
+	'name',
+	'username',
+	'password',
+	'email',
+	'bio',
+	'role',
+	'chapterId',
+	'managedBy',
+	'claimedAt',
+	'claimedFrom',
+	'anonymousForChapter',
+	'managerNote',
+	'retentionDays',
+	'publicKey',
+	'wrappedPrivateKey',
+	'kdfSalt',
+	'kdfParams',
+	'orgWrappedPrivateKey'
 ];
 
 export default class User extends Model {
@@ -103,6 +131,7 @@ export default class User extends Model {
 	// Create
 
 	static async createUser({ username, password, role, email, name, bio, chapterId, ...rest }) {
+		User.refuseReserved({ username, email });
 		const keys = {};
 		for (const field of KEY_INPUT) {
 			if (rest[field] !== undefined) {
@@ -324,6 +353,22 @@ export default class User extends Model {
 		return typeof email === 'string' && email.endsWith('@managed.example');
 	}
 
+	/**
+	 * The names the API gives the accounts it makes itself. A person who took
+	 * `anon-7` would stop group 7 from ever getting its anonymous writer.
+	 * @throws {ValidationError} when a person asks for one
+	 */
+	static refuseReserved({ username, email } = {}) {
+		if (typeof username === 'string' && /^(anon|writer)-/i.test(username.trim())) {
+			throw new ValidationError(
+				'Usernames that start with "anon-" or "writer-" are kept for accounts the groups manage.'
+			);
+		}
+		if (User.isPlaceholderEmail(typeof email === 'string' ? email.trim().toLowerCase() : email)) {
+			throw new ValidationError('That email address is not a real one; use your own.');
+		}
+	}
+
 	/** Is this account in a chapter's custody and not yet claimed? */
 	static isUnclaimedManaged(user) {
 		return Boolean(user && user.managedBy && !user.claimedAt);
@@ -432,10 +477,11 @@ export default class User extends Model {
 	 * @param {{username: string, password: string, email?: string}} credentials
 	 * @returns {Promise<[number]>} affected row count
 	 */
-	static async claim(user, { username, password, email, keys = {} }) {
+	static async claim(user, { username, password, email, keys = {} }, { transaction } = {}) {
 		if (!User.isClaimable(user)) {
 			throw new HttpError(409, 'This account cannot be claimed.', 'ClaimError');
 		}
+		User.refuseReserved({ username, email });
 		const values = {
 			username,
 			password,
@@ -450,9 +496,14 @@ export default class User extends Model {
 			values.email = email.trim();
 		}
 		const [count] = await this.update(values, {
-			where: { id: user.id },
-			individualHooks: true
+			// Only while it is still unclaimed, whatever was true when `user` was read.
+			where: { id: user.id, claimedAt: null, managedBy: { [Op.ne]: null } },
+			individualHooks: true,
+			transaction
 		});
+		if (count !== 1) {
+			throw new HttpError(409, 'This account cannot be claimed.', 'ClaimError');
+		}
 		return [count];
 	}
 
@@ -467,11 +518,7 @@ export default class User extends Model {
 	static async updateUser(user) {
 		// With individualHooks, Sequelize also returns the affected instances
 		// (password hash included); only ever hand back the count.
-		const [count] = await this.update(
-			{ ...user },
-			{ where: { id: user.id }, individualHooks: true }
-		);
-		return [count];
+		return await updateById(this, user.id, pick(user, UPDATABLE), { individualHooks: true });
 	}
 
 	static async banUser(userId) {

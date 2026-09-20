@@ -1,5 +1,6 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
+import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import Prisoner from '#models/prisoner.model.js';
 import Prison from '#models/prison.model.js';
@@ -25,16 +26,6 @@ export const CHAPTER_FIELDS = [
 	'averageTimeDays',
 	'recordStatus'
 ];
-
-function pick(source, fields) {
-	const out = {};
-	for (const f of fields) {
-		if (source[f] !== undefined) {
-			out[f] = source[f];
-		}
-	}
-	return out;
-}
 
 export default class Chapter extends Model {
 	static init(sequelize) {
@@ -149,7 +140,7 @@ export default class Chapter extends Model {
 
 	//Update
 	static async updateChapter(chapter) {
-		return await this.update({ ...chapter }, { where: { id: chapter.id } });
+		return await updateById(this, chapter.id, pick(chapter, CHAPTER_FIELDS));
 	}
 
 	//Delete

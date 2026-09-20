@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import passport from 'passport';
 import { secretOrKey } from '#constants';
+import AuthzService from '#rtServices/authz.services.js';
 export default class authService {
 	static #jwtOptions = {
 		secretOrKey: secretOrKey,
@@ -95,6 +96,7 @@ export default class authService {
 			}
 			const user = await User.getUser({ id: jwt_payload.id });
 			if (user && user.role !== 'banned' && (await authService.tokenLive(jwt_payload, user))) {
+				await AuthzService.noteGroupStanding(user);
 				return next(null, user);
 			}
 			return next(null, false);

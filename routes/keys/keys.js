@@ -34,13 +34,30 @@ class KeysRoutes {
 		);
 		this.Router.post(keysEnd.post.create, limiters.recoverFinish, this.#Controller.create);
 
-		// Group keys
-		this.Router.put(keysEnd.put.chapterKeys, authenticate, this.#Controller.chapterKeys);
-		this.Router.put(keysEnd.put.putMemberKey, authenticate, this.#Controller.putMemberKey);
-		this.Router.delete(keysEnd.delete.remove, authenticate, this.#Controller.remove);
-		this.Router.get(keysEnd.get.many, authenticate, this.#Controller.getMany);
-		this.Router.get(keysEnd.get.rotationMaterial, authenticate, this.#Controller.rotationMaterial);
-		this.Router.post(keysEnd.post.rotate, authenticate, this.#Controller.rotate);
+		// Group keys: for admins and the accounts of groups that are active members of the
+		// network. A pending or suspended group sets up and changes nothing.
+		const activeStaff = AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER);
+		this.Router.put(
+			keysEnd.put.chapterKeys,
+			authenticate,
+			activeStaff,
+			this.#Controller.chapterKeys
+		);
+		this.Router.put(
+			keysEnd.put.putMemberKey,
+			authenticate,
+			activeStaff,
+			this.#Controller.putMemberKey
+		);
+		this.Router.delete(keysEnd.delete.remove, authenticate, activeStaff, this.#Controller.remove);
+		this.Router.get(keysEnd.get.many, authenticate, activeStaff, this.#Controller.getMany);
+		this.Router.get(
+			keysEnd.get.rotationMaterial,
+			authenticate,
+			activeStaff,
+			this.#Controller.rotationMaterial
+		);
+		this.Router.post(keysEnd.post.rotate, authenticate, activeStaff, this.#Controller.rotate);
 
 		// Who still has to set up keys before (or after) the switch to e2e.
 		this.Router.get(

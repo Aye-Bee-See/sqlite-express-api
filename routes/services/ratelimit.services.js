@@ -1,5 +1,6 @@
 import { HttpError } from '#services/HttpError.js';
 import { rateLimits } from '#constants';
+import ValidationError from '#services/ValidationError.js';
 
 /**
  * Small in-memory rate limiter for the unauthenticated endpoints (login,
@@ -14,25 +15,29 @@ import { rateLimits } from '#constants';
 
 const buckets = new Map(); // key -> { count, resetAt }
 const MAX_KEYS = 50_000;
+const MAX_SUBJECT_LENGTH = 128;
 
 function take(key, windowMs, now) {
 	let bucket = buckets.get(key);
 	if (!bucket || bucket.resetAt <= now) {
 		bucket = { count: 0, resetAt: now + windowMs };
+		buckets.delete(key);
 		buckets.set(key, bucket);
+		if (buckets.size > MAX_KEYS) {
+			// Full: the oldest bucket makes room. Never the whole table, or a flood
+			// of made-up usernames would wipe the counts that protect real ones.
+			buckets.delete(buckets.keys().next().value);
+		}
 	}
 	return bucket;
 }
 
-/** Forget expired buckets; also a hard cap so a flood of keys cannot grow the table forever. */
+/** Forget expired buckets. (The hard cap on the table's size is kept in take().) */
 export function sweep(now = Date.now()) {
 	for (const [key, bucket] of buckets) {
 		if (bucket.resetAt <= now) {
 			buckets.delete(key);
 		}
-	}
-	if (buckets.size > MAX_KEYS) {
-		buckets.clear();
 	}
 }
 
@@ -66,7 +71,7 @@ const clientIp = (req) => req.ip || (req.socket && req.socket.remoteAddress) || 
  * @param {number|null} [options.perIp] requests per window per client address
  * @param {number|null} [options.perSubject] requests per window per subject (username, token, ...)
  * @param {(req: object) => string|undefined} [options.subject] extracts the subject
- * @param {boolean} [options.failuresOnly] count a subject's request only when the response is 4xx
+ * @param {boolean} [options.failuresOnly] a subject's request stops counting once it is answered with anything but a 4xx
  */
 export function limit({
 	name,
@@ -91,22 +96,45 @@ export function limit({
 		}
 		const who = subject ? subject(req) : undefined;
 		if (perSubject && typeof who === 'string' && who !== '') {
-			const bucket = take(name + ':subject:' + who.trim().toLowerCase(), windowMs, now);
+			const key = name + ':subject:' + who.trim().toLowerCase().slice(0, MAX_SUBJECT_LENGTH);
+			const bucket = take(key, windowMs, now);
 			if (bucket.count >= perSubject) {
 				return refuse(res, next, bucket, now, what);
 			}
+			// Counted now, so a burst of parallel guesses cannot all slip under
+			// the limit before the first one is answered; given back on success.
+			bucket.count += 1;
 			if (failuresOnly) {
 				res.on('finish', () => {
-					if (res.statusCode >= 400 && res.statusCode < 500) {
-						bucket.count += 1;
+					if (res.statusCode < 400 || res.statusCode >= 500) {
+						bucket.count = Math.max(0, bucket.count - 1);
 					}
 				});
-			} else {
-				bucket.count += 1;
 			}
 		}
 		return next();
 	};
+}
+
+/**
+ * Credentials travel in the JSON body as strings, and nowhere else. passport-local
+ * also reads the query string, where a password ends up in access logs and
+ * where the per-username limit (which reads the body) never sees it.
+ */
+export function bodyCredentialsOnly(req, res, next) {
+	const query = req.query || {};
+	if (query.username !== undefined || query.password !== undefined) {
+		return next(
+			new ValidationError('Send username and password in the JSON body, never in the URL.')
+		);
+	}
+	// A missing field is passport's to refuse (400 AuthenticationError); a number
+	// or an object would reach bcrypt and come back as a 500 for real accounts only.
+	const given = [req.body?.username, req.body?.password].filter((v) => v !== undefined);
+	if (given.some((v) => typeof v !== 'string')) {
+		return next(new ValidationError('username and password must be text.'));
+	}
+	return next();
 }
 
 const minutes = (n) => n * 60 * 1000;
@@ -146,6 +174,7 @@ export const limiters = {
 		name: 'recover-finish',
 		what: 'recovery attempts',
 		windowMs: minutes(rateLimits.recoverWindowMinutes),
+		perIp: rateLimits.recoverFinishPerIp,
 		perSubject: rateLimits.recoverFinishPerUser,
 		subject: (req) => req.body && req.body.username
 	})

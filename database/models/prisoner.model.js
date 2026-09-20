@@ -1,5 +1,6 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
+import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
 import Prison from '#models/prison.model.js';
@@ -39,16 +40,6 @@ export const PRISONER_FIELDS = [
 
 /** Columns hidden from anonymous and user-role callers. */
 export const PRISONER_STAFF_ONLY = ['verificationNotes'];
-
-function pick(source, fields) {
-	const out = {};
-	for (const f of fields) {
-		if (source[f] !== undefined) {
-			out[f] = source[f];
-		}
-	}
-	return out;
-}
 
 export default class Prisoner extends Model {
 	static init(sequelize) {
@@ -299,7 +290,7 @@ export default class Prisoner extends Model {
 	// Update
 
 	static async updatePrisoner(prisoner) {
-		return await this.update({ ...prisoner }, { where: { id: prisoner.id } });
+		return await updateById(this, prisoner.id, pick(prisoner, PRISONER_FIELDS));
 	}
 
 	// Delete

@@ -3,7 +3,7 @@ import { default as passport } from 'passport';
 import { userEnd } from '#routes/constants.js';
 import { default as userCrtlr } from '#rtControllers/user.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
-import { limiters } from '#rtServices/ratelimit.services.js';
+import { limiters, bodyCredentialsOnly } from '#rtServices/ratelimit.services.js';
 
 class UserRoutes {
 	static Router;
@@ -37,6 +37,7 @@ class UserRoutes {
 		// Login
 		this.Router.post(
 			userEnd.post.login,
+			bodyCredentialsOnly,
 			limiters.login,
 			passport.authenticate('LStrat', { session: false, authInfo: true, failWithError: true }),
 			this.#Controller.login

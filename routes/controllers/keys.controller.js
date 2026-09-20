@@ -54,7 +54,7 @@ export default class KeysController extends RouteController {
 	}
 
 	/** The key fields a client sent, validated for shape. */
-	static #keyFields(body, { requireAll = false } = {}) {
+	static #keyFields(body, { requireAll = false, newAccount = false } = {}) {
 		const out = {};
 		for (const field of KEY_INPUT) {
 			if (body[field] !== undefined) {
@@ -91,6 +91,18 @@ export default class KeysController extends RouteController {
 				'recoveryWrappedPrivateKey, recoverySalt, and recoveryKdfParams go together.'
 			);
 		}
+		if (newAccount && Object.keys(out).length > 0) {
+			// A new account has all of its first keys or none. A public key alone is one
+			// nobody can use the private half of, and letters sealed to it are lost.
+			const missing = [...wrapped, 'publicKey'].filter((f) => out[f] === undefined);
+			if (missing.length > 0) {
+				throw new ValidationError(
+					'Send publicKey, wrappedPrivateKey, kdfSalt, and kdfParams together (missing: ' +
+						missing.join(', ') +
+						').'
+				);
+			}
+		}
 		if (requireAll) {
 			const missing = [...wrapped, 'publicKey'].filter((f) => out[f] === undefined);
 			if (missing.length > 0) {
@@ -118,7 +130,9 @@ export default class KeysController extends RouteController {
 			hasRecovery: Boolean(user.recoveryWrappedPrivateKey),
 			orgKey: null
 		};
-		if (user.chapterId) {
+		// Only an account that acts for the group: one demoted to a plain user keeps
+		// its chapterId, and must not keep being handed the group key.
+		if (user.chapterId && user.role === 'chapter') {
 			const [chapter, memberKey] = await Promise.all([
 				Chapter.findByPk(user.chapterId, {
 					attributes: ['id', 'name', 'publicKey', 'keyVersion']
@@ -467,11 +481,19 @@ export default class KeysController extends RouteController {
 			if (!member.publicKey) {
 				throw new HttpError(409, 'User ' + userId + ' has no public key yet.', 'KeyChangeError');
 			}
-			await OrgMemberKey.put({
-				chapterId: chapter.id,
-				userId: member.id,
-				wrappedOrgPrivateKey,
-				addedBy: req.user.id
+			// Not in the middle of a rotation, and not a copy of a key rotated away:
+			// a client that says which version it wrapped is told when that is stale.
+			await withGroupKeyLock(async () => {
+				const current = await Chapter.findByPk(chapter.id);
+				if (req.body.keyVersion !== undefined) {
+					KeysController.requireCurrentGroupKey(current, req.body.keyVersion, 'keyVersion');
+				}
+				await OrgMemberKey.put({
+					chapterId: chapter.id,
+					userId: member.id,
+					wrappedOrgPrivateKey,
+					addedBy: req.user.id
+				});
 			});
 			await audit(req, 'chapter.member-key', 'chapter', chapter.id, { member: member.id });
 			this.#handleSuccess(res, { chapter: chapter.id, member: member.id });

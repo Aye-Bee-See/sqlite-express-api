@@ -1,5 +1,8 @@
 **/node_modules
 database.sqlite
+# Write-ahead log files that live beside the database.
+*.sqlite-wal
+*.sqlite-shm
 jwt
 .env
 uploads/

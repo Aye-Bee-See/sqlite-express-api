@@ -586,12 +586,14 @@ export default class UserController extends RouteController {
 			const orgKeys = crypto.isE2E()
 				? await User.orgWrappedKeysFor(result.rows.map((w) => w.id))
 				: null;
+			// One query for the page's hand-off tokens, not one per writer.
+			const tokens = await ClaimToken.activeForMany(result.rows.map((w) => w.id));
 			for (const writer of result.rows) {
 				const plain = this.#stripPassword(writer, req);
 				if (orgKeys) {
 					plain.orgWrappedPrivateKey = orgKeys.get(writer.id) || null;
 				}
-				const active = await ClaimToken.activeFor(writer.id);
+				const active = tokens.get(writer.id);
 				plain.claimToken = active ? { expiresAt: active.expiresAt } : null;
 				rows.push(plain);
 			}

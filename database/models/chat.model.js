@@ -331,19 +331,22 @@ export default class Chat extends Model {
 		if (chats.length === 0) {
 			return chats;
 		}
-		const messages = await Message.findAll({
-			where: { chat: chats.map((c) => c.id) },
-			order: [
-				['createdAt', 'DESC'],
-				['id', 'DESC']
-			]
-		});
-		const latest = new Map();
-		for (const m of messages) {
-			if (!latest.has(m.chat)) {
-				latest.set(m.chat, m);
-			}
-		}
+		// Only the newest letter of each thread is loaded (and, in server mode,
+		// decrypted). Loading every letter of every thread on the page to pick one
+		// cost a page of long threads thousands of rows and decryptions.
+		const [newest] = await this.sequelize.query(
+			`SELECT m.id AS id FROM Messages AS m
+			WHERE m.chat IN (:chats)
+				AND m.id = (
+					SELECT id FROM Messages WHERE chat = m.chat ORDER BY createdAt DESC, id DESC LIMIT 1
+				)`,
+			{ replacements: { chats: chats.map((c) => c.id) } }
+		);
+		const messages =
+			newest.length === 0
+				? []
+				: await Message.findAll({ where: { id: newest.map((row) => row.id) } });
+		const latest = new Map(messages.map((m) => [m.chat, m]));
 		for (const chat of chats) {
 			const m = latest.get(chat.id);
 			// The ordering subquery yields SQLite's raw text; expose the same instant as an ISO date.

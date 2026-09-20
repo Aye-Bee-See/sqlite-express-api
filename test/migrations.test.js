@@ -270,6 +270,45 @@ test('the master list migration turns stored tags into links and back', async ()
 	await old.close();
 });
 
+test('the indexes the hot queries depend on exist after all migrations', async () => {
+	// SQLite's removeColumn and changeColumn rebuild a table and silently drop its
+	// indexes (that is how Messages lost its only one). A later migration that
+	// rebuilds one of these tables must put them back, and this is what notices.
+	const expected = {
+		Messages: [
+			'messages_chat_created',
+			'messages_user',
+			'messages_relay_status',
+			'messages_prisoner_user',
+			'messages_status_changed'
+		],
+		Chats: ['chats_user_prisoner', 'chats_prisoner'],
+		MessageStatuses: ['message_statuses_message'],
+		LetterKeys: ['letter_keys_reader'],
+		User: ['user_chapter'],
+		Prisoners: ['prisoners_prison'],
+		ClaimTokens: ['claim_tokens_user'],
+		Notifications: ['notifications_message', 'notifications_chat', 'notifications_submission'],
+		Devices: ['devices_session'],
+		PrisonRelay: ['prison_relay_chapter']
+	};
+	for (const [table, names] of Object.entries(expected)) {
+		const [rows] = await db.sequelize.query("PRAGMA index_list('" + table + "')");
+		const present = rows.map((row) => row.name);
+		for (const name of names) {
+			assert.ok(present.includes(name), table + ' is missing index ' + name);
+		}
+	}
+	// And the planner uses them: the inbox's per-thread lookup is a search, not a scan.
+	const [plan] = await db.sequelize.query(
+		'EXPLAIN QUERY PLAN SELECT MAX(createdAt) FROM Messages WHERE chat = 1'
+	);
+	assert.match(
+		plan.map((row) => row.detail).join(' '),
+		/USING (COVERING )?INDEX messages_chat_created/
+	);
+});
+
 test('every migration can be reverted and re-applied', async () => {
 	const fresh = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
 	const umzug = createMigrator(fresh, { quiet: true });

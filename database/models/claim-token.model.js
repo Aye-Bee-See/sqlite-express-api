@@ -105,6 +105,22 @@ export default class ClaimToken extends Model {
 	}
 
 	/**
+	 * The live token of each of these writers, in one query.
+	 * @param {number[]} userIds
+	 * @returns {Promise<Map<number, ClaimToken>>}
+	 */
+	static async activeForMany(userIds) {
+		if (userIds.length === 0) {
+			return new Map();
+		}
+		const rows = await this.findAll({
+			where: { userId: userIds, usedAt: null, expiresAt: { [Op.gt]: new Date() } },
+			order: [['id', 'ASC']]
+		});
+		return new Map(rows.map((row) => [row.userId, row]));
+	}
+
+	/**
 	 * Look up a plaintext token.
 	 * @returns {Promise<{record: ClaimToken|null, state: 'valid'|'used'|'expired'|'unknown'}>}
 	 */

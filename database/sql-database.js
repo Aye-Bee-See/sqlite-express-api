@@ -1,4 +1,4 @@
-import { sequelize, Sequelize } from './connection.js';
+import { sequelize, Sequelize, enableWriteAheadLog } from './connection.js';
 import * as Models from '#models/all.model.js';
 import { dbReset, dbSeed, quietBoot } from '#constants';
 
@@ -84,6 +84,7 @@ export const ready = (async () => {
 	if (dbReset) {
 		warn('DB_RESET is set: dropping every table and replaying all migrations.');
 	}
+	await enableWriteAheadLog();
 	await runMigrations(sequelize, { reset: dbReset, log });
 	if (dbSeed) {
 		await createSeeds();

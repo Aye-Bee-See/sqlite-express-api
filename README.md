@@ -637,7 +637,7 @@ Most read endpoints accept `full=true` to embed related records. The string must
 | Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only. Without `full`, rows carry the same small `prison_details` summary as the main list                                                                                                                                                                                                                                                                                                                                                                 |
 | Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons`                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Chats (list, by id, by pair) | `messages` (each with `relay_group`), `user_details` (the writer as everyone in the thread may see them: `id`, `name`, `username`, `bio`, `role`, `chapterId`, `managedBy`, `claimedAt`, `anonymousForChapter`, `publicKey`; no email, no manager's note), `prisoner_details` (with `prison_details`; staff-only fields only for staff). Without `full`, every chat row still carries a light `prisoner_details` (`id`, `birthName`, `chosenName`, `status`, `prison`) with `prison_details` (`id`, `prisonName`, `country`) |
-| Messages                     | On the single read: `relay_group`, `status_history`, `attachments`. Every message row carries `relay_group` (`{ id, name }` or `null`) regardless of `full`; lists ignore `full` otherwise                                                                                                                                                                                                                                                                                                                                   |
+| Messages                     | On the single read: `relay_group`, `status_history`, `attachments`. Every message row carries `relay_group` (`{ id, name }` or `null`) regardless of `full`. On lists **and** the single read, `full=true` adds what printing and addressing need: `prisoner_details` (with `prison_details`: name, address, routing, limits, and `mailRules`) and `user_details` (`id`, `name`, `username`, `managedBy`, `anonymousForChapter`)                                                                                             |
 
 Embedded users never include the password hash. For anonymous and `user`-role callers, embedded prisoners, prisons, and chapters are limited to published ones, chats are never embedded, and the staff-only `verificationNotes` field is omitted from prisoners and prisons everywhere.
 
@@ -1612,6 +1612,7 @@ Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data":
 | GET    | `/messaging/message`           | Scoped               | Get one message by id                                                       |
 | PUT    | `/messaging/message`           | Scoped               | Update a message (while still queued, unless admin)                         |
 | PUT    | `/messaging/status`            | Relay group or admin | Move a letter to `printed` or `mailed`                                      |
+| PUT    | `/messaging/status/batch`      | Relay group or admin | Move up to 200 letters together, all or none                                |
 | DELETE | `/messaging/message`           | Scoped               | Delete a message (while still queued, unless admin)                         |
 | POST   | `/messaging/attachment`        | Scoped               | Upload a file to a message (multipart)                                      |
 | GET    | `/messaging/attachments`       | Scoped               | List a message's attachments                                                |
@@ -1743,7 +1744,7 @@ Failure modes:
 
 #### GET /messaging/messages
 
-Parameters: `id`, `chat`, `prisoner`, `user`, `status`, `relayChapter`, `page`, `page_size`. The selectors `id`, `chat`, `prisoner`, `user` take precedence in that order; only the first one present is used. `status` and `relayChapter` narrow whichever selection results, so a group's print queue is `?relayChapter=<its id>&status=queued`. A filter naming a chat, prisoner, or user that does not exist is a `404`; an unknown `status` is a validation error. A `user`-role caller only ever receives their own messages, whatever filter they pass; a `chapter` account only messages within its scope.
+Parameters: `id`, `chat`, `prisoner`, `user`, `status`, `relayChapter`, `held`, `full`, `page`, `page_size`. The selectors `id`, `chat`, `prisoner`, `user` take precedence in that order; only the first one present is used. `status` and `relayChapter` narrow whichever selection results, so a group's print queue is `?relayChapter=<its id>&status=queued`. A filter naming a chat, prisoner, or user that does not exist is a `404`; an unknown `status` is a validation error. **`full=true`** puts on every row the prisoner (names, number, status), the facility they are held at (name, address, routing, page and photo limits, languages, `mailRules`), and the writer's name, so a group can print and address a whole page of its queue, `?relayChapter=<its id>&status=queued&full=true&page_size=100`, without a request per letter. It costs two queries for the page, whatever its size, and non-staff callers never receive staff-only fields or unpublished records in it. A `user`-role caller only ever receives their own messages, whatever filter they pass; a `chapter` account only messages within its scope.
 
 ```bash
 curl -s 'http://localhost:3000/messaging/messages?chat=1' -H "Authorization: Bearer $TOKEN"
@@ -1824,6 +1825,26 @@ Body: `{"id": 41, "status": "printed"}`, or `{"id": 41, "status": "returned", "r
 	"error": "A mailed letter cannot move to printed."
 }
 ```
+
+#### PUT /messaging/status/batch
+
+For letter nights: a group prints thirty letters and marks them in one request.
+
+Body: `{"ids": [41, 42, 43], "status": "printed"}`, with `reason` and `note` for `returned` and `release` for held letters exactly as on `PUT /messaging/status`. `ids` is 1 to 200 different letter ids.
+
+**All or none.** Every letter is checked first (it exists, the caller is its relay group or an admin, the lifecycle allows the move, it is not held); then one transaction moves them all. If any letter cannot move, nothing is changed, and the error says which: `"Letter 42: a printed letter cannot move to printed."` (`409`), `403` naming the letters that are not the caller's to move, `404` naming the ones that do not exist. A letter somebody else changed in the same moment stops the batch too (`409`, "nothing was moved").
+
+```json
+{
+	"data": { "status": "printed", "count": 3, "ids": [41, 42, 43] },
+	"info": "Letter statuses updated.",
+	"success": true,
+	"status": 200,
+	"name": "message updateStatusBatch"
+}
+```
+
+One audit entry (`letter.status.batch`) records the move. **Each writer gets one notification however many of their letters moved**: for one letter it is exactly the single endpoint's (`chat`, `message`, `{ "status": "printed" }`); for several, `message` is `null`, `chat` is set only if they share a thread, and the detail is `{ "status": "printed", "count": 2, "messages": [41, 42] }`.
 
 #### DELETE /messaging/message
 
@@ -2283,9 +2304,8 @@ None of these break anything, but clients should know about them.
 
 1. Several `info` strings contain typos ("retireved", "Succeessfully") that clients may already match on. They are left as-is for now.
 2. `PUT /prison/relay` returns the prison object under a key named `updatedRows`.
-3. `full=true` is accepted but ignored on message endpoints.
-4. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
-5. Seeded ids are not stable across databases. Read them from responses.
+3. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
+4. Seeded ids are not stable across databases. Read them from responses.
 
 ## Postman collection
 

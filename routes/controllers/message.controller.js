@@ -4,7 +4,7 @@ import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import ValidationError from '#services/ValidationError.js';
-import { isOpen, LETTER_STATUSES } from '#db/letter-status.js';
+import { isOpen, LETTER_STATUSES, RETURNED } from '#db/letter-status.js';
 import Attachment from '#models/attachment.model.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { sniffType } from '#services/files.js';
@@ -16,6 +16,9 @@ import * as crypto from '#services/crypto.js';
 import User from '#models/user.model.js';
 import { retentionDefaultDays, retentionMaxDays } from '#constants';
 import { windowFor } from '#db/retention.js';
+
+/** How many letters PUT /messaging/status/batch moves at once. */
+const BATCH_LIMIT = 200;
 
 /**
  * Message (letter) controller.
@@ -42,6 +45,7 @@ export default class MessageController extends RouteController {
 		this.getOne = this.getOne.bind(this);
 		this.update = this.update.bind(this);
 		this.updateStatus = this.updateStatus.bind(this);
+		this.updateStatusBatch = this.updateStatusBatch.bind(this);
 		this.createEnvelope = this.createEnvelope.bind(this);
 		this.missingEnvelopes = this.missingEnvelopes.bind(this);
 		this.retention = this.retention.bind(this);
@@ -147,7 +151,7 @@ export default class MessageController extends RouteController {
 	 * and page_size.
 	 */
 	async getMany(req, res, next) {
-		const { id, chat, prisoner, user, page, page_size } = req.query;
+		const { id, chat, prisoner, user, page, page_size, full } = req.query;
 		const limits = this.#handleLimits(page, page_size);
 		const { limit, offset } = limits;
 
@@ -175,6 +179,11 @@ export default class MessageController extends RouteController {
 			} else {
 				messages = await Message.readAllMessages(limit, offset, where, publishedOnly);
 			}
+			if (full === 'true') {
+				// What a group needs to print and address a page of its queue, without a
+				// request per letter: the prisoner, the facility with its rules, the writer.
+				await Message.attachPrintDetails(messages.rows, publishedOnly);
+			}
 			await this.#withEnvelopes(messages.rows, req, scope);
 			this.handlePage(res, messages, limits);
 		} catch (err) {
@@ -189,8 +198,11 @@ export default class MessageController extends RouteController {
 			const scope = await threadScope(req);
 			const message = await this.#loadAllowed(scope, id);
 			this.requireFound(message, 'Message ' + id);
-			const row =
-				full === 'true' ? await Message.readLetter(id, AuthzService.publishedOnly(req)) : message;
+			const publishedOnly = AuthzService.publishedOnly(req);
+			const row = full === 'true' ? await Message.readLetter(id, publishedOnly) : message;
+			if (full === 'true') {
+				await Message.attachPrintDetails([row], publishedOnly);
+			}
 			await this.#withEnvelopes([row], req, scope);
 			this.#handleSuccess(res, row);
 		} catch (err) {
@@ -634,6 +646,98 @@ export default class MessageController extends RouteController {
 			this.#handleSuccess(res, await Attachment.remove(id));
 		} catch (err) {
 			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * PUT /messaging/status/batch { ids, status, reason?, note?, release? }: move up to
+	 * BATCH_LIMIT letters along together, all or none. The rules of each move are those
+	 * of PUT /messaging/status; one audit entry, and one notification per writer.
+	 */
+	async updateStatusBatch(req, res, next) {
+		const { ids, status, reason, note, release } = req.body;
+		try {
+			const wanted = MessageController.#batchIds(ids);
+			const found = await Message.findAll({ where: { id: wanted }, hooks: false });
+			const missing = wanted.filter((id) => !found.some((message) => message.id === id));
+			if (missing.length > 0) {
+				throw new NotFoundError('Message ' + missing.join(', ') + ' not found');
+			}
+			const chapterId = await AuthzService.activeChapterOf(req);
+			if (!AuthzService.isAdmin(req)) {
+				if (AuthzService.hasRole(req, AuthzService.CHAPTER) && !chapterId) {
+					throw await AuthzService.groupRefusal(req);
+				}
+				const foreign = found.filter((m) => !chapterId || m.relayChapter !== chapterId);
+				if (foreign.length > 0) {
+					throw AuthzService.forbidden(
+						'Only the relay group or an admin can change a letter status (letter ' +
+							foreign.map((m) => m.id).join(', ') +
+							').'
+					);
+				}
+			}
+			// In the order asked for, so that "the first letter that cannot move" means something.
+			const letters = wanted.map((id) => found.find((message) => message.id === id));
+			const moved = await Message.changeStatuses(letters, status, req.user.id, {
+				reason,
+				note,
+				release
+			});
+			await audit(req, 'letter.status.batch', 'message', null, {
+				to: status,
+				count: moved.length,
+				ids: moved.map((m) => m.id),
+				...(status === RETURNED ? { reason } : {})
+			});
+			await this.#announceBatch(req, letters, status, status === RETURNED ? reason : undefined);
+			this.#handleSuccess(res, { status, count: moved.length, ids: moved.map((m) => m.id) });
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/** @throws {ValidationError} unless `ids` is 1 to BATCH_LIMIT different letter ids */
+	static #batchIds(ids) {
+		const clean = Array.isArray(ids) ? ids.map(Number) : [];
+		if (
+			clean.length === 0 ||
+			clean.length > BATCH_LIMIT ||
+			clean.some((id) => !Number.isSafeInteger(id) || id < 1) ||
+			new Set(clean).size !== clean.length
+		) {
+			throw new ValidationError(
+				'ids must be a list of 1 to ' + BATCH_LIMIT + ' different letter ids.'
+			);
+		}
+		return clean;
+	}
+
+	/** One notification per writer, however many of their letters moved. */
+	async #announceBatch(req, letters, status, reason) {
+		const byWriter = new Map();
+		for (const letter of letters) {
+			byWriter.set(letter.user, [...(byWriter.get(letter.user) || []), letter]);
+		}
+		for (const [writer, theirs] of byWriter) {
+			const chats = new Set(theirs.map((letter) => letter.chat));
+			await notify(
+				[writer],
+				{
+					event: 'letter.status',
+					// Named when there is one to name; a client opens the thread or the letter.
+					chat: chats.size === 1 ? theirs[0].chat : null,
+					message: theirs.length === 1 ? theirs[0].id : null,
+					detail: {
+						status,
+						...(reason ? { reason } : {}),
+						...(theirs.length > 1
+							? { count: theirs.length, messages: theirs.map((l) => l.id) }
+							: {})
+					}
+				},
+				{ actor: req.user.id }
+			);
 		}
 	}
 

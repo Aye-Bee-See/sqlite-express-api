@@ -1603,6 +1603,29 @@
 					"response": []
 				},
 				{
+					"name": "Move Many Letters Together (relay group or admin)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/status/batch",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "status", "batch"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"ids\": [\n    41,\n    42,\n    43\n  ],\n  \"status\": \"printed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "All or none, up to 200 letters. reason/note (for returned) and release (for held letters) as on the single endpoint. One notification per writer."
+					}
+				},
+				{
 					"name": "Mark A Mailed Letter Returned (relay group or admin)",
 					"request": {
 						"method": "PUT",

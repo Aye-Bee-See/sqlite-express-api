@@ -12,6 +12,9 @@ import * as crypto from '#services/crypto.js';
 import { publishedWhere } from '#db/record-status.js';
 import Prisoner from '#models/prisoner.model.js';
 import Chapter from '#models/chapter.model.js';
+import Prison from '#models/prison.model.js';
+import MailRule from '#models/mail-rule.model.js';
+import { inTransaction } from '#services/serial.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import {
@@ -326,15 +329,26 @@ export default class Message extends Model {
 	 * @returns {Promise<Message>} the updated message with its history
 	 * @throws {ValidationError} unknown status; {HttpError} 409 for a move the lifecycle does not allow
 	 */
-	static async changeStatus(message, status, changedBy = null, { reason, note, release } = {}) {
+	/**
+	 * May this letter make this move? The rules of one status change, shared by the
+	 * single and the batch endpoint.
+	 * @returns {{reason?: string, note?: string|null}} what a return says about itself
+	 * @throws {ValidationError|HttpError}
+	 */
+	static #checkMove(message, status, { reason, note, release, named = false } = {}) {
 		if (!LETTER_STATUSES.includes(status)) {
 			throw new ValidationError('Status must be one of ' + LETTER_STATUSES.join(', ') + '.');
 		}
 		const why = Message.#returnDetails(status, reason, note);
+		// In a batch the sentence says which letter; alone, it reads as it always has.
+		const say = (sentence) =>
+			named
+				? 'Letter ' + message.id + ': ' + sentence[0].toLowerCase() + sentence.slice(1)
+				: sentence;
 		if (!canTransition(message.status, status)) {
 			throw new HttpError(
 				409,
-				'A ' + message.status + ' letter cannot move to ' + status + '.',
+				say('A ' + message.status + ' letter cannot move to ' + status + '.'),
 				'LetterStatusError'
 			);
 		}
@@ -343,12 +357,19 @@ export default class Message extends Model {
 			// prints it anyway says so, so that it is a decision and not an oversight.
 			throw new HttpError(
 				409,
-				'This letter is held (' +
-					message.heldReason +
-					'). Send release: true to go ahead with it anyway.',
+				say(
+					'This letter is held (' +
+						message.heldReason +
+						'). Send release: true to go ahead with it anyway.'
+				),
 				'LetterHeldError'
 			);
 		}
+		return why;
+	}
+
+	static async changeStatus(message, status, changedBy = null, options = {}) {
+		const why = Message.#checkMove(message, status, options);
 		const from = message.status;
 		await message.update({
 			heldReason: null,
@@ -359,6 +380,95 @@ export default class Message extends Model {
 		});
 		await MessageStatus.record(message.id, from, status, changedBy, why);
 		return await this.readLetter(message.id);
+	}
+
+	/**
+	 * Move many letters at once, all or none: a letter night prints thirty, and
+	 * thirty-one requests with one failing in the middle leave a queue nobody can
+	 * trust. Every letter is checked first; then one transaction moves them, each
+	 * only if it still has the status it was checked with.
+	 * @param {Message[]} messages
+	 * @returns {Promise<{id: number, from: string}[]>}
+	 * @throws {ValidationError|HttpError} naming the first letter that cannot make the move
+	 */
+	static async changeStatuses(messages, status, changedBy = null, options = {}) {
+		const moves = messages.map((message) => ({
+			message,
+			from: message.status,
+			why: Message.#checkMove(message, status, { ...options, named: true })
+		}));
+		const at = new Date();
+		await inTransaction(this.sequelize, async (transaction) => {
+			for (const { message, from, why } of moves) {
+				const [count] = await this.update(
+					{
+						heldReason: null,
+						status,
+						statusChangedAt: at,
+						statusChangedBy: changedBy,
+						returnReason: why.reason ?? null
+					},
+					{ where: { id: message.id, status: from }, transaction }
+				);
+				if (count !== 1) {
+					throw new HttpError(
+						409,
+						'Letter ' + message.id + ' was changed by someone else meanwhile; nothing was moved.',
+						'LetterStatusError'
+					);
+				}
+				await MessageStatus.create(
+					{
+						message: message.id,
+						fromStatus: from,
+						toStatus: status,
+						changedBy,
+						reason: why.reason ?? null,
+						note: why.note ?? null
+					},
+					{ transaction }
+				);
+			}
+		});
+		return moves.map(({ message, from }) => ({ id: message.id, from }));
+	}
+
+	/**
+	 * What printing and addressing need, on each row of a page: who the letter is for
+	 * and where they are held (with the facility's mail rules), and who wrote it. Two
+	 * queries for the page, whatever its size. Records a non-staff caller may not see
+	 * come back null, like every other embed.
+	 */
+	static async attachPrintDetails(rows, publishedOnly = false) {
+		if (rows.length === 0) {
+			return rows;
+		}
+		const prisoners = await Prisoner.findAll({
+			where: {
+				id: [...new Set(rows.map((row) => row.prisoner))],
+				...publishedWhere(publishedOnly)
+			},
+			...Prisoner.publicAttributes(publishedOnly),
+			include: [
+				{
+					association: 'prison_details',
+					...Prison.publicAttributes(publishedOnly),
+					...(publishedOnly ? { where: publishedWhere(true), required: false } : {}),
+					include: [MailRule.detailsInclude()]
+				}
+			]
+		});
+		const writers = await User.findAll({
+			where: { id: [...new Set(rows.map((row) => row.user))] },
+			attributes: ['id', 'name', 'username', 'managedBy', 'anonymousForChapter']
+		});
+		const prisonerOf = new Map(prisoners.map((prisoner) => [prisoner.id, prisoner]));
+		const writerOf = new Map(writers.map((writer) => [writer.id, writer]));
+		for (const row of rows) {
+			row.setDataValue('prisoner_details', prisonerOf.get(row.prisoner) || null);
+			row.setDataValue('user_details', writerOf.get(row.user) || null);
+		}
+		return rows;
 	}
 
 	/**

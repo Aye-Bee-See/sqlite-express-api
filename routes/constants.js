@@ -162,7 +162,8 @@ const endpoints = {
 		},
 		put: {
 			update: '/message',
-			updateStatus: '/status'
+			updateStatus: '/status',
+			updateStatusBatch: '/status/batch'
 		},
 		attachment: {
 			create: '/attachment',
@@ -675,6 +676,10 @@ const messages = {
 			updateStatus: {
 				success: { condition: { par: 'Letter status updated.' } },
 				error: { condition: { par: 'Error updating letter status.' } }
+			},
+			updateStatusBatch: {
+				success: { condition: { par: 'Letter statuses updated.' } },
+				error: { condition: { par: 'Error updating letter statuses; nothing was changed.' } }
 			}
 		},
 		delete: {

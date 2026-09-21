@@ -63,6 +63,11 @@ class MessageRoutes {
 			this.#Controller.update
 		);
 		this.Router.put(
+			messageEnd.put.updateStatusBatch,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.updateStatusBatch
+		);
+		this.Router.put(
 			messageEnd.put.updateStatus,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.updateStatus

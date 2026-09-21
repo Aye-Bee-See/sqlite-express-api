@@ -126,6 +126,7 @@ export default class Prison extends Model {
 				model: Chapter,
 				as: 'relay_groups',
 				through: { attributes: [] },
+				...Chapter.publicAttributes(publishedOnly),
 				...publishedOnlyOpts
 			}
 		];

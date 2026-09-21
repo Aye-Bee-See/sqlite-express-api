@@ -90,11 +90,32 @@ const chapterSchema = {
 	prisoners: {
 		type: DataTypes.JSON
 	},
+	/**
+	 * Read-only: what the public page shows. `lettersSentBefore + lettersCounted` as
+	 * text, or null below Chapter.PUBLIC_FROM (a small group is not put on show).
+	 */
 	lettersSent: {
 		type: DataTypes.STRING
 	},
+	/** Read-only: median days from queued to mailed over the last 90 days; null when there is too little to go on, or while lettersSent is hidden. */
 	averageTimeDays: {
 		type: DataTypes.INTEGER
+	},
+	/** Staff only. Letters this group has marked mailed here; only ever goes up. */
+	lettersCounted: {
+		type: DataTypes.INTEGER,
+		allowNull: false,
+		defaultValue: 0
+	},
+	/** Staff only, and the group's to set: what it mailed before it used the site. */
+	lettersSentBefore: {
+		type: DataTypes.INTEGER,
+		allowNull: false,
+		defaultValue: 0,
+		validate: {
+			isInt: { args: true, msg: 'lettersSentBefore must be a whole number.' },
+			min: { args: [0], msg: 'lettersSentBefore cannot be negative.' }
+		}
 	},
 	recordStatus: {
 		type: DataTypes.STRING,

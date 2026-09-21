@@ -99,7 +99,7 @@ export async function runRetention(options = {}) {
 }
 
 async function run({ dryRun = false, now = new Date(), log = console.log } = {}) {
-	const { Message, User, Chat, AuditLog, Attachment } = Models;
+	const { Message, User, Chat, AuditLog, Attachment, Chapter } = Models;
 	// Nothing younger than the shortest window anyone has can be due, so the
 	// database leaves those rows out: the run reads the letters that may go, not
 	// every letter ever mailed.
@@ -189,6 +189,11 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 				chats: report.chats
 			}
 		});
+		// The time-to-mail figures are medians of the history that just went: bring
+		// them up to date here, so a run by hand (npm run retention) does it too.
+		await Chapter.refreshMailingTimes(now).catch((err) =>
+			console.error('[statistics] mailing times were not refreshed', err)
+		);
 		// Deleted pages are reused but not returned; a seized file would still hold the bytes.
 		try {
 			await sequelize.query('VACUUM');

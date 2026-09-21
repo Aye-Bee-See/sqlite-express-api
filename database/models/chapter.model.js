@@ -22,10 +22,13 @@ export const CHAPTER_FIELDS = [
 	'networkRole',
 	'accountStatus',
 	'vouchedBy',
-	'lettersSent',
-	'averageTimeDays',
+	// lettersSent and averageTimeDays are counted, not typed (see recount and refreshMailingTimes).
+	'lettersSentBefore',
 	'recordStatus'
 ];
+
+/** What only staff see of a group: the figures behind its public number. */
+export const CHAPTER_STAFF_ONLY = ['lettersCounted', 'lettersSentBefore'];
 
 export default class Chapter extends Model {
 	static init(sequelize) {
@@ -91,10 +94,91 @@ export default class Chapter extends Model {
 
 	//Create
 	static async createChapter(fields) {
-		return await this.create(pick(fields, CHAPTER_FIELDS));
+		const created = await this.create(pick(fields, CHAPTER_FIELDS));
+		if (created.lettersSentBefore > 0) {
+			await this.recount(created.id);
+			await created.reload();
+		}
+		return created;
 	}
 	static async createBulkChapters(chapterArray) {
 		return await this.bulkCreate(chapterArray, { individualHooks: true, ignoreDuplicates: true });
+	}
+
+	/** Below this many letters a group's numbers are not shown to the public. */
+	static PUBLIC_FROM = 20;
+	/** A median of fewer mailings than this says nothing. */
+	static MIN_SAMPLES = 5;
+
+	/** Attribute selection for non-staff readers. */
+	static publicAttributes(publishedOnly) {
+		return publishedOnly ? { attributes: { exclude: CHAPTER_STAFF_ONLY } } : {};
+	}
+
+	/** Bring the public `lettersSent` in line with the two figures behind it. */
+	static async recount(id, { transaction } = {}) {
+		await this.sequelize.query(
+			'UPDATE `Chapters` SET `lettersSent` = CASE WHEN `lettersSentBefore` + `lettersCounted` >= :from THEN CAST(`lettersSentBefore` + `lettersCounted` AS TEXT) ELSE NULL END WHERE `id` = :id',
+			{ replacements: { id, from: Chapter.PUBLIC_FROM }, transaction }
+		);
+	}
+
+	/** This group has just mailed `letters` more letters. */
+	static async countMailed(id, letters = 1, { transaction } = {}) {
+		if (!id || letters < 1) {
+			return;
+		}
+		await this.sequelize.query(
+			'UPDATE `Chapters` SET `lettersCounted` = `lettersCounted` + :letters WHERE `id` = :id',
+			{ replacements: { id, letters }, transaction }
+		);
+		await this.recount(id, { transaction });
+	}
+
+	/**
+	 * `averageTimeDays` for every group: the median number of days its letters took
+	 * from queued to mailed, over the last 90 days. Null when it mailed fewer than
+	 * MIN_SAMPLES letters in that time, and while its letter count is not shown.
+	 * Runs at boot and with the retention timer.
+	 * @returns {Promise<number>} groups that have a figure
+	 */
+	static async refreshMailingTimes(now = new Date()) {
+		// The last 90 days only, asked of the database (the history is indexed by
+		// status and date): pinned letters keep their history for ever.
+		const since = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.replace('T', ' ')
+			.replace('Z', ' +00:00');
+		const [rows] = await this.sequelize.query(
+			"SELECT `m`.`relayChapter` AS chapter, `m`.`createdAt` AS written, `s`.`createdAt` AS mailed FROM `MessageStatuses` AS `s` JOIN `Messages` AS `m` ON `m`.`id` = `s`.`message` WHERE `s`.`toStatus` = 'mailed' AND `s`.`createdAt` >= :since AND `m`.`relayChapter` IS NOT NULL",
+			{ replacements: { since } }
+		);
+		const days = new Map();
+		for (const row of rows) {
+			const took = (new Date(row.mailed) - new Date(row.written)) / (24 * 60 * 60 * 1000);
+			if (!days.has(row.chapter)) {
+				days.set(row.chapter, []);
+			}
+			days.get(row.chapter).push(Math.max(took, 0));
+		}
+		const shown = await this.findAll({
+			attributes: ['id', 'lettersSent', 'averageTimeDays'],
+			hooks: false
+		});
+		let withFigure = 0;
+		for (const chapter of shown) {
+			const sample = (days.get(chapter.id) || []).sort((a, b) => a - b);
+			let median = null;
+			if (sample.length >= Chapter.MIN_SAMPLES && chapter.lettersSent !== null) {
+				const mid = Math.floor(sample.length / 2);
+				median = Math.round(sample.length % 2 ? sample[mid] : (sample[mid - 1] + sample[mid]) / 2);
+				withFigure += 1;
+			}
+			if (median !== chapter.averageTimeDays) {
+				await this.update({ averageTimeDays: median }, { where: { id: chapter.id } });
+			}
+		}
+		return withFigure;
 	}
 
 	//Read
@@ -118,6 +202,7 @@ export default class Chapter extends Model {
 		order = [['id', 'ASC']]
 	} = {}) {
 		return await this.findAndCountAll({
+			...this.publicAttributes(publishedOnly),
 			where: { ...where, ...publishedWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly) : [],
 			limit,
@@ -133,6 +218,7 @@ export default class Chapter extends Model {
 	 */
 	static async getChapterByID(id, { full = false, publishedOnly = false } = {}) {
 		return await this.findOne({
+			...this.publicAttributes(publishedOnly),
 			where: { id, ...publishedWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly) : []
 		});
@@ -140,7 +226,11 @@ export default class Chapter extends Model {
 
 	//Update
 	static async updateChapter(chapter) {
-		return await updateById(this, chapter.id, pick(chapter, CHAPTER_FIELDS));
+		const result = await updateById(this, chapter.id, pick(chapter, CHAPTER_FIELDS));
+		if (chapter.lettersSentBefore !== undefined) {
+			await this.recount(chapter.id);
+		}
+		return result;
 	}
 
 	//Delete

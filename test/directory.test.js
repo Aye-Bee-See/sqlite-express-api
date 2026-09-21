@@ -160,9 +160,11 @@ test('chapter create, list, read, update, delete', async () => {
 	const list = await get('/chapter/chapters', t);
 	assert.ok(list.body.data.some((c) => c.id === id));
 	assert.equal((await get('/chapter/chapter?id=' + id, t)).body.data.name, 'Doc Chapter');
+	// The public numbers are counted, not typed (see group-statistics.test.js): typing them changes nothing.
 	const updated = await put('/chapter/chapter', { id, lettersSent: '12', averageTimeDays: 5 }, t);
 	assert.equal(updated.status, 200);
-	assert.equal((await get('/chapter/chapter?id=' + id, t)).body.data.averageTimeDays, 5);
+	const after = (await get('/chapter/chapter?id=' + id, t)).body.data;
+	assert.deepEqual([after.lettersSent, after.averageTimeDays], [null, null]);
 	assert.equal((await del('/chapter/chapter', { id }, t)).status, 200);
 	assert.equal((await del('/chapter/chapter', { id }, t)).status, 404);
 });

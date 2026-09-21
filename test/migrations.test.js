@@ -622,3 +622,53 @@ test('the key cannot be changed while a database still has letters to convert wi
 		delete process.env.ENCRYPTION_KEY_PREVIOUS;
 	}
 });
+
+test('what groups had typed becomes their starting figure, and small numbers stop being shown', async () => {
+	const MIGRATION = '2026.09.21T00.00.00.group-statistics.js';
+	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const names = (await createMigrator(live, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(live, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	const now = "'2026-01-01 00:00:00.000 +00:00'";
+	for (const [name, typed] of [
+		['Big', "'120+'"],
+		['Vague', "'about 300'"],
+		['Small', "'12'"],
+		['Silent', 'NULL']
+	]) {
+		await live.query(
+			`INSERT INTO Chapters (name, location, lettersSent, createdAt, updatedAt) VALUES ('${name}', '{}', ${typed}, ${now}, ${now})`
+		);
+	}
+	// "Silent" typed nothing and has mailed three letters here already.
+	await live.query(
+		`INSERT INTO User (username, password, email, role, createdAt, updatedAt) VALUES ('w', 'x', 'w@example.com', 'user', ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('P', '{}', ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Prisoners (birthName, prison, createdAt, updatedAt) VALUES ('X', 1, ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${now}, ${now})`
+	);
+	for (const status of ['mailed', 'mailed', 'returned', 'queued']) {
+		await live.query(
+			`INSERT INTO Messages (chat, sender, prisoner, user, status, relayChapter, createdAt, updatedAt) VALUES (1, 'user', 1, 1, '${status}', 4, ${now}, ${now})`
+		);
+	}
+	await runMigrations(live, { quiet: true });
+	const [rows] = await live.query(
+		'SELECT name, lettersSentBefore, lettersCounted, lettersSent FROM Chapters ORDER BY id'
+	);
+	assert.deepEqual(
+		rows.map((r) => [r.name, r.lettersSentBefore, r.lettersCounted, r.lettersSent]),
+		[
+			['Big', 120, 0, '120'],
+			['Vague', 0, 0, null],
+			['Small', 12, 0, null],
+			['Silent', 0, 3, null]
+		]
+	);
+	await live.close();
+});

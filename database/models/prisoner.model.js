@@ -139,6 +139,7 @@ export default class Prisoner extends Model {
 				model: Chapter,
 				as: 'support_groups',
 				through: { attributes: ['description'] },
+				...Chapter.publicAttributes(publishedOnly),
 				...publishedOnlyOpts
 			}
 		];

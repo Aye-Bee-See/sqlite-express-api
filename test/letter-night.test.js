@@ -159,13 +159,23 @@ test("a batch holding somebody else's letter, or one that does not exist, moves 
 
 test('the list of ids has to be a list of ids', async () => {
 	const one = await write(f.alice);
+	// Letter 1 exists (the first test made it): none of these may reach it.
+	assert.ok(await Message.findByPk(1));
 	for (const ids of [
 		undefined,
 		[],
 		'all',
 		[one.id, one.id],
+		[one.id, String(one.id)],
 		[0],
 		['x'],
+		[true],
+		[[1]],
+		[{ id: 1 }],
+		[null],
+		[1.5],
+		['1e0'],
+		[' 1'],
 		Array.from({ length: 201 }, (_, i) => i + 1)
 	]) {
 		const res = await put('/messaging/status/batch', { ids, status: 'printed' }, f.chapter);
@@ -175,6 +185,13 @@ test('the list of ids has to be a list of ids', async () => {
 		(await put('/messaging/status/batch', { ids: [one.id], status: 'sent' }, f.chapter)).status,
 		400
 	);
+	// The digits of an id are an id (a form or a query builder may send text).
+	const asText = await put(
+		'/messaging/status/batch',
+		{ ids: [String(one.id)], status: 'printed' },
+		f.chapter
+	);
+	assert.equal(asText.status, 200, JSON.stringify(asText.body));
 });
 
 test('returns and held letters keep their rules in a batch', async () => {

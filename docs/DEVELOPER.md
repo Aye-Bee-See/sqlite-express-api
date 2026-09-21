@@ -170,10 +170,10 @@ Nothing in that path reads `req.params`; all identifiers travel in the query str
     ├── migration-helpers.js          withForeignKeysOff(): guards SQLite table rebuilds against cascading deletes. Separate from migrate.js to avoid a circular import.
     ├── letter-status.js              Letter lifecycle statuses and transitions.
     ├── rewrap-e2e.js                 `npm run encryption:rewrap`: seal server-held content keys to readers before switching to e2e.
-    ├── rekey.js                      rekeyServerEnvelopes(): move every server envelope from ENCRYPTION_KEY_PREVIOUS to ENCRYPTION_KEY; rekey-cli.js is `npm run encryption:rekey`.
     ├── erase-account.js              eraseAccount(), eraseRefusal(): delete a person and everything they wrote or received.
     ├── retention.js                  runRetention(), purgeIfUnpinned(), windowFor(): purge mailed letters and replies past the writer's window.
     ├── retention-cli.js              `npm run retention [-- --dry-run]`: awaits `ready`, then runs the purge (separate file: sql-database.js imports retention.js).
+    ├── rekey.js                      rekeyServerEnvelopes(): move every server envelope from ENCRYPTION_KEY_PREVIOUS to ENCRYPTION_KEY; rekey-cli.js is `npm run encryption:rekey`.
     ├── migrations/                   <timestamp>.<name>.js files exporting up/down; applied ones recorded in SequelizeMeta.
     ├── sql-database.js               Init + associate models; runMigrations; seed; ensureAdmin; exports `ready`.
     ├── bootstrap-admin.js            ensureAdmin(): creates the ADMIN_* account when it does not exist.

@@ -1394,6 +1394,8 @@ Body: `{"prisoner": 1, "chapter": 2, "description": "Letter collection, US Pacif
 
 Body `{"id": 41, "chosenName": "Doc Updated"}` and `{"id": 41}` respectively. A prisoner with chats or messages cannot be deleted.
 
+**When an edit moves or frees someone** (a new `prison`, or `status` becoming `free`), by a direct edit or by an approved proposal, their writers' mail follows (see [Moved and freed](#moved-and-freed)), and the answer says what this edit did under `mail` (`held` and `released` count letters it newly held or let go): `{ "moved": true, "freed": false, "rerouted": 1, "held": 0, "released": 0 }`.
+
 ### Chats
 
 | Method | Path          | Auth   | Purpose                                     |
@@ -1606,6 +1608,24 @@ These are codes for clients to word in the reader's language. `note` is optional
 
 **Sending it again.** There is no copy button on the server (in end-to-end mode it could not read the letter to copy it): the client sends a new letter with `"resendOf": 41`. That must be one of the same writer's `returned` letters to the same prisoner, or the request is a `400`. The new letter is routed afresh, so it goes wherever the directory now says the person is. Read with `full=true`, the returned letter lists what replaced it under `resent_as` (`id`, `status`, `createdAt`).
 
+##### Moved and freed
+
+When the directory learns that someone was **moved to another facility**:
+
+- everyone with a thread to them gets a `prisoner.moved` notification (`{ "prisoner": 12, "prison": 7, "held": 0 }`: ids and a count, as always);
+- their letters still `queued` go where a new letter would go now. The group that was going to mail one keeps it if it serves the new facility too; otherwise the letter is routed again and the new group is told it is waiting (`letter.queued`). Printed and mailed letters are on paper already and are left alone;
+- where nothing can be decided for the writer, the letter is **held** (`heldReason` on the letter, `null` otherwise):
+
+| `heldReason`    | Why                                                                                                                             | What lifts it                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `choose_relay`  | The new facility only takes relayed mail and has several relay groups, or none                                                  | The writer picks one: `PUT /messaging/message {"id": 41, "relayChapter": 3}`      |
+| `reseal_needed` | End-to-end mode: the letter is sealed to a group that does not serve the new facility, and the server cannot seal it to another | The writer's client deletes the queued letter and sends it again                  |
+| `prisoner_free` | They were freed (below)                                                                                                         | The group prints it on purpose, the writer deletes it, or the status is corrected |
+
+When someone's `status` becomes **`free`**, their writers get `prisoner.status` (`{ "prisoner": 12, "status": "free", "held": 2 }`) and their queued letters are held as `prisoner_free`: a letter posted to a prison someone has left may never be forwarded. If the status goes back to `incarcerated` or `pretrial`, those holds are lifted.
+
+A held letter stays `queued`. Moving it to `printed` is refused with `409` `LetterHeldError` unless the request says `"release": true`, so that printing it is a decision and not an oversight. `GET /messaging/messages?held=true` lists held letters (`held=false` the rest). Nobody can set or clear a hold by editing the letter.
+
 **What returns tell the directory.** A return for `transferred`, `released`, or `bad_address` within the last 60 days, on a prisoner whose record nobody has edited since, puts that address in doubt: staff list such records with `GET /prisoner/prisoners?addressInDoubt=true`, and the moderation summary counts them (`addressInDoubt.prisoner`). Editing the record, to correct it or just to confirm it, answers the doubt. Nothing changes by itself, and the public never sees this (the parameter is ignored for them).
 
 **Relay group.** `relayChapter` names the group that prints and mails the letter. It must be one of the facility's relay groups (see [PUT /prison/relay](#put-prisonrelay-and-delete-prisonrelay)). When the body omits it, the server picks one:
@@ -1634,6 +1654,7 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 | `statusChangedAt`, `statusChangedBy`    |          | Read-only. When the status last changed and which account changed it.                                                                                                                                                    |
 | `keep`                                  | boolean  | Pinned: exempt from retention. The only field a writer may change on a mailed letter.                                                                                                                                    |
 | `returnReason`                          | string   | Read-only. Why a `returned` letter came back; `null` otherwise. Set through `PUT /messaging/status`.                                                                                                                     |
+| `heldReason`                            | string   | Read-only. Why a queued letter is held (`choose_relay`, `reseal_needed`, `prisoner_free`), or `null`. See [Moved and freed](#moved-and-freed).                                                                           |
 | `resendOf`                              | integer  | Optional, on create only: the id of the writer's `returned` letter to the same prisoner that this one replaces.                                                                                                          |
 | `prisoner`                              | integer  | Required. Id of the prisoner side.                                                                                                                                                                                       |
 
@@ -1747,7 +1768,7 @@ Body must include `id`; any of `messageText`, `user`, `prisoner`, `relayChapter`
 
 #### PUT /messaging/status
 
-Body: `{"id": 41, "status": "printed"}`, or `{"id": 41, "status": "returned", "reason": "refused", "note": "…"}` (see [Letter lifecycle](#letter-lifecycle); `reason` and `note` go with `returned` only, a `400` otherwise). Allowed for admins and for `chapter` accounts whose group is the letter's `relayChapter`; anyone else gets a `403`. Returns the message with `relay_group` and `status_history` embedded (the `full=true` shape). A move the lifecycle does not allow is a `409`:
+Body: `{"id": 41, "status": "printed"}`, or `{"id": 41, "status": "returned", "reason": "refused", "note": "…"}` (see [Letter lifecycle](#letter-lifecycle); `reason` and `note` go with `returned` only, a `400` otherwise). A [held](#moved-and-freed) letter needs `"release": true` to be printed. Allowed for admins and for `chapter` accounts whose group is the letter's `relayChapter`; anyone else gets a `403`. Returns the message with `relay_group` and `status_history` embedded (the `full=true` shape). A move the lifecycle does not allow is a `409`:
 
 ```json
 {
@@ -2093,12 +2114,14 @@ curl -s 'http://localhost:3000/auth/notifications?since=41' -H "Authorization: B
 
 `since` is the id of the newest entry the client already has; `unread=true` filters; `page` and `page_size` work as everywhere. Entries hold ids and states, never letter content. `PUT /auth/notifications/read` takes `{"ids": [42, 43]}`, `{"upTo": 43}`, or `{}` for everything, and answers `{ "marked": 2, "unread": 0 }`. Entries are kept for `NOTIFICATION_DAYS` (30), and an entry about a letter goes when the letter does (retention, deletion).
 
-| Event                | Who is told                                                             | `detail`                                                                                     |
-| -------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `letter.reply`       | The writer, when a prisoner's reply is recorded on their thread         | none                                                                                         |
-| `letter.status`      | The writer, when their letter is printed, mailed, or returned           | `{ "status": "printed" }`; for a return, `{ "status": "returned", "reason": "transferred" }` |
-| `letter.queued`      | The members of the relay group, when a letter arrives for them to print | none                                                                                         |
-| `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }`                                             |
+| Event                | Who is told                                                             | `detail`                                                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `letter.reply`       | The writer, when a prisoner's reply is recorded on their thread         | none                                                                                                                                                     |
+| `letter.status`      | The writer, when their letter is printed, mailed, or returned           | `{ "status": "printed" }`; for a return, `{ "status": "returned", "reason": "transferred" }`                                                             |
+| `letter.queued`      | The members of the relay group, when a letter arrives for them to print | none                                                                                                                                                     |
+| `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }`                                                                                                         |
+| `prisoner.moved`     | Everyone with a thread to a prisoner whose facility changed             | `{ "prisoner": 12, "prison": 7, "held": 0 }` (`held`: how many of their queued letters to this person are waiting for them now, whenever they were held) |
+| `prisoner.status`    | The same people, when the prisoner's status becomes `free`              | `{ "prisoner": 12, "status": "free", "held": 2 }`                                                                                                        |
 
 The account that did the thing is never told about it, and accounts nobody can sign in to (unclaimed and anonymous writers, banned accounts) are skipped.
 

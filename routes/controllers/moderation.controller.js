@@ -9,6 +9,7 @@ import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import { audit } from '#rtServices/audit.services.js';
 import { notify } from '#rtServices/notify.services.js';
+import { watchPrisoner, afterPrisonerChange } from '#rtServices/prisoner-change.services.js';
 import { SUBMISSION_RESOURCES, SUBMISSION_STATUSES } from '#schemas/submission.schema.js';
 import { RECORD_STATUSES, staleVerificationWhere } from '#db/record-status.js';
 
@@ -205,6 +206,12 @@ export default class ModerationController extends RouteController {
 			) {
 				throw new ValidationError('fields must be an object of reviewer edits.');
 			}
+			// An approved edit of a prisoner is an edit of a prisoner: the same follow-up
+			// for their writers' mail as a direct one.
+			const watched =
+				submission.resource === 'prisoner' && submission.kind === 'update'
+					? await watchPrisoner(submission.targetId)
+					: null;
 			const result = await Submission.approve(submission, {
 				reviewer: req.user.id,
 				fields,
@@ -224,6 +231,7 @@ export default class ModerationController extends RouteController {
 				result.targetId,
 				{ viaSubmission: result.id, fields: result.appliedChanges }
 			);
+			await afterPrisonerChange(req, watched);
 			await ModerationController.#announceDecision(req, result);
 			this.#handleSuccess(res, this.#present(req, result));
 		} catch (err) {

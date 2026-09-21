@@ -9,3 +9,8 @@ uploads/
 # Firebase service-account keys never belong in the repository.
 *service-account*.json
 *firebase-adminsdk*.json
+# Backups, and above all the key that opens them, never belong in the repository.
+backups/
+restored*/
+*.abcbak
+*backup-private*.key

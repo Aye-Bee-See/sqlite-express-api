@@ -76,6 +76,10 @@ cp .env.example .env
 | `UPLOAD_MAX_BYTES`                            | No       | `20971520`                                | Largest accepted upload (20 MiB).                                                                                                                                   |
 | `RATE_LIMIT_*`                                | No       | see [Rate limits](#rate-limits)           | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                                             |
 | `ROTATION_MAX_BYTES`                          | No       | `33554432` (32 MB)                        | Largest body of `POST /auth/chapter-rotation`, which re-seals every letter of a group in one request (about 150 bytes a letter). Other JSON bodies stay at 100 KB.  |
+| `BACKUP_PUBLIC_KEY`                           | No       | none                                      | The public half of the backup key (`npm run backup:keygen`, run on your own computer). Without it no backups are made. See [Backups](#backups).                     |
+| `BACKUP_DIR`                                  | No       | `backups`                                 | Where backups are written. Ideally another disk.                                                                                                                    |
+| `BACKUP_KEEP`                                 | No       | `14`                                      | How many backups to keep.                                                                                                                                           |
+| `BACKUP_EVERY_HOURS`                          | No       | off                                       | Let the running server make a backup whenever the newest is older than this. Leave unset when cron does it.                                                         |
 | `TRUST_PROXY`                                 | No       | none                                      | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                                      |
 | `ENCRYPTION_MODE`                             | No       | `server`                                  | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                                            |
 | `ENCRYPTION_KEY`                              | Yes      | none                                      | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                                      |
@@ -126,15 +130,47 @@ The suite runs against an in-memory database and needs no `.env`. It takes a cou
 
 Data lives in `database.sqlite` in the repository root and **survives restarts**. On the second boot the seed line reads `users: already populated, ...` and nothing is inserted. To start over, delete the file or boot once with `DB_RESET=true`.
 
-While the server runs, SQLite keeps two files beside the database: `database.sqlite-wal` and `database.sqlite-shm` (write-ahead log; git-ignored). Recent writes live in the `-wal` file until SQLite folds them in, so **never back up by copying `database.sqlite` alone while the server is up**. Take a consistent copy with SQLite itself, which is safe while the server runs:
-
-```bash
-sqlite3 database.sqlite ".backup backup-$(date +%F).sqlite"
-```
-
-Or stop the server first and copy all three files.
+While the server runs, SQLite keeps two files beside the database: `database.sqlite-wal` and `database.sqlite-shm` (write-ahead log; git-ignored). Recent writes live in the `-wal` file until SQLite folds them in, so **never back up by copying `database.sqlite` alone while the server is up**. Use `npm run backup` ([Backups](#backups)), which asks SQLite for a consistent copy and is safe while the server runs.
 
 Attachment files live under `UPLOAD_DIR` (default `./uploads`, git-ignored) and are referenced by rows in the `Attachments` table; back up both together. Deleting a message or chat through the API removes its files.
+
+### Backups
+
+Everything is one database file, the uploads folder, and the keys in `.env`. `npm run backup` puts the first two into **one encrypted file**; the keys are kept apart, by people, on purpose.
+
+A backup is encrypted to a **public key**. The server holds only that, so it can make backups and cannot open them: whoever breaks into the server does not also get every backup. The private key stays with the people who run the site, off the server.
+
+**Set-up, once**
+
+1. On **your own computer** (not the server), in a checkout of this repository:
+
+   ```bash
+   npm run backup:keygen
+   ```
+
+   It writes `abc-backup-private.key` and prints a `BACKUP_PUBLIC_KEY=…` line. Keep the private key file off the server, and keep a second copy in another place (a password manager, a USB stick in a drawer). **Without it the backups are noise; nobody can recover it for you.**
+
+2. Put the `BACKUP_PUBLIC_KEY=…` line in the server's `.env`, and restart the API.
+3. Make backups happen, one of:
+   - `BACKUP_EVERY_HOURS=24` in `.env`: the running server makes one whenever the newest is older than that. Nothing else to set up.
+   - or cron, which also works when the API is down: `15 3 * * * cd /srv/abc-api && npm run --silent backup`
+4. **Get the files off the machine.** A backup on the same disk protects against a bad migration, not against a dead disk. Point `BACKUP_DIR` at a mounted second disk, or copy `backups/` elsewhere after each run (`rsync`, `rclone`, a bucket with write-only credentials). The files are safe to store anywhere: they are useless without the private key.
+5. Keep `ENCRYPTION_KEY` and `JWT_SECRET` (the server's `.env`) somewhere safe **and separate from the backup private key**. They are not in the backup. In server mode, a backup plus `ENCRYPTION_KEY` is every letter in plain text; in end-to-end mode it is not.
+
+**Commands**
+
+| Command                                                              | Where                | What it does                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run backup`                                                     | Server               | Makes `backups/abc-backup-<date>.abcbak`: a consistent copy of the database (taken by SQLite, safe while the API runs) and every attachment file it refers to. Removes all but the newest `BACKUP_KEEP` (14). An attachment whose file is missing is reported and does not stop the backup. |
+| `npm run backup:status -- --max-age-hours 26`                        | Server               | Prints the newest backup and its age; **exits 1** when there is none or it is too old. For monitoring. Admins also see this under `backups` in `GET /moderation/summary`.                                                                                                                   |
+| `npm run backup:info -- <file>`                                      | Anywhere             | When it was made and for which key. Needs no key.                                                                                                                                                                                                                                           |
+| `npm run backup:verify -- <file> --key abc-backup-private.key`       | Your computer        | Opens it, checks every file against its checksum, runs SQLite's integrity check, and checks that every attachment in the database has its file. Leaves nothing behind. **Do this now and then: a backup nobody has opened is a hope, not a backup.**                                        |
+| `npm run backup:restore -- <file> --key <key file> --to <new dir>`   | Wherever you restore | Unpacks and checks it into a **new** directory. It never writes over anything; it prints the four steps to put the files in place (stop the API, move the old files aside, copy, start).                                                                                                    |
+| `npm run backup:decrypt -- <file> --key <key file> --out backup.tar` | Your computer        | A plain `tar` archive any tool opens, with or without this repository. It is the whole database in the clear: delete it when you are done.                                                                                                                                                  |
+
+After a restore, everyone who signed in since the backup was made is signed out ([Signing out and revoking tokens](#signing-out-and-revoking-tokens)), and whatever was written since is gone: that is what the age of the newest backup means.
+
+The file format (a tar stream, encrypted in chunks with libsodium's secretstream to a sealed key) is described at the top of `services/backup-archive.js`. A changed byte, a missing end, or the wrong key is refused with a message that says which.
 
 ### Retention
 
@@ -2027,6 +2063,16 @@ Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest
 	},
 	"staleVerification": { "prisoner": 38, "prison": 52 },
 	"addressInDoubt": { "prisoner": 2 },
+	"backups": {
+		"configured": true,
+		"count": 14,
+		"newest": {
+			"name": "abc-backup-20260921T031500Z.abcbak",
+			"at": "2026-09-21T03:15:00.000Z",
+			"bytes": 8123456
+		},
+		"ageHours": 7.5
+	},
 	"resources": {
 		"prisoner": { "submittable": ["birthName", "..."] },
 		"prison": { "submittable": ["..."] },

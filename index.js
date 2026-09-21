@@ -1,5 +1,6 @@
 import { sysPort } from '#constants';
 import { createApp, ready } from './app.js';
+import { scheduleBackups } from '#db/backup.js';
 
 const app = createApp();
 
@@ -34,6 +35,8 @@ function shutdown(code) {
 ready.then(
 	() => {
 		console.log('Ready to serve requests.');
+		// Only the server does this, never a script or a test that awaits `ready`.
+		scheduleBackups();
 	},
 	() => {
 		// The reason was logged where it happened. A server that cannot reach its

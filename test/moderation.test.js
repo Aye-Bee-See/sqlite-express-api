@@ -342,6 +342,13 @@ test('the audit log records moderation decisions and staff writes', async () => 
 test('the summary counts pending work, record statuses, and stale verifications', async () => {
 	assert.equal((await get('/moderation/summary', chapter)).status, 403);
 	const res = await get('/moderation/summary', admin);
+	// Whether backups are being made is an admin's business, and only theirs.
+	assert.deepEqual(Object.keys(res.body.data.backups).sort(), [
+		'ageHours',
+		'configured',
+		'count',
+		'newest'
+	]);
 	assert.equal(res.status, 200);
 	const s = res.body.data;
 	assert.equal(typeof s.pendingSubmissions.prisoner, 'number');

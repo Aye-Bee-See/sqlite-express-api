@@ -176,3 +176,17 @@ export const trustProxy =
 		: /^\d+$/.test(TRUST_PROXY)
 			? Number(TRUST_PROXY)
 			: (envBool(TRUST_PROXY, null) ?? TRUST_PROXY);
+
+/**
+ * Backups (database/backup.js). A backup is encrypted to BACKUP_PUBLIC_KEY, whose
+ * private half is kept off this machine: the server makes backups it cannot open.
+ * Without the key there are no backups, and `npm run backup` says so.
+ */
+export const backups = {
+	publicKey: (process.env.BACKUP_PUBLIC_KEY || '').trim(),
+	dir: process.env.BACKUP_DIR || 'backups',
+	/** How many archives to keep; older ones are removed after each successful backup. */
+	keep: envCount('BACKUP_KEEP', 14),
+	/** Make one from inside the running server this often; 0 (the default) leaves it to cron. */
+	everyHours: envCount('BACKUP_EVERY_HOURS', 0)
+};

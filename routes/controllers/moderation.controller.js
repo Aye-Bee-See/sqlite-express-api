@@ -8,6 +8,7 @@ import Chapter from '#models/chapter.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 import { audit } from '#rtServices/audit.services.js';
+import { backupStatus } from '#db/backup.js';
 import { notify } from '#rtServices/notify.services.js';
 import { watchPrisoner, afterPrisonerChange } from '#rtServices/prisoner-change.services.js';
 import { SUBMISSION_RESOURCES, SUBMISSION_STATUSES } from '#schemas/submission.schema.js';
@@ -350,6 +351,8 @@ export default class ModerationController extends RouteController {
 				addressInDoubt: {
 					prisoner: await Prisoner.count({ where: Prisoner.addressInDoubtWhere() })
 				},
+				// Is there a recent backup? (`configured`: BACKUP_PUBLIC_KEY is set.)
+				backups: await backupStatus(),
 				resources: Object.fromEntries(
 					Object.entries(RESOURCES).map(([name, spec]) => [name, { submittable: spec.submittable }])
 				)

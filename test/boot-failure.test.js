@@ -130,3 +130,18 @@ for (const storage of ['a file', ':memory:']) {
 		}
 	});
 }
+
+test('a previous key that is the current key is a mistake the server names and stops on', async () => {
+	// The likeliest slip when changing the key: the new one was never put in.
+	const dir = mkdtempSync(join(tmpdir(), 'abc-boot-'));
+	try {
+		const { code, output } = await boot({
+			DB_STORAGE: join(dir, 'database.sqlite'),
+			ENCRYPTION_KEY_PREVIOUS: 'dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdCE='
+		});
+		assert.equal(code, 1, output);
+		assert.match(output, /ENCRYPTION_KEY_PREVIOUS is the same as ENCRYPTION_KEY/);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});

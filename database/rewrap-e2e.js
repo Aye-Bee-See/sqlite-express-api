@@ -44,7 +44,7 @@ async function sealToReaders(row, { dryRun }) {
 	if (!message) {
 		return null;
 	}
-	const contentKey = crypto.unwrapForServer(row.wrappedKey);
+	const contentKey = crypto.unwrapForServer(row.wrappedKey, row.keyLabel);
 	const writer = await User.findByPk(message.user, {
 		attributes: ['id', 'publicKey', 'managedBy', 'anonymousForChapter']
 	});

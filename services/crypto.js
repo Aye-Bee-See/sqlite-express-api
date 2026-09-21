@@ -1,6 +1,6 @@
 import sodium from 'libsodium-wrappers';
 import { createHash } from 'node:crypto';
-import { encryptionKey, encryptionMode, ENCRYPTION_MODES } from '#constants';
+import { encryptionKey, encryptionKeyPrevious, encryptionMode, ENCRYPTION_MODES } from '#constants';
 
 /**
  * Letter encryption primitives, shared by both modes.
@@ -42,6 +42,9 @@ export function assertConfigured() {
 	if (encryptionMode === 'server') {
 		masterKey();
 	}
+	// Checked in every mode: after a switch to end-to-end the server still opens
+	// the letters that wait for readers who have no keys yet.
+	previousKey();
 }
 
 let cachedMaster;
@@ -66,9 +69,51 @@ export function masterKey() {
 	return cachedMaster;
 }
 
+const labelOf = (key) => createHash('sha256').update(key).digest('hex').slice(0, 12);
+
+let cachedPrevious;
+
+/**
+ * The key that ENCRYPTION_KEY replaced (ENCRYPTION_KEY_PREVIOUS), or null.
+ * Only ever used to open what it wrapped; nothing new is written with it.
+ */
+export function previousKey() {
+	if (cachedPrevious !== undefined) {
+		return cachedPrevious;
+	}
+	if (!encryptionKeyPrevious) {
+		cachedPrevious = null;
+		return null;
+	}
+	let bytes;
+	try {
+		bytes = decode(encryptionKeyPrevious);
+	} catch {
+		bytes = new Uint8Array(0);
+	}
+	if (bytes.length !== sodium.crypto_aead_xchacha20poly1305_ietf_KEYBYTES) {
+		throw new Error(
+			'ENCRYPTION_KEY_PREVIOUS must be the base64 of 32 bytes: the old ENCRYPTION_KEY.'
+		);
+	}
+	if (encryptionKey && encode(bytes) === encode(decode(encryptionKey))) {
+		throw new Error(
+			'ENCRYPTION_KEY_PREVIOUS is the same as ENCRYPTION_KEY. Put the NEW key (npm run keygen) in ENCRYPTION_KEY and the old one in ENCRYPTION_KEY_PREVIOUS.'
+		);
+	}
+	cachedPrevious = bytes;
+	return cachedPrevious;
+}
+
+/** The label of ENCRYPTION_KEY_PREVIOUS, or null. */
+export function previousKeyLabel() {
+	const key = previousKey();
+	return key ? labelOf(key) : null;
+}
+
 /** Short fingerprint of the server key, stored beside each server envelope. */
 export function masterKeyLabel() {
-	return createHash('sha256').update(masterKey()).digest('hex').slice(0, 12);
+	return labelOf(masterKey());
 }
 
 export function generateContentKey() {
@@ -129,7 +174,7 @@ export function wrapForServer(contentKey) {
 	return encode(out);
 }
 
-export function unwrapForServer(wrapped) {
+function unwrapWith(wrapped, key) {
 	const bytes = decode(wrapped);
 	const n = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
 	return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
@@ -137,8 +182,38 @@ export function unwrapForServer(wrapped) {
 		bytes.subarray(n),
 		null,
 		bytes.subarray(0, n),
-		masterKey()
+		key
 	);
+}
+
+/**
+ * Which server key wrapped an envelope with this label: 'current', 'previous',
+ * or null for a key this server does not have. An envelope from before labels
+ * existed (null) is taken to be the current key's.
+ */
+export function serverKeyNamed(label) {
+	if (!label || label === masterKeyLabel()) {
+		return 'current';
+	}
+	return label === previousKeyLabel() ? 'previous' : null;
+}
+
+/**
+ * Open a content key the server wrapped.
+ * @param {string} wrapped
+ * @param {string|null} [label] the envelope's keyLabel; says which key wrapped it
+ * @throws {Error} when the label names a key this server does not have, or the key does not open it
+ */
+export function unwrapForServer(wrapped, label = null) {
+	const which = serverKeyNamed(label);
+	if (which === null) {
+		throw new Error(
+			'wrapped with a different ENCRYPTION_KEY (' +
+				label +
+				'). If the key was changed, put the old one in ENCRYPTION_KEY_PREVIOUS and run npm run encryption:rekey.'
+		);
+	}
+	return unwrapWith(wrapped, which === 'previous' ? previousKey() : masterKey());
 }
 
 /**

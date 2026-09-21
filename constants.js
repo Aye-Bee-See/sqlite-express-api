@@ -78,6 +78,12 @@ export const encryptionMode = ENCRYPTION_MODE || 'server';
 /** Base64 of 32 random bytes; required in `server` mode. `npm run keygen` makes one. */
 export const encryptionKey = ENCRYPTION_KEY || '';
 /**
+ * The key ENCRYPTION_KEY replaced, while `npm run encryption:rekey` moves every
+ * letter over to the new one. Letters say which key wrapped them (keyLabel), so
+ * both are readable meanwhile; new letters always use ENCRYPTION_KEY.
+ */
+export const encryptionKeyPrevious = (process.env.ENCRYPTION_KEY_PREVIOUS || '').trim();
+/**
  * Retention: days a writer's letters and replies stay after mailing when
  * the writer has not chosen a window (0 = forever), and an optional cap on
  * what a writer may choose (unset = no cap).

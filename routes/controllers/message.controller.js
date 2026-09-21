@@ -699,13 +699,13 @@ export default class MessageController extends RouteController {
 
 	/** @throws {ValidationError} unless `ids` is 1 to BATCH_LIMIT different letter ids */
 	static #batchIds(ids) {
-		const clean = Array.isArray(ids) ? ids.map(Number) : [];
-		if (
-			clean.length === 0 ||
-			clean.length > BATCH_LIMIT ||
-			clean.some((id) => !Number.isSafeInteger(id) || id < 1) ||
-			new Set(clean).size !== clean.length
-		) {
+		// Judged before anything is converted: Number(true) is 1, and `[true]` is not
+		// a way to name letter 1. An id is a whole number, or the digits of one.
+		const isId = (value) =>
+			(typeof value === 'number' && Number.isSafeInteger(value) && value > 0) ||
+			(typeof value === 'string' && /^[1-9]\d{0,15}$/.test(value));
+		const clean = Array.isArray(ids) && ids.every(isId) ? ids.map(Number) : [];
+		if (clean.length === 0 || clean.length > BATCH_LIMIT || new Set(clean).size !== clean.length) {
 			throw new ValidationError(
 				'ids must be a list of 1 to ' + BATCH_LIMIT + ' different letter ids.'
 			);

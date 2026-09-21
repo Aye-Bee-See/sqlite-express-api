@@ -7,7 +7,8 @@ import {
 	writeFileSync,
 	existsSync,
 	readdirSync,
-	statSync
+	statSync,
+	mkdirSync
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -260,21 +261,65 @@ test('a backup made while letters are being written is consistent', async () => 
 	assert.ok(checked.letters >= 1 && checked.letters <= 26, 'a moment in time: ' + checked.letters);
 });
 
+test('a backup that turns out damaged half way leaves no decrypted remains', async () => {
+	const [newest] = await listBackups();
+	const good = readFileSync(newest.file);
+	// Damage the LAST chunk: everything before it decrypts and verifies first.
+	const flipped = Buffer.from(good);
+	flipped[flipped.length - 20] ^= 1;
+	const damaged = join(dir, 'late-damage.abcbak');
+	writeFileSync(damaged, flipped);
+	const out = join(dir, 'late-damage.tar');
+	await assert.rejects(decryptBackup(damaged, privateKey, out), /damaged or was changed/);
+	assert.ok(!existsSync(out));
+	assert.deepEqual(
+		readdirSync(dir).filter((name) => name.includes('.partial')),
+		[],
+		'what had been decrypted by then is the database in the clear'
+	);
+});
+
+test('a file that is there and cannot be read stops the backup; only a missing one is passed over', async () => {
+	const stored = (await db.Attachment.scope('withStoredName').findByPk(attachment.id)).storedName;
+	const path = join(process.env.UPLOAD_DIR, stored);
+	const bytes = readFileSync(path);
+	// A directory where the file should be: stat works, reading it does not.
+	rmSync(path);
+	mkdirSync(path);
+	const before = (await listBackups()).length;
+	try {
+		await assert.rejects(runBackup({ ...quiet, now: new Date('2026-09-21T14:00:00Z') }));
+		assert.equal((await listBackups()).length, before, 'no backup that looks complete and is not');
+		assert.deepEqual(
+			readdirSync(process.env.BACKUP_DIR).filter((name) => name.startsWith('.')),
+			[]
+		);
+	} finally {
+		rmSync(path, { recursive: true });
+		writeFileSync(path, bytes);
+	}
+});
+
 test('the server makes one by itself when the newest is older than BACKUP_EVERY_HOURS, and only then', async () => {
 	assert.equal(scheduleBackups({ ...quiet, everyHours: 0 }), null, 'off unless asked for');
 	const before = (await listBackups()).length;
-	// The newest is from "13:00 on 21 September 2026": older than an hour whenever this runs.
-	const timer = scheduleBackups({ ...quiet, everyHours: 1 });
+	// A clock of its own: the backups above carry fixed dates, and what the wall
+	// says must not decide whether the newest of them counts as old.
+	const clock = () => new Date('2026-09-21T20:00:00Z');
+	const timer = scheduleBackups({ ...quiet, everyHours: 1, clock });
 	try {
 		for (let i = 0; i < 100 && (await listBackups()).length === before; i += 1) {
 			await new Promise((resolve) => setTimeout(resolve, 20));
 		}
-		assert.equal((await listBackups()).length, before + 1);
+		const all = await listBackups();
+		assert.equal(all.length, before + 1);
+		assert.equal(all[0].name, 'abc-backup-20260921T200000Z.abcbak');
 	} finally {
 		clearInterval(timer);
 	}
-	// A restart a minute later finds a fresh one and makes nothing.
-	const again = scheduleBackups({ ...quiet, everyHours: 1 });
+	// A restart half an hour later finds a fresh one and makes nothing.
+	const later = () => new Date('2026-09-21T20:30:00Z');
+	const again = scheduleBackups({ ...quiet, everyHours: 1, clock: later });
 	await new Promise((resolve) => setTimeout(resolve, 150));
 	clearInterval(again);
 	assert.equal((await listBackups()).length, before + 1);

@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp, readdir, rename, rm, stat, readFile, chmod } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rename, rm, stat, readFile, chmod, link } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
@@ -174,7 +174,13 @@ async function backup({
 			const path = storedPath(name);
 			try {
 				files.push({ name: 'uploads/' + name, path, size: (await stat(path)).size });
-			} catch {
+			} catch (err) {
+				// Gone is one thing: reported, and the rest is still worth having. A file
+				// that is there and cannot be read (permissions, a failing disk) is
+				// another: a backup that quietly leaves it out would look complete.
+				if (err.code !== 'ENOENT') {
+					throw err;
+				}
 				missing.push(name);
 			}
 		}
@@ -364,13 +370,25 @@ export async function restoreBackup(file, privateKey, to) {
 	}
 }
 
-/** Decrypt a backup to a plain .tar, for any tar tool. */
+/**
+ * Decrypt a backup to a plain .tar, for any tar tool. `out` appears only once the
+ * whole file has verified, and is never written over. A backup that turns out to
+ * be damaged half way leaves nothing behind: what had been decrypted by then is
+ * the database in the clear.
+ */
 export async function decryptBackup(file, privateKey, out) {
 	await archive.ready();
-	await pipeline(
-		Readable.from(archive.unseal(createReadStream(file), privateKey)),
-		createWriteStream(out, { mode: 0o600, flags: 'wx' })
-	);
+	const partial = out + '.partial-' + process.pid;
+	try {
+		await pipeline(
+			Readable.from(archive.unseal(createReadStream(file), privateKey)),
+			createWriteStream(partial, { mode: 0o600, flags: 'wx' })
+		);
+		// link, not rename: it refuses to replace a file that is already there.
+		await link(partial, out);
+	} finally {
+		await rm(partial, { force: true });
+	}
 	return out;
 }
 
@@ -391,9 +409,14 @@ export async function describeBackup(file) {
  * newest backup is older than that, so a restart neither skips one nor makes an
  * extra one. Failures are logged and tried again at the next look: a backup
  * that cannot be made must never take the server down.
+ * @param {{log?: Function, everyHours?: number, clock?: () => Date}} [options] `clock` is for tests
  * @returns {NodeJS.Timeout|null} the timer, or null when this is switched off
  */
-export function scheduleBackups({ log = console.log, everyHours = backups.everyHours } = {}) {
+export function scheduleBackups({
+	log = console.log,
+	everyHours = backups.everyHours,
+	clock = () => new Date()
+} = {}) {
 	if (!everyHours) {
 		return null;
 	}
@@ -405,9 +428,10 @@ export function scheduleBackups({ log = console.log, everyHours = backups.everyH
 	}
 	const look = async () => {
 		try {
-			const { ageHours } = await backupStatus();
+			const now = clock();
+			const { ageHours } = await backupStatus({ now });
 			if (ageHours === null || ageHours >= everyHours) {
-				await runBackup({ log });
+				await runBackup({ log, now });
 			}
 		} catch (err) {
 			console.error('[backup] no backup was made', err);

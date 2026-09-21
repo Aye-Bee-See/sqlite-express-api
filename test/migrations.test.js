@@ -562,3 +562,63 @@ test('rolling back returned mail makes a returned letter mailed again, on the da
 	);
 	await live.close();
 });
+
+test('the key cannot be changed while a database still has letters to convert with the old one', async () => {
+	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const names = (await createMigrator(live, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(live, { quiet: true }).up({
+		to: names[names.indexOf('2026.09.12T02.00.00.encryption.js') - 1]
+	});
+	const now = "'2026-01-01 00:00:00.000 +00:00'";
+	await live.query(
+		`INSERT INTO User (username, password, email, role, createdAt, updatedAt) VALUES ('w', 'x', 'w@example.com', 'user', ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('P', '{}', ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Prisoners (birthName, prison, createdAt, updatedAt) VALUES ('X', 1, ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${now}, ${now})`
+	);
+	await live.query(
+		`INSERT INTO Messages (chat, sender, prisoner, user, messageText, status, createdAt, updatedAt) VALUES (1, 'user', 1, 1, 'From before encryption', 'queued', ${now}, ${now})`
+	);
+
+	// The migrations that read letters know one key and no labels.
+	process.env.ENCRYPTION_KEY_PREVIOUS = 'b2xkLWtleS1vbGQta2V5LW9sZC1rZXktb2xkLWtleSE=';
+	try {
+		await assert.rejects(
+			runMigrations(live, { quiet: true }),
+			/start the API once so that it catches up/
+		);
+	} finally {
+		delete process.env.ENCRYPTION_KEY_PREVIOUS;
+	}
+	// With the key it was written with, it catches up; a new, empty database never minds.
+	await runMigrations(live, { quiet: true });
+	assert.deepEqual(await createMigrator(live, { quiet: true }).pending(), []);
+	// And the letter that was plain text came through every step readable. (It used to
+	// fail here: the step that encrypts it writes today's cipher, and the next step
+	// tried to read that as the old one.)
+	const crypto = await import('../services/crypto.js');
+	const [[envelope]] = await live.query(
+		"SELECT wrappedKey, keyLabel FROM LetterKeys WHERE readerType = 'server'"
+	);
+	const [[stored]] = await live.query('SELECT ciphertext, nonce FROM Messages WHERE id = 1');
+	const key = crypto.unwrapForServer(envelope.wrappedKey, envelope.keyLabel);
+	assert.equal(
+		crypto.decryptString(stored.ciphertext, stored.nonce, key),
+		'From before encryption'
+	);
+	await live.close();
+	process.env.ENCRYPTION_KEY_PREVIOUS = 'b2xkLWtleS1vbGQta2V5LW9sZC1rZXktb2xkLWtleSE=';
+	try {
+		const fresh = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+		await runMigrations(fresh, { quiet: true });
+		await fresh.close();
+	} finally {
+		delete process.env.ENCRYPTION_KEY_PREVIOUS;
+	}
+});

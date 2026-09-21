@@ -29,9 +29,14 @@ import * as crypto from '#services/crypto.js';
 
 const BATCH = 500;
 
+const sqlDate = (date) => date.toISOString().replace('T', ' ').replace('Z', ' +00:00');
+
 /**
  * @param {{dryRun?: boolean, batch?: number, log?: Function}} [options]
- * @returns {Promise<{current: string, previous: string|null, already: number, rewrapped: number, unreadable: {label: string|null, rows: number}[], dryRun: boolean}>}
+ * @returns {Promise<{current: string, previous: string|null, already: number, rewrapped: number, unreadable: {label: string|null, rows: number, reason: 'unknown_key'|'does_not_open'}[], dryRun: boolean}>}
+ *   `unreadable`: rows left exactly as they were. `unknown_key`: labelled for a key
+ *   this server was not given. `does_not_open`: labelled for a key it has, which
+ *   does not open it (damaged, or wrapped with another key than it says).
  */
 export async function rekeyServerEnvelopes({
 	dryRun = false,
@@ -42,20 +47,43 @@ export async function rekeyServerEnvelopes({
 	const current = crypto.masterKeyLabel();
 	const previous = crypto.previousKeyLabel();
 	const report = { current, previous, already: 0, rewrapped: 0, unreadable: [], dryRun };
-
-	const [labels] = await sequelize.query(
-		"SELECT `keyLabel` AS label, COUNT(*) AS n FROM `LetterKeys` WHERE `readerType` = 'server' GROUP BY `keyLabel`"
-	);
-	for (const { label, n } of labels) {
-		const which = crypto.serverKeyNamed(label);
-		if (which === 'current' && label) {
-			report.already += Number(n);
-		} else if (which === null) {
-			report.unreadable.push({ label, rows: Number(n) });
+	const cannot = (label, reason) => {
+		const entry = report.unreadable.find((u) => u.label === label && u.reason === reason);
+		if (entry) {
+			entry.rows += 1;
+		} else {
+			report.unreadable.push({ label, rows: 1, reason });
 		}
-	}
+	};
 
-	// By id, so that a row which cannot be moved (see below) is passed once and not met again.
+	const [[{ n: already }]] = await sequelize.query(
+		"SELECT COUNT(*) AS n FROM `LetterKeys` WHERE `readerType` = 'server' AND `keyLabel` = :current",
+		{ replacements: { current } }
+	);
+	report.already = Number(already);
+
+	// One audit entry for the run, written in the first batch's transaction and
+	// brought up to date in each later one: a run that is stopped half way has
+	// recorded exactly what it committed.
+	let auditId = null;
+	const recordProgress = async (transaction) => {
+		const details = JSON.stringify({ rewrapped: report.rewrapped, to: current });
+		if (auditId === null) {
+			await sequelize.query(
+				"INSERT INTO `AuditLogs` (`actor`, `action`, `resource`, `targetId`, `details`, `createdAt`) VALUES (NULL, 'encryption.rekey', 'message', NULL, :details, :now)",
+				{ replacements: { details, now: sqlDate(new Date()) }, transaction }
+			);
+			const [[row]] = await sequelize.query('SELECT last_insert_rowid() AS id', { transaction });
+			auditId = row.id;
+		} else {
+			await sequelize.query('UPDATE `AuditLogs` SET `details` = :details WHERE `id` = :id', {
+				replacements: { details, id: auditId },
+				transaction
+			});
+		}
+	};
+
+	// By id, so that a row which cannot be moved is passed once and not met again.
 	let after = 0;
 	for (;;) {
 		const [rows] = await sequelize.query(
@@ -66,58 +94,53 @@ export async function rekeyServerEnvelopes({
 			break;
 		}
 		after = rows[rows.length - 1].id;
-		const movable = rows.filter((row) => crypto.serverKeyNamed(row.keyLabel) !== null);
+
+		// Opened first, in a dry run as well: a preview that counted a row it could not
+		// open as movable would promise a clean run that then is not one.
+		const movable = [];
+		for (const row of rows) {
+			if (crypto.serverKeyNamed(row.keyLabel) === null) {
+				cannot(row.keyLabel, 'unknown_key');
+				continue;
+			}
+			try {
+				movable.push({ row, contentKey: crypto.unwrapForServer(row.wrappedKey, row.keyLabel) });
+			} catch {
+				cannot(row.keyLabel, 'does_not_open');
+			}
+		}
 		if (dryRun) {
 			report.rewrapped += movable.length;
 			continue;
 		}
+		if (movable.length === 0) {
+			continue;
+		}
 		await sequelize.transaction(async (transaction) => {
-			for (const row of movable) {
-				let contentKey;
-				try {
-					contentKey = crypto.unwrapForServer(row.wrappedKey, row.keyLabel);
-				} catch {
-					// Labelled (or unlabelled) as a key we have, and that key does not open it.
-					const entry = report.unreadable.find((u) => u.label === row.keyLabel);
-					if (entry) {
-						entry.rows += 1;
-					} else {
-						report.unreadable.push({ label: row.keyLabel, rows: 1 });
-					}
-					continue;
-				}
+			let moved = 0;
+			for (const { row, contentKey } of movable) {
 				const [, meta] = await sequelize.query(
 					'UPDATE `LetterKeys` SET `wrappedKey` = :wrapped, `keyLabel` = :current, `updatedAt` = :now WHERE `id` = :id AND `keyLabel` IS :label',
 					{
 						replacements: {
 							wrapped: crypto.wrapForServer(contentKey),
 							current,
-							now: new Date().toISOString().replace('T', ' ').replace('Z', ' +00:00'),
+							now: sqlDate(new Date()),
 							id: row.id,
 							label: row.keyLabel
 						},
 						transaction
 					}
 				);
-				report.rewrapped += meta && meta.changes === 0 ? 0 : 1;
+				moved += meta && meta.changes === 0 ? 0 : 1;
+			}
+			if (moved > 0) {
+				report.rewrapped += moved;
+				await recordProgress(transaction);
 			}
 		});
 	}
 
-	if (!dryRun && report.rewrapped > 0) {
-		await sequelize.getQueryInterface().bulkInsert('AuditLogs', [
-			{
-				actor: null,
-				action: 'encryption.rekey',
-				resource: 'message',
-				targetId: null,
-				details: JSON.stringify({ rewrapped: report.rewrapped, to: current }),
-				createdAt: new Date()
-			}
-		]);
-	}
-
-	const lost = report.unreadable.reduce((sum, entry) => sum + entry.rows, 0);
 	log(
 		(dryRun ? 'Rekey (dry run): would move ' : 'Rekey: moved ') +
 			report.rewrapped +
@@ -127,14 +150,30 @@ export async function rekeyServerEnvelopes({
 			report.already +
 			' were there already.'
 	);
-	if (lost > 0) {
+	const count = (reason) =>
+		report.unreadable.filter((u) => u.reason === reason).reduce((sum, u) => sum + u.rows, 0);
+	const labels = (reason) =>
+		report.unreadable
+			.filter((u) => u.reason === reason)
+			.map((u) => (u.label || 'no label') + ': ' + u.rows)
+			.join(', ');
+	if (count('unknown_key') > 0) {
 		log(
-			lost +
-				' letter key(s) were wrapped with a key this server does not have (' +
-				report.unreadable.map((entry) => entry.label + ': ' + entry.rows).join(', ') +
+			count('unknown_key') +
+				' letter key(s) were wrapped with a key this server was not given (' +
+				labels('unknown_key') +
 				'). They are untouched. Put that key in ENCRYPTION_KEY_PREVIOUS and run this again.'
 		);
-	} else if (!dryRun && previous) {
+	}
+	if (count('does_not_open') > 0) {
+		log(
+			count('does_not_open') +
+				' letter key(s) are labelled for a key this server has, and that key does not open them (' +
+				labels('does_not_open') +
+				'). They are untouched. Another key will not help: the rows are damaged or mislabelled; restore them from a backup.'
+		);
+	}
+	if (report.unreadable.length === 0 && !dryRun && previous) {
 		log(
 			'Nothing is left under the previous key: remove ENCRYPTION_KEY_PREVIOUS from .env and restart the API. Keep the old key for as long as you keep backups made before today.'
 		);

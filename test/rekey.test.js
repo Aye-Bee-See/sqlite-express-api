@@ -110,7 +110,9 @@ test('a letter under a key nobody configured is left alone and reported, and say
 	const before = await LetterKey.findOne({ where: { message: id, readerType: 'server' } });
 
 	const report = await rekeyServerEnvelopes(quiet);
-	assert.deepEqual(report.unreadable, [{ label: labelOf(lostKey), rows: 1 }]);
+	assert.deepEqual(report.unreadable, [
+		{ label: labelOf(lostKey), rows: 1, reason: 'unknown_key' }
+	]);
 	const afterwards = await LetterKey.findOne({ where: { message: id, readerType: 'server' } });
 	assert.equal(
 		afterwards.wrappedKey,
@@ -129,8 +131,61 @@ test('a row labelled with a key we have, which that key does not open, is report
 	const row = await LetterKey.findOne({ where: { message: id, readerType: 'server' } });
 	const garbage = crypto.encode(new Uint8Array(24 + 48).fill(7));
 	await row.update({ wrappedKey: garbage });
+	// The preview opens rows too, so it says the same as the run will.
+	const lines = [];
+	const look = await rekeyServerEnvelopes({ dryRun: true, log: (line) => lines.push(line) });
+	assert.deepEqual(look.unreadable, [
+		{ label: labelOf(OLD_KEY), rows: 1, reason: 'does_not_open' }
+	]);
+	assert.equal(look.rewrapped, 0);
+	assert.ok(
+		lines.some((line) => /does not open them/.test(line) && /Another key will not help/.test(line))
+	);
+	assert.ok(!lines.some((line) => /ENCRYPTION_KEY_PREVIOUS and run this again/.test(line)));
+
 	const report = await rekeyServerEnvelopes(quiet);
-	assert.deepEqual(report.unreadable, [{ label: labelOf(OLD_KEY), rows: 1 }]);
+	assert.deepEqual(report.unreadable, [
+		{ label: labelOf(OLD_KEY), rows: 1, reason: 'does_not_open' }
+	]);
 	assert.equal((await row.reload()).wrappedKey, garbage);
+
+	// A reader gets the named error, not libsodium's.
+	const res = await read(id);
+	assert.equal(res.status, 500);
+	assert.equal(res.name, 'EncryptionKeyError');
 	await sequelize.query('DELETE FROM LetterKeys WHERE id = ' + row.id);
+});
+
+test('a run that is stopped half way has recorded exactly what it committed', async () => {
+	const before = await AuditLog.count({ where: { action: 'encryption.rekey' } });
+	for (let i = 0; i < 4; i += 1) {
+		await letterUnder(OLD_KEY, 'Interrupted ' + i);
+	}
+	// Two rows a batch; the second batch's transaction never starts, as if the
+	// command had been stopped between the two.
+	const transaction = sequelize.transaction.bind(sequelize);
+	let batches = 0;
+	sequelize.transaction = async (...args) => {
+		batches += 1;
+		if (batches === 2) {
+			throw new Error('stopped');
+		}
+		return await transaction(...args);
+	};
+	try {
+		await assert.rejects(rekeyServerEnvelopes({ ...quiet, batch: 2 }), /stopped/);
+	} finally {
+		sequelize.transaction = transaction;
+	}
+	const entries = () =>
+		AuditLog.findAll({ where: { action: 'encryption.rekey' }, order: [['id', 'ASC']] });
+	assert.equal((await entries()).length, before + 1);
+	assert.deepEqual((await entries()).at(-1).details, { rewrapped: 2, to: crypto.masterKeyLabel() });
+	assert.equal(await LetterKey.count({ where: { keyLabel: labelOf(OLD_KEY) } }), 2);
+
+	// Run again: the rest, in its own entry. Together they say everything that was moved.
+	const rest = await rekeyServerEnvelopes({ ...quiet, batch: 2 });
+	assert.equal(rest.rewrapped, 2);
+	assert.equal((await entries()).length, before + 2);
+	assert.deepEqual((await entries()).at(-1).details, { rewrapped: 2, to: crypto.masterKeyLabel() });
 });

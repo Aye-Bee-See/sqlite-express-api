@@ -165,6 +165,7 @@ Operational rules:
 - Every server envelope records a fingerprint of the key that wrapped it. A letter wrapped under a different key is refused with a `500` and `"name": "EncryptionKeyError"` rather than served as garbage.
 - **Changing `ENCRYPTION_KEY`** (it leaked, or someone who knew it has left) loses nothing and needs no downtime, because the server key wraps only each letter's own small key, never the letters:
 
+  0. Be up to date first: the API must have started at least once on the version you run, with the key the letters were written with. (A database that still has letters to convert from before September 2026 refuses to start with a changed key, and says so.)
   1. `npm run keygen` for a new key.
   2. In `.env`, move the current value to `ENCRYPTION_KEY_PREVIOUS` and put the new one in `ENCRYPTION_KEY`. Restart. New letters use the new key; old ones stay readable, since each says which key wrapped it.
   3. `npm run encryption:rekey` (add `-- --dry-run` to look first). It runs beside the API, in batches, and can be stopped and run again.

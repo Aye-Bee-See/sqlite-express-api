@@ -70,6 +70,41 @@ export function createMigrator(sequelize, { quiet = false } = {}) {
 	});
 }
 
+/** The migrations that read or write letters with ENCRYPTION_KEY itself. */
+const KEY_MIGRATIONS = ['2026.09.12T02.00.00.encryption.js', '2026.09.13T02.00.00.xchacha.js'];
+
+/**
+ * A database that still has letters to convert must be brought up to date with
+ * the key it was written with, before that key is changed. Those two migrations
+ * know one key (ENCRYPTION_KEY) and no labels: run with a new key in place they
+ * could not open the old envelopes, or would convert them and leave them
+ * labelled for the wrong key.
+ * @throws {Error} naming what to do
+ */
+async function refuseKeyChangeBeforeKeyMigrations(sequelize, umzug) {
+	if (!process.env.ENCRYPTION_KEY_PREVIOUS) {
+		return;
+	}
+	const pending = (await umzug.pending()).map((m) => m.name);
+	const waiting = KEY_MIGRATIONS.filter((name) => pending.includes(name));
+	if (waiting.length === 0) {
+		return;
+	}
+	const tables = await sequelize.getQueryInterface().showAllTables();
+	if (!tables.includes('Messages')) {
+		return; // a new database: nothing was ever written with any key
+	}
+	const [[{ n }]] = await sequelize.query('SELECT COUNT(*) AS n FROM `Messages`');
+	if (Number(n) === 0) {
+		return;
+	}
+	throw new Error(
+		'This database has letters and has not yet run ' +
+			waiting.join(', ') +
+			', which can only read them with the key they were written with. Put the old key back in ENCRYPTION_KEY, remove ENCRYPTION_KEY_PREVIOUS, start the API once so that it catches up, and change the key after that.'
+	);
+}
+
 /**
  * Bring the database up to date.
  *
@@ -101,6 +136,7 @@ export async function runMigrations(sequelize, { reset = false, quiet = false, l
 		}
 	}
 
+	await refuseKeyChangeBeforeKeyMigrations(sequelize, umzug);
 	const applied = await umzug.up();
 	const names = applied.map((m) => m.name);
 	if (names.length > 0) {

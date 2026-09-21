@@ -54,18 +54,32 @@ export default class LetterKey extends Model {
 		const rows = await this.findAll({ where: { message: ids, readerType: 'server' } });
 		const keys = new Map();
 		for (const row of rows) {
-			if (row.keyLabel && row.keyLabel !== crypto.masterKeyLabel()) {
+			if (crypto.serverKeyNamed(row.keyLabel) === null) {
 				throw new HttpError(
 					500,
 					'Letter ' +
 						row.message +
 						' was encrypted with a different ENCRYPTION_KEY (' +
 						row.keyLabel +
-						').',
+						'). If the key was changed, put the old one in ENCRYPTION_KEY_PREVIOUS and run npm run encryption:rekey.',
 					'EncryptionKeyError'
 				);
 			}
-			keys.set(row.message, crypto.unwrapForServer(row.wrappedKey));
+			try {
+				keys.set(row.message, crypto.unwrapForServer(row.wrappedKey, row.keyLabel));
+			} catch {
+				// The label names a key we have and that key does not open it: damaged, or
+				// labelled for the wrong key. The same named error as above, not libsodium's.
+				throw new HttpError(
+					500,
+					'The key of letter ' +
+						row.message +
+						' cannot be opened with the ENCRYPTION_KEY it is labelled for (' +
+						(row.keyLabel || 'no label') +
+						'): the row is damaged, or it was wrapped with another key. npm run encryption:rekey -- --dry-run lists such rows.',
+					'EncryptionKeyError'
+				);
+			}
 		}
 		return keys;
 	}

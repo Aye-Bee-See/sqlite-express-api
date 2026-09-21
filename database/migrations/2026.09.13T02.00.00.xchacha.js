@@ -30,7 +30,21 @@ async function convert(queryInterface, from, to) {
 		"SELECT `id`, `message`, `wrappedKey` FROM `LetterKeys` WHERE `readerType` = 'server'"
 	);
 	for (const env of envelopes) {
-		const key = from.unwrapForServer(env.wrappedKey);
+		let key;
+		try {
+			key = from.unwrapForServer(env.wrappedKey);
+		} catch (err) {
+			// Already in the cipher this is converting to? A database that still held
+			// plain-text letters gets them encrypted by the migration before this one,
+			// which uses today's cipher: there is nothing to convert, and nothing wrong.
+			// (The two ciphers authenticate differently, so one never opens the other's.)
+			try {
+				to.unwrapForServer(env.wrappedKey);
+			} catch {
+				throw err;
+			}
+			continue;
+		}
 		const [[row]] = await sequelize.query(
 			'SELECT `ciphertext`, `nonce`, `relayNoteCiphertext`, `relayNoteNonce` FROM `Messages` WHERE `id` = ?',
 			{ replacements: [env.message] }

@@ -143,18 +143,23 @@ export default class Chapter extends Model {
 	 * @returns {Promise<number>} groups that have a figure
 	 */
 	static async refreshMailingTimes(now = new Date()) {
-		const since = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+		// The last 90 days only, asked of the database (the history is indexed by
+		// status and date): pinned letters keep their history for ever.
+		const since = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.replace('T', ' ')
+			.replace('Z', ' +00:00');
 		const [rows] = await this.sequelize.query(
-			"SELECT `m`.`relayChapter` AS chapter, `m`.`createdAt` AS written, `s`.`createdAt` AS mailed FROM `MessageStatuses` AS `s` JOIN `Messages` AS `m` ON `m`.`id` = `s`.`message` WHERE `s`.`toStatus` = 'mailed' AND `m`.`relayChapter` IS NOT NULL"
+			"SELECT `m`.`relayChapter` AS chapter, `m`.`createdAt` AS written, `s`.`createdAt` AS mailed FROM `MessageStatuses` AS `s` JOIN `Messages` AS `m` ON `m`.`id` = `s`.`message` WHERE `s`.`toStatus` = 'mailed' AND `s`.`createdAt` >= :since AND `m`.`relayChapter` IS NOT NULL",
+			{ replacements: { since } }
 		);
 		const days = new Map();
 		for (const row of rows) {
-			const mailed = new Date(row.mailed);
-			if (mailed < since) {
-				continue;
+			const took = (new Date(row.mailed) - new Date(row.written)) / (24 * 60 * 60 * 1000);
+			if (!days.has(row.chapter)) {
+				days.set(row.chapter, []);
 			}
-			const took = (mailed - new Date(row.written)) / (24 * 60 * 60 * 1000);
-			days.set(row.chapter, [...(days.get(row.chapter) || []), Math.max(took, 0)]);
+			days.get(row.chapter).push(Math.max(took, 0));
 		}
 		const shown = await this.findAll({
 			attributes: ['id', 'lettersSent', 'averageTimeDays'],

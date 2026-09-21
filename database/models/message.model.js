@@ -369,20 +369,13 @@ export default class Message extends Model {
 		return why;
 	}
 
+	/**
+	 * Move one letter along. The same checked, conditional, transactional move as a
+	 * batch of one: two requests for the same letter cannot both succeed, so a
+	 * letter is counted as mailed once.
+	 */
 	static async changeStatus(message, status, changedBy = null, options = {}) {
-		const why = Message.#checkMove(message, status, options);
-		const from = message.status;
-		await message.update({
-			heldReason: null,
-			status,
-			statusChangedAt: new Date(),
-			statusChangedBy: changedBy,
-			returnReason: why.reason ?? null
-		});
-		await MessageStatus.record(message.id, from, status, changedBy, why);
-		if (status === MAILED) {
-			await Chapter.countMailed(message.relayChapter, 1);
-		}
+		await this.changeStatuses([message], status, changedBy, { ...options, named: false });
 		return await this.readLetter(message.id);
 	}
 
@@ -399,7 +392,7 @@ export default class Message extends Model {
 		const moves = messages.map((message) => ({
 			message,
 			from: message.status,
-			why: Message.#checkMove(message, status, { ...options, named: true })
+			why: Message.#checkMove(message, status, { named: true, ...options })
 		}));
 		const at = new Date();
 		await inTransaction(this.sequelize, async (transaction) => {
@@ -412,7 +405,17 @@ export default class Message extends Model {
 						statusChangedBy: changedBy,
 						returnReason: why.reason ?? null
 					},
-					{ where: { id: message.id, status: from }, transaction }
+					{
+						// Exactly the letter that was checked: not moved on, not held, and
+						// not handed to another group since.
+						where: {
+							id: message.id,
+							status: from,
+							heldReason: message.heldReason ?? null,
+							relayChapter: message.relayChapter ?? null
+						},
+						transaction
+					}
 				);
 				if (count !== 1) {
 					throw new HttpError(

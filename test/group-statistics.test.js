@@ -88,10 +88,16 @@ test('what a group mailed before it used the site is its own to say, and counts'
 	assert.equal(typed.status, 200);
 	assert.equal((await group()).lettersSent, null, 'the public number cannot be typed');
 
-	assert.equal(
-		(await put('/chapter/chapter', { id: f.group.id, lettersSentBefore: -3 }, f.chapter)).status,
-		400
-	);
+	// The model's validators run on this update (Sequelize validates Model.update by default).
+	for (const bad of [-3, 1.5, 'many', null]) {
+		const res = await put(
+			'/chapter/chapter',
+			{ id: f.group.id, lettersSentBefore: bad },
+			f.chapter
+		);
+		assert.equal(res.status, 400, JSON.stringify(bad));
+	}
+	assert.equal((await group(f.chapter)).lettersSentBefore, 0, 'nothing was written');
 	const set = await put('/chapter/chapter', { id: f.group.id, lettersSentBefore: 120 }, f.chapter);
 	assert.equal(set.status, 200, JSON.stringify(set.body));
 	assert.equal((await group()).lettersSent, '124', '120 before, 4 here');
@@ -134,4 +140,72 @@ test('the time to mail is a median of real mailings, and says nothing when there
 	await Message.destroy({ where: { id: ids[0] }, force: true });
 	await Chapter.refreshMailingTimes();
 	assert.equal((await group()).averageTimeDays, null);
+});
+
+test('a letter mailed twice at the same moment is mailed, and counted, once', async () => {
+	const sent = await post(
+		'/messaging/message',
+		{ prisoner: f.prisoner1.id, messageText: 'Two laptops', sender: 'user' },
+		f.alice
+	);
+	const id = sent.body.data.id;
+	await put('/messaging/status', { id, status: 'printed' }, f.chapter);
+	const before = (await group(f.chapter)).lettersCounted;
+	// Two volunteers, or a double tap: a single request and a batch, together.
+	const results = await Promise.all([
+		put('/messaging/status', { id, status: 'mailed' }, f.chapter),
+		put('/messaging/status/batch', { ids: [id], status: 'mailed' }, f.chapter),
+		put('/messaging/status', { id, status: 'mailed' }, f.admin)
+	]);
+	assert.deepEqual(
+		results.map((r) => r.status).sort(),
+		[200, 409, 409],
+		JSON.stringify(results.map((r) => r.body))
+	);
+	assert.equal((await group(f.chapter)).lettersCounted, before + 1);
+	assert.equal(await MessageStatus.count({ where: { message: id, toStatus: 'mailed' } }), 1);
+});
+
+test('a letter held, or handed to another group, after it was checked is not moved', async () => {
+	for (const change of [
+		"UPDATE Messages SET heldReason = 'prisoner_free' WHERE id = :id",
+		'UPDATE Messages SET relayChapter = NULL WHERE id = :id'
+	]) {
+		const sent = await post(
+			'/messaging/message',
+			{ prisoner: f.prisoner1.id, messageText: 'Changed in between', sender: 'user' },
+			f.alice
+		);
+		const id = sent.body.data.id;
+		// What the directory (someone was freed) or a hand-over does between the check and the write.
+		const update = Message.update.bind(Message);
+		let done = false;
+		Message.update = async (...args) => {
+			if (!done) {
+				done = true;
+				await sequelize.query(change, { replacements: { id } });
+			}
+			return await update(...args);
+		};
+		let res;
+		try {
+			res = await put('/messaging/status', { id, status: 'printed' }, f.chapter);
+		} finally {
+			Message.update = update;
+		}
+		assert.equal(res.status, 409, change + ' ' + JSON.stringify(res.body));
+		assert.equal((await Message.findByPk(id)).status, 'queued');
+	}
+});
+
+test('retention run by hand brings the time to mail up to date as well', async () => {
+	await put('/chapter/chapter', { id: f.group.id, lettersSentBefore: 120 }, f.chapter);
+	await mail(5);
+	await Chapter.refreshMailingTimes();
+	assert.notEqual((await group()).averageTimeDays, null);
+	// Far enough ahead that every one of those letters is purged: the figure goes with them.
+	const at = new Date(Date.now() + 200 * 86400000);
+	const report = await runRetention({ now: at, log: () => {} });
+	assert.ok(report.letters >= 5);
+	assert.equal((await group()).averageTimeDays, null, 'no restart and no timer needed');
 });

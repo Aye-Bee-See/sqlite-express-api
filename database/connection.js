@@ -12,28 +12,46 @@ import { dbLogging, dbStorage } from '#constants';
  * to the process working directory (start the server from the repository
  * root), or ':memory:' for a throwaway database.
  */
+/**
+ * How a statement that meets a lock waits for it: by trying again from
+ * JavaScript, never by blocking inside SQLite.
+ *
+ * SQLite's own busy timeout waits on the thread that runs the statement, and
+ * Node gives all database work four threads. A handful of writers waiting for
+ * the lock would hold every thread, the transaction that *has* the lock could
+ * not get one to run its next statement, and nobody would move until the
+ * timeouts expired, only to start again. (A fresh seeded start, which saves
+ * forty letters at once, never finished.) A refused statement has done nothing,
+ * so trying it again is safe: with IMMEDIATE transactions the only statements
+ * that can be refused are a BEGIN and a write outside any transaction.
+ *
+ * 50 tries, 50 ms apart at first and 5% further apart each time: about ten
+ * seconds in all, with the gaps staying under 0.6 s.
+ */
+export const LOCK_RETRY = {
+	max: 50,
+	backoffBase: 50,
+	backoffExponent: 1.05,
+	match: [/SQLITE_BUSY/]
+};
+
 export const sequelize = new Sequelize({
 	dialect: 'sqlite',
 	storage: dbStorage,
 	logging: dbLogging ? console.log : false,
 	// A transaction that reads and then writes must take the write lock when it
 	// begins. SQLite's default (deferred) takes it at the first write, and if
-	// another connection wrote in between, the write fails at once with
-	// SQLITE_BUSY whatever the busy timeout says.
-	transactionType: 'IMMEDIATE'
+	// another connection wrote in between, the write fails with SQLITE_BUSY
+	// however long anyone is prepared to wait.
+	transactionType: 'IMMEDIATE',
+	retry: LOCK_RETRY
 });
 
-/** How long a statement waits for a lock before giving up, in milliseconds. */
-export const BUSY_TIMEOUT_MS = 5000;
-
 /**
- * Every connection waits for a lock instead of failing at once.
- *
- * A file database gets a second connection for each transaction (group key
- * rotation, facility writes), and SQLite allows one writer at a time. With
- * no busy timeout, a write that arrives while a transaction holds the lock
- * is refused immediately with SQLITE_BUSY. Sequelize's SQLite driver runs no
- * connection hooks, so the timeout is applied where connections are made.
+ * The driver's own wait is switched off on every connection. node-sqlite3 sets
+ * a busy timeout of one second by default, and that second is spent blocking a
+ * database thread (see LOCK_RETRY). Sequelize's SQLite driver runs no connection
+ * hooks, so it is done where connections are handed out.
  */
 const connect = sequelize.connectionManager.getConnection.bind(sequelize.connectionManager);
 const configured = new WeakSet();
@@ -41,7 +59,7 @@ sequelize.connectionManager.getConnection = async (options) => {
 	const connection = await connect(options);
 	if (!configured.has(connection)) {
 		configured.add(connection);
-		connection.configure('busyTimeout', BUSY_TIMEOUT_MS);
+		connection.configure('busyTimeout', 0);
 	}
 	return connection;
 };

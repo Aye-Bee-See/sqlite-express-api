@@ -1,4 +1,4 @@
-import { Model, Op } from 'sequelize';
+import { Model, Op, UniqueConstraintError } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 
 /**
@@ -26,11 +26,16 @@ export default class RevokedToken extends Model {
 
 	/** Revoke one token id until it expires. Revoking twice is fine. */
 	static async revoke(jti, userId, expiresAt) {
-		const [row] = await this.findOrCreate({
-			where: { jti },
-			defaults: { jti, userId, expiresAt }
-		});
-		return row;
+		// Not findOrCreate: it opens a transaction of its own for what the unique
+		// index on jti already decides.
+		try {
+			return await this.create({ jti, userId, expiresAt });
+		} catch (err) {
+			if (err instanceof UniqueConstraintError) {
+				return await this.findOne({ where: { jti } });
+			}
+			throw err;
+		}
 	}
 
 	static async isRevoked(jti) {

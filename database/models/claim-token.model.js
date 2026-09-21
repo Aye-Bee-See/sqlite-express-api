@@ -1,9 +1,13 @@
 import { Model, Op } from 'sequelize';
 import { createHash, randomBytes } from 'node:crypto';
 import Schemas from '#schemas/all.schema.js';
+import { claimTokenDays } from '#constants';
 
-/** Token lifetime, matching the front-end copy ("valid for 72 hours"). */
-export const CLAIM_TOKEN_TTL_MS = 72 * 60 * 60 * 1000;
+/**
+ * Token lifetime: CLAIM_TOKEN_DAYS, 14 unless set. Clients show the `expiresAt`
+ * that comes back with the token; none of them should say a number of their own.
+ */
+export const CLAIM_TOKEN_TTL_MS = claimTokenDays * 24 * 60 * 60 * 1000;
 
 /** Crockford-style base32 alphabet: no I, L, O, or U, so tokens read aloud well. */
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';

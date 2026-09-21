@@ -162,7 +162,10 @@ test('token lifecycle: issue, regenerate, revoke', async () => {
 	assert.equal(first.status, 201);
 	assert.equal(first.body.data.writer, w.id);
 	assert.match(first.body.data.token, /^[0-9A-HJKMNP-TV-Z]{24}$/);
-	assert.ok(new Date(first.body.data.expiresAt) > new Date());
+	// Two weeks unless CLAIM_TOKEN_DAYS says otherwise: long enough for a code handed
+	// over at a letter night.
+	const days = (new Date(first.body.data.expiresAt) - Date.now()) / 86400000;
+	assert.ok(days > 13.9 && days < 14.1, 'got ' + days + ' days');
 	assert.ok(!JSON.stringify(await ClaimToken.findAll()).includes(first.body.data.token));
 
 	const listed = (await get('/auth/writers?page_size=100', chapter)).body.data.find(

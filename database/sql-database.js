@@ -122,8 +122,14 @@ export const ready = (async () => {
 		}
 	}
 	await runRetention({ log });
+	await Chapter.refreshMailingTimes();
 	setInterval(
-		() => runRetention({ log }).catch((err) => console.error('[retention] run failed', err)),
+		() =>
+			runRetention({ log })
+				.catch((err) => console.error('[retention] run failed', err))
+				// After it, not beside it: the medians read the history retention prunes.
+				.then(() => Chapter.refreshMailingTimes())
+				.catch((err) => console.error('[statistics] mailing times were not refreshed', err)),
 		RETENTION_INTERVAL_MS
 	).unref();
 	log('Database ready.');

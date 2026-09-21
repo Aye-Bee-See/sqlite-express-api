@@ -22,6 +22,7 @@ import {
 	initialStatusFor,
 	LETTER_STATUSES,
 	OPEN_STATUSES,
+	MAILED,
 	RETURNED,
 	RETURN_REASONS,
 	HELD_CHOOSE_RELAY
@@ -379,6 +380,9 @@ export default class Message extends Model {
 			returnReason: why.reason ?? null
 		});
 		await MessageStatus.record(message.id, from, status, changedBy, why);
+		if (status === MAILED) {
+			await Chapter.countMailed(message.relayChapter, 1);
+		}
 		return await this.readLetter(message.id);
 	}
 
@@ -428,6 +432,16 @@ export default class Message extends Model {
 					},
 					{ transaction }
 				);
+			}
+			if (status === MAILED) {
+				// Counted in the same transaction: all of them, or none.
+				const mailedBy = new Map();
+				for (const { message } of moves) {
+					mailedBy.set(message.relayChapter, (mailedBy.get(message.relayChapter) || 0) + 1);
+				}
+				for (const [chapter, letters] of mailedBy) {
+					await Chapter.countMailed(chapter, letters, { transaction });
+				}
 			}
 		});
 		return moves.map(({ message, from }) => ({ id: message.id, from }));

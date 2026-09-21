@@ -1,5 +1,6 @@
 process.env.INVITATION_AUTO_ACTIVATE = 'true';
 process.env.INVITATION_DAYS = '3';
+process.env.CLAIM_TOKEN_DAYS = '5';
 
 const { test, before, after } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
@@ -79,4 +80,17 @@ test("an admin's own invitation needs no second approval, even with nobody vouch
 		{ token: f.chapter.token }
 	);
 	assert.equal(asGroup.status, 403);
+});
+
+test('CLAIM_TOKEN_DAYS sets how long a claim code works, for a new code and a re-issued one', async () => {
+	const chapter = { token: f.chapter.token };
+	for (let round = 0; round < 2; round += 1) {
+		const issued = await post('/auth/writer/token', { writer: f.writer.id }, chapter);
+		assert.equal(issued.status, 201, JSON.stringify(issued.body));
+		const days = (new Date(issued.body.data.expiresAt) - Date.now()) / 86400000;
+		assert.ok(days > 4.9 && days < 5.1, 'got ' + days + ' days');
+		// The public check says the same date, which is the one clients should show.
+		const info = await get('/auth/claim?token=' + issued.body.data.token);
+		assert.equal(info.body.data.expiresAt, issued.body.data.expiresAt);
+	}
 });

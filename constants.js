@@ -166,6 +166,11 @@ export const idempotencyDays = envCount('IDEMPOTENCY_DAYS', 30);
 /** How long an invitation token works. */
 export const invitationDays = envCount('INVITATION_DAYS', 14);
 /**
+ * How long a claim code works. It is handed to a newcomer at a letter night, and
+ * three days (what it used to be) is gone before the weekend is over.
+ */
+export const claimTokenDays = envCount('CLAIM_TOKEN_DAYS', 14);
+/**
  * Whether a group that joins by invitation is active (and listed) at once,
  * on the strength of the vouch, or waits for an admin. Default: waits.
  */

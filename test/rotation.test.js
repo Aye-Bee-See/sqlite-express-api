@@ -537,7 +537,8 @@ test('a group-sealed writer key cannot straddle a rotation', async () => {
 test('two rotations from the same material: one wins', async () => {
 	const material = (await get('/auth/chapter-rotation?chapter=' + f.group.id, first)).body.data;
 	const a = reseal(material, newGroup, client.keypair(), [first.id, second.id]);
-	const b = reseal(material, newGroup, client.keypair(), [second.id]);
+	// Both keep the owner: whichever wins, the tests after this need an owner who holds the key.
+	const b = reseal(material, newGroup, client.keypair(), [first.id, leaver.id]);
 	const results = await Promise.all([
 		// Only the group-owner admin rotates: the same owner, from two devices, from the same material.
 		post('/auth/chapter-rotation', a, first),

@@ -642,11 +642,18 @@ test('the reply-reference migration gives every existing outgoing letter a numbe
 		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${at('01')}, ${at('01')})`
 	);
 	// 1: queued. 2: mailed on the 10th. 3: a reply, which gets nothing.
+	// 4: mailed on the 5th and returned on the 20th: its year counts from the 5th.
 	await old.query(
 		`INSERT INTO Messages (id, chat, sender, prisoner, user, status, relayChapter, statusChangedAt, createdAt, updatedAt) VALUES
 			(1, 1, 'user', 1, 1, 'queued', 7, NULL, ${at('02')}, ${at('02')}),
 			(2, 1, 'user', 1, 1, 'mailed', 7, ${at('10')}, ${at('02')}, ${at('10')}),
-			(3, 1, 'prisoner', 1, 1, 'received', NULL, NULL, ${at('12')}, ${at('12')})`
+			(3, 1, 'prisoner', 1, 1, 'received', NULL, NULL, ${at('12')}, ${at('12')}),
+			(4, 1, 'user', 1, 1, 'returned', 7, ${at('20')}, ${at('02')}, ${at('20')})`
+	);
+	await old.query(
+		`INSERT INTO MessageStatuses (message, fromStatus, toStatus, createdAt, updatedAt) VALUES
+			(4, 'printed', 'mailed', ${at('05')}, ${at('05')}),
+			(4, 'mailed', 'returned', ${at('20')}, ${at('20')})`
 	);
 	await createMigrator(old, { quiet: true }).up({ to: MIGRATION });
 	const [letters] = await old.query('SELECT id, replyReference FROM Messages ORDER BY id');
@@ -668,12 +675,17 @@ test('the reply-reference migration gives every existing outgoing letter a numbe
 		]),
 		[
 			[1, 1, 1, 7, true, true],
-			[2, 1, 1, 7, false, false]
+			[2, 1, 1, 7, false, false],
+			[4, 1, 1, 7, false, false]
 		]
 	);
 	assert.ok(
 		String(rows[1].mailedAt).startsWith('2026-01-10'),
 		'the year counts from the day it was mailed'
+	);
+	assert.ok(
+		String(rows[2].mailedAt).startsWith('2026-01-05'),
+		'a returned letter: from the day it went out, not the day it came back'
 	);
 	const [rules] = await old.query(
 		"SELECT tag, category FROM MailRules WHERE tag IN ('no_reference_numbers', 'reply_sheet_allowed') ORDER BY tag"
@@ -687,7 +699,7 @@ test('the reply-reference migration gives every existing outgoing letter a numbe
 	);
 	await createMigrator(old, { quiet: true }).down({ to: MIGRATION });
 	const [after] = await old.query('SELECT id, status FROM Messages ORDER BY id');
-	assert.equal(after.length, 3, 'rolling back keeps the letters');
+	assert.equal(after.length, 4, 'rolling back keeps the letters');
 	await old.close();
 });
 

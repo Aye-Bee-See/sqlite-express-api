@@ -37,11 +37,11 @@ export async function up({ context: queryInterface }) {
 	await queryInterface.addColumn('User', 'penName', { type: DataTypes.STRING });
 	await queryInterface.createTable('PenNames', {
 		id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+		/** Null once the account is gone: the name stays taken for ever, owned by nobody. */
 		userId: {
 			type: DataTypes.INTEGER,
-			allowNull: false,
 			references: { model: 'User', key: 'id' },
-			onDelete: 'CASCADE',
+			onDelete: 'SET NULL',
 			onUpdate: 'CASCADE'
 		},
 		name: { type: DataTypes.STRING, allowNull: false },
@@ -108,8 +108,12 @@ export async function up({ context: queryInterface }) {
 
 	// Every outgoing letter that exists gets a reference now, so a reply to a
 	// letter mailed before this can still be filed by number.
+	// The mailing date is the `mailed` row of the history (a returned letter's
+	// statusChangedAt is the day it came back, not the day it went out).
 	const [letters] = await sequelize.query(
-		"SELECT id, user, prisoner, relayChapter, status, statusChangedAt, createdAt FROM Messages WHERE sender = 'user' AND replyReference IS NULL"
+		`SELECT m.id, m.user, m.prisoner, m.relayChapter, m.status, m.statusChangedAt, m.createdAt,
+			(SELECT s.createdAt FROM MessageStatuses s WHERE s.message = m.id AND s.toStatus = 'mailed' ORDER BY s.id DESC LIMIT 1) AS mailedOn
+		FROM Messages m WHERE m.sender = 'user' AND m.replyReference IS NULL`
 	);
 	const now = new Date();
 	const stamp = now.toISOString().replace('T', ' ').replace('Z', ' +00:00');
@@ -126,7 +130,7 @@ export async function up({ context: queryInterface }) {
 			}
 		}
 		const mailed = ['mailed', 'returned'].includes(letter.status)
-			? new Date(letter.statusChangedAt || letter.createdAt)
+			? new Date(letter.mailedOn || letter.statusChangedAt || letter.createdAt)
 			: null;
 		await sequelize.query('UPDATE Messages SET replyReference = :reference WHERE id = :id', {
 			replacements: { reference, id: letter.id }

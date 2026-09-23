@@ -2,7 +2,7 @@ import { Op } from 'sequelize';
 import Message from '#models/message.model.js';
 import ReplyReference from '#models/reply-reference.model.js';
 import PenName from '#models/pen-name.model.js';
-import { formatReference } from '#db/reply-reference.js';
+import { formatReference, normalizeReference } from '#db/reply-reference.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
@@ -294,7 +294,9 @@ export default class MessageController extends RouteController {
 					? []
 					: ['resendOf', Number(fields.resendOf)]),
 				// Likewise: a paper letter and a typed one to the same person are two letters.
-				...(paper === true ? ['paper'] : [])
+				...(paper === true ? ['paper'] : []),
+				// And a reply to one letter is not a reply to another.
+				...(repliesTo || reference ? ['reference', normalizeReference(reference)] : [])
 			]);
 			if (idempotent && 'replay' in idempotent) {
 				const original = await Message.findByPk(idempotent.replay);

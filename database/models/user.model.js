@@ -5,6 +5,7 @@ import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
 import PenName from '#models/pen-name.model.js';
+import { inTransaction } from '#services/serial.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 
@@ -185,8 +186,14 @@ export default class User extends Model {
 			return user;
 		}
 		try {
-			const name = await PenName.claim(user.id, penName);
-			await this.update({ penName: name }, { where: { id: user.id }, hooks: false });
+			const name = await inTransaction(this.sequelize, async (transaction) => {
+				const clean = await PenName.claim(user.id, penName, { transaction });
+				await this.update(
+					{ penName: clean },
+					{ where: { id: user.id }, hooks: false, transaction }
+				);
+				return clean;
+			});
 			user.setDataValue('penName', name);
 			return user;
 		} catch (err) {
@@ -197,9 +204,12 @@ export default class User extends Model {
 
 	/** Change an account's pen name: the old one is kept for ever, and comes back if chosen again. */
 	static async renamePen(userId, penName) {
-		const name = await PenName.claim(userId, penName);
-		await this.update({ penName: name }, { where: { id: userId }, hooks: false });
-		return name;
+		// The history and the column move together, one rename at a time.
+		return await inTransaction(this.sequelize, async (transaction) => {
+			const name = await PenName.claim(userId, penName, { transaction });
+			await this.update({ penName: name }, { where: { id: userId }, hooks: false, transaction });
+			return name;
+		});
 	}
 
 	/**

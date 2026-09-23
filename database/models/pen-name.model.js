@@ -1,6 +1,7 @@
 import { Model, Op } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import ValidationError from '#services/ValidationError.js';
+import { inTransaction } from '#services/serial.js';
 
 /**
  * Pen names (decided 22 September 2026). Every account may have one: the
@@ -22,10 +23,11 @@ export default class PenName extends Model {
 	}
 
 	static associate(models) {
+		// The history outlives the account: a deleted writer's names stay taken (tombstones).
 		this.belongsTo(models.User, {
 			as: 'owner',
 			foreignKey: 'userId',
-			onDelete: 'CASCADE',
+			onDelete: 'SET NULL',
 			onUpdate: 'CASCADE'
 		});
 	}
@@ -96,7 +98,14 @@ export default class PenName extends Model {
 	 * @returns {Promise<string>} the name as stored
 	 * @throws {ValidationError} shape, or taken
 	 */
-	static async claim(userId, name, { transaction = null } = {}) {
+	static async claim(userId, name, { transaction } = {}) {
+		if (!transaction) {
+			// Read, retire, insert are one step: inTransaction runs one transaction at a
+			// time, so two renames cannot both see a free name or leave two current rows.
+			return await inTransaction(this.sequelize, (t) =>
+				PenName.claim(userId, name, { transaction: t })
+			);
+		}
 		const clean = PenName.check(name);
 		const key = PenName.keyOf(clean);
 		const holder = await this.findOne({ where: { nameKey: key }, transaction });

@@ -217,6 +217,7 @@ export default class Message extends Model {
 			// would be mailed without its envelopes or history, and a retry under the
 			// same Idempotency-Key would make a second one beside it.
 			await LetterKey.destroy({ where: { message: created.id } }).catch(() => {});
+			await ReplyReference.destroy({ where: { message: created.id } }).catch(() => {});
 			await this.destroy({ where: { id: created.id }, force: true }).catch(() => {});
 			throw err;
 		}
@@ -252,12 +253,6 @@ export default class Message extends Model {
 			if (stale.length > 0) {
 				throw staleKeyError(stale);
 			}
-		}
-		if (created.sender !== 'prisoner') {
-			// Every outgoing letter carries a reply reference for its footer.
-			const reference = await ReplyReference.issue(created);
-			await this.update({ replyReference: reference }, { where: { id: created.id }, hooks: false });
-			created.setDataValue('replyReference', reference);
 		}
 		await MessageStatus.record(created.id, null, created.status, changedBy);
 		return created;

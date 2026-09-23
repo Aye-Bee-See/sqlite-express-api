@@ -335,3 +335,37 @@ test('a volunteer with a name and no number searches the writers their group mai
 	assert.equal((await get('/messaging/writers?name=q', f.chapter)).status, 400);
 	assert.equal((await get('/messaging/writers?name=handle', f.alice)).status, 403);
 });
+
+test('a letter made any other way (a seed, a backfill) gets its number too; a retry under one key with another reference is another request', async () => {
+	const [seeded] = await Message.createBulkMessages([
+		{ messageText: 'Seeded', sender: 'user', prisoner: f.prisoner1.id, user: f.alice.id }
+	]);
+	assert.match(seeded.replyReference, /^[0-9]{9}$/);
+	assert.equal(await ReplyReference.count({ where: { message: seeded.id } }), 1);
+	const [reply] = await Message.createBulkMessages([
+		{ messageText: 'Seeded reply', sender: 'prisoner', prisoner: f.prisoner1.id, user: f.alice.id }
+	]);
+	assert.equal(reply.replyReference ?? null, null);
+
+	const one = await post('/messaging/message', letter(), f.alice);
+	const two = await post('/messaging/message', letter(), f.alice);
+	const keyed = (key) => ({ ...f.chapter, headers: { 'Idempotency-Key': key } });
+	const first = await post(
+		'/messaging/message',
+		{ messageText: 'Reply', sender: 'prisoner', reference: one.body.data.replyReference },
+		keyed('reply-key-1')
+	);
+	assert.equal(first.status, 201, JSON.stringify(first.body));
+	const again = await post(
+		'/messaging/message',
+		{ messageText: 'Reply', sender: 'prisoner', reference: one.body.data.replyReference },
+		keyed('reply-key-1')
+	);
+	assert.equal(again.body.data.id, first.body.data.id, 'the same request is replayed');
+	const other = await post(
+		'/messaging/message',
+		{ messageText: 'Reply', sender: 'prisoner', reference: two.body.data.replyReference },
+		keyed('reply-key-1')
+	);
+	assert.equal(other.status, 422, 'a reply to another letter is not the same request');
+});

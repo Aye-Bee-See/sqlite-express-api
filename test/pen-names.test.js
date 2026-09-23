@@ -8,8 +8,8 @@ import {
 	get,
 	post,
 	put,
-	User,
-	Chapter
+	del,
+	User
 } from './helpers.js';
 import PenName from '../database/models/pen-name.model.js';
 
@@ -174,5 +174,56 @@ test('a group gives its managed writers a pen name, and a newcomer joins with on
 	});
 	assert.equal(ok.status, 201, JSON.stringify(ok.body));
 	assert.equal(ok.body.data.user.penName, 'River Song');
-	assert.equal(await Chapter.count(), await Chapter.count());
+	assert.equal((await User.findByPk(ok.body.data.user.id)).sponsoredBy, f.group.id);
+});
+
+test("a deleted account's names stay taken for ever, and two renames at once leave one current name", async () => {
+	const leaver = await makeUser({ username: 'leaving', password: 'a long enough password' });
+	await put('/auth/user', { id: leaver.id, penName: 'Gone Writer' }, leaver);
+	const gone = await del(
+		'/auth/user',
+		{ id: leaver.id, password: 'a long enough password' },
+		leaver
+	);
+	assert.equal(gone.status, 200, JSON.stringify(gone.body));
+	const tomb = await PenName.findOne({ where: { nameKey: 'gone writer' } });
+	assert.ok(tomb, 'the row outlives the account');
+	assert.equal(tomb.userId, null);
+	assert.equal(
+		(await get('/auth/pen-name-available?name=gone%20writer')).body.data.available,
+		false
+	);
+	const newcomer = await makeUser({ username: 'newcomer' });
+	assert.equal(
+		(await put('/auth/user', { id: newcomer.id, penName: 'Gone Writer' }, newcomer)).status,
+		400
+	);
+
+	const racer = await makeUser({ username: 'racer' });
+	const results = await Promise.all(
+		['Race One', 'Race Two', 'Race Three'].map((penName) =>
+			put('/auth/user', { id: racer.id, penName }, racer)
+		)
+	);
+	assert.deepEqual(
+		results.map((r) => r.status),
+		[200, 200, 200]
+	);
+	const current = await PenName.findAll({ where: { userId: racer.id, retiredAt: null } });
+	assert.equal(current.length, 1, 'one current name');
+	assert.equal(
+		(await User.findByPk(racer.id)).penName,
+		current[0].name,
+		'the column names the current row'
+	);
+	assert.equal(await PenName.count({ where: { userId: racer.id } }), 3);
+	// Two accounts racing for one name: one gets it.
+	const a = await makeUser({ username: 'racer-a' });
+	const b = await makeUser({ username: 'racer-b' });
+	const race = await Promise.all([
+		put('/auth/user', { id: a.id, penName: 'Contested Name' }, a),
+		put('/auth/user', { id: b.id, penName: 'Contested Name' }, b)
+	]);
+	assert.deepEqual(race.map((r) => r.status).sort(), [200, 400]);
+	assert.equal(await PenName.count({ where: { nameKey: 'contested name' } }), 1);
 });

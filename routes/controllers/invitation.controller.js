@@ -324,7 +324,7 @@ export default class InvitationController extends RouteController {
 				// The founding group admin of a new chapter is its group-owner admin.
 				await Chapter.setOwner(createdGroup.id, createdUser.id, null);
 			} else {
-				await KeysController.noteWaiting(createdUser.id);
+				await KeysController.noteWaiting(createdUser.id, { actor: createdUser.id });
 			}
 			const user = (await User.findByPk(createdUser.id)).toJSON();
 			delete user.managerNote;

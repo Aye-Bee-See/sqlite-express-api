@@ -93,6 +93,7 @@ test('group admins with keys and no copy of the chapter key are listed as waitin
 	assert.equal(res.status, 200);
 	assert.equal(res.body.data.waitingForGroupKey, true);
 	assert.deepEqual((await told(owner.id, 'group.waiting')).at(-1).detail, { member: fourth.id });
+	assert.equal((await told(fourth.id, 'group.waiting')).length, 0, 'not told of their own waiting');
 	assert.ok(
 		(await told(second.id, 'group.waiting')).length > 0,
 		'every group admin, not only the owner'
@@ -224,16 +225,20 @@ test('ownership passes to one other group admin, by the owner or by a superadmin
 		by: 'superadmin'
 	});
 
-	// Two transfers at once, each conditional on the owner it read: one wins.
+	// Two transfers at once run one after the other under the lock, each from the
+	// owner the previous one left: never two answers that both claim the same "previous".
 	const results = await Promise.all([
 		put('/auth/chapter-owner', { chapter: f.group.id, user: second.id }, f.admin),
 		put('/auth/chapter-owner', { chapter: f.group.id, user: third.id }, f.admin)
 	]);
 	assert.deepEqual(
-		results.map((r) => r.status).sort(),
-		[200, 409],
+		results.map((r) => r.status),
+		[200, 200],
 		JSON.stringify(results.map((r) => r.body))
 	);
+	const chain = results.map((r) => r.body.data).sort((a) => (a.previous === owner.id ? -1 : 1));
+	assert.equal(chain[1].previous, chain[0].owner, 'the second transfer saw the first');
+	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, chain[1].owner);
 });
 
 test('an owner moved out of the chapter, or made a writer, owns it no more', async () => {
@@ -252,6 +257,11 @@ test('an owner moved out of the chapter, or made a writer, owns it no more', asy
 		200
 	);
 	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, null);
+	assert.deepEqual((await told(second.id, 'group.owner')).at(-1).detail, {
+		owner: null,
+		previous: owner.id,
+		by: 'superadmin'
+	});
 	assert.equal(
 		(await put('/auth/user', { id: owner.id, chapterId: f.group.id }, f.admin)).status,
 		200
@@ -286,4 +296,41 @@ test('a chapter that joins by invitation gets its founder as group-owner admin',
 	assert.equal(accepted.status, 201, JSON.stringify(accepted.body));
 	const chapter = await Chapter.findByPk(accepted.body.data.chapter.id);
 	assert.equal(chapter.ownerId, accepted.body.data.user.id);
+});
+
+test('an owner who passed the check a moment ago cannot act once ownership moved: the check is redone under the lock', async () => {
+	const { withGroupKeyLock } = await import('#rtServices/groupkey.services.js');
+	if ((await Chapter.findByPk(f.group.id)).ownerId !== owner.id) {
+		assert.equal(
+			(await put('/auth/chapter-owner', { chapter: f.group.id, user: owner.id }, f.admin)).status,
+			200
+		);
+	}
+	// Hold the lock every change of holders and owners takes. The requests below pass
+	// their first look (owner is owner) and then queue behind it, the transfer first.
+	let release;
+	const holding = withGroupKeyLock(() => new Promise((resolve) => (release = resolve)));
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	const transfer = put('/auth/chapter-owner', { chapter: f.group.id, user: second.id }, f.admin);
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	const handOver = put(
+		'/auth/member-key',
+		{ chapter: f.group.id, user: third.id, keyVersion: 1, wrappedOrgPrivateKey: wrappedFor(third) },
+		owner
+	);
+	const removal = del('/auth/member-key', { chapter: f.group.id, user: second.id }, owner);
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	release();
+	await holding;
+	const [moved, handed, removed] = await Promise.all([transfer, handOver, removal]);
+	assert.equal(moved.status, 200, JSON.stringify(moved.body));
+	assert.equal(handed.status, 403, JSON.stringify(handed.body));
+	assert.equal(removed.status, 403, JSON.stringify(removed.body));
+	assert.equal(await OrgMemberKey.count({ where: { chapterId: f.group.id, userId: third.id } }), 0);
+	// The old owner's rotation fails on the same ground.
+	assert.equal((await get('/auth/chapter-rotation?chapter=' + f.group.id, owner)).status, 403);
+	assert.equal(
+		(await put('/auth/chapter-owner', { chapter: f.group.id, user: owner.id }, f.admin)).status,
+		200
+	);
 });

@@ -241,7 +241,9 @@ export default class KeysController extends RouteController {
 				// Letters the server still holds a key for become theirs now.
 				bundle.caughtUp = await KeysController.catchUp('user', req.user.id);
 				// A group admin who can now open a key, and has none of the chapter's.
-				bundle.waitingForGroupKey = await KeysController.noteWaiting(req.user.id);
+				bundle.waitingForGroupKey = await KeysController.noteWaiting(req.user.id, {
+					actor: req.user.id
+				});
 			}
 			this.#handleSuccess(res, bundle);
 		} catch (err) {
@@ -411,6 +413,18 @@ export default class KeysController extends RouteController {
 		}
 	}
 
+	/**
+	 * The ownership check, again, at the moment of the write and under the same
+	 * lock every change of holders and owners takes: a check made a moment
+	 * earlier is worth nothing if a superadmin moved ownership in between.
+	 * @returns {Promise<Chapter>} the chapter as it is now
+	 */
+	async #ownerNow(req, chapterId) {
+		const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
+		await this.#requireOwner(req, chapter);
+		return chapter;
+	}
+
 	/** Tell every group admin of the chapter (the actor excepted, as always). */
 	static async tellGroup(chapterId, what, actor) {
 		await notify(await Chapter.groupAdminIds(chapterId), { ...what }, { actor });
@@ -421,7 +435,7 @@ export default class KeysController extends RouteController {
 	 * is waiting on the group-owner admin, and nobody would know: say so to the
 	 * whole chapter, once, when it becomes true.
 	 */
-	static async noteWaiting(userId) {
+	static async noteWaiting(userId, { actor = null } = {}) {
 		const user = await User.findByPk(userId, {
 			attributes: ['id', 'role', 'chapterId', 'publicKey']
 		});
@@ -435,7 +449,7 @@ export default class KeysController extends RouteController {
 		await KeysController.tellGroup(
 			chapter.id,
 			{ event: 'group.waiting', detail: { member: user.id } },
-			null
+			actor
 		);
 		return true;
 	}
@@ -569,7 +583,7 @@ export default class KeysController extends RouteController {
 			// Not in the middle of a rotation, and not a copy of a key rotated away:
 			// a client that says which version it wrapped is told when that is stale.
 			await withGroupKeyLock(async () => {
-				const current = await Chapter.findByPk(chapter.id);
+				const current = await this.#ownerNow(req, chapter.id);
 				if (req.body.keyVersion !== undefined) {
 					KeysController.requireCurrentGroupKey(current, req.body.keyVersion, 'keyVersion');
 				}
@@ -606,6 +620,7 @@ export default class KeysController extends RouteController {
 			// Count and delete as one step: two removals at once must not both
 			// find a holder to spare and leave the group with none.
 			const removed = await withGroupKeyLock(async () => {
+				await this.#ownerNow(req, chapterId);
 				const holders = await OrgMemberKey.count({ where: { chapterId } });
 				const target = await OrgMemberKey.forMember(chapterId, userId);
 				if (target && holders <= 1) {
@@ -642,33 +657,37 @@ export default class KeysController extends RouteController {
 	async chapterOwner(req, res, next) {
 		const { chapter: chapterId, user: userId } = req.body;
 		try {
-			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
 			const superadmin = AuthzService.isAdmin(req);
-			if (!superadmin) {
-				await this.#requireOwner(req, chapter);
-			}
-			const target = this.requireFound(await User.findByPk(userId), 'User ' + userId);
-			if (target.role !== 'chapter' || String(target.chapterId) !== String(chapter.id)) {
-				throw new ValidationError(
-					'User ' + userId + ' is not a group admin of chapter ' + chapter.id + '.'
-				);
-			}
-			if (String(chapter.ownerId) === String(target.id)) {
-				throw new HttpError(
-					409,
-					'User ' + userId + ' is the group-owner admin already.',
-					'OwnerError'
-				);
-			}
-			// Conditional on the owner it replaces: two transfers at once cannot both win.
-			const done = await Chapter.setOwner(chapter.id, target.id, chapter.ownerId);
-			if (!done) {
-				throw new HttpError(
-					409,
-					'The group-owner admin changed meanwhile; read the chapter again.',
-					'OwnerError'
-				);
-			}
+			// Checked and written under the lock every change of holders and owners
+			// takes: the owner is still the owner, and the target is still a group
+			// admin of the chapter, at the moment ownership moves.
+			const { chapter, target } = await withGroupKeyLock(async () => {
+				const fresh = superadmin
+					? this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId)
+					: await this.#ownerNow(req, chapterId);
+				const who = this.requireFound(await User.findByPk(userId), 'User ' + userId);
+				if (who.role !== 'chapter' || String(who.chapterId) !== String(fresh.id)) {
+					throw new ValidationError(
+						'User ' + userId + ' is not a group admin of chapter ' + fresh.id + '.'
+					);
+				}
+				if (String(fresh.ownerId) === String(who.id)) {
+					throw new HttpError(
+						409,
+						'User ' + userId + ' is the group-owner admin already.',
+						'OwnerError'
+					);
+				}
+				// Conditional on the owner it replaces: two transfers at once cannot both win.
+				if (!(await Chapter.setOwner(fresh.id, who.id, fresh.ownerId))) {
+					throw new HttpError(
+						409,
+						'The group-owner admin changed meanwhile; read the chapter again.',
+						'OwnerError'
+					);
+				}
+				return { chapter: fresh, target: who };
+			});
 			await audit(req, 'chapter.owner', 'chapter', chapter.id, {
 				from: chapter.ownerId,
 				to: target.id,
@@ -950,12 +969,23 @@ export default class KeysController extends RouteController {
 							where: {
 								id: chapter.id,
 								keyVersion: chapter.keyVersion,
-								publicKey: chapter.publicKey
+								publicKey: chapter.publicKey,
+								// Still the owner at the moment the key moves on.
+								ownerId: req.user.id
 							},
 							transaction
 						}
 					);
 					if (claimed === 0) {
+						const now = await Chapter.findByPk(chapter.id, {
+							attributes: ['id', 'ownerId'],
+							transaction
+						});
+						if (!now || String(now.ownerId) !== String(req.user.id)) {
+							throw AuthzService.forbidden(
+								'The group-owner admin changed while you were rotating; only the owner rotates the key.'
+							);
+						}
 						throw new HttpError(
 							409,
 							'The group key changed while you were rotating; fetch the rotation material again.',

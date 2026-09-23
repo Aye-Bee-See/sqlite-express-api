@@ -680,13 +680,17 @@ test('chapters that already exist get a group-owner admin: their earliest key ho
 	await createMigrator(live, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
 	const now = "'2026-01-01 00:00:00.000 +00:00'";
 	await live.query(
-		`INSERT INTO Chapters (id, name, location, createdAt, updatedAt) VALUES (1, 'Keyed', '{}', ${now}, ${now}), (2, 'Unkeyed', '{}', ${now}, ${now}), (3, 'Empty', '{}', ${now}, ${now})`
+		`INSERT INTO Chapters (id, name, location, createdAt, updatedAt) VALUES (1, 'Keyed', '{}', ${now}, ${now}), (2, 'Unkeyed', '{}', ${now}, ${now}), (3, 'Empty', '{}', ${now}, ${now}), (4, 'Stale', '{}', ${now}, ${now})`
 	);
+	// Chapter 4: its earliest key row belongs to somebody who has since left (user 5,
+	// now in chapter 1); the owner must be its remaining group admin, user 6.
 	for (const [id, chapter] of [
 		[1, 1],
 		[2, 1],
 		[3, 2],
-		[4, 2]
+		[4, 2],
+		[5, 1],
+		[6, 4]
 	]) {
 		await live.query(
 			`INSERT INTO User (id, username, password, email, role, chapterId, createdAt, updatedAt) VALUES (${id}, 'u${id}', 'x', 'u${id}@example.com', 'chapter', ${chapter}, ${now}, ${now})`
@@ -694,7 +698,7 @@ test('chapters that already exist get a group-owner admin: their earliest key ho
 	}
 	// In chapter 1 the second member holds the key and the first does not: the holder is the owner.
 	await live.query(
-		`INSERT INTO OrgMemberKeys (chapterId, userId, wrappedOrgPrivateKey, createdAt, updatedAt) VALUES (1, 2, 'sealed', ${now}, ${now})`
+		`INSERT INTO OrgMemberKeys (chapterId, userId, wrappedOrgPrivateKey, createdAt, updatedAt) VALUES (1, 2, 'sealed', ${now}, ${now}), (4, 5, 'stale', ${now}, ${now}), (4, 6, 'sealed', ${now}, ${now})`
 	);
 	await runMigrations(live, { quiet: true });
 	const [rows] = await live.query('SELECT id, ownerId FROM Chapters ORDER BY id');
@@ -703,7 +707,8 @@ test('chapters that already exist get a group-owner admin: their earliest key ho
 		[
 			[1, 2],
 			[2, 3],
-			[3, null]
+			[3, null],
+			[4, 6]
 		]
 	);
 	await live.close();

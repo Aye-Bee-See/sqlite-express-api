@@ -16,7 +16,9 @@ export async function up({ context: queryInterface }) {
 		onUpdate: 'CASCADE'
 	});
 	await sequelize.query(
-		'UPDATE `Chapters` SET `ownerId` = (SELECT `userId` FROM `OrgMemberKeys` k WHERE k.`chapterId` = `Chapters`.`id` ORDER BY k.`id` LIMIT 1) WHERE `ownerId` IS NULL'
+		// The earliest holder who is still a group admin of the chapter: a key row
+		// can outlive a membership, and a former member must not own anything.
+		"UPDATE `Chapters` SET `ownerId` = (SELECT k.`userId` FROM `OrgMemberKeys` k JOIN `User` u ON u.`id` = k.`userId` WHERE k.`chapterId` = `Chapters`.`id` AND u.`role` = 'chapter' AND u.`chapterId` = `Chapters`.`id` ORDER BY k.`id` LIMIT 1) WHERE `ownerId` IS NULL"
 	);
 	await sequelize.query(
 		"UPDATE `Chapters` SET `ownerId` = (SELECT `id` FROM `User` u WHERE u.`chapterId` = `Chapters`.`id` AND u.`role` = 'chapter' ORDER BY u.`id` LIMIT 1) WHERE `ownerId` IS NULL"

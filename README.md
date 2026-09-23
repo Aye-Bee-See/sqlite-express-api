@@ -391,12 +391,14 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 | ----------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------- | ------- |
 | Read published prisons, prisoners, chapters                             | Yes (and anonymous)   | Yes                                                                                 | Yes     |
 | Read draft and pending directory records                                | No                    | Yes                                                                                 | Yes     |
-| Create, update, delete prisons, prisoners, chapters                     | No                    | Yes                                                                                 | Yes     |
-| Set a prison's mail rules                                               | No                    | Yes                                                                                 | Yes     |
+| Create, update, delete prisons and prisoners                            | No                    | No: propose it ([Moderation](#moderation))                                          | Yes     |
+| Create a chapter; update or delete one's own chapter record             | No                    | Yes                                                                                 | Yes     |
+| Set a prison's mail rules                                               | No                    | No: propose it                                                                      | Yes     |
+| Link one's own group to a facility (relay) or a prisoner (support)      | No                    | Own group, if active                                                                | Any     |
 | Add to, reword, retire, or delete from the master list of mail rules    | No                    | No                                                                                  | Yes     |
 | Read, create, update, delete chats and messages                         | **Own threads only**  | **Managed writers' threads only** (threads it only mails: read, and record replies) | All     |
 | Send a message as the prisoner side (`sender: prisoner`)                | No (forced to `user`) | Yes                                                                                 | Yes     |
-| Propose a directory change or record ([Moderation](#moderation))        | Yes                   | Yes                                                                                 | Yes     |
+| Propose a directory change or record ([Moderation](#moderation))        | No (not yet)          | Yes, if active                                                                      | Yes     |
 | Approve or reject proposals; read the audit log and summary             | No                    | No                                                                                  | Yes     |
 | Move a letter to `printed` / `mailed`                                   | No                    | As its relay group                                                                  | Yes     |
 | Create managed writers, issue claim tokens                              | No                    | Own group                                                                           | Yes     |
@@ -420,7 +422,7 @@ Every refusal is a `403` with the general error shape.
 
 A `chapter` account has these rights **through its group**: while the group is `pending` or `suspended` its accounts read what the public reads (published records, no staff-only fields) and write nothing, group keys included.
 
-A `chapter` account is scoped to its group. It sees the threads of the writers its group manages (see [Managed writers](#managed-writers)) and the threads holding letters its group relays (see [Letter lifecycle](#letter-lifecycle)), can send letters for its writers and transcribe prisoner replies on either, and sees nothing else. A `chapter` account that is not yet a member of a group (no `chapterId`), or whose group is not yet `active` (see [Chapter fields](#chapter-fields)), can read what anyone can but cannot write the directory, create writers, or send and relay letters; every such refusal is a `403` whose `info` says which it is. An admin puts an account in a group with `PUT /auth/user` and activates a group with `PUT /chapter/chapter`.
+A `chapter` account is scoped to its group. It sees the threads of the writers its group manages (see [Managed writers](#managed-writers)) and the threads holding letters its group relays (see [Letter lifecycle](#letter-lifecycle)), can send letters for its writers and transcribe prisoner replies on either, and sees nothing else. A `chapter` account that is not yet a member of a group (no `chapterId`), or whose group is not yet `active` (see [Chapter fields](#chapter-fields)), can read what anyone can but cannot propose directory changes, link its group, create writers, or send and relay letters; every such refusal is a `403` whose `info` says which it is. An admin puts an account in a group with `PUT /auth/user` and activates a group with `PUT /chapter/chapter`.
 
 ### Creating accounts with other roles
 
@@ -1227,19 +1229,21 @@ Nobody has to be chased for keys. When an account first becomes able to read wha
 
 ### Prisons
 
-| Method | Path                 | Auth             | Purpose                                                  |
-| ------ | -------------------- | ---------------- | -------------------------------------------------------- |
-| POST   | `/prison/prison`     | Admin or chapter | Create a prison                                          |
-| GET    | `/prison/prisons`    | Public           | List prisons                                             |
-| GET    | `/prison/prison`     | Public           | Get one prison by id                                     |
-| PUT    | `/prison/prison`     | Admin or chapter | Update a prison                                          |
-| GET    | `/prison/mail-rules` | Public           | The master list of mail rules: tags, categories, wording |
-| POST   | `/prison/mail-rule`  | Admin            | Add a rule to the master list                            |
-| PUT    | `/prison/mail-rule`  | Admin            | Reword, recategorise, retire, or restore a rule          |
-| DELETE | `/prison/mail-rule`  | Admin            | Delete a rule no facility carries                        |
-| PUT    | `/prison/relay`      | Admin or chapter | Attach a relay group to a prison                         |
-| DELETE | `/prison/relay`      | Admin or chapter | Detach a relay group from a prison                       |
-| DELETE | `/prison/prison`     | Admin or chapter | Delete a prison                                          |
+| Method | Path                 | Auth                | Purpose                                                  |
+| ------ | -------------------- | ------------------- | -------------------------------------------------------- |
+| POST   | `/prison/prison`     | Admin               | Create a prison                                          |
+| GET    | `/prison/prisons`    | Public              | List prisons                                             |
+| GET    | `/prison/prison`     | Public              | Get one prison by id                                     |
+| PUT    | `/prison/prison`     | Admin               | Update a prison                                          |
+| GET    | `/prison/mail-rules` | Public              | The master list of mail rules: tags, categories, wording |
+| POST   | `/prison/mail-rule`  | Admin               | Add a rule to the master list                            |
+| PUT    | `/prison/mail-rule`  | Admin               | Reword, recategorise, retire, or restore a rule          |
+| DELETE | `/prison/mail-rule`  | Admin               | Delete a rule no facility carries                        |
+| PUT    | `/prison/relay`      | Admin, or own group | Attach a relay group to a prison                         |
+| DELETE | `/prison/relay`      | Admin, or own group | Detach a relay group from a prison                       |
+| DELETE | `/prison/prison`     | Admin               | Delete a prison                                          |
+
+Since 22 September 2026 the directory is written by superadmins only. A group admin who knows a facility has changed proposes the change through [Moderation](#moderation) (`POST /moderation/submission`), with evidence encouraged but not required, and a superadmin applies it. A group still declares its own links: which facilities it relays for and which prisoners it supports (`PUT /prison/relay`, `PUT /prisoner/support`, own group only, while active). Third parties write to the contact address the site lists; there is no public form.
 
 #### Prison fields
 
@@ -1467,15 +1471,17 @@ Body: `{"id": 53}`. Fails with `400` while the prison still has prisoners.
 
 ### Prisoners
 
-| Method | Path                  | Auth             | Purpose                              |
-| ------ | --------------------- | ---------------- | ------------------------------------ |
-| POST   | `/prisoner/prisoner`  | Admin or chapter | Create a prisoner                    |
-| GET    | `/prisoner/prisoners` | Public           | List prisoners, optionally by prison |
-| GET    | `/prisoner/prisoner`  | Public           | Get one prisoner by id               |
-| PUT    | `/prisoner/prisoner`  | Admin or chapter | Update a prisoner                    |
-| PUT    | `/prisoner/support`   | Admin or chapter | Link a support group to a prisoner   |
-| DELETE | `/prisoner/support`   | Admin or chapter | Unlink a support group               |
-| DELETE | `/prisoner/prisoner`  | Admin or chapter | Delete a prisoner                    |
+| Method | Path                  | Auth                | Purpose                              |
+| ------ | --------------------- | ------------------- | ------------------------------------ |
+| POST   | `/prisoner/prisoner`  | Admin               | Create a prisoner                    |
+| GET    | `/prisoner/prisoners` | Public              | List prisoners, optionally by prison |
+| GET    | `/prisoner/prisoner`  | Public              | Get one prisoner by id               |
+| PUT    | `/prisoner/prisoner`  | Admin               | Update a prisoner                    |
+| PUT    | `/prisoner/support`   | Admin, or own group | Link a support group to a prisoner   |
+| DELETE | `/prisoner/support`   | Admin, or own group | Unlink a support group               |
+| DELETE | `/prisoner/prisoner`  | Admin               | Delete a prisoner                    |
+
+Writes are superadmins' only; a group admin proposes through [Moderation](#moderation). See the note under [Prisons](#prisons).
 
 #### Prisoner fields
 
@@ -2180,19 +2186,19 @@ Parameters: `page`, `page_size`, `q`, `sort`, and (staff) `recordStatus`.
 
 ### Moderation
 
-Anyone signed in can propose a new prisoner, facility, or group, or a change to an existing one. Admins review the queue and approve (optionally editing first), or reject with a reason. Every decision, and every direct staff write to the directory, lands in an append-only audit log.
+A chapter account (of an active group) or a superadmin can propose a new prisoner, facility, or group, or a change to an existing one; this is how a group edits the directory, since 22 September 2026. Writers cannot propose yet (a `403`); third parties write to the listed contact address. Admins review the queue and approve (optionally editing first), or reject with a reason. Every decision, and every direct staff write to the directory, lands in an append-only audit log.
 
-| Method | Path                      | Auth               | Purpose                                                       |
-| ------ | ------------------------- | ------------------ | ------------------------------------------------------------- |
-| POST   | `/moderation/submission`  | Any                | Propose a new record or a change to one                       |
-| GET    | `/moderation/submissions` | Any                | Admins: the queue (pending by default); others: own proposals |
-| GET    | `/moderation/submission`  | Submitter or admin | One proposal, with the target's current values                |
-| PUT    | `/moderation/submission`  | Submitter or admin | Revise a pending proposal                                     |
-| DELETE | `/moderation/submission`  | Submitter or admin | Withdraw a pending proposal                                   |
-| PUT    | `/moderation/approve`     | Admin              | Apply a proposal, with optional reviewer edits                |
-| PUT    | `/moderation/reject`      | Admin              | Reject a proposal with a reason                               |
-| GET    | `/moderation/audit`       | Admin              | The audit log, newest first                                   |
-| GET    | `/moderation/summary`     | Admin              | Dashboard counts                                              |
+| Method | Path                      | Auth                            | Purpose                                                       |
+| ------ | ------------------------- | ------------------------------- | ------------------------------------------------------------- |
+| POST   | `/moderation/submission`  | Chapter (active group) or admin | Propose a new record or a change to one                       |
+| GET    | `/moderation/submissions` | Any                             | Admins: the queue (pending by default); others: own proposals |
+| GET    | `/moderation/submission`  | Submitter or admin              | One proposal, with the target's current values                |
+| PUT    | `/moderation/submission`  | Submitter or admin              | Revise a pending proposal                                     |
+| DELETE | `/moderation/submission`  | Submitter or admin              | Withdraw a pending proposal                                   |
+| PUT    | `/moderation/approve`     | Admin                           | Apply a proposal, with optional reviewer edits                |
+| PUT    | `/moderation/reject`      | Admin                           | Reject a proposal with a reason                               |
+| GET    | `/moderation/audit`       | Admin                           | The audit log, newest first                                   |
+| GET    | `/moderation/summary`     | Admin                           | Dashboard counts                                              |
 
 #### Submission fields
 

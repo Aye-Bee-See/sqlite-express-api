@@ -101,6 +101,11 @@ export default class ModerationController extends RouteController {
 	async create(req, res, next) {
 		const { resource, target, fields, evidence, note } = req.body;
 		try {
+			// A group proposes through its group: while it is pending or suspended it
+			// reads what the public reads and writes nothing, proposals included.
+			if (!AuthzService.isAdmin(req) && !(await AuthzService.activeChapterOf(req))) {
+				throw await AuthzService.groupRefusal(req);
+			}
 			const submission = await Submission.propose({
 				resource,
 				target,

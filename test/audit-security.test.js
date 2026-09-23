@@ -349,7 +349,7 @@ test('names every object has are not sort orders or resources, and a page has an
 	const resource = await post(
 		'/moderation/submission',
 		{ resource: 'constructor', fields: { a: 1 } },
-		f.alice
+		f.chapter
 	);
 	assert.equal(resource.status, 400);
 	const page = await get('/prisoner/prisoners?page=1e21');
@@ -386,7 +386,7 @@ test('a reviewer sees the rule set a proposal would replace, and is not made to 
 	const proposed = await post(
 		'/moderation/submission',
 		{ resource: 'prison', target: f.prison.id, fields: { mailRules: ['audit_white_paper'] } },
-		f.alice
+		f.chapter
 	);
 	assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
 	const id = proposed.body.data.id;
@@ -398,7 +398,7 @@ test('a reviewer sees the rule set a proposal would replace, and is not made to 
 	const revised = await put(
 		'/moderation/submission',
 		{ id, fields: { notes: 'Swapped in after the review' } },
-		f.alice
+		f.chapter
 	);
 	assert.equal(revised.status, 200, JSON.stringify(revised.body));
 	const stale = await put('/moderation/approve', { id, ifUnchangedSince: seen }, f.admin);
@@ -482,7 +482,7 @@ test('a proposal revised between the read and the decision is not decided', asyn
 	const proposed = await post(
 		'/moderation/submission',
 		{ resource: 'prisoner', target: f.prisoner1.id, fields: { interests: ['Chess and birds'] } },
-		f.alice
+		f.chapter
 	);
 	assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
 	const id = proposed.body.data.id;
@@ -492,7 +492,7 @@ test('a proposal revised between the read and the decision is not decided', asyn
 	const revised = await put(
 		'/moderation/submission',
 		{ id, fields: { interests: ['Swapped in at the last moment'] } },
-		f.alice
+		f.chapter
 	);
 	assert.equal(revised.status, 200, JSON.stringify(revised.body));
 	await assert.rejects(

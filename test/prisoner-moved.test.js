@@ -77,7 +77,7 @@ test('when someone is moved, their writers are told and queued letters follow th
 		200
 	);
 
-	const res = await put('/prisoner/prisoner', { id: mover.id, prison: north.id }, f.chapter);
+	const res = await put('/prisoner/prisoner', { id: mover.id, prison: north.id }, f.admin);
 	assert.equal(res.status, 200, JSON.stringify(res.body));
 	assert.deepEqual(res.body.data.mail, {
 		moved: true,
@@ -116,7 +116,7 @@ test('when someone is moved, their writers are told and queued letters follow th
 	}
 	// An edit that moves nobody tells nobody.
 	const count = await Notification.count({ where: { event: 'prisoner.moved' } });
-	const quiet = await put('/prisoner/prisoner', { id: mover.id, chosenName: 'Mo' }, f.chapter);
+	const quiet = await put('/prisoner/prisoner', { id: mover.id, chosenName: 'Mo' }, f.admin);
 	assert.equal(quiet.body.data.mail, undefined);
 	assert.equal(await Notification.count({ where: { event: 'prisoner.moved' } }), count);
 });
@@ -172,7 +172,7 @@ test('where the writer has to choose who mails it now, the letter is held until 
 test('when someone is freed, their writers are told and queued letters wait for a decision', async () => {
 	const leaver = await person('Leaver');
 	const letter = await write(f.alice, leaver.id);
-	const res = await put('/prisoner/prisoner', { id: leaver.id, status: 'free' }, f.chapter);
+	const res = await put('/prisoner/prisoner', { id: leaver.id, status: 'free' }, f.admin);
 	assert.deepEqual(res.body.data.mail, {
 		moved: false,
 		freed: true,
@@ -202,11 +202,7 @@ test('when someone is freed, their writers are told and queued letters wait for 
 	// The news was wrong: the hold on what is still queued is lifted.
 	const second = await write(f.bob, leaver.id);
 	await Message.update({ heldReason: 'prisoner_free' }, { where: { id: second.id } });
-	const back = await put(
-		'/prisoner/prisoner',
-		{ id: leaver.id, status: 'incarcerated' },
-		f.chapter
-	);
+	const back = await put('/prisoner/prisoner', { id: leaver.id, status: 'incarcerated' }, f.admin);
 	assert.equal(back.body.data.mail.released, 1);
 	assert.equal((await Message.findByPk(second.id)).heldReason, null);
 });
@@ -217,7 +213,7 @@ test('an approved proposal that moves someone has the same effect as a direct ed
 	const proposal = await post(
 		'/moderation/submission',
 		{ resource: 'prisoner', target: mover.id, fields: { prison: north.id } },
-		f.bob
+		f.chapter
 	);
 	assert.equal(proposal.status, 201, JSON.stringify(proposal.body));
 	const approved = await put('/moderation/approve', { id: proposal.body.data.id }, f.admin);
@@ -244,12 +240,12 @@ test('nobody can set or clear a hold by editing the letter', async () => {
 test('the count a writer is told includes letters that were already waiting', async () => {
 	const someone = await person('Twice');
 	const letter = await write(f.alice, someone.id);
-	await put('/prisoner/prisoner', { id: someone.id, status: 'free' }, f.chapter);
+	await put('/prisoner/prisoner', { id: someone.id, status: 'free' }, f.admin);
 	assert.equal((await lastTold(f.alice.id, 'prisoner.status')).detail.held, 1);
 
 	// Still free, and now the record says they were moved as well. Nothing new is held
 	// by this edit, and Alice's letter is waiting all the same.
-	const res = await put('/prisoner/prisoner', { id: someone.id, prison: north.id }, f.chapter);
+	const res = await put('/prisoner/prisoner', { id: someone.id, prison: north.id }, f.admin);
 	assert.equal(res.body.data.mail.held, 0, 'the editor is told what this edit newly held');
 	assert.equal((await Message.findByPk(letter.id)).heldReason, 'prisoner_free');
 	assert.equal((await lastTold(f.alice.id, 'prisoner.moved')).detail.held, 1);

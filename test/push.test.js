@@ -230,13 +230,15 @@ test('a moderation decision tells the person who proposed it', async () => {
 	const proposed = await post(
 		'/moderation/submission',
 		{ resource: 'prison', target: f.prison.id, fields: { notes: 'Mail is slow in winter' } },
-		bob
+		member
 	);
-	assert.equal(proposed.status, 201);
+	assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
 	await put('/moderation/approve', { id: proposed.body.data.id }, admin);
-	const feed = await get('/auth/notifications', bob);
+	const feed = await get('/auth/notifications', member);
 	assert.deepEqual(
-		feed.body.data.map((n) => [n.event, n.submission, n.detail]),
+		feed.body.data
+			.filter((n) => n.event === 'submission.decided')
+			.map((n) => [n.event, n.submission, n.detail]),
 		[['submission.decided', proposed.body.data.id, { status: 'approved', resource: 'prison' }]]
 	);
 });

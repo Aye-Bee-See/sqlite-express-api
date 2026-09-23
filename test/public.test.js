@@ -70,13 +70,13 @@ test('writes still need a token and the right role', async () => {
 });
 
 test('new records default to published; staff may set draft or pending; bad values are rejected', async () => {
-	const created = await post('/prison/prison', { prisonName: 'Default', address: {} }, chapter);
+	const created = await post('/prison/prison', { prisonName: 'Default', address: {} }, admin);
 	assert.equal(created.status, 201);
 	assert.equal(created.body.data.recordStatus, 'published');
 	const draft = await post(
 		'/prison/prison',
 		{ prisonName: 'Explicit draft', address: {}, recordStatus: 'draft' },
-		chapter
+		admin
 	);
 	assert.equal(draft.status, 201);
 	assert.equal(draft.body.data.recordStatus, 'draft');

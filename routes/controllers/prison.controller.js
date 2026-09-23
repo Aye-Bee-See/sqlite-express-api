@@ -243,28 +243,53 @@ export default class PrisonController extends RouteController {
 		}
 	}
 
+	/**
+	 * A group admin links and unlinks their own active group only; a superadmin any.
+	 * @throws {Error} 403
+	 */
+	async #ownGroupOnly(req, chapter) {
+		if (AuthzService.isAdmin(req)) {
+			return;
+		}
+		const own = await AuthzService.activeChapterOf(req);
+		if (!own) {
+			throw await AuthzService.groupRefusal(req);
+		}
+		if (String(chapter) !== String(own)) {
+			throw AuthzService.forbidden('A group admin links their own group only; ask a superadmin.');
+		}
+	}
+
 	/** PUT /prison/relay { prison, chapter }: attach a relay group. */
-	async addRelay(req, res) {
+	async addRelay(req, res, next) {
 		const { chapter, prison } = req.body;
 		try {
+			await this.#ownGroupOnly(req, chapter);
 			const updatedRows = await Prison.addRelay(chapter, prison);
 			await audit(req, 'prison.relay.add', 'prison', prison, { chapter });
 			this.#handleSuccess(res, { updatedRows, chapter, prison });
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}
 	}
 
 	/** DELETE /prison/relay { prison, chapter }: detach a relay group. */
-	async removeRelay(req, res) {
+	async removeRelay(req, res, next) {
 		const { chapter, prison } = req.body;
 		try {
+			await this.#ownGroupOnly(req, chapter);
 			const removed = await Prison.removeRelay(chapter, prison);
 			this.requireAffected(removed, 'Relay link for prison ' + prison + ' and chapter ' + chapter);
 			await audit(req, 'prison.relay.remove', 'prison', prison, { chapter });
 			this.#handleSuccess(res, removed);
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}

@@ -250,7 +250,7 @@ test('mail that comes back as moved puts the address in doubt, for staff, until 
 	// Someone looks into it and updates the record: the doubt is answered.
 	await new Promise((resolve) => setTimeout(resolve, 5));
 	assert.equal(
-		(await put('/prisoner/prisoner', { id: f.prisoner1.id, status: 'free' }, f.chapter)).status,
+		(await put('/prisoner/prisoner', { id: f.prisoner1.id, status: 'free' }, f.admin)).status,
 		200
 	);
 	assert.equal(await count(), before);

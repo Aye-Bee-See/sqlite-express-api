@@ -106,7 +106,7 @@ test('staff set rules through the ordinary facility create and update', async ()
 	const created = await post(
 		'/prison/prison',
 		{ prisonName: 'Tagged', address: {}, mailRules: ['postcards_only'], pageLimit: 2 },
-		chapter
+		admin
 	);
 	assert.equal(created.status, 201, JSON.stringify(created.body));
 	assert.deepEqual(created.body.data.mailRules, ['postcards_only']);
@@ -232,7 +232,7 @@ test('a proposed new facility gets the photo rule check straight away', async ()
 			resource: 'prison',
 			fields: { prisonName: 'Proposed', address: {}, mailRules: ['no_photos'], photoLimit: 5 }
 		},
-		alice
+		chapter
 	);
 	assert.equal(res.status, 400, JSON.stringify(res.body));
 	assert.match(
@@ -271,7 +271,7 @@ test('lists filter by tag and by language', async () => {
 	assert.equal(both.body.errors.length, 2, 'reported together with other bad parameters');
 });
 
-test('anyone signed in can propose rule changes; approval applies them', async () => {
+test('a chapter proposes rule changes; approval applies them', async () => {
 	const proposed = await post(
 		'/moderation/submission',
 		{
@@ -280,7 +280,7 @@ test('anyone signed in can propose rule changes; approval applies them', async (
 			fields: { mailRules: ['no_greeting_cards', 'plain_paper'], pageLimit: 10 },
 			note: 'From the facility handbook, page 12'
 		},
-		alice
+		chapter
 	);
 	assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
 
@@ -288,7 +288,7 @@ test('anyone signed in can propose rule changes; approval applies them', async (
 	const bad = await post(
 		'/moderation/submission',
 		{ resource: 'prison', target: open.id, fields: { mailRules: ['be nice'] } },
-		alice
+		chapter
 	);
 	assert.equal(bad.status, 400);
 	assert.match(bad.body.errors.join(' '), /Not on the master list of mail rules: "be nice"/);
@@ -296,7 +296,7 @@ test('anyone signed in can propose rule changes; approval applies them', async (
 	const clash = await post(
 		'/moderation/submission',
 		{ resource: 'prison', target: strict.id, fields: { mailRules: ['no_photos'] } },
-		alice
+		chapter
 	);
 	assert.equal(clash.status, 400, JSON.stringify(clash.body));
 	assert.match(
@@ -306,7 +306,7 @@ test('anyone signed in can propose rule changes; approval applies them', async (
 	const newRecord = await post(
 		'/moderation/submission',
 		{ resource: 'prison', fields: { prisonName: 'Proposed', address: {}, mailRules: ['be nice'] } },
-		alice
+		chapter
 	);
 	assert.equal(newRecord.status, 400, 'a proposed new facility is validated straight away');
 

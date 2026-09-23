@@ -11,7 +11,8 @@ import {
 	makeUser,
 	Prisoner,
 	Prison,
-	Chapter
+	Chapter,
+	User
 } from './helpers.js';
 import AuditLog from '../database/models/audit-log.model.js';
 
@@ -26,8 +27,24 @@ before(async () => {
 	f = await makeFixtures();
 	admin = { token: f.admin.token };
 	chapter = { token: f.chapter.token };
-	alice = { token: f.alice.token };
-	bob = { token: f.bob.token };
+	// Proposals come from chapter accounts (decided 22 September 2026): two group
+	// admins of two active groups stand in for the two independent submitters.
+	const groupA = await Chapter.createChapter({
+		name: 'Group A',
+		location: {},
+		accountStatus: 'active'
+	});
+	const groupB = await Chapter.createChapter({
+		name: 'Group B',
+		location: {},
+		accountStatus: 'active'
+	});
+	const a = await makeUser({ role: 'chapter', username: 'proposer-a' });
+	const b = await makeUser({ role: 'chapter', username: 'proposer-b' });
+	await User.update({ chapterId: groupA.id }, { where: { id: a.id } });
+	await User.update({ chapterId: groupB.id }, { where: { id: b.id } });
+	alice = { token: a.token, id: a.id };
+	bob = { token: b.token, id: b.id };
 });
 after(stopServer);
 
@@ -35,7 +52,12 @@ const propose = (body, who = alice) => post('/moderation/submission', body, who)
 
 // ---- filing ---------------------------------------------------------------
 
-test('any signed-in account can propose a change to an existing record', async () => {
+test('a chapter account proposes a change to an existing record; a writer cannot propose', async () => {
+	const asWriter = await propose(
+		{ resource: 'prisoner', target: f.prisoner1.id, fields: { chosenName: 'Nope' } },
+		{ token: f.alice.token }
+	);
+	assert.equal(asWriter.status, 403, 'writers cannot propose yet');
 	const res = await propose({
 		resource: 'prisoner',
 		target: f.prisoner1.id,
@@ -50,7 +72,7 @@ test('any signed-in account can propose a change to an existing record', async (
 	assert.equal(s.targetId, f.prisoner1.id);
 	assert.equal(s.status, 'pending');
 	assert.deepEqual(s.payload, { chosenName: 'One Renamed', interests: ['chess'] });
-	assert.equal(s.submitter.id, f.alice.id);
+	assert.equal(s.submitter.id, alice.id);
 	assert.equal(s.submitter.password, undefined);
 	assert.equal(s.reviewer, null);
 	assert.equal(res.body.info, 'Thanks. Your proposal is waiting for review.');
@@ -110,15 +132,15 @@ test('admins see the pending queue; submitters see their own proposals', async (
 	assert.ok(prisons.body.data.every((s) => s.resource === 'prison'));
 	assert.equal((await get('/moderation/submissions?resource=rule', admin)).status, 400);
 	assert.equal((await get('/moderation/submissions?status=lost', admin)).status, 400);
-	const byBob = await get('/moderation/submissions?submittedBy=' + f.bob.id, admin);
-	assert.ok(byBob.body.data.every((s) => s.submittedBy === f.bob.id));
+	const byBob = await get('/moderation/submissions?submittedBy=' + bob.id, admin);
+	assert.ok(byBob.body.data.every((s) => s.submittedBy === bob.id));
 
 	const mine = await get('/moderation/submissions', alice);
 	assert.ok(mine.body.data.length >= 1);
-	assert.ok(mine.body.data.every((s) => s.submittedBy === f.alice.id));
-	const bobsView = await get('/moderation/submissions?submittedBy=' + f.alice.id, bob);
+	assert.ok(mine.body.data.every((s) => s.submittedBy === alice.id));
+	const bobsView = await get('/moderation/submissions?submittedBy=' + alice.id, bob);
 	assert.ok(
-		bobsView.body.data.every((s) => s.submittedBy === f.bob.id),
+		bobsView.body.data.every((s) => s.submittedBy === bob.id),
 		'cannot widen to others'
 	);
 });
@@ -291,11 +313,16 @@ test('rejecting needs a reason; withdrawing is for the submitter or an admin', a
 // ---- audit log and summary ------------------------------------------------
 
 test('the audit log records moderation decisions and staff writes', async () => {
-	await put('/prison/prison', { id: f.prison.id, notes: 'Edited directly' }, chapter);
+	assert.equal(
+		(await put('/prison/prison', { id: f.prison.id, notes: 'Edited directly' }, chapter)).status,
+		403,
+		'a chapter proposes, it does not edit'
+	);
+	await put('/prison/prison', { id: f.prison.id, notes: 'Edited directly' }, admin);
 	const sent = await post(
 		'/messaging/message',
 		{ messageText: 'Hi', sender: 'user', prisoner: f.prisoner1.id },
-		alice
+		{ token: f.alice.token }
 	);
 	await put('/messaging/status', { id: sent.body.data.id, status: 'printed' }, admin);
 
@@ -320,9 +347,7 @@ test('the audit log records moderation decisions and staff writes', async () => 
 	assert.deepEqual(log.body.data[0].details, { from: 'queued', to: 'printed' });
 	assert.equal(log.body.data[0].actor_details.username, 'admin');
 
-	const direct = log.body.data.find(
-		(e) => e.action === 'prison.update' && e.actor === f.chapter.id
-	);
+	const direct = log.body.data.find((e) => e.action === 'prison.update' && e.actor === f.admin.id);
 	assert.ok(direct);
 	assert.equal(direct.targetId, f.prison.id);
 	assert.deepEqual(direct.details.fields, { id: f.prison.id, notes: 'Edited directly' });
@@ -332,8 +357,8 @@ test('the audit log records moderation decisions and staff writes', async () => 
 
 	const filtered = await get('/moderation/audit?resource=prison&target=' + f.prison.id, admin);
 	assert.ok(filtered.body.data.every((e) => e.resource === 'prison' && e.targetId === f.prison.id));
-	const byActor = await get('/moderation/audit?actor=' + f.alice.id, admin);
-	assert.ok(byActor.body.data.every((e) => e.actor === f.alice.id));
+	const byActor = await get('/moderation/audit?actor=' + alice.id, admin);
+	assert.ok(byActor.body.data.every((e) => e.actor === alice.id));
 	assert.ok(byActor.body.data.some((e) => e.action === 'submission.create'));
 	const byAction = await get('/moderation/audit?action=submission.approve', admin);
 	assert.ok(byAction.body.data.length >= 2);
@@ -443,30 +468,27 @@ test('reviewer-only values in a decision are hidden from the submitter', async (
 	assert.ok(!JSON.stringify(list.body).includes('staff only'));
 });
 
-test('non-staff cannot target or peek at unpublished records', async () => {
+test('staff may target unpublished records, and keep seeing a target that is unpublished later', async () => {
 	const draft = await Prisoner.createPrisoner({
 		birthName: 'Draft Person',
 		prison: f.prison.id,
 		recordStatus: 'draft'
 	});
-	const asUser = await propose({
-		resource: 'prisoner',
-		target: draft.id,
-		fields: { bio: 'Twelve characters or more' }
-	});
-	assert.equal(asUser.status, 404);
 	const asStaff = await propose(
 		{ resource: 'prisoner', target: draft.id, fields: { bio: 'Twelve characters or more' } },
 		chapter
 	);
 	assert.equal(asStaff.status, 201);
 
-	// A published target that is later unpublished stops showing its values to the submitter.
+	// Staff read pending records, so the submitter still sees the values a proposal would change.
 	const mine = (
 		await propose({ resource: 'prisoner', target: f.prisoner2.id, fields: { chosenName: 'Peek' } })
 	).body.data;
 	await Prisoner.update({ recordStatus: 'pending' }, { where: { id: f.prisoner2.id } });
-	assert.equal((await get('/moderation/submission?id=' + mine.id, alice)).body.data.current, null);
+	assert.equal(
+		(await get('/moderation/submission?id=' + mine.id, alice)).body.data.current.chosenName,
+		'Two'
+	);
 	assert.equal(
 		(await get('/moderation/submission?id=' + mine.id, admin)).body.data.current.chosenName,
 		'Two'

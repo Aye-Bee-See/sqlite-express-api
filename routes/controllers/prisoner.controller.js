@@ -111,23 +111,45 @@ export default class PrisonerController extends RouteController {
 		}
 	}
 
+	/**
+	 * A group admin links and unlinks their own active group only; a superadmin any.
+	 * @throws {Error} 403
+	 */
+	async #ownGroupOnly(req, chapter) {
+		if (AuthzService.isAdmin(req)) {
+			return;
+		}
+		const own = await AuthzService.activeChapterOf(req);
+		if (!own) {
+			throw await AuthzService.groupRefusal(req);
+		}
+		if (String(chapter) !== String(own)) {
+			throw AuthzService.forbidden('A group admin links their own group only; ask a superadmin.');
+		}
+	}
+
 	/** PUT /prisoner/support { prisoner, chapter, description? }: link a support group. */
-	async addSupport(req, res) {
+	async addSupport(req, res, next) {
 		const { prisoner, chapter, description } = req.body;
 		try {
+			await this.#ownGroupOnly(req, chapter);
 			const updated = await Prisoner.addSupport(prisoner, chapter, description);
 			await audit(req, 'prisoner.support.add', 'prisoner', prisoner, { chapter, description });
 			this.#handleSuccess(res, { prisoner: updated, chapter });
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}
 	}
 
 	/** DELETE /prisoner/support { prisoner, chapter }: unlink a support group. */
-	async removeSupport(req, res) {
+	async removeSupport(req, res, next) {
 		const { prisoner, chapter } = req.body;
 		try {
+			await this.#ownGroupOnly(req, chapter);
 			const removed = await Prisoner.removeSupport(prisoner, chapter);
 			this.requireAffected(
 				removed,
@@ -136,6 +158,9 @@ export default class PrisonerController extends RouteController {
 			await audit(req, 'prisoner.support.remove', 'prisoner', prisoner, { chapter });
 			this.#handleSuccess(res, removed);
 		} catch (err) {
+			if (err && err.status === 403) {
+				return next(err);
+			}
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
 		}

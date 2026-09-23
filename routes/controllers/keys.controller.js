@@ -330,8 +330,11 @@ export default class KeysController extends RouteController {
 			}
 			// Recovery sets a new password, and may move the account to split at the
 			// same time; it never moves one back.
-			const scheme =
-				req.body.authScheme === undefined ? user.authScheme : authScheme.schemeFrom(req.body);
+			// The stored scheme unless the request says otherwise, and through schemeFrom
+			// either way, so that REQUIRE_SPLIT_AUTH is applied here too.
+			const scheme = authScheme.schemeFrom(
+				req.body.authScheme === undefined ? { authScheme: user.authScheme } : req.body
+			);
 			authScheme.refuseDowngrade(user.authScheme, scheme);
 			if (scheme === 'split') {
 				authScheme.checkPassword(scheme, password);
@@ -358,7 +361,11 @@ export default class KeysController extends RouteController {
 					recoveryChallengeExpiresAt: null
 				},
 				{
-					where: { id: user.id, recoveryChallengeHash: user.recoveryChallengeHash },
+					where: {
+						id: user.id,
+						recoveryChallengeHash: user.recoveryChallengeHash,
+						authScheme: user.authScheme
+					},
 					individualHooks: true
 				}
 			);

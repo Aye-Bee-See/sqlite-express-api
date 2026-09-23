@@ -532,10 +532,14 @@ export default class User extends Model {
 	 * @param {object} user fields to change, including `id`
 	 * @returns {Promise<[number]>} affected row count
 	 */
-	static async updateUser(user) {
+	static async updateUser(user, { expect = {} } = {}) {
 		// With individualHooks, Sequelize also returns the affected instances
-		// (password hash included); only ever hand back the count.
-		return await updateById(this, user.id, pick(user, UPDATABLE), { individualHooks: true });
+		// (password hash included); only ever hand back the count. `expect`: column
+		// values the row must still have, e.g. the authScheme the caller checked.
+		return await updateById(this, user.id, pick(user, UPDATABLE), {
+			individualHooks: true,
+			where: expect
+		});
 	}
 
 	static async banUser(userId) {

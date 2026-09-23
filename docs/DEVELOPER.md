@@ -696,7 +696,7 @@ A group's public numbers are counted. `Chapters.lettersCounted` goes up by one i
 
 ### End-to-end mode
 
-**A limit to keep in mind:** sign-in sends the password to the API (`authService` checks it with bcrypt), and the locking key for `wrappedPrivateKey` is derived from that same password. The stored data is safe; a server modified to record passwords is not defended against. The proposed fix (clients derive a sign-in value and a locking value from one Argon2id run and send only the first; the API adds a pre-sign-in endpoint for the salt and an `authScheme` flag) is a client contract change and is not built. Do not add wording anywhere that says the server "never sees a password".
+**Sign-in and the private key.** A `plain` account sends its password to the API, and the locking key for `wrappedPrivateKey` is derived from that same password, so a server modified to record passwords could read that account's letters. A `split` account (see the auth-scheme paragraph under Login) sends an auth key instead and keeps the wrap key on the device; that is the mode every new account should use, and `REQUIRE_SPLIT_AUTH` makes it the only one. What no API change removes: a web client runs whatever code its host serves, and the server sees who writes to whom and when.
 
 `crypto.isE2E()` switches the same code paths to browser-held keys:
 

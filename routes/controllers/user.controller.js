@@ -298,6 +298,7 @@ export default class UserController extends RouteController {
 			if (newUser.authScheme !== undefined && newUser.password === undefined) {
 				throw new ValidationError('authScheme travels with a new password, not on its own.');
 			}
+			let expect = {};
 			if (newUser.password !== undefined) {
 				// A split account never goes back, and a split password comes re-wrapped:
 				// the auth key and the wrap key are derived from the same new salt.
@@ -305,6 +306,8 @@ export default class UserController extends RouteController {
 				const scheme = authScheme.schemeFrom(newUser);
 				if (stored) {
 					authScheme.refuseDowngrade(stored.authScheme, scheme);
+					// The write holds only if the scheme is still the one just checked.
+					expect = { authScheme: stored.authScheme };
 				}
 				authScheme.checkPassword(scheme, newUser.password);
 				if (scheme === 'split') {
@@ -463,9 +466,17 @@ export default class UserController extends RouteController {
 				? await withGroupKeyLock(async () => {
 						const group = await Chapter.findByPk(sealedTo.chapterId);
 						KeysController.requireCurrentGroupKey(group, sealedTo.version);
-						return await User.updateUser(newUser);
+						return await User.updateUser(newUser, { expect });
 					})
-				: await User.updateUser(newUser);
+				: await User.updateUser(newUser, { expect });
+			if (!updatedRows[0] && newUser.password !== undefined && (await User.findByPk(newUser.id))) {
+				// The row is there and did not match: its scheme changed while this ran.
+				throw new HttpError(
+					409,
+					"This account's sign-in scheme changed while the password was being set; read it again.",
+					'AuthSchemeError'
+				);
+			}
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
 			if (custodyKeyed) {
 				// The group gave an unclaimed writer their first keys: the writer's
@@ -773,15 +784,21 @@ export default class UserController extends RouteController {
 	 * in: the account's scheme, and for a split account the salt and recipe its
 	 * auth key is derived from. Public. A username that has no account (or a
 	 * plain one, which has no salt) gets a stable made-up salt and the default
-	 * recipe, so that the answer never says whether an account exists.
+	 * recipe. With REQUIRE_SPLIT_AUTH on, every answer has the same shape, so it
+	 * never says whether an account exists; before that, a plain account is told
+	 * apart by its scheme, because it could not sign in otherwise.
 	 */
 	async loginParams(req, res) {
 		const username = typeof req.query.username === 'string' ? req.query.username : '';
 		try {
 			const user = username ? await User.getUserWithKeys({ username: username.trim() }) : null;
 			const split = Boolean(user && user.authScheme === 'split' && user.kdfSalt);
+			// While plain accounts are still made, the scheme has to be told apart (a
+			// plain account cannot sign in the split way). Once REQUIRE_SPLIT_AUTH is on,
+			// every answer is the same shape: the endpoint says nothing about anyone.
+			const plain = Boolean(user) && !split && !authScheme.requireSplitAuth;
 			this.#handleSuccess(res, {
-				scheme: split ? 'split' : user ? 'plain' : 'split',
+				scheme: plain ? 'plain' : 'split',
 				kdfSalt: split ? user.kdfSalt : authScheme.fakeSalt(username),
 				kdfParams: split ? user.kdfParams : authScheme.DEFAULT_KDF_PARAMS
 			});

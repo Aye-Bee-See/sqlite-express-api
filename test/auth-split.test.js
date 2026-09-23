@@ -275,3 +275,34 @@ test('the readiness report counts who still sends a password', async () => {
 	assert.ok(split >= 4, 'split ' + split);
 	assert.ok(plain >= 3, 'plain ' + plain);
 });
+
+test('an account that moves to split while a plain password is being set is not moved back', async () => {
+	await post('/auth/user', {
+		username: 'racer',
+		email: 'racer@example.com',
+		password: 'plain password one'
+	});
+	const session = await post('/auth/login', { username: 'racer', password: 'plain password one' });
+	const me = { token: session.body.data.token.token };
+	const id = session.body.data.user.id;
+	// Between this request's check (still plain) and its write, another device of
+	// the same person moves the account to split.
+	const update = User.update.bind(User);
+	let raced = false;
+	User.update = async (...args) => {
+		if (!raced) {
+			raced = true;
+			await update({ authScheme: 'split' }, { where: { id } });
+		}
+		return await update(...args);
+	};
+	let res;
+	try {
+		res = await put('/auth/user', { id, password: 'plain password two' }, me);
+	} finally {
+		User.update = update;
+	}
+	assert.equal(res.status, 409, JSON.stringify(res.body));
+	assert.equal(res.body.name, 'AuthSchemeError');
+	assert.equal((await User.findByPk(id)).authScheme, 'split', 'the invariant held');
+});

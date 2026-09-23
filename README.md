@@ -776,7 +776,7 @@ Public, rate limited like sign-in. `GET /auth/login-params?username=alice` retur
 }
 ```
 
-For a `split` account these are the account's own salt and recipe. For a username that has no account, and for a `plain` account (which has no auth salt), the salt is made up but **stable** (the same every time for that name, different for other names) and the recipe is the default, so the answer never says whether an account exists. `scheme` is `plain` only for accounts made before the split scheme; once every account has moved, every answer looks the same.
+For a `split` account these are the account's own salt and recipe. For a username that has no account, and for a `plain` account (which has no auth salt), the salt is made up but **stable** (the same every time for that name, different for other names) and the recipe is the default, so the answer never says whether an account exists. `scheme` is `plain` only for an account made before the split scheme, which cannot sign in any other way; **while such accounts are still being made, that is the one thing this endpoint reveals** about a username. With `REQUIRE_SPLIT_AUTH=true` every answer is `split`, whoever is asked about, and the endpoint says nothing about anyone. A plain account that still exists then (the bootstrap admin) signs in once by sending its password straight to `POST /auth/login`, which still accepts it, and moves to `split` with a password change; clients may keep a "sign in with password" path for exactly that.
 
 #### GET /auth/users
 

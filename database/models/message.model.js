@@ -168,12 +168,18 @@ export default class Message extends Model {
 	 * @param {{callerChapter?: number|null, changedBy?: number|null}} context
 	 */
 	static async createLetter(message, { callerChapter = null, changedBy = null, envelopes } = {}) {
+		const paper = Message.#paperFlag(message);
 		const relayChapter = await this.resolveRelayChapter(
 			message.prisoner,
 			message.relayChapter,
 			callerChapter
 		);
-		const status = initialStatusFor(message.sender);
+		if (paper && !relayChapter) {
+			throw new ValidationError(
+				'A paper letter is one a group mails: name the group that has it (relayChapter), or choose a facility with a relay group.'
+			);
+		}
+		const status = initialStatusFor(message.sender, { paper });
 		const resendOf = await this.#checkResend(message);
 		let clean = null;
 		if (crypto.isE2E()) {
@@ -195,6 +201,7 @@ export default class Message extends Model {
 		}
 		const created = await this.create({
 			...message,
+			paper,
 			resendOf,
 			relayChapter,
 			status,
@@ -211,6 +218,25 @@ export default class Message extends Model {
 			await this.destroy({ where: { id: created.id }, force: true }).catch(() => {});
 			throw err;
 		}
+	}
+
+	/**
+	 * `paper: true` on a letter the writer wrote by hand and a group will mail.
+	 * Only an outgoing letter can be one: a reply on paper is what every reply is.
+	 * @throws {ValidationError}
+	 */
+	static #paperFlag(message) {
+		const { paper } = message;
+		if (paper === undefined || paper === null || paper === false) {
+			return false;
+		}
+		if (paper !== true) {
+			throw new ValidationError('paper must be true or false.');
+		}
+		if (message.sender === 'prisoner') {
+			throw new ValidationError('paper is for outgoing letters; a reply is recorded as received.');
+		}
+		return true;
 	}
 
 	static async #finishLetter(created, clean, changedBy) {

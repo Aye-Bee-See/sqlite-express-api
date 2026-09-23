@@ -41,9 +41,15 @@ export const ADDRESS_RETURN_REASONS = ['transferred', 'released', 'bad_address']
 /** Statuses that end a letter's journey: what retention counts from, and may remove. */
 export const SETTLED_STATUSES = [MAILED, RECEIVED, RETURNED];
 
-/** The status a new message starts in, from its sender. */
-export function initialStatusFor(sender) {
-	return sender === 'prisoner' ? RECEIVED : QUEUED;
+/**
+ * The status a new message starts in, from its sender. A paper letter already
+ * exists on paper, so it skips the print queue and starts as `printed`.
+ */
+export function initialStatusFor(sender, { paper = false } = {}) {
+	if (sender === 'prisoner') {
+		return RECEIVED;
+	}
+	return paper ? PRINTED : QUEUED;
 }
 
 export function canTransition(from, to) {

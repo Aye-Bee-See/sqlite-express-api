@@ -1785,7 +1785,7 @@ Every message carries a `status`:
 | `received` | A prisoner reply, transcribed or scanned by a group               | The server, on every reply (`sender: prisoner`)             |
 | `returned` | The post brought it back. Carries `returnReason` and `returnNote` | `PUT /messaging/status` with a `reason`, from `mailed` only |
 
-Moves are forward only: `queued` to `printed` to `mailed`, and from `mailed` to `returned` if the letter comes back. Anything else, including moving a reply, is a `409` with `"name": "LetterStatusError"`. Every change is recorded: `statusChangedAt` and `statusChangedBy` on the message, and a history you can read with `full=true` on `GET /messaging/message`.
+A [paper letter](#paper-letters) starts as `printed`, since it already exists on paper. Moves are forward only: `queued` to `printed` to `mailed`, and from `mailed` to `returned` if the letter comes back. Anything else, including moving a reply, is a `409` with `"name": "LetterStatusError"`. Every change is recorded: `statusChangedAt` and `statusChangedBy` on the message, and a history you can read with `full=true` on `GET /messaging/message`.
 
 While a letter is `queued` its writer may still edit or delete it. Once printed, only an admin can. Replies stay editable by whoever can see them.
 
@@ -1849,6 +1849,7 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 | `relayNote`                             | string   | Optional instructions for the relay group (page count, language, "include the photo"). Never part of the letter.                                                                                                                                                                      |
 | `statusChangedAt`, `statusChangedBy`    |          | Read-only. When the status last changed and which account changed it.                                                                                                                                                                                                                 |
 | `keep`                                  | boolean  | Pinned: exempt from retention. The only field a writer may change on a mailed letter.                                                                                                                                                                                                 |
+| `paper`                                 | boolean  | On create only. `true` for a letter written by hand and handed to the relay group to mail; see [Paper letters](#paper-letters). Read-only afterwards.                                                                                                                                 |
 | `returnReason`                          | string   | Read-only. Why a `returned` letter came back; `null` otherwise. Set through `PUT /messaging/status`.                                                                                                                                                                                  |
 | `returnNote`                            | string   | Read-only. What the envelope said when the letter came back (the `note` given with the return, at most 200 characters, never encrypted); `null` otherwise. The same text is on the `returned` row of `status_history`; this copy saves reading the history for every returned letter. |
 | `heldReason`                            | string   | Read-only. Why a queued letter is held (`choose_relay`, `reseal_needed`, `prisoner_free`), or `null`. See [Moved and freed](#moved-and-freed).                                                                                                                                        |
@@ -1892,6 +1893,23 @@ Failure modes:
 - Missing `user` or `prisoner`: validation errors naming the missing fields.
 - A `user` or `prisoner` id that does not exist: `400`, `"name": "SequelizeForeignKeyConstraintError"`.
 - A `relayChapter` that does not relay for the facility, or a `relay_only` facility with no resolvable group: validation error (see [Letter lifecycle](#letter-lifecycle)).
+
+#### Paper letters
+
+Some people write by hand. A handwritten letter does not need the app to reach the post box, but it needs the app for one thing: when a reply arrives at the group's PO box, someone has to know whose it is, and there has to be a thread to put it in. A **paper letter** is a letter record with `"paper": true`, no body (or a short transcription, if someone types one), and an optional photo of the page as an attachment.
+
+- **Who logs one:** the writer ("I handed the group a letter for Noor"), or a group admin for a managed writer or under the group's anonymous writer, as for any letter. It is always an outgoing letter: `paper` with `sender: prisoner` is a `400`, because a reply on paper is what every reply already is.
+- **Somebody has to mail it:** the relay group resolves as for any letter and must resolve; a facility with no relay group, or one whose relay group is ambiguous, is a `400` asking for `relayChapter`. Letters a writer posts themselves, under their own return address, are not logged: the system never touched them and no reply comes back through it.
+- **It starts as `printed`** (history row `null` to `printed`), so it never appears in the print queue (`status=queued`) and shows in the pile to be mailed (`status=printed`) with `paper: true`, so the group knows there is nothing to print. It goes out when the group marks the night's batch `mailed`, counts toward the group's numbers then, and can be `returned` like any letter.
+- **The group is told** with the usual `letter.queued` feed event, carrying `detail: { "paper": true }`.
+- **The photo** is an ordinary attachment. Because the letter is `printed` from the start, its files stay changeable by the writer and the group until it is `mailed`. In end-to-end mode the letter still carries `ciphertext` and `nonce` (of an empty string, if there is nothing to say) and `envelopes`, because the content key they seal is what the photo is encrypted with.
+- A writer cannot edit or delete a paper letter (it is `printed`), and `paper` cannot be changed on an edit. The `Idempotency-Key` fingerprint includes `paper`, so a typed letter and a paper letter to the same person under one key are two requests.
+
+```bash
+curl -s -X POST http://localhost:3000/messaging/message \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"sender":"user","prisoner":1,"paper":true}'
+```
 
 #### GET /messaging/messages
 
@@ -2005,7 +2023,7 @@ Body: `{"id": 41}`. Returns `"data": 1`. The same people as an edit. Once a lett
 
 A message can carry files: a scan of a prisoner's reply, a photo enclosed with a letter, a PDF to print. Accepted types are `application/pdf`, `image/jpeg`, `image/png`, and `image/webp`; the server checks the file's leading bytes against the declared type and refuses a mismatch. One upload is limited to `UPLOAD_MAX_BYTES` (default 20 MiB).
 
-Attachments follow the message's scope: whoever can read the message can list and download them, and whoever can edit it can add or delete them. Once a letter is `printed` or `mailed`, only an admin can add or remove its files; downloading still works.
+Attachments follow the message's scope: whoever can read the message can list and download them, and whoever can edit it can add or delete them. Once a letter is `printed` or `mailed`, only an admin can add or remove its files; downloading still works. The exception is a [paper letter](#paper-letters), which starts as `printed`: its files stay changeable by the writer and the group until it is `mailed`, so the photo of the page can follow the record.
 
 Every attachment row looks like:
 

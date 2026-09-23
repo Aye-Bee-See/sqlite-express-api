@@ -865,3 +865,24 @@ test('an Idempotency-Key retry that was encrypted afresh is still the same lette
 	);
 	assert.equal(elsewhere.status, 422, 'the same key for a different prisoner is refused');
 });
+
+test('in end-to-end mode a split account is made with its keys: the salt and recipe alone are refused', async () => {
+	const keys = client.splitKeys('a long enough password', 'RECOVERY-CODE');
+	const bare = await post('/auth/user', {
+		username: 'saltonly',
+		email: 'saltonly@example.com',
+		password: keys.authKey,
+		authScheme: 'split',
+		kdfSalt: keys.fields.kdfSalt,
+		kdfParams: keys.fields.kdfParams
+	});
+	assert.equal(bare.status, 400, JSON.stringify(bare.body));
+	assert.match(bare.body.errors[0], /end-to-end mode an account is made with its keys/);
+	const whole = await post('/auth/user', {
+		username: 'saltonly',
+		email: 'saltonly@example.com',
+		password: keys.authKey,
+		...keys.fields
+	});
+	assert.equal(whole.status, 201, JSON.stringify(whole.body));
+});

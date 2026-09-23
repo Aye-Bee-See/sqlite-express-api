@@ -104,15 +104,24 @@ export default class KeysController extends RouteController {
 				'recoveryWrappedPrivateKey, recoverySalt, and recoveryKdfParams go together.'
 			);
 		}
-		if (newAccount && (out.publicKey !== undefined || out.wrappedPrivateKey !== undefined)) {
-			// A new account has all of its first keys or none. A public key alone is one
-			// nobody can use the private half of, and letters sealed to it are lost.
+		// A new account has all of its first keys or none. A public key alone is one
+		// nobody can use the private half of, and letters sealed to it are lost. In
+		// end-to-end mode the salt and recipe alone are not enough either: an
+		// account there is made with its keys, on the device, at sign-up.
+		const startsKeys =
+			out.publicKey !== undefined ||
+			out.wrappedPrivateKey !== undefined ||
+			(crypto.isE2E() && out.kdfSalt !== undefined);
+		if (newAccount && startsKeys) {
 			const missing = [...wrapped, 'publicKey'].filter((f) => out[f] === undefined);
 			if (missing.length > 0) {
 				throw new ValidationError(
 					'Send publicKey, wrappedPrivateKey, kdfSalt, and kdfParams together (missing: ' +
 						missing.join(', ') +
-						').'
+						')' +
+						(crypto.isE2E() && out.wrappedPrivateKey === undefined
+							? '. In end-to-end mode an account is made with its keys.'
+							: '.')
 				);
 			}
 		}

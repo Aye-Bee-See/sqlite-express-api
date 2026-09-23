@@ -1959,7 +1959,7 @@ The API issues the number (`replyReference` on the message) and supplies what th
 ```
 
 - `name` is the writer's pen name, else their `name`; `null` with `anonymous: true` for the group's shared anonymous writer (the footer then names the group only). `careOf` is the relay group whose address the reply comes to.
-- `reference` is `null` when the facility carries the mail rule **`no_reference_numbers`** (its mail room refuses unexplained numbers): the footer then says the name and "c/o [group]" only. The number still exists on the letter.
+- `reference` is `null` when the facility carries the mail rule **`no_reference_numbers`** (its mail room refuses unexplained numbers): the footer then says the name and "c/o" the group only. The number still exists on the letter.
 - `replySheetAllowed` is `true` only when the facility carries **`reply_sheet_allowed`**: a blank reply sheet with the return address and the reference may be enclosed. Off everywhere else, since many facilities refuse blank paper, and it counts against `pageLimit`.
 
 A suggested footer, to be agreed once for all clients and read by a group that knows a strict facility: _"Write back to James Hollow, c/o PDX ABC. Reference 4827-1935-6: please write this number at the top of your reply."_

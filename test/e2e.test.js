@@ -780,7 +780,8 @@ test('group key bootstrap needs a keyed first member, and the last holder stays'
 	assert.match(res.body.error, /no public key yet/);
 	assert.equal((await Chapter.findByPk(bareGroup.id)).publicKey, null, 'nothing half-set');
 
-	const last = await del('/auth/member-key', { chapter: f.group.id, user: member.id }, admin);
+	// The group-owner admin (the member set the key) taking their own, last, copy away.
+	const last = await del('/auth/member-key', { chapter: f.group.id, user: member.id }, member);
 	assert.equal(last.status, 409);
 	assert.match(last.body.error, /last holder/);
 	assert.ok(

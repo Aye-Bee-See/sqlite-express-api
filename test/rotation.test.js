@@ -537,10 +537,12 @@ test('a group-sealed writer key cannot straddle a rotation', async () => {
 test('two rotations from the same material: one wins', async () => {
 	const material = (await get('/auth/chapter-rotation?chapter=' + f.group.id, first)).body.data;
 	const a = reseal(material, newGroup, client.keypair(), [first.id, second.id]);
-	const b = reseal(material, newGroup, client.keypair(), [second.id]);
+	// Both keep the owner: whichever wins, the tests after this need an owner who holds the key.
+	const b = reseal(material, newGroup, client.keypair(), [first.id, leaver.id]);
 	const results = await Promise.all([
+		// Only the group-owner admin rotates: the same owner, from two devices, from the same material.
 		post('/auth/chapter-rotation', a, first),
-		post('/auth/chapter-rotation', b, second)
+		post('/auth/chapter-rotation', b, first)
 	]);
 	assert.deepEqual(
 		results.map((r) => r.status).sort(),
@@ -557,17 +559,14 @@ test('two rotations from the same material: one wins', async () => {
 
 test('the last holder cannot be removed, and the refusal points at rotation', async () => {
 	const holders = await OrgMemberKey.findAll({ where: { chapterId: f.group.id } });
-	for (const h of holders.slice(1)) {
+	// The group-owner admin (first) removes every other copy, then tries their own.
+	for (const h of holders.filter((h) => h.userId !== first.id)) {
 		assert.equal(
-			(await del('/auth/member-key', { chapter: f.group.id, user: h.userId }, admin)).status,
+			(await del('/auth/member-key', { chapter: f.group.id, user: h.userId }, first)).status,
 			200
 		);
 	}
-	const last = await del(
-		'/auth/member-key',
-		{ chapter: f.group.id, user: holders[0].userId },
-		admin
-	);
+	const last = await del('/auth/member-key', { chapter: f.group.id, user: first.id }, first);
 	assert.equal(last.status, 409);
 	assert.match(last.body.error, /chapter-rotation/);
 });
@@ -577,7 +576,7 @@ test('two removals at once cannot leave the group without a holder', async () =>
 		const res = await put(
 			'/auth/member-key',
 			{ chapter: f.group.id, user: who.id, wrappedOrgPrivateKey: 'sealed' },
-			admin
+			first
 		);
 		assert.equal(res.status, 200, JSON.stringify(res.body));
 	}
@@ -587,7 +586,7 @@ test('two removals at once cannot leave the group without a holder', async () =>
 	assert.equal(await OrgMemberKey.count({ where: { chapterId: f.group.id } }), 2);
 	const results = await Promise.all(
 		[first, second].map((who) =>
-			del('/auth/member-key', { chapter: f.group.id, user: who.id }, admin)
+			del('/auth/member-key', { chapter: f.group.id, user: who.id }, first)
 		)
 	);
 	assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);

@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import User from '#models/user.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
@@ -478,6 +479,35 @@ export default class UserController extends RouteController {
 				);
 			}
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
+			if (newUser.chapterId !== undefined || newUser.role !== undefined) {
+				// An account moved out of its chapter, or no longer a group admin, owns
+				// nothing; the chapters it owned are told, like every other change of owner.
+				const demoted = newUser.role !== undefined && newUser.role !== 'chapter';
+				const leaving = await Chapter.findAll({
+					where: {
+						ownerId: newUser.id,
+						...(newUser.chapterId !== undefined && !demoted
+							? { id: { [Op.ne]: newUser.chapterId ?? -1 } }
+							: {})
+					},
+					attributes: ['id']
+				});
+				for (const chapter of leaving) {
+					if (await Chapter.setOwner(chapter.id, null, newUser.id)) {
+						await KeysController.tellGroup(
+							chapter.id,
+							{
+								event: 'group.owner',
+								detail: { owner: null, previous: newUser.id, by: 'superadmin' }
+							},
+							null
+						);
+					}
+				}
+				if (newUser.chapterId) {
+					await KeysController.noteWaiting(newUser.id, { actor: req.user.id });
+				}
+			}
 			if (custodyKeyed) {
 				// The group gave an unclaimed writer their first keys: the writer's
 				// server-held letters can be sealed to them now.

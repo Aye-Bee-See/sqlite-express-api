@@ -320,6 +320,12 @@ export default class InvitationController extends RouteController {
 				acceptedUser: createdUser.id,
 				createdChapter: createdGroup ? createdGroup.id : null
 			});
+			if (createdGroup) {
+				// The founding group admin of a new chapter is its group-owner admin.
+				await Chapter.setOwner(createdGroup.id, createdUser.id, null);
+			} else {
+				await KeysController.noteWaiting(createdUser.id, { actor: createdUser.id });
+			}
 			const user = (await User.findByPk(createdUser.id)).toJSON();
 			delete user.managerNote;
 			// Last, once nothing else can fail: the log should not describe an acceptance that was undone.

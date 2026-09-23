@@ -86,6 +86,10 @@ const chapterSchema = {
 	vouchedBy: {
 		type: DataTypes.INTEGER
 	},
+	/** The group-owner admin: the one account that manages who holds the chapter key. Set by the API, never by a client field. */
+	ownerId: {
+		type: DataTypes.INTEGER
+	},
 	/** @deprecated superseded by the PrisonerSupport relation; kept for compatibility */
 	prisoners: {
 		type: DataTypes.JSON

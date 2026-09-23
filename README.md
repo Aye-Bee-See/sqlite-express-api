@@ -684,34 +684,35 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 ### Users
 
-| Method | Path                         | Auth                  | Purpose                                                                                       |
-| ------ | ---------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
-| POST   | `/auth/user`                 | Public                | Register (role `user`); admins may set other roles                                            |
-| POST   | `/auth/login`                | Public                | Log in and receive a token                                                                    |
-| POST   | `/auth/logout`               | Any                   | End this token, or every token for the account with `{"everywhere": true}`                    |
-| POST   | `/auth/revoke`               | Admin                 | End every token for an account without banning it                                             |
-| GET    | `/auth/users`                | Admin                 | List users, optionally by role                                                                |
-| GET    | `/auth/user`                 | Self or admin         | Get one user by id, email, or username; a group may read its unclaimed writers                |
-| PUT    | `/auth/user`                 | Self or admin         | Update a user; a group may edit its unclaimed writers' name, email, note                      |
-| DELETE | `/auth/user`                 | Self or admin         | Delete a user; a group may delete its unclaimed writers                                       |
-| POST   | `/auth/writer`               | Group                 | Create a managed writer under the caller's group                                              |
-| GET    | `/auth/writers`              | Group                 | List the group's managed writers (admins: all, or `?chapter=`)                                |
-| POST   | `/auth/writer/token`         | Group                 | Generate or regenerate a writer's claim token                                                 |
-| DELETE | `/auth/writer/token`         | Group                 | Revoke a writer's claim token                                                                 |
-| GET    | `/auth/claim`                | Public                | Check a claim token                                                                           |
-| POST   | `/auth/claim`                | Public                | Claim a managed account                                                                       |
-| GET    | `/auth/keys`                 | Any                   | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
-| PUT    | `/auth/keys`                 | Any                   | Set the public key once; re-wrap the private key (password change, recovery code)             |
-| GET    | `/auth/public-key`           | Any                   | A user's or group's public key, to seal an envelope to                                        |
-| GET    | `/auth/recover`              | Public                | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
-| POST   | `/auth/recover`              | Public                | Finish recovery with the opened challenge and a re-wrapped key                                |
-| PUT    | `/auth/chapter-keys`         | Group member or admin | Give a group its keypair (once) and the first member the wrapped group key                    |
-| PUT    | `/auth/member-key`           | Key holder or admin   | Hand the wrapped group key to a member                                                        |
-| DELETE | `/auth/member-key`           | Key holder or admin   | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
-| GET    | `/auth/member-keys`          | Group member or admin | Which members hold the group key                                                              |
-| GET    | `/auth/chapter-rotation`     | Key holder            | Everything sealed to the group key, for re-sealing                                            |
-| POST   | `/auth/chapter-rotation`     | Key holder            | Replace the group keypair; members left out lose access                                       |
-| GET    | `/auth/encryption-readiness` | Admin                 | Who still has to set up keys, and whether the switch to e2e can go ahead                      |
+| Method | Path                         | Auth                                          | Purpose                                                                                       |
+| ------ | ---------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| POST   | `/auth/user`                 | Public                                        | Register (role `user`); admins may set other roles                                            |
+| POST   | `/auth/login`                | Public                                        | Log in and receive a token                                                                    |
+| POST   | `/auth/logout`               | Any                                           | End this token, or every token for the account with `{"everywhere": true}`                    |
+| POST   | `/auth/revoke`               | Admin                                         | End every token for an account without banning it                                             |
+| GET    | `/auth/users`                | Admin                                         | List users, optionally by role                                                                |
+| GET    | `/auth/user`                 | Self or admin                                 | Get one user by id, email, or username; a group may read its unclaimed writers                |
+| PUT    | `/auth/user`                 | Self or admin                                 | Update a user; a group may edit its unclaimed writers' name, email, note                      |
+| DELETE | `/auth/user`                 | Self or admin                                 | Delete a user; a group may delete its unclaimed writers                                       |
+| POST   | `/auth/writer`               | Group                                         | Create a managed writer under the caller's group                                              |
+| GET    | `/auth/writers`              | Group                                         | List the group's managed writers (admins: all, or `?chapter=`)                                |
+| POST   | `/auth/writer/token`         | Group                                         | Generate or regenerate a writer's claim token                                                 |
+| DELETE | `/auth/writer/token`         | Group                                         | Revoke a writer's claim token                                                                 |
+| GET    | `/auth/claim`                | Public                                        | Check a claim token                                                                           |
+| POST   | `/auth/claim`                | Public                                        | Claim a managed account                                                                       |
+| GET    | `/auth/keys`                 | Any                                           | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
+| PUT    | `/auth/keys`                 | Any                                           | Set the public key once; re-wrap the private key (password change, recovery code)             |
+| GET    | `/auth/public-key`           | Any                                           | A user's or group's public key, to seal an envelope to                                        |
+| GET    | `/auth/recover`              | Public                                        | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
+| POST   | `/auth/recover`              | Public                                        | Finish recovery with the opened challenge and a re-wrapped key                                |
+| PUT    | `/auth/chapter-keys`         | Group admin of the chapter (not a superadmin) | Give a group its keypair (once) and the first member the wrapped group key                    |
+| PUT    | `/auth/member-key`           | Group-owner admin only                        | Hand the wrapped group key to a member                                                        |
+| PUT    | `/auth/chapter-owner`        | Group-owner admin, or superadmin              | Make another group admin the chapter's group-owner admin                                      |
+| DELETE | `/auth/member-key`           | Group-owner admin only                        | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
+| GET    | `/auth/member-keys`          | Group member or admin                         | Which members hold the group key                                                              |
+| GET    | `/auth/chapter-rotation`     | Group-owner admin, holding the key            | Everything sealed to the group key, for re-sealing                                            |
+| POST   | `/auth/chapter-rotation`     | Group-owner admin, holding the key            | Replace the group keypair; members left out lose access                                       |
+| GET    | `/auth/encryption-readiness` | Admin                                         | Who still has to set up keys, and whether the switch to e2e can go ahead                      |
 
 #### User fields
 
@@ -1029,9 +1030,21 @@ User records never carry wrapped keys; only `publicKey` is visible, and `GET /au
 
 #### Group keys
 
-A group's first member calls `PUT /auth/chapter-keys` with the group's new `publicKey` and the group private key sealed to their own public key (`wrappedOrgPrivateKey`); an admin may do it naming the member with `user`. From then on any member holding the group key hands it to another member with `PUT /auth/member-key` (sealing it to that member's public key; send `keyVersion`, the version of the group key you wrapped, and a copy of a key that was rotated away meanwhile is refused with `409` instead of stored). The group key is only ever handed to `chapter`-role accounts of that group. `DELETE /auth/member-key` stops the hand-out but cannot revoke a key a member already opened, and the last holder cannot be removed; rotation (below) does both. The first member must already have a public key of their own. `GET /auth/member-keys?chapter=` lists who holds it. A member reads letters addressed to the group by opening `orgKey.wrappedOrgPrivateKey` from their bundle, then the group's envelope.
+Three kinds of account touch a chapter's key, and the words are chosen to say how much each carries:
+
+| Account               | Role string                             | May                                                                                                                                                                                                                                  |
+| --------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **superadmin**        | `admin`                                 | Run the site: approve chapters, moderate, move ownership (below). Holds no chapter key, reads no letters, and **cannot create a chapter's key**.                                                                                     |
+| **group-owner admin** | `chapter`, and `ownerId` on the chapter | Exactly one per chapter. Hands the chapter key to group admins (`PUT /auth/member-key`), takes it away (`DELETE /auth/member-key`), rotates it (`POST /auth/chapter-rotation`), and passes ownership on (`PUT /auth/chapter-owner`). |
+| **group admin**       | `chapter`                               | Works the queue, records replies, logs paper letters. Holds the key if handed it; manages nobody.                                                                                                                                    |
+
+A chapter's first group admin calls `PUT /auth/chapter-keys` with the chapter's new `publicKey` and the chapter private key sealed to their own public key (`wrappedOrgPrivateKey`), on their own device, and becomes the group-owner admin if the chapter has none. A superadmin cannot: whoever makes a key knows it. From then on the group-owner admin hands the chapter key to another group admin with `PUT /auth/member-key` (sealing it to that member's public key; send `keyVersion`, the version of the group key you wrapped, and a copy of a key that was rotated away meanwhile is refused with `409` instead of stored). The chapter key is only ever handed to `chapter`-role accounts of that chapter, and only by its owner. `DELETE /auth/member-key` stops the hand-out but cannot revoke a key a member already opened, and the last holder cannot be removed; rotation (below) does both. The first member must already have a public key of their own. `GET /auth/member-keys?chapter=` lists who holds it. A member reads letters addressed to the group by opening `orgKey.wrappedOrgPrivateKey` from their bundle, then the group's envelope.
 
 Every group key has a version: `keyVersion` is `0` until the group has keys, `1` after set-up, and one more after each rotation. `GET /auth/public-key?chapter=` returns it beside the key, and so do the member's bundle (`orgKey.keyVersion`) and `GET /auth/member-keys` (with `keyRotatedAt`). The server cannot look inside a sealed box, so anything sealed to a group names the version it was sealed to: `keyVersion` on a group envelope, `orgKeyVersion` beside a writer's `orgWrappedPrivateKey`. A missing version is a `400`; a version the group has rotated away is a `409` named `KeyVersionError`, and the client fetches the public key again, re-seals, and retries. A group with no keys cannot be sealed to (`400`).
+
+**Ownership.** `PUT /auth/chapter-owner {"chapter": 1, "user": 7}` makes another group admin of the chapter its group-owner admin. The owner may (and stops being owner); a superadmin may too, at any time, which is the way out of a rogue or vanished owner. It gives no access to letters: the new owner holds the key only if it was, or is, handed to them (`holdsGroupKey` in the answer says). Two transfers at once cannot both succeed (`409 OwnerError`). A group-owner admin cannot delete their account while the chapter has other group admins (`409 AccountDeleteError`: hand ownership on first), and an owner moved out of the chapter or made a writer owns it no more. A chapter that joins by invitation gets its founder as owner. `ownerId` is on every chapter record; `GET /auth/member-keys` returns `owner` and `waiting` (group admins who have their own keys and are still to be handed the chapter's); the key bundle's `orgKey` carries `owner` and `isOwner`.
+
+**Every group admin is told of every change** (content-free push and the feed, like everything else): `group.key` with `detail.action` `set`, `handed`, `removed`, or `rotated` (and `member` or `keyVersion`); `group.owner` with the new `owner`, the `previous` one, and `by` (`owner`, `superadmin`, or `first key`); `group.waiting` with the `member` who has keys of their own and is waiting for the chapter's. The actor is never told of their own action; a group admin whose copy is removed is told.
 
 #### Rotating a group key
 
@@ -2240,6 +2253,9 @@ curl -s 'http://localhost:3000/auth/notifications?since=41' -H "Authorization: B
 | `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }`                                                                                                         |
 | `prisoner.moved`     | Everyone with a thread to a prisoner whose facility changed             | `{ "prisoner": 12, "prison": 7, "held": 0 }` (`held`: how many of their queued letters to this person are waiting for them now, whenever they were held) |
 | `prisoner.status`    | The same people, when the prisoner's status becomes `free`              | `{ "prisoner": 12, "status": "free", "held": 2 }`                                                                                                        |
+| `group.key`          | Every group admin of a chapter (the actor excepted)                     | `{ "action": "handed", "member": 7 }` (`set`, `handed`, `removed` with `member`; `rotated` with `keyVersion`)                                            |
+| `group.owner`        | Every group admin of a chapter                                          | `{ "owner": 7, "previous": 2, "by": "owner" }` (`by` also `superadmin` or `first key`)                                                                   |
+| `group.waiting`      | Every group admin of a chapter                                          | `{ "member": 9 }`: a group admin with keys of their own is waiting for the chapter's                                                                     |
 
 The account that did the thing is never told about it, and accounts nobody can sign in to (unclaimed and anonymous writers, banned accounts) are skipped.
 

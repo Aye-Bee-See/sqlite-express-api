@@ -43,6 +43,21 @@ export async function eraseRefusal(user) {
 			'AccountDeleteError'
 		);
 	}
+	const owned = await Chapter.findAll({ where: { ownerId: user.id }, attributes: ['id', 'name'] });
+	for (const group of owned) {
+		const others = await User.count({
+			where: { chapterId: group.id, role: 'chapter', id: { [Op.ne]: user.id } }
+		});
+		if (others > 0) {
+			return new HttpError(
+				409,
+				'This account is the group-owner admin of ' +
+					group.name +
+					'. Hand ownership to another group admin first (PUT /auth/chapter-owner).',
+				'AccountDeleteError'
+			);
+		}
+	}
 	const held = await OrgMemberKey.findAll({ where: { userId: user.id } });
 	for (const row of held) {
 		const others = await OrgMemberKey.count({

@@ -70,7 +70,7 @@ const commands = {
 		// 'wx': never write over a key that may be the only one that opens a year of backups.
 		await writeFile(
 			out,
-			'# Aye Bee See backup PRIVATE key ' +
+			'# letters.support backup PRIVATE key ' +
 				id +
 				'. It opens every backup made for it.\n' +
 				'# Keep it off the server. Keep a second copy somewhere else. Without it the backups are noise.\n' +

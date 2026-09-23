@@ -1,4 +1,4 @@
-# Aye Bee See API: Developer Guide
+# letters.support API: Developer Guide
 
 This guide is for people changing the code in this repository. It explains how the service is put together, how a request travels through it, how authentication and authorization work, how the data layer is wired, what tooling is in place, and what is still open. If you only want to call the API, read the [README](../README.md) instead.
 
@@ -29,7 +29,7 @@ It describes `main` after pull requests #60 and #61 (September 2026). Line refer
 
 ## What this service is
 
-Aye Bee See lets people send physical letters to incarcerated people from a phone or browser. The user writes a message; a partner non-profit chapter prints it and mails it; replies are transcribed back into the same thread. This repository is the API that the front end (expected at `http://localhost:3001` in development) talks to. It owns:
+letters.support (formerly Aye Bee See; the GitHub organisation keeps that name) lets people send physical letters to incarcerated people from a phone or browser. The user writes a message; a partner non-profit chapter prints it and mails it; replies are transcribed back into the same thread. This repository is the API that the front end (expected at `http://localhost:3001` in development) talks to. It owns:
 
 - **Users** (outside correspondents, chapter accounts, admins) and login.
 - **Prisons**, each with its mail rules: links to a master list kept in the database, plus typed limits (see [Mail rules](#mail-rules)).

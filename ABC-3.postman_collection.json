@@ -2922,6 +2922,29 @@
 					"response": []
 				},
 				{
+					"name": "Pass Chapter Ownership To Another Group Admin (owner or superadmin)",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/chapter-owner",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "chapter-owner"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"chapter\": 1,\n  \"user\": 7\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "Makes another group admin of the chapter its group-owner admin. Gives no access to letters: hand the key with PUT /auth/member-key too. Every group admin is told."
+					}
+				},
+				{
 					"name": "Take Group Key Back",
 					"request": {
 						"method": "DELETE",

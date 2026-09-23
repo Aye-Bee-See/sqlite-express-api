@@ -40,7 +40,8 @@ const endpoints = {
 		put: {
 			update: '/keys',
 			chapterKeys: '/chapter-keys',
-			putMemberKey: '/member-key'
+			putMemberKey: '/member-key',
+			chapterOwner: '/chapter-owner'
 		},
 		delete: {
 			remove: '/member-key'
@@ -503,6 +504,10 @@ const messages = {
 			putMemberKey: {
 				success: { condition: { par: 'Member key saved.' } },
 				error: { condition: { par: 'Error saving member key.' } }
+			},
+			chapterOwner: {
+				success: { condition: { par: 'Group-owner admin changed.' } },
+				error: { condition: { par: 'Error changing the group-owner admin.' } }
 			}
 		},
 		delete: {

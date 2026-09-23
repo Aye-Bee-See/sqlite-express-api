@@ -55,6 +55,12 @@ class KeysRoutes {
 			activeStaff,
 			this.#Controller.putMemberKey
 		);
+		this.Router.put(
+			keysEnd.put.chapterOwner,
+			authenticate,
+			activeStaff,
+			this.#Controller.chapterOwner
+		);
 		this.Router.delete(keysEnd.delete.remove, authenticate, activeStaff, this.#Controller.remove);
 		this.Router.get(keysEnd.get.many, authenticate, activeStaff, this.#Controller.getMany);
 		this.Router.get(

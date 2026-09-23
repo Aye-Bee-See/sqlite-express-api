@@ -44,22 +44,42 @@ before(async () => {
 });
 after(stopServer);
 
-test("the last holder of a group's key cannot delete their account until someone else holds it", async () => {
+test('a group-owner admin hands ownership on, and the last key holder hands the key on, before either can leave', async () => {
+	// The owner of a chapter with other group admins cannot leave first.
+	const owner = await del('/auth/user', { id: holder.id, password: holder.password }, holder);
+	assert.equal(owner.status, 409, JSON.stringify(owner.body));
+	assert.equal(owner.body.name, 'AccountDeleteError');
+	assert.match(owner.body.error, /group-owner admin/);
+
+	const transfer = await put(
+		'/auth/chapter-owner',
+		{ chapter: f.group.id, user: second.id },
+		holder
+	);
+	assert.equal(transfer.status, 200, JSON.stringify(transfer.body));
+	assert.deepEqual(
+		[transfer.body.data.owner, transfer.body.data.holdsGroupKey],
+		[second.id, false]
+	);
+
+	// No longer the owner, still the only one who can open the chapter's key.
 	const stuck = await del('/auth/user', { id: holder.id, password: holder.password }, holder);
 	assert.equal(stuck.status, 409, JSON.stringify(stuck.body));
-	assert.equal(stuck.body.name, 'AccountDeleteError');
 	assert.match(stuck.body.error, /last holder/);
 	assert.equal(await User.count({ where: { id: holder.id } }), 1);
 
+	// Only the owner hands keys now, so the old owner cannot; the new owner does.
+	const wrapped = client.seal(second.keys.fields.publicKey, bytes(groupKeys.privateKey));
+	const byOldOwner = await put(
+		'/auth/member-key',
+		{ chapter: f.group.id, user: second.id, keyVersion: 1, wrappedOrgPrivateKey: wrapped },
+		holder
+	);
+	assert.equal(byOldOwner.status, 403);
 	const handed = await put(
 		'/auth/member-key',
-		{
-			chapter: f.group.id,
-			user: second.id,
-			keyVersion: 1,
-			wrappedOrgPrivateKey: client.seal(second.keys.fields.publicKey, bytes(groupKeys.privateKey))
-		},
-		holder
+		{ chapter: f.group.id, user: second.id, keyVersion: 1, wrappedOrgPrivateKey: wrapped },
+		second
 	);
 	assert.equal(handed.status, 200, JSON.stringify(handed.body));
 
@@ -74,6 +94,8 @@ test("the last holder of a group's key cannot delete their account until someone
 		[200, 409],
 		JSON.stringify(results.map((r) => r.body))
 	);
+	// The old owner left; the new owner, with other group admins gone, could leave too now.
+	assert.equal(await User.count({ where: { id: holder.id } }), 0);
 	assert.equal(
 		await OrgMemberKey.count({ where: { chapterId: f.group.id } }),
 		1,

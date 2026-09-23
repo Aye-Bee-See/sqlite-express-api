@@ -13,6 +13,7 @@ import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
 import { inTransaction } from '#services/serial.js';
 import { catchUpReader } from '#db/rewrap-e2e.js';
 import * as authScheme from '#services/auth-scheme.js';
+import { notify } from '#rtServices/notify.services.js';
 
 /** How long a recovery challenge stays valid. */
 const RECOVERY_CHALLENGE_MS = 10 * 60 * 1000;
@@ -33,6 +34,7 @@ export default class KeysController extends RouteController {
 		this.create = this.create.bind(this);
 		this.chapterKeys = this.chapterKeys.bind(this);
 		this.putMemberKey = this.putMemberKey.bind(this);
+		this.chapterOwner = this.chapterOwner.bind(this);
 		this.remove = this.remove.bind(this);
 		this.getMany = this.getMany.bind(this);
 		this.rotationMaterial = this.rotationMaterial.bind(this);
@@ -136,7 +138,7 @@ export default class KeysController extends RouteController {
 		if (user.chapterId && user.role === 'chapter') {
 			const [chapter, memberKey] = await Promise.all([
 				Chapter.findByPk(user.chapterId, {
-					attributes: ['id', 'name', 'publicKey', 'keyVersion']
+					attributes: ['id', 'name', 'publicKey', 'keyVersion', 'ownerId']
 				}),
 				OrgMemberKey.forMember(user.chapterId, user.id)
 			]);
@@ -146,7 +148,9 @@ export default class KeysController extends RouteController {
 					chapterName: chapter.name,
 					chapterPublicKey: chapter.publicKey,
 					keyVersion: chapter.keyVersion,
-					wrappedOrgPrivateKey: memberKey ? memberKey.wrappedOrgPrivateKey : null
+					wrappedOrgPrivateKey: memberKey ? memberKey.wrappedOrgPrivateKey : null,
+					owner: chapter.ownerId,
+					isOwner: chapter.ownerId !== null && chapter.ownerId === user.id
 				};
 			}
 		}
@@ -236,6 +240,8 @@ export default class KeysController extends RouteController {
 			if (becameUsable) {
 				// Letters the server still holds a key for become theirs now.
 				bundle.caughtUp = await KeysController.catchUp('user', req.user.id);
+				// A group admin who can now open a key, and has none of the chapter's.
+				bundle.waitingForGroupKey = await KeysController.noteWaiting(req.user.id);
 			}
 			this.#handleSuccess(res, bundle);
 		} catch (err) {
@@ -384,15 +390,54 @@ export default class KeysController extends RouteController {
 		}
 	}
 
-	/** May this caller manage the group's keys: an admin, or a member holding a wrapped group key. */
-	async #keyHolder(req, chapterId) {
-		if (AuthzService.isAdmin(req)) {
-			return true;
+	/**
+	 * May this caller manage who holds the chapter key? Only the chapter's
+	 * group-owner admin. Not a superadmin (holds no key; could read nothing and
+	 * so can hand out nothing), and not another group admin.
+	 * @throws {Error} 403
+	 */
+	async #requireOwner(req, chapter) {
+		const isOwner =
+			String(AuthzService.chapterOf(req)) === String(chapter.id) &&
+			chapter.ownerId !== null &&
+			String(chapter.ownerId) === String(req.user.id);
+		if (!isOwner) {
+			throw AuthzService.forbidden(
+				'Only the group-owner admin of this chapter can hand its key to a group admin, take it away, or rotate it.' +
+					(chapter.ownerId
+						? ''
+						: ' This chapter has no group-owner admin yet: the first group admin to set its keys becomes one.')
+			);
 		}
-		if (String(AuthzService.chapterOf(req)) !== String(chapterId)) {
+	}
+
+	/** Tell every group admin of the chapter (the actor excepted, as always). */
+	static async tellGroup(chapterId, what, actor) {
+		await notify(await Chapter.groupAdminIds(chapterId), { ...what }, { actor });
+	}
+
+	/**
+	 * A group admin who has their own keys and has not been handed the chapter's
+	 * is waiting on the group-owner admin, and nobody would know: say so to the
+	 * whole chapter, once, when it becomes true.
+	 */
+	static async noteWaiting(userId) {
+		const user = await User.findByPk(userId, {
+			attributes: ['id', 'role', 'chapterId', 'publicKey']
+		});
+		if (!user || user.role !== 'chapter' || !user.chapterId || !user.publicKey) {
 			return false;
 		}
-		return Boolean(await OrgMemberKey.forMember(chapterId, req.user.id));
+		const chapter = await Chapter.findByPk(user.chapterId, { attributes: ['id', 'publicKey'] });
+		if (!chapter || !chapter.publicKey || (await OrgMemberKey.forMember(chapter.id, user.id))) {
+			return false;
+		}
+		await KeysController.tellGroup(
+			chapter.id,
+			{ event: 'group.waiting', detail: { member: user.id } },
+			null
+		);
+		return true;
 	}
 
 	/**
@@ -404,12 +449,13 @@ export default class KeysController extends RouteController {
 		const { chapter: chapterId, publicKey, wrappedOrgPrivateKey } = req.body;
 		try {
 			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
-			const memberId = AuthzService.isAdmin(req) ? (req.body.user ?? req.user.id) : req.user.id;
-			if (
-				!AuthzService.isAdmin(req) &&
-				String(AuthzService.chapterOf(req)) !== String(chapter.id)
-			) {
-				throw AuthzService.forbidden('Only a member of the group or an admin can set its keys.');
+			// Only a group admin of the chapter, on their own device: whoever makes a key
+			// knows it, and a superadmin must never be able to read a chapter's mail.
+			const memberId = req.user.id;
+			if (String(AuthzService.chapterOf(req)) !== String(chapter.id)) {
+				throw AuthzService.forbidden(
+					"Only a group admin of this chapter can set its keys, on their own device; a superadmin cannot (it would give them the chapter's key)."
+				);
 			}
 			if (chapter.publicKey) {
 				throw new HttpError(
@@ -457,14 +503,35 @@ export default class KeysController extends RouteController {
 				wrappedOrgPrivateKey,
 				addedBy: req.user.id
 			});
-			await audit(req, 'chapter.keys', 'chapter', chapter.id, { firstMember: member.id });
+			// The chapter's first key holder is its group-owner admin, unless it has one.
+			const becameOwner = !chapter.ownerId && (await Chapter.setOwner(chapter.id, member.id, null));
+			await audit(req, 'chapter.keys', 'chapter', chapter.id, {
+				firstMember: member.id,
+				...(becameOwner ? { owner: member.id } : {})
+			});
+			await KeysController.tellGroup(
+				chapter.id,
+				{
+					event: 'group.key',
+					detail: { action: 'set', member: member.id, keyVersion: 1 }
+				},
+				req.user.id
+			);
+			if (becameOwner) {
+				await KeysController.tellGroup(
+					chapter.id,
+					{ event: 'group.owner', detail: { owner: member.id, by: 'first key' } },
+					null
+				);
+			}
 			this.#handleSuccess(res, {
 				chapter: chapter.id,
 				publicKey,
 				keyVersion: 1,
 				member: member.id,
 				// Letters the server still holds a key for, and this group relays or manages.
-				caughtUp: await KeysController.catchUp('chapter', chapter.id)
+				caughtUp: await KeysController.catchUp('chapter', chapter.id),
+				owner: chapter.ownerId || member.id
 			});
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -479,11 +546,7 @@ export default class KeysController extends RouteController {
 		const { chapter: chapterId, user: userId, wrappedOrgPrivateKey } = req.body;
 		try {
 			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
-			if (!(await this.#keyHolder(req, chapter.id))) {
-				throw AuthzService.forbidden(
-					'Only a member holding the group key, or an admin, can add members.'
-				);
-			}
+			await this.#requireOwner(req, chapter);
 			if (!chapter.publicKey) {
 				throw new HttpError(
 					409,
@@ -518,6 +581,11 @@ export default class KeysController extends RouteController {
 				});
 			});
 			await audit(req, 'chapter.member-key', 'chapter', chapter.id, { member: member.id });
+			await KeysController.tellGroup(
+				chapter.id,
+				{ event: 'group.key', detail: { action: 'handed', member: member.id } },
+				req.user.id
+			);
 			this.#handleSuccess(res, { chapter: chapter.id, member: member.id });
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -533,11 +601,8 @@ export default class KeysController extends RouteController {
 	async remove(req, res, next) {
 		const { chapter: chapterId, user: userId } = req.body;
 		try {
-			if (!(await this.#keyHolder(req, chapterId))) {
-				throw AuthzService.forbidden(
-					'Only a member holding the group key, or an admin, can remove members.'
-				);
-			}
+			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
+			await this.#requireOwner(req, chapter);
 			// Count and delete as one step: two removals at once must not both
 			// find a holder to spare and leave the group with none.
 			const removed = await withGroupKeyLock(async () => {
@@ -553,7 +618,80 @@ export default class KeysController extends RouteController {
 				return await OrgMemberKey.remove(chapterId, userId);
 			});
 			await audit(req, 'chapter.member-key.remove', 'chapter', chapterId, { member: userId });
+			if (removed) {
+				// Told the removed group admin too: they are still in the chapter.
+				await KeysController.tellGroup(
+					chapter.id,
+					{ event: 'group.key', detail: { action: 'removed', member: Number(userId) } },
+					req.user.id
+				);
+			}
 			this.#handleSuccess(res, this.requireAffected(removed, 'Member key for user ' + userId));
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * PUT /auth/chapter-owner { chapter, user }: make another group admin of the
+	 * chapter its group-owner admin. The owner may (and stops being owner); a
+	 * superadmin may, at any time: the way out of a rogue or vanished owner. It
+	 * gives no access to letters: the new owner holds the key only if it was, or
+	 * is, handed to them.
+	 */
+	async chapterOwner(req, res, next) {
+		const { chapter: chapterId, user: userId } = req.body;
+		try {
+			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
+			const superadmin = AuthzService.isAdmin(req);
+			if (!superadmin) {
+				await this.#requireOwner(req, chapter);
+			}
+			const target = this.requireFound(await User.findByPk(userId), 'User ' + userId);
+			if (target.role !== 'chapter' || String(target.chapterId) !== String(chapter.id)) {
+				throw new ValidationError(
+					'User ' + userId + ' is not a group admin of chapter ' + chapter.id + '.'
+				);
+			}
+			if (String(chapter.ownerId) === String(target.id)) {
+				throw new HttpError(
+					409,
+					'User ' + userId + ' is the group-owner admin already.',
+					'OwnerError'
+				);
+			}
+			// Conditional on the owner it replaces: two transfers at once cannot both win.
+			const done = await Chapter.setOwner(chapter.id, target.id, chapter.ownerId);
+			if (!done) {
+				throw new HttpError(
+					409,
+					'The group-owner admin changed meanwhile; read the chapter again.',
+					'OwnerError'
+				);
+			}
+			await audit(req, 'chapter.owner', 'chapter', chapter.id, {
+				from: chapter.ownerId,
+				to: target.id,
+				by: superadmin ? 'superadmin' : 'owner'
+			});
+			await KeysController.tellGroup(
+				chapter.id,
+				{
+					event: 'group.owner',
+					detail: {
+						owner: target.id,
+						previous: chapter.ownerId,
+						by: superadmin ? 'superadmin' : 'owner'
+					}
+				},
+				null
+			);
+			this.#handleSuccess(res, {
+				chapter: chapter.id,
+				owner: target.id,
+				previous: chapter.ownerId,
+				holdsGroupKey: Boolean(await OrgMemberKey.forMember(chapter.id, target.id))
+			});
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -582,6 +720,11 @@ export default class KeysController extends RouteController {
 				publicKey: chapter.publicKey,
 				keyVersion: chapter.keyVersion,
 				keyRotatedAt: chapter.keyRotatedAt,
+				owner: chapter.ownerId,
+				// Group admins with keys of their own, still to be handed the chapter's.
+				waiting: chapter.publicKey
+					? members.filter((m) => m.publicKey && !holders.has(m.id)).map((m) => m.id)
+					: [],
 				members: members.map((m) => ({
 					id: m.id,
 					username: m.username,
@@ -648,12 +791,10 @@ export default class KeysController extends RouteController {
 
 	/** Only a member who holds the group key can rotate it: an admin cannot open what must be re-sealed. */
 	async #requireRotator(req, chapter) {
-		const holder =
-			String(AuthzService.chapterOf(req)) === String(chapter.id) &&
-			(await OrgMemberKey.forMember(chapter.id, req.user.id));
-		if (!holder) {
+		await this.#requireOwner(req, chapter);
+		if (!(await OrgMemberKey.forMember(chapter.id, req.user.id))) {
 			throw AuthzService.forbidden(
-				'Only a member holding the group key can rotate it; nobody else can open what has to be re-sealed.'
+				'The group-owner admin does not hold the chapter key on this account, and nobody else can open what has to be re-sealed.'
 			);
 		}
 		if (!chapter.publicKey) {
@@ -901,6 +1042,11 @@ export default class KeysController extends RouteController {
 				members: [...members.keys()],
 				removed: result.removed
 			});
+			await KeysController.tellGroup(
+				chapter.id,
+				{ event: 'group.key', detail: { action: 'rotated', keyVersion: nextVersion } },
+				req.user.id
+			);
 			this.#handleSuccess(res, {
 				chapter: chapter.id,
 				publicKey,

@@ -672,3 +672,39 @@ test('what groups had typed becomes their starting figure, and small numbers sto
 	);
 	await live.close();
 });
+
+test('chapters that already exist get a group-owner admin: their earliest key holder, else their earliest group admin', async () => {
+	const MIGRATION = '2026.09.22T01.00.00.group-owner.js';
+	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const names = (await createMigrator(live, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(live, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	const now = "'2026-01-01 00:00:00.000 +00:00'";
+	await live.query(
+		`INSERT INTO Chapters (id, name, location, createdAt, updatedAt) VALUES (1, 'Keyed', '{}', ${now}, ${now}), (2, 'Unkeyed', '{}', ${now}, ${now}), (3, 'Empty', '{}', ${now}, ${now})`
+	);
+	for (const [id, chapter] of [
+		[1, 1],
+		[2, 1],
+		[3, 2],
+		[4, 2]
+	]) {
+		await live.query(
+			`INSERT INTO User (id, username, password, email, role, chapterId, createdAt, updatedAt) VALUES (${id}, 'u${id}', 'x', 'u${id}@example.com', 'chapter', ${chapter}, ${now}, ${now})`
+		);
+	}
+	// In chapter 1 the second member holds the key and the first does not: the holder is the owner.
+	await live.query(
+		`INSERT INTO OrgMemberKeys (chapterId, userId, wrappedOrgPrivateKey, createdAt, updatedAt) VALUES (1, 2, 'sealed', ${now}, ${now})`
+	);
+	await runMigrations(live, { quiet: true });
+	const [rows] = await live.query('SELECT id, ownerId FROM Chapters ORDER BY id');
+	assert.deepEqual(
+		rows.map((r) => [r.id, r.ownerId]),
+		[
+			[1, 2],
+			[2, 3],
+			[3, null]
+		]
+	);
+	await live.close();
+});

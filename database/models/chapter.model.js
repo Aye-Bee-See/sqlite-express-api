@@ -52,6 +52,12 @@ export default class Chapter extends Model {
 			foreignKey: 'chapter',
 			otherKey: 'prison'
 		});
+		this.belongsTo(models.User, {
+			as: 'owner_details',
+			foreignKey: 'ownerId',
+			onDelete: 'SET NULL',
+			onUpdate: 'CASCADE'
+		});
 		this.belongsTo(models.Chapter, {
 			as: 'vouched_by_group',
 			foreignKey: 'vouchedBy',
@@ -103,6 +109,29 @@ export default class Chapter extends Model {
 	}
 	static async createBulkChapters(chapterArray) {
 		return await this.bulkCreate(chapterArray, { individualHooks: true, ignoreDuplicates: true });
+	}
+
+	/**
+	 * Make `userId` the chapter's group-owner admin. `from` says whose ownership
+	 * it is replacing (`null`: the chapter had none), so that two transfers at
+	 * once cannot both succeed.
+	 * @returns {Promise<boolean>} whether it happened
+	 */
+	static async setOwner(chapterId, userId, from = null) {
+		const [count] = await this.update(
+			{ ownerId: userId },
+			{ where: { id: chapterId, ownerId: from === null ? null : from } }
+		);
+		return count === 1;
+	}
+
+	/** Every group admin of a chapter (the accounts a change of key holders concerns). */
+	static async groupAdminIds(chapterId) {
+		const rows = await this.sequelize.models.User.findAll({
+			where: { chapterId, role: 'chapter' },
+			attributes: ['id']
+		});
+		return rows.map((row) => row.id);
 	}
 
 	/** Below this many letters a group's numbers are not shown to the public. */

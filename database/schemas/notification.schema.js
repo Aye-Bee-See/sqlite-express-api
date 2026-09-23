@@ -14,7 +14,13 @@ export const NOTIFICATION_EVENTS = [
 	'submission.decided',
 	// Somebody you write to was moved to another facility, or their status changed (freed).
 	'prisoner.moved',
-	'prisoner.status'
+	'prisoner.status',
+	// Group admins: the chapter key was set, handed to somebody, taken away, or
+	// rotated (detail.action); the group-owner admin changed; a group admin has
+	// keys and is waiting to be handed the chapter's.
+	'group.key',
+	'group.owner',
+	'group.waiting'
 ];
 
 /** One entry of an account's feed. Holds ids and states, never letter content. */

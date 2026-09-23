@@ -403,7 +403,8 @@ export default class Message extends Model {
 						status,
 						statusChangedAt: at,
 						statusChangedBy: changedBy,
-						returnReason: why.reason ?? null
+						returnReason: why.reason ?? null,
+						returnNote: why.note ?? null
 					},
 					{
 						// Exactly the letter that was checked: not moved on, not held, and

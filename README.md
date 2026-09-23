@@ -328,11 +328,15 @@ Every account has an `authScheme`: `plain` or `split`.
 **What a client does:**
 
 - **Sign in:** `GET /auth/login-params?username=` (below), derive, `POST /auth/login` with `password: base64(authKey)`. Keep `master` only long enough to derive the wrap key and open the private key from the returned bundle.
-- **Wherever a password is set together with keys** (registration, `POST /auth/claim`, `POST /invitation/accept`, a password change through `PUT /auth/user`, `POST /auth/recover`): send `"authScheme": "split"`, `password` = base64(authKey), and the key fields. `kdfSalt` and `kdfParams` are required with a split password (the auth key comes from them). The server checks that the password has the shape of an auth key (44 base64 characters, 32 bytes) and applies **no other password rule**: strength is the clients' to judge, and the agreed rule is **at least 10 characters**.
+- **Wherever a password is set together with keys** (registration, `POST /auth/claim`, `POST /invitation/accept`, a password change through `PUT /auth/user`, `POST /auth/recover`): send `"authScheme": "split"`, `password` = base64(authKey), and the key fields. `kdfSalt` and `kdfParams` are required with a split password (the auth key comes from them), and may travel alone: on a server-mode API a split account has no private key to wrap, so a registration with `authScheme`, the auth key, `kdfSalt`, and `kdfParams` and nothing else is complete. A `wrappedPrivateKey` always needs the two with it. In end-to-end mode a new account that sends them sends its keys too. The server checks that the password has the shape of an auth key (44 base64 characters, 32 bytes) and applies **no other password rule**: strength is the clients' to judge, and the agreed rule is **at least 10 characters**.
 - **A split account never goes back.** Sending a plain password for it is `409` `AuthSchemeError`. Only the account holder can change a split account's password (an admin cannot derive their auth key), and the change carries the private key re-wrapped under a new salt.
 - **Remember the scheme on the device.** Once a device has signed in to a username as `split`, it should refuse to sign in to that username as `plain` whatever the server says: a tampered server cannot then talk a known device into sending the real password.
 
-`REQUIRE_SPLIT_AUTH=true` makes the API refuse to create any new `plain` account (registration, claim, invitation), which is the setting for a deployment where every client has moved. Accounts made before it, including the bootstrap admin, keep signing in and move to `split` at their next password change or recovery. The admin readiness report counts both (`authSchemes`).
+`REQUIRE_SPLIT_AUTH=true` makes the API refuse to create any new `plain` account (registration, join, claim, invitation), which is the setting for a deployment where every client has moved. Accounts made before it, including the bootstrap admin, keep signing in and move to `split` at their next password change or recovery. The admin readiness report counts both (`authSchemes`). Three consequences to plan for:
+
+- **Move every account first.** Under the flag `GET /auth/login-params` answers `split` for every name, so a client cannot tell a leftover `plain` account apart. Change the bootstrap admin's password (which moves it to `split`) and check `authSchemes` in the readiness report **before** setting the flag; then no client needs a fallback. If a `plain` account must remain, its holder uses an explicit "sign in with password (older account)" path. **Clients must not fall back automatically** from a failed auth key to sending the password: a mistyped password would reach the server in plain, and each attempt would spend two of the allowed sign-in failures.
+- **In end-to-end mode, nobody can make an account for someone else with `POST /auth/user`.** A split account's auth key and keys are made on its holder's device, which an admin creating a `chapter` account does not have, and in end-to-end mode a split registration must carry the keys (`kdfSalt` and `kdfParams` alone are refused there). Under the flag, people get accounts through the flows built for that: an [invite code](#invite-codes) (writers), an [invitation](#invitations) of kind `member` (group admins) or `group`, or a [managed writer](#managed-writers) with a claim token. Seed scripts that create accounts directly run before the flag goes on, or with it off.
+- On a server-mode API a split account is made with `kdfSalt` and `kdfParams` alone (above), so there an admin can still make one for someone else: they choose a password, derive its auth key on their own device, and hand the password over, exactly as they handed over a plain password before. The person changes it at first sign-in.
 
 ### Using the token
 
@@ -548,7 +552,7 @@ Status `400`, whenever input fails a rule: a missing required field, a bad email
 
 #### General errors
 
-Everything else. `info` is the fixed message for that endpoint; `error`, when present, is the specific reason.
+Everything else. `info` is the fixed message for that endpoint; `error`, when present, is the specific reason. `condition`, when present, is the machine-readable half of the refusal: a short code such as `expired`, `used`, or `only_admin` that clients can word in the reader's language. The pair `name` + `condition` is stable across releases; the sentences in `info` and `error` are not, so never match on them. A general error without a `condition` has no finer code than its `name` and `status`.
 
 ```json
 {
@@ -559,6 +563,20 @@ Everything else. `info` is the fixed message for that endpoint; `error`, when pr
 	"error": "Prison 9999 not found"
 }
 ```
+
+With a code:
+
+```json
+{
+	"success": false,
+	"name": "ClaimError",
+	"info": "This claim token has already been used.",
+	"status": 410,
+	"condition": "used"
+}
+```
+
+Where `condition` appears: claim tokens and invite codes (`unknown`, `used`, `expired`, `cancelled`, `inactive`), invitations (`unknown`, `expired`, `accepted`, `revoked`, `inactive`), and `AccountDeleteError` (`anonymous`, `only_admin`, `group_owner`, `last_key_holder`), plus any endpoint whose reference lists conditions.
 
 Authentication and authorization failures use the same shape without `error`:
 
@@ -1619,6 +1637,7 @@ Parameters: `user`, `prisoner`, `full`, `page`, `page_size`. `user` and `prisone
 
 Chats are ordered by most recent message first; chats with no messages come last. Every row carries `prisoner_details` (`id`, `birthName`, `chosenName`, `status`, `prison`) with a nested `prison_details` (`id`, `prisonName`, `country`) so an inbox line can name the person and the facility without another request (`null` for a non-staff caller when the record is not published, like every other embed); `full=true` replaces it with the complete prisoner and adds `user_details` and `messages`. Every row also carries two extra fields for inbox views:
 
+- `heldCount`: how many of the thread's letters are held, and `heldReasons`: the distinct reasons (`choose_relay`, `reseal_needed`, `prisoner_free`), sorted; `0` and `[]` when none. Enough for an inbox to mark the conversation that needs its writer (`choose_relay` and `reseal_needed` wait on the writer; `prisoner_free` waits on the group). Also on the single read.
 - `lastMessageAt`: timestamp of the newest message, or `null`.
 - `last_message`: `{ id, sender, messageText, status, createdAt }` of the newest message, or `null`. `sender` tells you the direction (`user` means sent, `prisoner` means received).
 
@@ -1758,13 +1777,13 @@ The scope is the same as for chats: own messages for a `user`; the group's manag
 
 Every message carries a `status`:
 
-| Status     | Meaning                                             | Set by                                                      |
-| ---------- | --------------------------------------------------- | ----------------------------------------------------------- |
-| `queued`   | Written, waiting for the relay group to print it    | The server, on every new letter (`sender: user`)            |
-| `printed`  | Printed by the relay group                          | `PUT /messaging/status` by the relay group or an admin      |
-| `mailed`   | In the post                                         | Same, from `printed` only                                   |
-| `received` | A prisoner reply, transcribed or scanned by a group | The server, on every reply (`sender: prisoner`)             |
-| `returned` | The post brought it back. Carries `returnReason`    | `PUT /messaging/status` with a `reason`, from `mailed` only |
+| Status     | Meaning                                                           | Set by                                                      |
+| ---------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| `queued`   | Written, waiting for the relay group to print it                  | The server, on every new letter (`sender: user`)            |
+| `printed`  | Printed by the relay group                                        | `PUT /messaging/status` by the relay group or an admin      |
+| `mailed`   | In the post                                                       | Same, from `printed` only                                   |
+| `received` | A prisoner reply, transcribed or scanned by a group               | The server, on every reply (`sender: prisoner`)             |
+| `returned` | The post brought it back. Carries `returnReason` and `returnNote` | `PUT /messaging/status` with a `reason`, from `mailed` only |
 
 Moves are forward only: `queued` to `printed` to `mailed`, and from `mailed` to `returned` if the letter comes back. Anything else, including moving a reply, is a `409` with `"name": "LetterStatusError"`. Every change is recorded: `statusChangedAt` and `statusChangedBy` on the message, and a history you can read with `full=true` on `GET /messaging/message`.
 
@@ -1815,25 +1834,26 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 
 #### Message fields
 
-| Field                                   | Type     | Notes                                                                                                                                                                                                                    |
-| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `chat`                                  | integer  | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                                                                                                                                              |
-| `messageText`                           | string   | The letter body. Stored encrypted; see [Encryption](#encryption).                                                                                                                                                        |
-| `ciphertext`, `nonce`                   | string   | End-to-end mode only: the encrypted body and its nonce (base64), sent by the client and returned on every read.                                                                                                          |
-| `relayNoteCiphertext`, `relayNoteNonce` | string   | End-to-end mode only: the relay note, encrypted with the same content key.                                                                                                                                               |
-| `envelopes`                             | object[] | End-to-end mode only. On create: `[{ readerType, readerId, wrappedKey }]`, the letter's content key sealed to each reader. On reads: the envelopes this caller can open.                                                 |
-| `sender`                                | string   | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.                                                                                                                                       |
-| `user`                                  | integer  | Id of the user side. A `user`-role caller's own id is used regardless of body. A `chapter` account may name one of its group's managed writers, or omit it to send as the group's anonymous writer. Required for admins. |
-| `status`                                | string   | Read-only here; see [Letter lifecycle](#letter-lifecycle). Change it with `PUT /messaging/status`.                                                                                                                       |
-| `relayChapter`                          | integer  | Group that prints and mails the letter. Optional; resolved from the facility's relay groups when omitted, validated against them when given.                                                                             |
-| `relay_group`                           | object   | Read-only. `{ id, name }` of the relay group, or `null`, on every message row (lists, thread reads, single reads).                                                                                                       |
-| `relayNote`                             | string   | Optional instructions for the relay group (page count, language, "include the photo"). Never part of the letter.                                                                                                         |
-| `statusChangedAt`, `statusChangedBy`    |          | Read-only. When the status last changed and which account changed it.                                                                                                                                                    |
-| `keep`                                  | boolean  | Pinned: exempt from retention. The only field a writer may change on a mailed letter.                                                                                                                                    |
-| `returnReason`                          | string   | Read-only. Why a `returned` letter came back; `null` otherwise. Set through `PUT /messaging/status`.                                                                                                                     |
-| `heldReason`                            | string   | Read-only. Why a queued letter is held (`choose_relay`, `reseal_needed`, `prisoner_free`), or `null`. See [Moved and freed](#moved-and-freed).                                                                           |
-| `resendOf`                              | integer  | Optional, on create only: the id of the writer's `returned` letter to the same prisoner that this one replaces.                                                                                                          |
-| `prisoner`                              | integer  | Required. Id of the prisoner side.                                                                                                                                                                                       |
+| Field                                   | Type     | Notes                                                                                                                                                                                                                                                                                 |
+| --------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat`                                  | integer  | Id of the chat. Set automatically from `user` + `prisoner`; do not send it.                                                                                                                                                                                                           |
+| `messageText`                           | string   | The letter body. Stored encrypted; see [Encryption](#encryption).                                                                                                                                                                                                                     |
+| `ciphertext`, `nonce`                   | string   | End-to-end mode only: the encrypted body and its nonce (base64), sent by the client and returned on every read.                                                                                                                                                                       |
+| `relayNoteCiphertext`, `relayNoteNonce` | string   | End-to-end mode only: the relay note, encrypted with the same content key.                                                                                                                                                                                                            |
+| `envelopes`                             | object[] | End-to-end mode only. On create: `[{ readerType, readerId, wrappedKey }]`, the letter's content key sealed to each reader. On reads: the envelopes this caller can open.                                                                                                              |
+| `sender`                                | string   | Required. `user` or `prisoner`. A `user`-role caller is always recorded as `user`.                                                                                                                                                                                                    |
+| `user`                                  | integer  | Id of the user side. A `user`-role caller's own id is used regardless of body. A `chapter` account may name one of its group's managed writers, or omit it to send as the group's anonymous writer. Required for admins.                                                              |
+| `status`                                | string   | Read-only here; see [Letter lifecycle](#letter-lifecycle). Change it with `PUT /messaging/status`.                                                                                                                                                                                    |
+| `relayChapter`                          | integer  | Group that prints and mails the letter. Optional; resolved from the facility's relay groups when omitted, validated against them when given.                                                                                                                                          |
+| `relay_group`                           | object   | Read-only. `{ id, name }` of the relay group, or `null`, on every message row (lists, thread reads, single reads).                                                                                                                                                                    |
+| `relayNote`                             | string   | Optional instructions for the relay group (page count, language, "include the photo"). Never part of the letter.                                                                                                                                                                      |
+| `statusChangedAt`, `statusChangedBy`    |          | Read-only. When the status last changed and which account changed it.                                                                                                                                                                                                                 |
+| `keep`                                  | boolean  | Pinned: exempt from retention. The only field a writer may change on a mailed letter.                                                                                                                                                                                                 |
+| `returnReason`                          | string   | Read-only. Why a `returned` letter came back; `null` otherwise. Set through `PUT /messaging/status`.                                                                                                                                                                                  |
+| `returnNote`                            | string   | Read-only. What the envelope said when the letter came back (the `note` given with the return, at most 200 characters, never encrypted); `null` otherwise. The same text is on the `returned` row of `status_history`; this copy saves reading the history for every returned letter. |
+| `heldReason`                            | string   | Read-only. Why a queued letter is held (`choose_relay`, `reseal_needed`, `prisoner_free`), or `null`. See [Moved and freed](#moved-and-freed).                                                                                                                                        |
+| `resendOf`                              | integer  | Optional, on create only: the id of the writer's `returned` letter to the same prisoner that this one replaces.                                                                                                                                                                       |
+| `prisoner`                              | integer  | Required. Id of the prisoner side.                                                                                                                                                                                                                                                    |
 
 #### POST /messaging/message
 

@@ -214,7 +214,10 @@ test('accepting a group invitation creates the group, vouched for, and its first
 		group: { name: 'Again', location: {} }
 	});
 	assert.equal(again.status, 410);
-	assert.equal((await get('/invitation/invitation?token=' + created.token)).status, 410);
+	assert.equal(again.body.condition, 'accepted', 'a code beside the sentence');
+	const spent = await get('/invitation/invitation?token=' + created.token);
+	assert.equal(spent.status, 410);
+	assert.equal(spent.body.condition, 'accepted');
 });
 
 test('a member invitation adds an account to the inviting group, active at once', async () => {

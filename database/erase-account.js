@@ -22,6 +22,15 @@ import { HttpError } from '#services/HttpError.js';
 /** Rows read per step, so an account with years of letters does not become one huge IN list. */
 const BATCH = 500;
 
+/** The conditions an AccountDeleteError carries, for clients that word their own sentences. */
+export const DELETE_REFUSALS = ['anonymous', 'only_admin', 'group_owner', 'last_key_holder'];
+
+function refusal(condition, message) {
+	const err = new HttpError(409, message, 'AccountDeleteError');
+	err.condition = condition;
+	return err;
+}
+
 /**
  * Why this account cannot be deleted right now, or null.
  * @param {import('sequelize').Model} user
@@ -30,17 +39,15 @@ const BATCH = 500;
 export async function eraseRefusal(user) {
 	const { User, OrgMemberKey, Chapter } = Models;
 	if (user.anonymousForChapter) {
-		return new HttpError(
-			409,
-			"This is a group's shared anonymous account: it holds the anonymous letters of everyone the group wrote for, and goes when the group does.",
-			'AccountDeleteError'
+		return refusal(
+			'anonymous',
+			"This is a group's shared anonymous account: it holds the anonymous letters of everyone the group wrote for, and goes when the group does."
 		);
 	}
 	if (user.role === 'admin' && (await User.count({ where: { role: 'admin' } })) <= 1) {
-		return new HttpError(
-			409,
-			'This is the only admin account. Make another admin first, or nobody could run the site.',
-			'AccountDeleteError'
+		return refusal(
+			'only_admin',
+			'This is the only admin account. Make another admin first, or nobody could run the site.'
 		);
 	}
 	const owned = await Chapter.findAll({ where: { ownerId: user.id }, attributes: ['id', 'name'] });
@@ -49,12 +56,11 @@ export async function eraseRefusal(user) {
 			where: { chapterId: group.id, role: 'chapter', id: { [Op.ne]: user.id } }
 		});
 		if (others > 0) {
-			return new HttpError(
-				409,
+			return refusal(
+				'group_owner',
 				'This account is the group-owner admin of ' +
 					group.name +
-					'. Hand ownership to another group admin first (PUT /auth/chapter-owner).',
-				'AccountDeleteError'
+					'. Hand ownership to another group admin first (PUT /auth/chapter-owner).'
 			);
 		}
 	}
@@ -65,12 +71,11 @@ export async function eraseRefusal(user) {
 		});
 		if (others === 0) {
 			const group = await Chapter.findByPk(row.chapterId, { attributes: ['id', 'name'] });
-			return new HttpError(
-				409,
+			return refusal(
+				'last_key_holder',
 				'This account is the last holder of the key of ' +
 					(group ? group.name : 'its group') +
-					'. Hand the key to another member first (PUT /auth/member-key), or the group could never read its letters again.',
-				'AccountDeleteError'
+					'. Hand the key to another member first (PUT /auth/member-key), or the group could never read its letters again.'
 			);
 		}
 	}

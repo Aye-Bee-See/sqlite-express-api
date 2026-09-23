@@ -182,6 +182,7 @@ test("a group's shared anonymous account is not deleted by anyone", async () => 
 		const res = await del('/auth/user', { id: anon.id }, who);
 		assert.equal(res.status, 409, JSON.stringify(res.body));
 		assert.equal(res.body.name, 'AccountDeleteError');
+		assert.equal(res.body.condition, 'anonymous', 'a code beside the sentence');
 	}
 	assert.equal(await User.count({ where: { id: anon.id } }), 1);
 });
@@ -190,6 +191,7 @@ test('the only admin cannot delete themselves; with a second one they can', asyn
 	const only = await del('/auth/user', { id: f.admin.id, password: f.admin.password }, f.admin);
 	assert.equal(only.status, 409, JSON.stringify(only.body));
 	assert.match(only.body.error, /only admin/);
+	assert.equal(only.body.condition, 'only_admin');
 	const second = await makeUser({ role: 'admin', username: 'admin2' });
 	const res = await del('/auth/user', { id: second.id, password: second.password }, second);
 	assert.equal(res.status, 200, JSON.stringify(res.body));

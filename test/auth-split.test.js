@@ -306,3 +306,40 @@ test('an account that moves to split while a plain password is being set is not 
 	assert.equal(res.body.name, 'AuthSchemeError');
 	assert.equal((await User.findByPk(id)).authScheme, 'split', 'the invariant held');
 });
+
+test('in server mode a split account needs no keys: the salt and recipe travel alone', async () => {
+	// What the Android client sends on a server-mode API: the auth key with the
+	// salt and recipe it came from, and no private key to wrap.
+	const keys = client.splitKeys('another fine password', 'RECOVERY-CODE');
+	const made = await post(
+		'/auth/user',
+		{
+			username: 'keyless',
+			email: 'keyless@example.com',
+			password: keys.authKey,
+			authScheme: 'split',
+			kdfSalt: keys.fields.kdfSalt,
+			kdfParams: keys.fields.kdfParams
+		},
+		f.admin
+	);
+	assert.equal(made.status, 201, JSON.stringify(made.body));
+	assert.equal(made.body.data.authScheme, 'split');
+	const params = await get('/auth/login-params?username=keyless');
+	assert.deepEqual(
+		[params.body.data.scheme, params.body.data.kdfSalt],
+		['split', keys.fields.kdfSalt]
+	);
+	const ok = await signIn('keyless', 'another fine password');
+	assert.equal(ok.status, 200, JSON.stringify(ok.body));
+	// Only one of the pair is still refused, and a wrapped key without them.
+	const half = await post('/auth/user', {
+		username: 'halfway',
+		email: 'halfway@example.com',
+		password: keys.authKey,
+		authScheme: 'split',
+		kdfSalt: keys.fields.kdfSalt
+	});
+	assert.equal(half.status, 400);
+	assert.match(half.body.errors[0], /kdfSalt and kdfParams go together/);
+});

@@ -563,6 +563,63 @@ test('rolling back returned mail makes a returned letter mailed again, on the da
 	await live.close();
 });
 
+test('the return-note migration copies the newest returned note onto each returned letter and nothing else', async () => {
+	const MIGRATION = '2026.09.23T01.00.00.return-note.js';
+	const old = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const names = (await createMigrator(old, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(old, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	const at = (day) => `'2026-01-${day} 00:00:00.000 +00:00'`;
+	await old.query(
+		`INSERT INTO User (id, username, password, email, role, createdAt, updatedAt) VALUES (1, 'w', 'x', 'w@example.com', 'user', ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('P', '{}', ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Prisoners (birthName, prison, createdAt, updatedAt) VALUES ('X', 1, ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${at('01')}, ${at('01')})`
+	);
+	// 1: returned twice (resent by hand, came back again): the newest note wins.
+	// 2: returned, with no note. 3: mailed, whose history has a note on another row.
+	await old.query(
+		`INSERT INTO Messages (id, chat, sender, prisoner, user, status, returnReason, createdAt, updatedAt) VALUES
+			(1, 1, 'user', 1, 1, 'returned', 'refused', ${at('02')}, ${at('20')}),
+			(2, 1, 'user', 1, 1, 'returned', 'transferred', ${at('02')}, ${at('21')}),
+			(3, 1, 'user', 1, 1, 'mailed', NULL, ${at('02')}, ${at('05')})`
+	);
+	await old.query(
+		`INSERT INTO MessageStatuses (id, message, fromStatus, toStatus, reason, note, createdAt, updatedAt) VALUES
+			(1, 1, 'mailed', 'returned', 'refused', 'First time back', ${at('10')}, ${at('10')}),
+			(2, 1, 'mailed', 'returned', 'refused', 'Stamped NOT HERE', ${at('20')}, ${at('20')}),
+			(3, 2, 'mailed', 'returned', 'transferred', NULL, ${at('21')}, ${at('21')}),
+			(4, 3, 'printed', 'mailed', NULL, 'Not a return', ${at('05')}, ${at('05')})`
+	);
+	await createMigrator(old, { quiet: true }).up({ to: MIGRATION });
+	const [rows] = await old.query('SELECT id, returnNote FROM Messages ORDER BY id');
+	assert.deepEqual(
+		rows.map((r) => [r.id, r.returnNote]),
+		[
+			[1, 'Stamped NOT HERE'],
+			[2, null],
+			[3, null]
+		]
+	);
+	await createMigrator(old, { quiet: true }).down({ to: MIGRATION });
+	const [after] = await old.query('SELECT id, status, returnReason FROM Messages ORDER BY id');
+	assert.deepEqual(
+		after.map((r) => [r.id, r.status, r.returnReason]),
+		[
+			[1, 'returned', 'refused'],
+			[2, 'returned', 'transferred'],
+			[3, 'mailed', null]
+		],
+		'rolling back drops the column and keeps the rows'
+	);
+	await old.close();
+});
+
 test('the key cannot be changed while a database still has letters to convert with the old one', async () => {
 	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
 	const names = (await createMigrator(live, { quiet: true }).pending()).map((m) => m.name);

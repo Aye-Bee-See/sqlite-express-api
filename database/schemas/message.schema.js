@@ -106,6 +106,11 @@ const messageSchema = {
 			}
 		}
 	},
+	/** What the envelope said when it came back, as typed by the group (at most 200 characters); set with the status, never directly. */
+	returnNote: {
+		type: DataTypes.STRING,
+		validate: { len: { args: [0, 200], msg: 'note can be at most 200 characters.' } }
+	},
 	/** Why a queued letter is held (HELD_REASONS), set by the server when its prisoner is moved or freed; null otherwise. */
 	heldReason: {
 		type: DataTypes.STRING,

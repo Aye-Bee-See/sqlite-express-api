@@ -180,6 +180,13 @@ export default class RouteController {
 		// No error object at all is treated as a generic client fault.
 		const status = errMsg ? HttpError.statusOf(errMsg) : 400;
 		const body = { success: false, name: errMsg ? errMsg.name : 'Error', info, status };
+		// The machine-readable half of a refusal, for clients that word their own
+		// sentences: the error's own condition, or the endpoint's when it has a
+		// specific one (`par` is the general case and says nothing).
+		const condition = (errMsg && errMsg.condition) || (msgType !== 'par' ? msgType : null);
+		if (condition) {
+			body.condition = condition;
+		}
 		if (errMsg && errMsg.message) {
 			if (status < 500) {
 				body.error = errMsg.message;

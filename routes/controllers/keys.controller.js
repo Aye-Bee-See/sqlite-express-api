@@ -88,9 +88,14 @@ export default class KeysController extends RouteController {
 			}
 		}
 		const wrapped = ['wrappedPrivateKey', 'kdfSalt', 'kdfParams'];
-		const present = wrapped.filter((f) => out[f] !== undefined);
-		if (present.length > 0 && present.length < wrapped.length) {
-			throw new ValidationError('wrappedPrivateKey, kdfSalt, and kdfParams go together.');
+		// The salt and recipe may travel alone: a split account in server mode has
+		// an auth key derived from them and no private key to wrap. A wrapped key
+		// without them could never be opened.
+		if (out.wrappedPrivateKey !== undefined && wrapped.some((f) => out[f] === undefined)) {
+			throw new ValidationError('wrappedPrivateKey needs kdfSalt and kdfParams with it.');
+		}
+		if ((out.kdfSalt === undefined) !== (out.kdfParams === undefined)) {
+			throw new ValidationError('kdfSalt and kdfParams go together.');
 		}
 		const recovery = ['recoveryWrappedPrivateKey', 'recoverySalt', 'recoveryKdfParams'];
 		const recoveryPresent = recovery.filter((f) => out[f] !== undefined);
@@ -99,15 +104,24 @@ export default class KeysController extends RouteController {
 				'recoveryWrappedPrivateKey, recoverySalt, and recoveryKdfParams go together.'
 			);
 		}
-		if (newAccount && Object.keys(out).length > 0) {
-			// A new account has all of its first keys or none. A public key alone is one
-			// nobody can use the private half of, and letters sealed to it are lost.
+		// A new account has all of its first keys or none. A public key alone is one
+		// nobody can use the private half of, and letters sealed to it are lost. In
+		// end-to-end mode the salt and recipe alone are not enough either: an
+		// account there is made with its keys, on the device, at sign-up.
+		const startsKeys =
+			out.publicKey !== undefined ||
+			out.wrappedPrivateKey !== undefined ||
+			(crypto.isE2E() && out.kdfSalt !== undefined);
+		if (newAccount && startsKeys) {
 			const missing = [...wrapped, 'publicKey'].filter((f) => out[f] === undefined);
 			if (missing.length > 0) {
 				throw new ValidationError(
 					'Send publicKey, wrappedPrivateKey, kdfSalt, and kdfParams together (missing: ' +
 						missing.join(', ') +
-						').'
+						')' +
+						(crypto.isE2E() && out.wrappedPrivateKey === undefined
+							? '. In end-to-end mode an account is made with its keys.'
+							: '.')
 				);
 			}
 		}

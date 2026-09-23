@@ -145,6 +145,13 @@ test('where the writer has to choose who mails it now, the letter is held until 
 	assert.equal(moved.body.data.mail.held, 1);
 	assert.equal((await Message.findByPk(waiting.id)).heldReason, 'choose_relay');
 	assert.equal((await lastTold(f.alice.id, 'prisoner.moved')).detail.held, 1);
+	// The inbox can mark the thread that needs its writer without loading its letters.
+	const inbox = await get('/chat/chats?page_size=100', f.alice);
+	const byChat = new Map(inbox.body.data.map((c) => [c.id, [c.heldCount, c.heldReasons]]));
+	assert.deepEqual(byChat.get(waiting.chat), [1, ['choose_relay']]);
+	assert.deepEqual(byChat.get(letter.chat), [0, []]);
+	const one = await get('/chat/chat?id=' + waiting.chat, f.alice);
+	assert.deepEqual([one.body.data.heldCount, one.body.data.heldReasons], [1, ['choose_relay']]);
 	const held = await get('/messaging/messages?held=true', f.alice);
 	assert.deepEqual(
 		held.body.data.map((m) => m.id),

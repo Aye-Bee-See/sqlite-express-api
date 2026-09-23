@@ -329,6 +329,36 @@ export default class Chat extends Model {
 	 * @param {Chat[]} chats
 	 * @returns {Promise<Chat[]>} the same rows
 	 */
+	/**
+	 * How many of each thread's letters are held, and why, so an inbox can mark
+	 * the conversation that needs its writer (`choose_relay`, `reseal_needed`)
+	 * without loading its letters. `heldCount` and the distinct `heldReasons`.
+	 */
+	static async attachHeldCounts(chats) {
+		if (chats.length === 0) {
+			return chats;
+		}
+		const [rows] = await this.sequelize.query(
+			`SELECT chat, heldReason, COUNT(*) AS n FROM Messages
+			WHERE chat IN (:chats) AND heldReason IS NOT NULL
+			GROUP BY chat, heldReason`,
+			{ replacements: { chats: chats.map((c) => c.id) } }
+		);
+		const held = new Map();
+		for (const row of rows) {
+			const entry = held.get(row.chat) || { count: 0, reasons: [] };
+			entry.count += Number(row.n);
+			entry.reasons.push(row.heldReason);
+			held.set(row.chat, entry);
+		}
+		for (const chat of chats) {
+			const entry = held.get(chat.id);
+			chat.setDataValue('heldCount', entry ? entry.count : 0);
+			chat.setDataValue('heldReasons', entry ? entry.reasons.sort() : []);
+		}
+		return chats;
+	}
+
 	static async attachLastMessages(chats) {
 		if (chats.length === 0) {
 			return chats;

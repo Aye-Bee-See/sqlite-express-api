@@ -41,6 +41,12 @@ test('the user role cannot write directory resources', async () => {
 	assert.equal((await del('/chapter/chapter', { id: 1 }, t)).status, 403);
 });
 
+test('a general error carries a condition only when the refusal has a code', async () => {
+	const missing = await get('/prison/prison?id=999999', { token: f.alice.token });
+	assert.equal(missing.status, 404);
+	assert.equal(missing.body.condition, undefined, 'the general case has no code');
+});
+
 test('a 403 uses the general error shape', async () => {
 	const res = await post('/prison/prison', prisonBody, { token: f.alice.token });
 	assert.deepEqual(res.body, {

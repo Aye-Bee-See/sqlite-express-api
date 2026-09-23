@@ -50,6 +50,7 @@ test('a mailed letter that comes back is returned, with the reason, and the writ
 	assert.equal(res.status, 200, JSON.stringify(res.body));
 	assert.equal(res.body.data.status, 'returned');
 	assert.equal(res.body.data.returnReason, 'transferred');
+	assert.equal(res.body.data.returnNote, 'Stamped NOT HERE', 'the note sits on the letter too');
 	const last = res.body.data.status_history.at(-1);
 	assert.deepEqual(
 		[last.fromStatus, last.toStatus, last.reason, last.note],
@@ -59,8 +60,8 @@ test('a mailed letter that comes back is returned, with the reason, and the writ
 	// The writer sees it on the letter, in lists, and in the feed (content-free: ids and codes).
 	const mine = await get('/messaging/messages?status=returned', f.alice);
 	assert.deepEqual(
-		mine.body.data.map((m) => [m.id, m.returnReason]),
-		[[letter.id, 'transferred']]
+		mine.body.data.map((m) => [m.id, m.returnReason, m.returnNote]),
+		[[letter.id, 'transferred', 'Stamped NOT HERE']]
 	);
 	const told = await Notification.findOne({
 		where: { userId: f.alice.id, message: letter.id },
@@ -201,12 +202,13 @@ test('a letter sent again names the returned one, and each shows the other', asy
 	// An edit cannot forge or move the link.
 	await put(
 		'/messaging/message',
-		{ id: again.body.data.id, resendOf: null, returnReason: 'refused' },
+		{ id: again.body.data.id, resendOf: null, returnReason: 'refused', returnNote: 'forged' },
 		f.alice
 	);
 	const stored = await Message.findByPk(again.body.data.id);
 	assert.equal(stored.resendOf, letter.id);
 	assert.equal(stored.returnReason, null);
+	assert.equal(stored.returnNote, null);
 });
 
 test('mail that comes back as moved puts the address in doubt, for staff, until someone edits the record', async () => {

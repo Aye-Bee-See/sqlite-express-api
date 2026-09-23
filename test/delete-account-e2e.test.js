@@ -49,6 +49,7 @@ test('a group-owner admin hands ownership on, and the last key holder hands the 
 	const owner = await del('/auth/user', { id: holder.id, password: holder.password }, holder);
 	assert.equal(owner.status, 409, JSON.stringify(owner.body));
 	assert.equal(owner.body.name, 'AccountDeleteError');
+	assert.equal(owner.body.condition, 'group_owner');
 	assert.match(owner.body.error, /group-owner admin/);
 
 	const transfer = await put(

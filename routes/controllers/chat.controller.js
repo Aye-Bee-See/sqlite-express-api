@@ -138,6 +138,7 @@ export default class ChatController extends RouteController {
 				chats = await Chat.readAllChats(fullBool, limit, offset, scope.where, publishedOnly);
 			}
 			await Chat.attachLastMessages(chats.rows);
+			await Chat.attachHeldCounts(chats.rows);
 			await this.#e2eEnvelopes(chats.rows, req, scope);
 			this.handlePage(res, chats, limits);
 		} catch (err) {
@@ -180,6 +181,7 @@ export default class ChatController extends RouteController {
 				throw new HttpError(400, 'Provide either id, or both user and prisoner.');
 			}
 			this.requireFound(chat, 'Chat');
+			await Chat.attachHeldCounts([chat]);
 			await this.#e2eEnvelopes([chat], req, scope);
 			this.#handleSuccess(res, chat);
 		} catch (err) {

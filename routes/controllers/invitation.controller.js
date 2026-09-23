@@ -167,20 +167,24 @@ export default class InvitationController extends RouteController {
 	async #usable(token) {
 		const { record, state } = await Invitation.lookup(token);
 		if (state !== 'valid') {
-			throw new HttpError(
+			const err = new HttpError(
 				state === 'unknown' ? 404 : 410,
 				'This invitation is ' + (state === 'unknown' ? 'not known' : state) + '.',
 				'InvitationError'
 			);
+			err.condition = state;
+			throw err;
 		}
 		const chapter = record.chapterId ? await Chapter.findByPk(record.chapterId) : null;
 		// A vouch, or a place in a group, is only as good as the group behind it today.
 		if (record.chapterId && (!chapter || chapter.accountStatus !== 'active')) {
-			throw new HttpError(
+			const err = new HttpError(
 				410,
 				'The group behind this invitation is no longer an active member of the network.',
 				'InvitationError'
 			);
+			err.condition = 'inactive';
+			throw err;
 		}
 		return { record, chapter };
 	}
@@ -291,7 +295,9 @@ export default class InvitationController extends RouteController {
 			}
 			await User.build({ username, password, email, name, role: AuthzService.CHAPTER }).validate();
 			if (!(await Invitation.consume(record.id))) {
-				throw new HttpError(410, 'This invitation was just used.', 'InvitationError');
+				const err = new HttpError(410, 'This invitation was just used.', 'InvitationError');
+				err.condition = 'accepted';
+				throw err;
 			}
 			consumed = record.id;
 

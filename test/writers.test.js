@@ -224,7 +224,10 @@ test('claiming turns a managed writer into an independent account', async () => 
 	const reuse = await post('/auth/claim', { token, username: 'again', password: 'againpass' });
 	assert.equal(reuse.status, 410);
 	assert.match(reuse.body.info, /already been used/);
-	assert.equal((await get('/auth/claim?token=' + token)).status, 410);
+	assert.equal(reuse.body.condition, 'used', 'serialised, not only in the sentence');
+	const usedInfo = await get('/auth/claim?token=' + token);
+	assert.equal(usedInfo.status, 410);
+	assert.equal(usedInfo.body.condition, 'used');
 
 	// Once claimed, the group no longer manages the account.
 	const listed = (await get('/auth/writers?page_size=100', chapter)).body.data;
@@ -242,10 +245,13 @@ test('expired and unknown tokens are refused', async () => {
 	const info = await get('/auth/claim?token=' + token);
 	assert.equal(info.status, 410);
 	assert.match(info.body.info, /expired/);
+	assert.equal(info.body.condition, 'expired');
 	const claim = await post('/auth/claim', { token, username: 'late', password: 'latepass' });
 	assert.equal(claim.status, 410);
+	assert.equal(claim.body.condition, 'expired');
 	const unknown = await get('/auth/claim?token=NOPE');
 	assert.equal(unknown.status, 404);
+	assert.equal(unknown.body.condition, 'unknown');
 	assert.match(unknown.body.info, /not valid/);
 	assert.equal((await get('/auth/claim')).status, 404);
 });

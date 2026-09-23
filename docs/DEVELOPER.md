@@ -457,6 +457,8 @@ The README documents the shapes from the client's point of view. Where they come
 4. On match, builds a token with `#createJWT(user)` and calls `done(null, user, { token })`. The third argument becomes `req.authInfo`, which the route enables with `authInfo: true` and the controller reads.
 5. Otherwise `done(null, false)`, which with `failWithError` becomes a 401.
 
+**Auth schemes** (`services/auth-scheme.js`). The verify function does not care which scheme an account uses: for a `split` account what arrives as `password` is the auth key, and bcrypt compares it like any other. Everything scheme-specific happens where a password is _set_: the controllers call `schemeFrom(body)` (absent means `plain`; `REQUIRE_SPLIT_AUTH` makes `plain` a 400), `checkPassword(scheme, password)` (a split password must be 44 characters of base64 decoding to 32 bytes, and no other rule), `requireKeysForSplit(scheme, fields)` (the auth key is derived from the same `kdfSalt`/`kdfParams` as the wrap key, so they must travel together), and on changes `refuseDowngrade(stored, requested)`. `GET /auth/login-params` (`UserController.loginParams`, `limiters.loginParams`) hands out the salt: the account's own for a split account, `fakeSalt(username)` (an HMAC of the normalised name under `JWT_SECRET`) otherwise, so existence is not revealed. The server derives nothing; the test client's `splitKeys` shows the client's side, and `test/auth-split.test.js` pins the two `crypto_kdf` derivations to the vectors in the proposal.
+
 Missing `username` or `password` never reaches the verify function; passport-local fails with a 400 that renders as `{ name: 'AuthenticationError', info: 'Bad Request', status: 400 }`.
 
 ### Rate limits

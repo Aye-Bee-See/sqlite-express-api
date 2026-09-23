@@ -29,6 +29,15 @@ const userSchema = {
 		}
 	},
 
+	/** How the account proves who it is: 'plain' (the password is sent) or 'split' (an auth key is; the password never leaves the device). */
+	authScheme: {
+		type: DataTypes.STRING,
+		allowNull: false,
+		defaultValue: 'plain',
+		validate: {
+			isIn: { args: [['plain', 'split']], msg: 'authScheme must be plain or split.' }
+		}
+	},
 	password: {
 		type: DataTypes.STRING,
 		allowNull: false,

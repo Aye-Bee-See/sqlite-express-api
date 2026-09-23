@@ -10,6 +10,7 @@ import { HttpError } from '#services/HttpError.js';
 import { audit } from '#rtServices/audit.services.js';
 import { INVITATION_KINDS, INVITATION_STATUSES } from '#schemas/invitation.schema.js';
 import { invitationAutoActivate } from '#constants';
+import * as authScheme from '#services/auth-scheme.js';
 
 /** What an invited group may say about itself: the public profile, nothing an admin decides. */
 const GROUP_PROFILE_FIELDS = RESOURCES.chapter.submittable.filter((f) => f !== 'accountStatus');
@@ -272,6 +273,9 @@ export default class InvitationController extends RouteController {
 		try {
 			const { record, chapter } = await this.#usable(token);
 			const keys = KeysController.keyFields(req.body, { newAccount: true });
+			const scheme = authScheme.schemeFrom(req.body);
+			authScheme.checkPassword(scheme, password);
+			authScheme.requireKeysForSplit(scheme, keys);
 			let groupFields = null;
 			if (record.kind === 'group') {
 				groupFields = InvitationController.#groupFields(req.body.group);
@@ -309,6 +313,7 @@ export default class InvitationController extends RouteController {
 				name,
 				role: AuthzService.CHAPTER,
 				chapterId: group.id,
+				authScheme: scheme,
 				...keys
 			});
 			await Invitation.complete(record.id, {

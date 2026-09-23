@@ -87,6 +87,7 @@ cp .env.example .env
 | `RETENTION_MAX_DAYS`                          | No       | none                                      | Caps what a writer may choose, including \"forever\".                                                                                                               |
 | `IDEMPOTENCY_DAYS`                            | No       | `30`                                      | How long an `Idempotency-Key` is remembered. Long, so a phone that was offline for weeks still cannot send a second copy.                                           |
 | `CLAIM_TOKEN_DAYS`                            | No       | `14`                                      | How long a claim token works. It was 72 hours until 21 September 2026: a code handed over at a Thursday letter night was gone by Sunday.                            |
+| `REQUIRE_SPLIT_AUTH`                          | No       | `false`                                   | `true` refuses to create any new account that would send its password (`authScheme: plain`). Set it once every client uses the split scheme.                        |
 | `INVITATION_DAYS`                             | No       | `14`                                      | How long an invitation token works. See [Invitations](#invitations).                                                                                                |
 | `INVITATION_AUTO_ACTIVATE`                    | No       | `false`                                   | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.                            |
 | `FCM_SERVICE_ACCOUNT_FILE`                    | No       | none                                      | Path to a Firebase service-account key (JSON), kept out of git. Without it devices may register and no push is sent. See [Push notifications](#push-notifications). |
@@ -305,6 +306,29 @@ curl -s -X POST http://localhost:3000/auth/login \
 - Tokens are valid for **one week**. There is no refresh or logout endpoint; to end a session, discard the token.
 - Wrong username or password: `401`. Missing field: `400`. Both use the [general error shape](#general-errors).
 - A `banned` account cannot log in, and any token it already holds stops working.
+
+### Signing in without sending the password
+
+Every account has an `authScheme`: `plain` or `split`.
+
+- **`plain`**: the password itself is sent to `POST /auth/login` and checked against a bcrypt hash. The server never stores it, but it sees it at every sign-in, and in end-to-end mode the password is the one secret the account's private key is locked with. This is how every account made before September 2026 works, and how the seeded admin works.
+- **`split`**: the device runs the slow derivation once and derives **two** values from the result. The _wrap key_ locks the private key and never leaves the device. The _auth key_ is sent as the password. Knowing one does not give the other. The server keeps doing what it does now (hash and compare); it never sees anything that opens a letter, so a tampered server records nothing useful.
+
+**The derivation, which every client must match byte for byte** (test vector in `test/auth-split.test.js`):
+
+1. Normalise the password to Unicode NFKC and take its UTF-8 bytes.
+2. `master = crypto_pwhash(32, passwordBytes, kdfSalt, kdfParams)` with the account's `kdfSalt` and `kdfParams`, exactly as the wrap key was derived before.
+3. `wrapKey = crypto_kdf_derive_from_key(32, 1, "abcwrap_", master)`: locks the private key (XChaCha20-Poly1305).
+4. `authKey = crypto_kdf_derive_from_key(32, 2, "abcauth_", master)`: sent as `password`, as standard base64 with padding: 44 characters.
+
+**What a client does:**
+
+- **Sign in:** `GET /auth/login-params?username=` (below), derive, `POST /auth/login` with `password: base64(authKey)`. Keep `master` only long enough to derive the wrap key and open the private key from the returned bundle.
+- **Wherever a password is set together with keys** (registration, `POST /auth/claim`, `POST /invitation/accept`, a password change through `PUT /auth/user`, `POST /auth/recover`): send `"authScheme": "split"`, `password` = base64(authKey), and the key fields. `kdfSalt` and `kdfParams` are required with a split password (the auth key comes from them). The server checks that the password has the shape of an auth key (44 base64 characters, 32 bytes) and applies **no other password rule**: strength is the clients' to judge, and the agreed rule is **at least 10 characters**.
+- **A split account never goes back.** Sending a plain password for it is `409` `AuthSchemeError`. Only the account holder can change a split account's password (an admin cannot derive their auth key), and the change carries the private key re-wrapped under a new salt.
+- **Remember the scheme on the device.** Once a device has signed in to a username as `split`, it should refuse to sign in to that username as `plain` whatever the server says: a tampered server cannot then talk a known device into sending the real password.
+
+`REQUIRE_SPLIT_AUTH=true` makes the API refuse to create any new `plain` account (registration, claim, invitation), which is the setting for a deployment where every client has moved. Accounts made before it, including the bootstrap admin, keep signing in and move to `split` at their next password change or recovery. The admin readiness report counts both (`authSchemes`).
 
 ### Using the token
 
@@ -695,6 +719,7 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `username`                 | Required, unique, 3 to 16 characters. Names starting `anon-` or `writer-` are kept for the accounts groups manage, and so are `@managed.example` addresses.                                                                                                                      |
 | `password`                 | Required, 7 to 255 characters. Stored as a bcrypt hash. Never returned by any endpoint.                                                                                                                                                                                          |
+| `authScheme`               | `plain` (default) or `split`. Sent only together with a password; see [Signing in without sending the password](#signing-in-without-sending-the-password). Never goes from `split` back to `plain`.                                                                              |
 | `email`                    | Required, unique, must look like an email address.                                                                                                                                                                                                                               |
 | `role`                     | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later.                                                                                                                                           |
 | `name`                     | Optional display name, 3 to 32 characters.                                                                                                                                                                                                                                       |
@@ -738,6 +763,20 @@ A duplicate username or email is a general error with `"error": "Username alread
 #### POST /auth/login
 
 See [Logging in](#logging-in). `username` and `password` go in the JSON body, as text. In the URL they would be written to access logs, so that is a `400`.
+
+#### GET /auth/login-params
+
+Public, rate limited like sign-in. `GET /auth/login-params?username=alice` returns what a device needs before it can sign in:
+
+```json
+{
+	"scheme": "split",
+	"kdfSalt": "…",
+	"kdfParams": { "kdf": "argon2id", "alg": 2, "opslimit": 2, "memlimit": 67108864 }
+}
+```
+
+For a `split` account these are the account's own salt and recipe. For a username that has no account, and for a `plain` account (which has no auth salt), the salt is made up but **stable** (the same every time for that name, different for other names) and the recipe is the default, so the answer never says whether an account exists. `scheme` is `plain` only for accounts made before the split scheme; once every account has moved, every answer looks the same.
 
 #### GET /auth/users
 
@@ -957,14 +996,14 @@ Everything in this section applies only when `ENCRYPTION_MODE=e2e`. The primitiv
 
 A key made on one device works on another because the private key lives on the server, locked: every client fetches the same bundle (`wrappedPrivateKey`, `kdfSalt`, `kdfParams`) and opens it with a key derived from the same password. The server never sees that derived key, a recovery code, a claim secret, or an unlocked private key.
 
-| Threat                                                        | Protected? |
-| ------------------------------------------------------------- | ---------- |
-| The database or a backup is stolen                            | Yes        |
-| An admin, or the hosting company, browses the data            | Yes        |
-| A demand for stored data                                      | Yes        |
-| The running server is modified to record passwords at sign-in | **No**     |
+| Threat                                                        | Protected?                                                                                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The database or a backup is stolen                            | Yes                                                                                                                                              |
+| An admin, or the hosting company, browses the data            | Yes                                                                                                                                              |
+| A demand for stored data                                      | Yes                                                                                                                                              |
+| The running server is modified to record passwords at sign-in | **Yes, for `split` accounts** (see [Signing in without sending the password](#signing-in-without-sending-the-password)); **no** for `plain` ones |
 
-The last row is a real limit of what is built. `POST /auth/login` receives the password itself (it has to, to check it against the bcrypt hash), and the password is what the locking key is derived from. A server that has been tampered with could therefore record a password and unlock that account's private key. The fix is for clients to derive two values from the password, one to sign in with and one that locks the key and never leaves the device; it changes the sign-in contract for every client, so it is a proposal under discussion rather than something the API can do alone. Until it is adopted, do not describe this mode as protecting against a compromised server. Two limits no API change removes: a web client runs whatever code its host serves, and the server always sees who writes to whom and when.
+The last row depends on how the account signs in. A `plain` account sends its password to `POST /auth/login`, and the password is what the locking key is derived from: a tampered server could record it and unlock that account's private key. A `split` account never sends the password: the device derives one value to sign in with and another that locks the key and never leaves the device. Every account made by a client that has moved to the split scheme is protected; the seeded admin and any account made the old way are not until they change their password. Two limits no API change removes: a web client runs whatever code its host serves, and the server always sees who writes to whom and when.
 
 #### Account keys
 
@@ -1075,7 +1114,7 @@ Nobody has to be chased for keys. When an account first becomes able to read wha
 
 #### Recovery
 
-`GET /auth/recover?username=` returns the recovery-wrapped private key and a random challenge sealed to the account's public key, valid ten minutes and single use. The browser unwraps the key with the recovery code, opens the challenge, and calls `POST /auth/recover` with `username`, the opened `challenge` (base64), the new `password`, and the private key re-wrapped under it (optionally a new recovery pair). A wrong or stale challenge is a `401`. Only the holder of the recovery code can complete this; the server learns nothing.
+`GET /auth/recover?username=` returns the recovery-wrapped private key and a random challenge sealed to the account's public key, valid ten minutes and single use. The browser unwraps the key with the recovery code, opens the challenge, and calls `POST /auth/recover` with `username`, the opened `challenge` (base64), the new `password`, and the private key re-wrapped under it (optionally a new recovery pair). Recovery may move a `plain` account to `split` (send `authScheme: "split"` and an auth key as the password); it never moves one back. A wrong or stale challenge is a `401`. Only the holder of the recovery code can complete this; the server learns nothing.
 
 ### Prisons
 

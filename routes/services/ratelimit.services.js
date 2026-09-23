@@ -165,6 +165,13 @@ export const limiters = {
 				: undefined,
 		failuresOnly: true
 	}),
+	// The salt before sign-in: public, so it shares the sign-in address limit.
+	loginParams: limit({
+		name: 'login-params',
+		what: 'sign-in parameter requests',
+		windowMs: minutes(rateLimits.loginWindowMinutes),
+		perIp: rateLimits.loginPerIp
+	}),
 	claimCheck: limit({
 		name: 'claim',
 		what: 'claim token checks',

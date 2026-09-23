@@ -444,7 +444,8 @@ export default class User extends Model {
 		bio,
 		sponsoredBy,
 		authScheme = 'plain',
-		keys = {}
+		keys = {},
+		transaction = null
 	}) {
 		const given = typeof email === 'string' && email.trim() !== '' ? email.trim() : null;
 		User.refuseReserved({ username, email: given ?? undefined });
@@ -460,7 +461,7 @@ export default class User extends Model {
 				authScheme,
 				...keys
 			},
-			{ individualHooks: true }
+			{ individualHooks: true, transaction }
 		);
 	}
 

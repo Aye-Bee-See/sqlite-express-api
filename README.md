@@ -960,7 +960,7 @@ Body `{"batch": "k3Zp0Q9x"}` cancels the unused codes of one batch; `{"all": tru
 
 #### GET /auth/join
 
-`?code=7Q4M-2XKD-9HBT`, public. `200` with `chapter: { id, name }` and `expiresAt` when the code is usable, so the app can say who is vouching before asking for a username. `404` for a code that was never issued; `410` for one that was `used`, `cancelled`, or `expired`, or whose chapter is not active, with `info` saying which. The same states come back from `POST /auth/join`.
+`?code=7Q4M-2XKD-9HBT`, public. `200` with `chapter: { id, name }` and `expiresAt` when the code is usable, so the app can say who is vouching before asking for a username. `404` for a code that was never issued; `410` for one that was `used`, `cancelled`, or `expired`, or whose chapter is not active (`inactive`), with `info` saying which. The same states come back from `POST /auth/join`.
 
 #### POST /auth/join
 
@@ -971,7 +971,7 @@ curl -s -X POST http://localhost:3000/auth/join -H 'Content-Type: application/js
 
 `code`, `username`, and `password` are required; `email`, `name`, and `bio` are optional (without an email, a placeholder address is stored, as for managed writers). The body takes the same `authScheme` and key fields as `POST /auth/user` (see [Signing in without sending the password](#signing-in-without-sending-the-password) and [End-to-end mode](#end-to-end-mode)); a client in end-to-end mode makes the keypair and sends the wrapped private key with the join, and `REQUIRE_SPLIT_AUTH` applies. `201` with `user` (the new record, role `user`, `sponsoredBy` the chapter, no key material) and `chapter: { id, name }`. The account is signed in with `POST /auth/login` like any other.
 
-The code is spent only once the account's fields have been checked, and a join that still fails (a taken username, say) gives the code back, so a typo does not burn a slip. Two joins racing on one code make one account; the other gets `410`.
+The code is spent only once the account's fields have been checked, and spending it and making the account are one transaction, so a join that still fails (a taken username, say) leaves the code unspent and a typo does not burn a slip. Two joins racing on one code make one account; the other gets `410`.
 
 ### Managed writers
 

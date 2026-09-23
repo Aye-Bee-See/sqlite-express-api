@@ -9,6 +9,7 @@ import { audit } from '#rtServices/audit.services.js';
 import { inviteCodes as settings } from '#constants';
 import * as authScheme from '#services/auth-scheme.js';
 import KeysController from '#rtControllers/keys.controller.js';
+import { inTransaction } from '#services/serial.js';
 
 /**
  * Invite codes: a chapter issues them, a newcomer joins with one. The chapter
@@ -152,7 +153,7 @@ export default class InviteCodeController extends RouteController {
 				'The chapter that issued this code is not active.',
 				'InviteCodeError'
 			);
-			err.condition = 'cancelled';
+			err.condition = 'inactive';
 			throw err;
 		}
 		return { record, chapter };
@@ -179,7 +180,6 @@ export default class InviteCodeController extends RouteController {
 	 */
 	async createAccount(req, res, next) {
 		const { code, username, password, email, name, bio } = req.body;
-		let consumed = null;
 		try {
 			const { record, chapter } = await this.#usable(code);
 			const keys = KeysController.keyFields(req.body, { newAccount: true });
@@ -187,7 +187,8 @@ export default class InviteCodeController extends RouteController {
 			authScheme.checkPassword(scheme, password);
 			authScheme.requireKeysForSplit(scheme, keys);
 			// Say what is wrong with the account before the code is spent; a taken
-			// username can only be found by trying, below, and then the code is given back.
+			// username can only be found by trying, below, and then the transaction
+			// rolls the spending back.
 			await User.build({
 				username,
 				password,
@@ -197,21 +198,27 @@ export default class InviteCodeController extends RouteController {
 				role: 'user'
 			}).validate();
 			User.refuseReserved({ username, email });
-			if (!(await InviteCode.consume(record.id))) {
-				const err = new HttpError(410, 'This invite code was just used.', 'InviteCodeError');
-				err.condition = 'used';
-				throw err;
-			}
-			consumed = record.id;
-			const user = await User.createSponsored({
-				username,
-				password,
-				email,
-				name,
-				bio,
-				sponsoredBy: chapter.id,
-				authScheme: scheme,
-				keys
+			// Spending the code and making the account are one transaction: a crash
+			// or a failed insert leaves the code unspent, and no other request (an
+			// issue counting the quota included) sees the code spent before the
+			// account exists.
+			const user = await inTransaction(User.sequelize, async (transaction) => {
+				if (!(await InviteCode.consume(record.id, { transaction }))) {
+					const err = new HttpError(410, 'This invite code was just used.', 'InviteCodeError');
+					err.condition = 'used';
+					throw err;
+				}
+				return await User.createSponsored({
+					username,
+					password,
+					email,
+					name,
+					bio,
+					sponsoredBy: chapter.id,
+					authScheme: scheme,
+					keys,
+					transaction
+				});
 			});
 			// The log says a chapter's code was used; never by whom.
 			await audit(null, 'invite-code.join', 'chapter', chapter.id, { batch: record.batch });
@@ -222,9 +229,6 @@ export default class InviteCodeController extends RouteController {
 			}
 			this.#handleSuccess(res, { user: plain, chapter: { id: chapter.id, name: chapter.name } });
 		} catch (err) {
-			if (consumed) {
-				await InviteCode.release(consumed).catch(() => {});
-			}
 			this.#fail(res, next, err, err.condition);
 		}
 	}

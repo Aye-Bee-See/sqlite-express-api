@@ -210,17 +210,16 @@ export default class InviteCode extends Model {
 		return { record, state: 'valid' };
 	}
 
-	/** Spend a code, only if it is still unspent: two joins with one code cannot both win. */
+	/**
+	 * Spend a code, only if it is still unspent: two joins with one code cannot
+	 * both win. Called inside the transaction that makes the account, so the code
+	 * is spent exactly when the account exists.
+	 */
 	static async consume(id, { transaction } = {}) {
 		const [count] = await this.update(
 			{ usedAt: new Date() },
 			{ where: { id, ...InviteCode.#live() }, transaction }
 		);
 		return count === 1;
-	}
-
-	/** Give a code back after a join that failed after consuming it. */
-	static async release(id) {
-		await this.update({ usedAt: null }, { where: { id } });
 	}
 }

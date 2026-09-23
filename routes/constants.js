@@ -482,7 +482,8 @@ const messages = {
 						unknown: 'Invite code not found.',
 						used: 'Invite code already used.',
 						cancelled: 'Invite code cancelled.',
-						expired: 'Invite code expired.'
+						expired: 'Invite code expired.',
+						inactive: 'The chapter that issued this invite code is not active.'
 					}
 				}
 			}
@@ -500,7 +501,8 @@ const messages = {
 						unknown: 'Invite code not found.',
 						used: 'Invite code already used.',
 						cancelled: 'Invite code cancelled.',
-						expired: 'Invite code expired.'
+						expired: 'Invite code expired.',
+						inactive: 'The chapter that issued this invite code is not active.'
 					}
 				}
 			}

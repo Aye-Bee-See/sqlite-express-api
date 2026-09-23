@@ -179,7 +179,12 @@ test('unknown, cancelled, expired, and a code from a chapter that is not active 
 		codes: [fresh]
 	} = (await issue({ count: 1 })).body.data;
 	await Chapter.update({ accountStatus: 'suspended' }, { where: { id: f.group.id } });
-	assert.equal((await get('/auth/join?code=' + fresh)).status, 410);
+	const inactive = await get('/auth/join?code=' + fresh);
+	assert.equal(inactive.status, 410);
+	assert.equal(inactive.body.info, 'The chapter that issued this invite code is not active.');
+	const joinInactive = await joinWith(fresh);
+	assert.equal(joinInactive.status, 410);
+	assert.equal(joinInactive.body.info, 'The chapter that issued this invite code is not active.');
 	await Chapter.update({ accountStatus: 'active' }, { where: { id: f.group.id } });
 	assert.equal((await get('/auth/join?code=' + fresh)).status, 200);
 });

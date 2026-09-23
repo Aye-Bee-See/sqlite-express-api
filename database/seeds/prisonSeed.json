@@ -17,1070 +17,722 @@
 			],
 			"pageLimit": 10,
 			"photoLimit": 5,
-			"mailLanguages": ["en", "es"]
+			"mailLanguages": ["en", "es"],
+			"notes": "A made-up facility with a fixed, readable rule set, kept for trying things out.",
+			"recordStatus": "published"
 		},
 		{
-			"prisonName": "Alpha Prison",
+			"prisonName": "IK-20 (Penal Colony No. 20), Mozyr",
 			"address": {
-				"street": "456 Alpha Street"
+				"street": "Mikhalkovskiy selsovet, 70",
+				"city": "Mozyrskiy r-n, Gomelskaya obl.",
+				"postalCode": "247755"
 			},
-			"country": "United States",
+			"country": "Belarus",
 			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"paperbacks_only",
-				"no_maps",
-				"plain_envelopes",
-				"no_greeting_cards"
-			],
-			"pageLimit": 10,
-			"photoLimit": 10,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Beta Prison",
-			"address": {
-				"street": "789 Beta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"plain_envelopes",
-				"no_gang_imagery",
-				"no_drawings_by_others",
-				"no_stickers_or_labels",
-				"no_greeting_cards"
-			],
-			"pageLimit": null,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Gamma Prison",
-			"address": {
-				"street": "101 Gamma Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"no_enclosures",
-				"delivery_not_confirmed",
-				"legal_mail_marked",
-				"no_gang_imagery"
-			],
-			"pageLimit": 10,
-			"photoLimit": 3,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Delta Prison",
-			"address": {
-				"street": "202 Delta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_inter_prisoner_mail",
-				"printed_pages_allowed",
-				"no_photos",
-				"handwritten_only"
-			],
-			"pageLimit": 5,
-			"photoLimit": null,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Epsilon Prison",
-			"address": {
-				"street": "303 Epsilon Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_third_party_mail",
-				"no_coded_messages",
-				"plain_envelopes"
-			],
-			"pageLimit": null,
-			"photoLimit": 3,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Zeta Prison",
-			"address": {
-				"street": "404 Zeta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"no_third_party_mail",
-				"plain_paper",
-				"no_scents_or_lipstick",
-				"no_glue_tape_or_staples",
-				"ink_blue_or_black",
-				"no_inter_prisoner_mail"
-			],
-			"pageLimit": 10,
-			"photoLimit": 10,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Eta Prison",
-			"address": {
-				"street": "505 Eta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"no_enclosures",
-				"no_greeting_cards",
-				"no_stamps_enclosed",
-				"no_coded_messages",
-				"no_clippings",
-				"typed_letters_allowed"
-			],
-			"pageLimit": 20,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Theta Prison",
-			"address": {
-				"street": "606 Theta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_maps",
-				"typed_letters_allowed",
-				"no_coded_messages",
-				"no_third_party_mail",
-				"no_polaroids",
-				"plain_paper",
-				"no_photos"
-			],
-			"pageLimit": 10,
-			"photoLimit": null,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Iota Prison",
-			"address": {
-				"street": "707 Iota Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"no_enclosures",
-				"no_scents_or_lipstick",
-				"one_letter_per_envelope",
-				"no_coded_messages",
-				"typed_letters_allowed",
-				"no_drawings_by_others",
-				"no_explicit_photos",
-				"postcards_only"
-			],
-			"pageLimit": 10,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Kappa Prison",
-			"address": {
-				"street": "808 Kappa Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"books_from_publisher_only",
-				"one_letter_per_envelope",
-				"plain_paper",
-				"no_third_party_mail",
-				"no_glue_tape_or_staples",
-				"no_money"
-			],
-			"pageLimit": null,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Lambda Prison",
-			"address": {
-				"street": "909 Lambda Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"no_enclosures",
-				"paperbacks_only",
-				"no_money",
-				"no_coded_messages",
-				"no_greeting_cards",
-				"plain_envelopes"
-			],
-			"pageLimit": 10,
-			"photoLimit": 10,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Mu Prison",
-			"address": {
-				"street": "111 Mu Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_third_party_mail",
-				"ink_blue_or_black"
-			],
-			"pageLimit": 20,
-			"photoLimit": null,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Nu Prison",
-			"address": {
-				"street": "222 Nu Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_glue_tape_or_staples",
-				"paperbacks_only",
-				"no_maps",
-				"no_gang_imagery",
-				"no_inter_prisoner_mail",
-				"originals_destroyed",
-				"scanned_in_greyscale"
-			],
-			"pageLimit": 20,
-			"photoLimit": 5,
-			"mailLanguages": ["en", "es"]
-		},
-		{
-			"prisonName": "Xi Prison",
-			"address": {
-				"street": "333 Xi Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"no_enclosures",
-				"paperbacks_only",
-				"no_inter_prisoner_mail",
-				"printed_pages_allowed",
-				"no_stickers_or_labels",
-				"no_clippings",
-				"handwritten_only"
-			],
-			"pageLimit": 10,
-			"photoLimit": 3,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Omicron Prison",
-			"address": {
-				"street": "444 Omicron Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"paperbacks_only",
-				"ink_blue_or_black",
-				"no_scents_or_lipstick"
-			],
-			"pageLimit": null,
-			"photoLimit": 3,
-			"mailLanguages": ["en", "es"]
-		},
-		{
-			"prisonName": "Pi Prison",
-			"address": {
-				"street": "555 Pi Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"mail_read_by_staff",
-				"no_polaroids",
-				"no_money",
-				"books_from_publisher_only",
-				"paperbacks_only",
-				"no_glue_tape_or_staples",
-				"no_drawings_by_others"
-			],
-			"pageLimit": 10,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Rho Prison",
-			"address": {
-				"street": "666 Rho Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_clippings",
-				"plain_envelopes",
-				"no_explicit_photos",
-				"no_gang_imagery",
-				"no_glue_tape_or_staples"
-			],
-			"pageLimit": null,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Sigma Prison",
-			"address": {
-				"street": "777 Sigma Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"paperbacks_only",
-				"no_maps"
-			],
-			"pageLimit": null,
-			"photoLimit": 10,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Tau Prison",
-			"address": {
-				"street": "888 Tau Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"plain_paper",
-				"no_scents_or_lipstick",
-				"originals_destroyed",
-				"scanned_in_greyscale"
-			],
-			"pageLimit": 10,
-			"photoLimit": 3,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Upsilon Prison",
-			"address": {
-				"street": "999 Upsilon Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"full_name_and_number",
-				"no_enclosures",
-				"no_gang_imagery",
-				"no_maps",
-				"no_stamps_enclosed",
-				"no_glue_tape_or_staples",
-				"legal_mail_marked",
-				"originals_destroyed",
-				"scanned_in_greyscale"
-			],
-			"pageLimit": 10,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Phi Prison",
-			"address": {
-				"street": "1010 Phi Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_money",
-				"no_inter_prisoner_mail",
-				"delivery_not_confirmed",
-				"no_polaroids",
-				"no_stamps_enclosed",
-				"plain_envelopes"
-			],
-			"pageLimit": null,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Chi Prison",
-			"address": {
-				"street": "1111 Chi Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"printed_pages_allowed",
-				"legal_mail_marked",
-				"no_greeting_cards",
-				"delivery_not_confirmed"
-			],
+			"mailRules": [],
 			"pageLimit": null,
 			"photoLimit": null,
-			"mailLanguages": null
+			"mailLanguages": null,
+			"notes": "Belarusian political prisoners are transferred often. Reconfirm every address via prisoners.spring96.org or abc-belarus.org before sending mail.",
+			"recordStatus": "published"
 		},
 		{
-			"prisonName": "Psi Prison",
+			"prisonName": "IK-15 (Penal Colony No. 15), Mogilev",
 			"address": {
-				"street": "1212 Psi Street"
+				"street": "Slavgorodskoye shosse, 183",
+				"city": "p/o Veyno, Mogilev",
+				"postalCode": "213105"
 			},
-			"country": "United States",
+			"country": "Belarus",
 			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_stamps_enclosed",
-				"no_polaroids",
-				"plain_paper"
-			],
-			"pageLimit": 10,
-			"photoLimit": null,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Omega Prison",
-			"address": {
-				"street": "1313 Omega Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_clippings",
-				"ink_blue_or_black",
-				"paperbacks_only",
-				"no_glue_tape_or_staples",
-				"no_maps",
-				"typed_letters_allowed",
-				"originals_destroyed",
-				"scanned_in_greyscale"
-			],
-			"pageLimit": 20,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Alpha Prison",
-			"address": {
-				"street": "1414 Alpha Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_inter_prisoner_mail",
-				"no_stamps_enclosed",
-				"plain_paper",
-				"no_scents_or_lipstick"
-			],
-			"pageLimit": 10,
-			"photoLimit": 10,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Beta Prison",
-			"address": {
-				"street": "1515 Beta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"typed_letters_allowed",
-				"printed_pages_allowed"
-			],
-			"pageLimit": 20,
-			"photoLimit": 3,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Gamma Prison",
-			"address": {
-				"street": "1616 Gamma Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_glue_tape_or_staples",
-				"books_from_publisher_only",
-				"no_stickers_or_labels",
-				"one_letter_per_envelope",
-				"no_inter_prisoner_mail",
-				"no_third_party_mail"
-			],
-			"pageLimit": 10,
-			"photoLimit": 10,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Delta Prison",
-			"address": {
-				"street": "1717 Delta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"no_enclosures",
-				"no_glue_tape_or_staples",
-				"books_from_publisher_only",
-				"one_letter_per_envelope",
-				"typed_letters_allowed",
-				"printed_pages_allowed",
-				"plain_envelopes"
-			],
-			"pageLimit": 5,
-			"photoLimit": 5,
-			"mailLanguages": ["en", "es"]
-		},
-		{
-			"prisonName": "Epsilon Prison",
-			"address": {
-				"street": "1818 Epsilon Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_stamps_enclosed",
-				"legal_mail_marked",
-				"one_letter_per_envelope",
-				"books_from_publisher_only"
-			],
-			"pageLimit": 5,
-			"photoLimit": null,
-			"mailLanguages": ["en", "es"]
-		},
-		{
-			"prisonName": "Zeta Prison",
-			"address": {
-				"street": "1919 Zeta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_gang_imagery",
-				"no_maps"
-			],
-			"pageLimit": 10,
-			"photoLimit": 10,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Eta Prison",
-			"address": {
-				"street": "2020 Eta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"no_greeting_cards",
-				"books_from_publisher_only",
-				"no_clippings",
-				"plain_paper"
-			],
-			"pageLimit": null,
-			"photoLimit": 5,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Theta Prison",
-			"address": {
-				"street": "2121 Theta Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"no_drawings_by_others",
-				"no_glue_tape_or_staples"
-			],
-			"pageLimit": null,
-			"photoLimit": 10,
-			"mailLanguages": ["en", "es"]
-		},
-		{
-			"prisonName": "Iota Prison",
-			"address": {
-				"street": "2222 Iota Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"no_enclosures",
-				"books_from_publisher_only",
-				"printed_pages_allowed"
-			],
-			"pageLimit": 10,
-			"photoLimit": 10,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Kappa Prison",
-			"address": {
-				"street": "2323 Kappa Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"books_from_publisher_only",
-				"paperbacks_only",
-				"no_gang_imagery",
-				"no_maps",
-				"ink_blue_or_black",
-				"no_greeting_cards"
-			],
-			"pageLimit": 10,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Lambda Prison",
-			"address": {
-				"street": "2424 Lambda Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": ["no_enclosures", "no_clippings", "no_money", "handwritten_only"],
-			"pageLimit": 10,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Mu Prison",
-			"address": {
-				"street": "2525 Mu Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"delivery_not_confirmed",
-				"one_letter_per_envelope",
-				"no_third_party_mail",
-				"no_explicit_photos",
-				"no_money",
-				"no_maps",
-				"originals_destroyed",
-				"scanned_in_greyscale"
-			],
-			"pageLimit": 20,
-			"photoLimit": 5,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Nu Prison",
-			"address": {
-				"street": "2626 Nu Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"books_from_publisher_only",
-				"no_stickers_or_labels",
-				"one_letter_per_envelope",
-				"no_gang_imagery",
-				"no_coded_messages",
-				"plain_envelopes",
-				"postcards_only"
-			],
-			"pageLimit": 20,
-			"photoLimit": 3,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Xi Prison",
-			"address": {
-				"street": "2727 Xi Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_explicit_photos",
-				"delivery_not_confirmed",
-				"no_maps",
-				"one_letter_per_envelope",
-				"plain_paper"
-			],
-			"pageLimit": null,
-			"photoLimit": 3,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Omicron Prison",
-			"address": {
-				"street": "2828 Omicron Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_stickers_or_labels",
-				"no_clippings",
-				"typed_letters_allowed",
-				"plain_envelopes",
-				"no_inter_prisoner_mail",
-				"delivery_not_confirmed"
-			],
+			"mailRules": ["no_money"],
 			"pageLimit": null,
 			"photoLimit": null,
-			"mailLanguages": ["en", "es"]
+			"mailLanguages": null,
+			"notes": "Two sources give the postal code as 212013 and 213105 for the same facility. At least one prisoner here is on the KGB \"terrorist\" list and may not receive money transfers. Reconfirm addresses before writing.",
+			"recordStatus": "published"
 		},
 		{
-			"prisonName": "Pi Prison",
+			"prisonName": "IK-4 (Penal Colony No. 4, women), Gomel",
 			"address": {
-				"street": "2929 Pi Street"
+				"street": "vulica Antoshkina 3",
+				"city": "Gomel (Homiel)",
+				"postalCode": "246035"
 			},
-			"country": "United States",
+			"country": "Belarus",
 			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"books_from_publisher_only",
-				"no_inter_prisoner_mail",
-				"no_money",
-				"no_stickers_or_labels",
-				"legal_mail_marked",
-				"postcards_only"
-			],
-			"pageLimit": null,
-			"photoLimit": 10,
-			"mailLanguages": ["en", "es"]
-		},
-		{
-			"prisonName": "Rho Prison",
-			"address": {
-				"street": "3030 Rho Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"no_enclosures",
-				"books_from_publisher_only",
-				"no_stamps_enclosed",
-				"no_inter_prisoner_mail"
-			],
-			"pageLimit": 10,
-			"photoLimit": 5,
-			"mailLanguages": ["en", "es"]
-		},
-		{
-			"prisonName": "Sigma Prison",
-			"address": {
-				"street": "3131 Sigma Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_coded_messages",
-				"books_from_publisher_only",
-				"no_scents_or_lipstick",
-				"no_gang_imagery"
-			],
-			"pageLimit": 5,
-			"photoLimit": 10,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Tau Prison",
-			"address": {
-				"street": "3232 Tau Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_scents_or_lipstick",
-				"no_third_party_mail",
-				"no_polaroids",
-				"no_stickers_or_labels",
-				"no_coded_messages",
-				"no_maps",
-				"no_photos"
-			],
-			"pageLimit": 5,
-			"photoLimit": null,
-			"mailLanguages": ["en"]
-		},
-		{
-			"prisonName": "Upsilon Prison",
-			"address": {
-				"street": "3333 Upsilon Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_stamps_enclosed",
-				"no_greeting_cards",
-				"no_gang_imagery",
-				"legal_mail_marked",
-				"no_coded_messages",
-				"no_explicit_photos",
-				"no_photos",
-				"handwritten_only"
-			],
-			"pageLimit": 10,
-			"photoLimit": null,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Phi Prison",
-			"address": {
-				"street": "3434 Phi Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_drawings_by_others",
-				"delivery_not_confirmed",
-				"no_money",
-				"no_photos"
-			],
+			"mailRules": ["no_money"],
 			"pageLimit": null,
 			"photoLimit": null,
-			"mailLanguages": ["en"]
+			"mailLanguages": null,
+			"notes": "Likely the main women's penal colony in Belarus. Prisoners on the KGB \"terrorist\" list may not receive money transfers. Reconfirm before writing.",
+			"recordStatus": "published"
 		},
 		{
-			"prisonName": "Chi Prison",
+			"prisonName": "IK-3 (Penal Colony No. 3), Vitba",
 			"address": {
-				"street": "3535 Chi Street"
+				"street": "g.p. Vitba",
+				"city": "Vitebsky r-n, Vitebskaya obl.",
+				"postalCode": "211322"
 			},
-			"country": "United States",
+			"country": "Belarus",
 			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"no_enclosures",
-				"no_clippings",
-				"no_third_party_mail",
-				"one_letter_per_envelope"
-			],
-			"pageLimit": 10,
-			"photoLimit": 5,
-			"mailLanguages": null
-		},
-		{
-			"prisonName": "Psi Prison",
-			"address": {
-				"street": "3636 Psi Street"
-			},
-			"country": "United States",
-			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_drawings_by_others",
-				"printed_pages_allowed",
-				"paperbacks_only",
-				"no_scents_or_lipstick",
-				"legal_mail_marked",
-				"no_photos"
-			],
-			"pageLimit": 10,
+			"mailRules": [],
+			"pageLimit": null,
 			"photoLimit": null,
-			"mailLanguages": ["en"]
+			"mailLanguages": null,
+			"notes": "Postal code reported as 211300 and 211322 by different sources. Reconfirm before writing.",
+			"recordStatus": "published"
 		},
 		{
-			"prisonName": "Omega Prison",
+			"prisonName": "IK-14 (Penal Colony No. 14), Navasady",
 			"address": {
-				"street": "3737 Omega Street"
+				"street": "vulica Miru 1a",
+				"city": "s.n.p. Navasady, Barysau district, Minsk region",
+				"postalCode": "222125"
+			},
+			"country": "Belarus",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Date of this address not confirmed. Reconfirm before writing.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "ST-8, Zhodino",
+			"address": {
+				"street": "ul. Sovetskaya, 22A",
+				"city": "Zhodino",
+				"postalCode": "222163"
+			},
+			"country": "Belarus",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Address dated March 2023. Reconfirm before writing.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Cárcel de Alta Seguridad, Santiago",
+			"address": {
+				"street": "1902 Avenida Pedro Montt",
+				"city": "Santiago"
+			},
+			"country": "Chile",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Module J, 3rd floor, for the prisoner listed here.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Cárcel de Rancagua (\"La Gonzalina\")",
+			"address": {
+				"city": "Rancagua"
+			},
+			"country": "Chile",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Street address not captured. Anarchist and subversive prisoners transferred here from Santiago in June 2021 were placed in Module 33 (high security) as of July 2024. Reconfirm the exact address before writing.",
+			"recordStatus": "pending"
+		},
+		{
+			"prisonName": "MAH de Fleury-Mérogis",
+			"address": {
+				"street": "7 Avenue des Peupliers",
+				"city": "Fleury-Mérogis",
+				"postalCode": "91700"
+			},
+			"country": "France",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Write the prisoner's registration (écrou) number on the envelope.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "JVA Wuppertal-Ronsdorf",
+			"address": {
+				"city": "Wuppertal, North Rhine-Westphalia"
+			},
+			"country": "Germany",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Street address not captured. Confirm cell block and prisoner number via antifa-info.net before writing.",
+			"recordStatus": "pending"
+		},
+		{
+			"prisonName": "Women's Detention Facility, Eleonas (Thebes)",
+			"address": {
+				"street": "Κατάστημα Κράτησης Γυναικών Ελαιώνα Θηβών",
+				"city": "Θήβα (Thebes)",
+				"postalCode": "32200"
+			},
+			"country": "Greece",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "General Detention Establishment, Domokos",
+			"address": {
+				"street": "Γενικό Κατάστημα Κράτησης Δομοκού",
+				"city": "Δομοκός (Domokos), Fthiotida",
+				"postalCode": "35010"
+			},
+			"country": "Greece",
+			"routing": "direct",
+			"mailRules": ["no_enclosures"],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Small letters only: Domokos does not accept books or parcels by post.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Korydallos Judicial Prison",
+			"address": {
+				"street": "Δικαστική Φυλακή Κορυδαλλού",
+				"city": "Κορυδαλλός (Korydallos), Athens",
+				"postalCode": "18110"
+			},
+			"country": "Greece",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Several separate wings. Prisoners in the Special Wing (Ειδική Πτέρυγα) are noted on their records; confirm the wing before writing.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "General Detention Establishment, Malandrino",
+			"address": {
+				"street": "Γενικό Κατάστημα Κράτησης Μαλανδρίνου",
+				"city": "Φωκίδα (Fokida)",
+				"postalCode": "33053"
+			},
+			"country": "Greece",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Trikala Prison",
+			"address": {
+				"street": "Φυλακές Τρικάλων",
+				"city": "Τρίκαλα (Trikala)",
+				"postalCode": "42100"
+			},
+			"country": "Greece",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Lapas Kebon Waru, Bandung",
+			"address": {
+				"street": "Jl. Jakarta",
+				"city": "Kec. Batununggal, Kota Bandung, West Java",
+				"postalCode": "40272"
+			},
+			"country": "Indonesia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": ["en", "id"],
+			"notes": "Not every prisoner here reads English; the one listed does. Write in English or Indonesian.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Medaeng Detention Facility, Sidoarjo",
+			"address": {
+				"street": "Jl. Letjen Sutoyo, Komp. Kehakiman Medaeng",
+				"city": "Kec. Waru, Kabupaten Sidoarjo, East Java",
+				"postalCode": "61256"
+			},
+			"country": "Indonesia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": ["en", "id"],
+			"notes": "The detention facility for the greater Surabaya area. Write in English or Indonesian.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "HM Prison Maghaberry",
+			"address": {
+				"street": "17 Old Road",
+				"city": "Lisburn",
+				"postalCode": "BT28 2PT"
+			},
+			"country": "United Kingdom",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Northern Ireland. Standard Northern Ireland prison mail rules.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "HMP Foston Hall",
+			"address": {
+				"street": "Foston",
+				"city": "Derbyshire"
+			},
+			"country": "United Kingdom",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Postcode not captured; confirm the full postcode before writing.",
+			"recordStatus": "pending"
+		},
+		{
+			"prisonName": "HMP Berwyn",
+			"address": {
+				"street": "Bridge Road, Wrexham Industrial Estate",
+				"city": "Wrexham",
+				"postalCode": "LL13 9QE"
+			},
+			"country": "United Kingdom",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "HMP Lowdham Grange",
+			"address": {
+				"street": "Old Epperstone Road",
+				"city": "Lowdham, Nottingham",
+				"postalCode": "NG14 7DA"
+			},
+			"country": "United Kingdom",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Check facility-specific rules before sending.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Casa Circondariale di Sassari-Bancali \"Giovanni Bacchiddu\"",
+			"address": {
+				"street": "Strada Provinciale 56 n.4 (Località Bancali)",
+				"city": "Sassari (SS)",
+				"postalCode": "07100"
+			},
+			"country": "Italy",
+			"routing": "direct",
+			"mailRules": ["mail_read_by_staff"],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Some sources give the street as Via Abbacurrente 4; either should route with the facility name and postal code. Mail to 41-bis prisoners is censored and monitored; books and CDs may be refused.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "C.C. di Siracusa",
+			"address": {
+				"street": "Via Monasteri 20C, Contrada Cavadonna",
+				"city": "Siracusa (SR)",
+				"postalCode": "96014"
+			},
+			"country": "Italy",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Seconda Casa di Reclusione di Milano, Bollate",
+			"address": {
+				"street": "Via Cristina Belgioioso 120",
+				"city": "Milano",
+				"postalCode": "20157"
+			},
+			"country": "Italy",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Casa Circondariale di Ferrara",
+			"address": {
+				"street": "Via Arginone 327",
+				"city": "Ferrara",
+				"postalCode": "44122"
+			},
+			"country": "Italy",
+			"routing": "direct",
+			"mailRules": ["mail_read_by_staff"],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Correspondence reported censored, with obstacles both ways (April 2023).",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "FKU T (Prison), Verkhneuralsk",
+			"address": {
+				"street": "ul. Severnaya d. 1",
+				"city": "Verkhneuralsk, Chelyabinsk Region",
+				"postalCode": "457670"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Write the prisoner's full name and year of birth on the envelope, as Russian post requires.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "IK-8, Khokhryaki",
+			"address": {
+				"street": "d. Khokhryaki",
+				"city": "Zavyalovsky district, Udmurt Republic"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Partial address; postal code and street not captured. Electronic letters possible via Zonatelekom. Reconfirm via wiki.avtonom.org.",
+			"recordStatus": "pending"
+		},
+		{
+			"prisonName": "SIZO-2, Moscow",
+			"address": {
+				"street": "ul. Novoslobodskaya d. 45",
+				"city": "Moscow",
+				"postalCode": "127055"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "A pretrial facility; sentenced prisoners are usually moved on. Letters also via the F-pismo service.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "FKU IK-17, Ozerny (Mordovia)",
+			"address": {
+				"street": "ul. Lesnaya, d. 3",
+				"city": "p. Ozerny, Zubovo-Polyansky district, Republic of Mordovia",
+				"postalCode": "431161"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "IK-13, Nizhny Tagil",
+			"address": {
+				"street": "ul. Kulibina, d. 61",
+				"city": "Nizhny Tagil, Sverdlovsk Region",
+				"postalCode": "622013"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "SIZO-1, Krasnoyarsk",
+			"address": {
+				"street": "ul. Respubliki, 72",
+				"city": "Krasnoyarsk",
+				"postalCode": "660075"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Letters also via F-pismo (f-pismo.ru), Zonatelekom (zt.ru), and PrisonMail.Online (foreign cards).",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "FKU SIZO-2, Ryazhsk",
+			"address": {
+				"street": "ul. Krasnaya, d. 1a",
+				"city": "Ryazhsk, Ryazan Region",
+				"postalCode": "391999"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Letters also via Zonatelekom and F-pismo.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "IK-18 \"Polyarnaya Sova\" (Polar Owl), Kharp",
+			"address": {
+				"street": "ul. Odesskaya, d. 19",
+				"city": "pgt Kharp, Labytnangi, Yamalo-Nenets Autonomous Okrug",
+				"postalCode": "629420"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Beyond the Arctic Circle.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "SIZO-1, Chita",
+			"address": {
+				"street": "Ingodinskaya ul. d.1",
+				"city": "Chita, Zabaykalsky Krai",
+				"postalCode": "672039"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": ["ru"],
+			"notes": "Write in Russian. For countries whose post to Russia is halted, ABC Moscow offers to relay letters by email (see avtonom.org).",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "IK-7, Ulan-Ude",
+			"address": {
+				"street": "Pristanskaya ul. 4a",
+				"city": "Ulan-Ude, Republic of Buryatia",
+				"postalCode": "670000"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": ["ru"],
+			"notes": "Write in Russian.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "FKU IK-6, Yoshkar-Ola",
+			"address": {
+				"street": "ul. Stroiteley 56a",
+				"city": "Yoshkar-Ola, Republic of Mari El",
+				"postalCode": "424006"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": ["ru"],
+			"notes": "Write in Russian.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "FKU LIU-3, Prudy",
+			"address": {
+				"street": "ul. Centralnaya d. 22",
+				"city": "p. Prudy, Krasnobakovsky rayon, Nizhny Novgorod Region",
+				"postalCode": "606707"
+			},
+			"country": "Russia",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": ["ru"],
+			"notes": "A medical-correctional facility. Write in Russian.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "C.P. Brians 2",
+			"address": {
+				"street": "Apartado de Correos 1000, Carretera de Martorell a Capellades km 23",
+				"city": "Martorell, Barcelona",
+				"postalCode": "08760"
+			},
+			"country": "Spain",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Also given as Ctra. Martorell-Capellades km 2,3, 08635 Sant Esteve Sesrovires. Both forms may work; if one does not arrive, try the other.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Centro Penitenciario de Villena",
+			"address": {
+				"street": "Carretera N-330, Km. 66",
+				"city": "Villena, Alicante",
+				"postalCode": "03400"
+			},
+			"country": "Spain",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": null,
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Centro Penitenciario Madrid VII (Estremera)",
+			"address": {
+				"street": "Ctra. M-241, Km 5,750",
+				"city": "Estremera, Madrid",
+				"postalCode": "28595"
+			},
+			"country": "Spain",
+			"routing": "direct",
+			"mailRules": ["mail_read_by_staff"],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Correspondence of at least one prisoner here has been reported as intervened by the prison.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Tallahatchie County Correctional Facility",
+			"address": {
+				"street": "19351 U.S. Highway 49 North",
+				"city": "Tutwiler, MS",
+				"postalCode": "38963"
 			},
 			"country": "United States",
 			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_polaroids",
-				"typed_letters_allowed",
-				"no_third_party_mail",
-				"legal_mail_marked",
-				"printed_pages_allowed"
-			],
-			"pageLimit": 20,
-			"photoLimit": 5,
-			"mailLanguages": null
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "CoreCivic. Money only as a money order or cashier's check payable to the inmate, addressed via \"CoreCivic Inmate Trust\".",
+			"recordStatus": "published"
 		},
 		{
-			"prisonName": "Alpha Prison",
+			"prisonName": "Sing Sing Correctional Facility",
 			"address": {
-				"street": "3838 Alpha Street"
+				"street": "354 Hunter Street",
+				"city": "Ossining, NY",
+				"postalCode": "10562"
 			},
 			"country": "United States",
 			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_drawings_by_others",
-				"no_greeting_cards",
-				"no_explicit_photos",
-				"no_glue_tape_or_staples"
-			],
-			"pageLimit": 10,
-			"photoLimit": 3,
-			"mailLanguages": null
+			"mailRules": ["full_name_and_number"],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "New York State DOCCS rules. Use the legal name and the DIN on the envelope.",
+			"recordStatus": "published"
 		},
 		{
-			"prisonName": "Beta Prison",
+			"prisonName": "FCI Victorville",
 			"address": {
-				"street": "3939 Beta Street"
+				"street": "13777 Air Base Rd",
+				"city": "Victorville, CA",
+				"postalCode": "92394"
 			},
 			"country": "United States",
 			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"no_greeting_cards",
-				"plain_envelopes",
-				"legal_mail_marked",
-				"no_gang_imagery",
-				"paperbacks_only",
-				"no_scents_or_lipstick"
-			],
-			"pageLimit": 20,
-			"photoLimit": 10,
-			"mailLanguages": ["en", "es"]
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Federal prison mail rules.",
+			"recordStatus": "published"
 		},
 		{
-			"prisonName": "Gamma Prison",
+			"prisonName": "FCI Allenwood Medium",
 			"address": {
-				"street": "4040 Gamma Street"
+				"street": "PO Box 2000",
+				"city": "White Deer, PA",
+				"postalCode": "17887"
 			},
 			"country": "United States",
 			"routing": "direct",
-			"mailRules": [
-				"return_address_required",
-				"full_name_and_number",
-				"mail_read_by_staff",
-				"no_enclosures",
-				"ink_blue_or_black",
-				"typed_letters_allowed",
-				"no_stamps_enclosed",
-				"no_polaroids",
-				"postcards_only"
-			],
-			"pageLimit": 10,
-			"photoLimit": 5,
-			"mailLanguages": ["en"]
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "Mail is slow; a lack of a quick reply is not disinterest.",
+			"recordStatus": "published"
+		},
+		{
+			"prisonName": "Robert A. Deyton Detention Facility",
+			"address": {
+				"street": "PO Box 730",
+				"city": "Lovejoy, GA",
+				"postalCode": "30250"
+			},
+			"country": "United States",
+			"routing": "direct",
+			"mailRules": [],
+			"pageLimit": null,
+			"photoLimit": null,
+			"mailLanguages": null,
+			"notes": "A pretrial facility.",
+			"recordStatus": "pending"
 		}
 	]
 }

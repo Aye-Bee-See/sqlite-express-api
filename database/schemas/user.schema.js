@@ -98,6 +98,10 @@ const userSchema = {
 		type: DataTypes.INTEGER
 	},
 	/** Internal note, visible to the managing chapter and admins only. */
+	/** The site-unique name letters are signed with; history in PenNames. Set through PenName.claim only. */
+	penName: {
+		type: DataTypes.STRING
+	},
 	/** The chapter whose invite code made this account. Set once, by the API; never changes. */
 	sponsoredBy: {
 		type: DataTypes.INTEGER

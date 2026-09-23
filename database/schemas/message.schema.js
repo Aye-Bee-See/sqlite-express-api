@@ -96,6 +96,14 @@ const messageSchema = {
 		allowNull: false,
 		defaultValue: false
 	},
+	/** Nine digits printed in the letter's footer; a reply carries it back. Issued by the server, read-only. */
+	replyReference: {
+		type: DataTypes.STRING
+	},
+	/** For a reply filed by reference: the letter it answers (null once that letter is gone). */
+	repliesTo: {
+		type: DataTypes.INTEGER
+	},
 	/** Pinned: exempt from the retention purge. */
 	keep: {
 		type: DataTypes.BOOLEAN,

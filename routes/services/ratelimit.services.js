@@ -178,6 +178,21 @@ export const limiters = {
 		windowMs: minutes(rateLimits.claimWindowMinutes),
 		perIp: rateLimits.claimPerIp
 	}),
+	// A reply reference opens a thread; a staff account guessing numbers is fishing.
+	referenceLookup: limit({
+		name: 'referenceLookup',
+		what: 'reply reference lookups',
+		windowMs: minutes(60),
+		perSubject: rateLimits.referencePerUser,
+		subject: (req) => (req.user ? String(req.user.id) : undefined)
+	}),
+	// The pen-name form asks as the person types: per address, generous.
+	penNameCheck: limit({
+		name: 'penNameCheck',
+		what: 'pen name checks',
+		windowMs: minutes(15),
+		perIp: rateLimits.penNameCheckPerIp
+	}),
 	// Invite codes are tried against the server and nothing else: limited like claim checks.
 	join: limit({
 		name: 'join',

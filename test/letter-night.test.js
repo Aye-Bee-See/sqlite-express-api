@@ -308,8 +308,19 @@ test('full=true on the queue carries what printing and addressing need, in a fix
 			'id',
 			'managedBy',
 			'name',
+			'penName',
 			'username'
 		]);
+		// What the printed footer says: who to write back to, care of whom, and the number.
+		assert.deepEqual(Object.keys(row.footer).sort(), [
+			'anonymous',
+			'careOf',
+			'name',
+			'reference',
+			'replySheetAllowed'
+		]);
+		assert.match(row.footer.reference, /^[0-9]{4}-[0-9]{4}-[0-9]$/);
+		assert.equal(row.footer.careOf.id, f.group.id);
 		assert.equal(row.messageText.startsWith('Queue') || row.messageText === 'Dear friend', true);
 	}
 	const selects = queries.filter(

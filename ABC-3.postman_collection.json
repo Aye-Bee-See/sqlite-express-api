@@ -496,6 +496,66 @@
 					"response": []
 				},
 				{
+					"name": "Is A Pen Name Free? (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/pen-name-available?name=James Hollow",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "pen-name-available"],
+							"query": [
+								{
+									"key": "name",
+									"value": "James Hollow"
+								}
+							]
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "My Pen Name And Its History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/pen-name",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "pen-name"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Change My Pen Name",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/user",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "user"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"{{userId}}\",\n    \"penName\": \"James Hollow\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Issue Invite Codes (group admin or superadmin; shown once)",
 					"request": {
 						"method": "POST",
@@ -1524,6 +1584,69 @@
 									"language": "json"
 								}
 							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Look Up A Reply Reference (group or admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/reference?number=4827-1935-6",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "reference"],
+							"query": [
+								{
+									"key": "number",
+									"value": "4827-1935-6"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Record A Reply By Reference",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/message",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "message"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sender\": \"prisoner\",\n    \"reference\": \"4827-1935-6\",\n    \"messageText\": \"Thank you for writing.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Writers By Pen Name (group or admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/writers?name=hollow",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "writers"],
+							"query": [
+								{
+									"key": "name",
+									"value": "hollow"
+								}
+							]
 						}
 					},
 					"response": []

@@ -179,7 +179,7 @@ export default class InviteCodeController extends RouteController {
 	 * issued the code is recorded as its sponsor, and nothing links code to account.
 	 */
 	async createAccount(req, res, next) {
-		const { code, username, password, email, name, bio } = req.body;
+		const { code, username, password, email, name, bio, penName } = req.body;
 		try {
 			const { record, chapter } = await this.#usable(code);
 			const keys = KeysController.keyFields(req.body, { newAccount: true });
@@ -214,6 +214,7 @@ export default class InviteCodeController extends RouteController {
 					email,
 					name,
 					bio,
+					penName,
 					sponsoredBy: chapter.id,
 					authScheme: scheme,
 					keys,

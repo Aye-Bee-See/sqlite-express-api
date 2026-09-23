@@ -620,6 +620,77 @@ test('the return-note migration copies the newest returned note onto each return
 	await old.close();
 });
 
+test('the reply-reference migration gives every existing outgoing letter a number, mailed ones a year, and adds the two rules', async () => {
+	const MIGRATION = '2026.09.24T01.00.00.pen-names-reply-reference.js';
+	const old = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const names = (await createMigrator(old, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(old, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	const at = (day) => `'2026-01-${day} 00:00:00.000 +00:00'`;
+	await old.query(
+		`INSERT INTO User (id, username, password, email, role, createdAt, updatedAt) VALUES (1, 'w', 'x', 'w@example.com', 'user', ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('P', '{}', ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Prisoners (birthName, prison, createdAt, updatedAt) VALUES ('X', 1, ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Chapters (id, name, location, createdAt, updatedAt) VALUES (7, 'G', '{}', ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${at('01')}, ${at('01')})`
+	);
+	// 1: queued. 2: mailed on the 10th. 3: a reply, which gets nothing.
+	await old.query(
+		`INSERT INTO Messages (id, chat, sender, prisoner, user, status, relayChapter, statusChangedAt, createdAt, updatedAt) VALUES
+			(1, 1, 'user', 1, 1, 'queued', 7, NULL, ${at('02')}, ${at('02')}),
+			(2, 1, 'user', 1, 1, 'mailed', 7, ${at('10')}, ${at('02')}, ${at('10')}),
+			(3, 1, 'prisoner', 1, 1, 'received', NULL, NULL, ${at('12')}, ${at('12')})`
+	);
+	await createMigrator(old, { quiet: true }).up({ to: MIGRATION });
+	const [letters] = await old.query('SELECT id, replyReference FROM Messages ORDER BY id');
+	assert.match(letters[0].replyReference, /^[0-9]{9}$/);
+	assert.match(letters[1].replyReference, /^[0-9]{9}$/);
+	assert.notEqual(letters[0].replyReference, letters[1].replyReference);
+	assert.equal(letters[2].replyReference, null, 'a reply carries no number');
+	const [rows] = await old.query(
+		'SELECT message, user, prisoner, chapter, mailedAt, expiresAt FROM ReplyReferences ORDER BY message'
+	);
+	assert.deepEqual(
+		rows.map((r) => [
+			r.message,
+			r.user,
+			r.prisoner,
+			r.chapter,
+			r.mailedAt === null,
+			r.expiresAt === null
+		]),
+		[
+			[1, 1, 1, 7, true, true],
+			[2, 1, 1, 7, false, false]
+		]
+	);
+	assert.ok(
+		String(rows[1].mailedAt).startsWith('2026-01-10'),
+		'the year counts from the day it was mailed'
+	);
+	const [rules] = await old.query(
+		"SELECT tag, category FROM MailRules WHERE tag IN ('no_reference_numbers', 'reply_sheet_allowed') ORDER BY tag"
+	);
+	assert.deepEqual(
+		rules.map((r) => [r.tag, r.category]),
+		[
+			['no_reference_numbers', 'addressing'],
+			['reply_sheet_allowed', 'enclosures']
+		]
+	);
+	await createMigrator(old, { quiet: true }).down({ to: MIGRATION });
+	const [after] = await old.query('SELECT id, status FROM Messages ORDER BY id');
+	assert.equal(after.length, 3, 'rolling back keeps the letters');
+	await old.close();
+});
+
 test('the key cannot be changed while a database still has letters to convert with the old one', async () => {
 	const live = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
 	const names = (await createMigrator(live, { quiet: true }).pending()).map((m) => m.name);

@@ -40,7 +40,7 @@ test('the master list is public, complete, and well formed', async () => {
 	);
 	const { categories, rules, conflicts, parameters } = res.body.data;
 	assert.deepEqual(categories, MAIL_RULE_CATEGORIES);
-	assert.equal(rules.length, 39, 'the rules the migration put on the list');
+	assert.equal(rules.length, 41, 'the rules the migrations put on the list');
 	assert.equal(rules.length, await MailRule.count({ where: { retiredAt: null } }));
 	assert.deepEqual(Object.keys(parameters).sort(), ['mailLanguages', 'pageLimit', 'photoLimit']);
 	assert.ok(conflicts.every((pair) => pair.length === 2));

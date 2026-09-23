@@ -9,6 +9,7 @@ import ValidationError from '#services/ValidationError.js';
 import { inTransaction } from '#services/serial.js';
 import * as authScheme from '#services/auth-scheme.js';
 import { openRegistration } from '#constants';
+import PenName from '#models/pen-name.model.js';
 import { eraseAccount, eraseRefusal } from '#db/erase-account.js';
 import bcrypt from 'bcrypt';
 import { audit } from '#rtServices/audit.services.js';
@@ -46,6 +47,8 @@ export default class UserController extends RouteController {
 		this.revokeToken = this.revokeToken.bind(this);
 		this.claimInfo = this.claimInfo.bind(this);
 		this.loginParams = this.loginParams.bind(this);
+		this.penNameAvailable = this.penNameAvailable.bind(this);
+		this.penName = this.penName.bind(this);
 		this.claim = this.claim.bind(this);
 		this.register = this.create;
 		this.#handleErr = super.handleErr;
@@ -201,7 +204,7 @@ export default class UserController extends RouteController {
 	 * accounts.
 	 */
 	async create(req, res, next) {
-		const { username, email, password, name, bio } = req.body;
+		const { username, email, password, name, bio, penName } = req.body;
 		const chapterId = AuthzService.isAdmin(req) ? req.body.chapterId : undefined;
 		const role =
 			typeof req.body.role === 'string' ? req.body.role.toLowerCase() : AuthzService.USER;
@@ -230,6 +233,7 @@ export default class UserController extends RouteController {
 				email,
 				name,
 				bio,
+				penName,
 				chapterId,
 				authScheme: scheme,
 				...keys
@@ -313,6 +317,12 @@ export default class UserController extends RouteController {
 		}
 		try {
 			const custody = !AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req);
+			// The pen name is set through its own history (PenName.claim), after the row update.
+			const penName = newUser.penName;
+			delete newUser.penName;
+			if (penName !== undefined) {
+				await User.checkPenName(penName, { forUser: newUser.id });
+			}
 			if (newUser.authScheme !== undefined && newUser.password === undefined) {
 				throw new ValidationError('authScheme travels with a new password, not on its own.');
 			}
@@ -395,6 +405,7 @@ export default class UserController extends RouteController {
 				const allowed = [
 					'id',
 					'name',
+					'penName',
 					'email',
 					'managerNote',
 					'retentionDays',
@@ -496,6 +507,9 @@ export default class UserController extends RouteController {
 				);
 			}
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
+			if (penName !== undefined && penName !== null && penName !== '') {
+				await User.renamePen(newUser.id, penName);
+			}
 			if (newUser.chapterId !== undefined || newUser.role !== undefined) {
 				// An account moved out of its chapter, or no longer a group admin, owns
 				// nothing; the chapters it owned are told, like every other change of owner.
@@ -636,7 +650,7 @@ export default class UserController extends RouteController {
 	 * create an account under the caller's group's custody.
 	 */
 	async createWriter(req, res, next) {
-		const { name, email, managerNote } = req.body;
+		const { name, email, managerNote, penName } = req.body;
 		const chapterId = this.#managingChapter(req, req.body.chapter);
 		if (!chapterId) {
 			return next(AuthzService.forbidden('Specify the chapter this writer belongs to.'));
@@ -667,6 +681,7 @@ export default class UserController extends RouteController {
 			}
 			const make = async () =>
 				await User.createManagedWriter({
+					penName,
 					name: name.trim(),
 					email,
 					managerNote,
@@ -827,6 +842,36 @@ export default class UserController extends RouteController {
 	}
 
 	/**
+	 * GET /auth/pen-name-available?name=: is this pen name free? Public, for the
+	 * sign-up form; a signed-in caller asking about their own old name hears yes.
+	 */
+	async penNameAvailable(req, res) {
+		try {
+			const check = await PenName.availability(req.query.name, {
+				forUser: req.user ? req.user.id : null
+			});
+			this.#handleSuccess(res, check);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/** GET /auth/pen-name: the caller's pen name and every name they have used. */
+	async penName(req, res) {
+		try {
+			const user = await User.findByPk(req.user.id, { attributes: ['id', 'penName'] });
+			this.#handleSuccess(res, {
+				penName: user ? user.penName : null,
+				names: await PenName.namesOf(req.user.id)
+			});
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/**
 	 * GET /auth/login-params?username=: what a client needs before it can sign
 	 * in: the account's scheme, and for a split account the salt and recipe its
 	 * auth key is derived from. Public. A username that has no account (or a
@@ -888,7 +933,7 @@ export default class UserController extends RouteController {
 	 * a managed account. Public; the token is the credential.
 	 */
 	async claim(req, res) {
-		const { token, username, password, email } = req.body;
+		const { token, username, password, email, penName } = req.body;
 		try {
 			if (
 				typeof username !== 'string' ||
@@ -940,6 +985,13 @@ export default class UserController extends RouteController {
 					{ username, password, email, keys, authScheme: scheme },
 					{ transaction }
 				);
+				if (penName !== undefined && penName !== null && penName !== '') {
+					const clean = await PenName.claim(writer.id, penName, { transaction });
+					await User.update(
+						{ penName: clean },
+						{ where: { id: writer.id }, transaction, hooks: false }
+					);
+				}
 			});
 			await audit(null, 'writer.claim', 'user', writer.id, { claimedFrom: writer.managedBy });
 			const claimed = await User.findByPk(writer.id);

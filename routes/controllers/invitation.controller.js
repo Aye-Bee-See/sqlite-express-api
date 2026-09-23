@@ -270,7 +270,7 @@ export default class InvitationController extends RouteController {
 	 * the group it belongs to, recorded as vouched for by the inviting group.
 	 */
 	async accept(req, res, next) {
-		const { token, username, password, email, name } = req.body;
+		const { token, username, password, email, name, penName } = req.body;
 		let consumed = null;
 		let createdGroup = null;
 		let createdUser = null;
@@ -317,6 +317,7 @@ export default class InvitationController extends RouteController {
 				password,
 				email,
 				name,
+				penName,
 				role: AuthzService.CHAPTER,
 				chapterId: group.id,
 				authScheme: scheme,

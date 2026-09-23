@@ -87,6 +87,15 @@ const messageSchema = {
 	statusChangedAt: {
 		type: DataTypes.DATE
 	},
+	/**
+	 * Written by hand and handed to the relay group to mail: nothing to print,
+	 * so it starts as `printed`. Set on create only.
+	 */
+	paper: {
+		type: DataTypes.BOOLEAN,
+		allowNull: false,
+		defaultValue: false
+	},
 	/** Pinned: exempt from the retention purge. */
 	keep: {
 		type: DataTypes.BOOLEAN,

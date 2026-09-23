@@ -1506,6 +1506,29 @@
 					"response": []
 				},
 				{
+					"name": "Log A Paper Letter (handwritten; starts printed)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/messaging/message",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["messaging", "message"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sender\": \"user\",\n    \"prisoner\": 1,\n    \"paper\": true,\n    \"relayNote\": \"Two pages, handed over at the night of 2 October\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Read All Messages",
 					"request": {
 						"method": "GET",

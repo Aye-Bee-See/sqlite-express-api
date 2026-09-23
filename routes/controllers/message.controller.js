@@ -4,7 +4,7 @@ import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import ValidationError from '#services/ValidationError.js';
-import { isOpen, LETTER_STATUSES, RETURNED } from '#db/letter-status.js';
+import { isOpen, LETTER_STATUSES, RETURNED, PRINTED } from '#db/letter-status.js';
 import Attachment from '#models/attachment.model.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { sniffType } from '#services/files.js';
@@ -98,9 +98,11 @@ export default class MessageController extends RouteController {
 		if (message.sender === 'prisoner') {
 			await notify([message.user], { event: 'letter.reply', ...what }, { actor: req.user.id });
 		} else if (message.relayChapter) {
+			// A paper letter is not in the print queue, but the group is told all the
+			// same: one more envelope for the night's batch.
 			await notify(
 				await membersOf(message.relayChapter),
-				{ event: 'letter.queued', ...what },
+				{ event: 'letter.queued', ...what, ...(message.paper ? { detail: { paper: true } } : {}) },
 				{ actor: req.user.id }
 			);
 		}
@@ -217,13 +219,13 @@ export default class MessageController extends RouteController {
 	 * given; see Message.resolveRelayChapter.
 	 */
 	async create(req, res, next) {
-		const { messageText, prisoner, relayChapter, relayNote } = req.body;
+		const { messageText, prisoner, relayChapter, relayNote, paper } = req.body;
 		let idempotent = null;
 		try {
 			const scope = await threadScope(req);
 			const sender = scope.kind === 'own' ? 'user' : req.body.sender;
 			const user = await resolveWriter(req, scope, req.body.user, { sender, prisoner });
-			const fields = { sender, prisoner, user, relayChapter, resendOf: req.body.resendOf };
+			const fields = { sender, prisoner, user, relayChapter, resendOf: req.body.resendOf, paper };
 			if (crypto.isE2E()) {
 				const { ciphertext, nonce, relayNoteCiphertext, relayNoteNonce } = req.body;
 				Object.assign(fields, { ciphertext, nonce, relayNoteCiphertext, relayNoteNonce });
@@ -249,7 +251,9 @@ export default class MessageController extends RouteController {
 				// (and of any retry already on its way across a deploy) stays what it was.
 				...(fields.resendOf === undefined || fields.resendOf === null || fields.resendOf === ''
 					? []
-					: ['resendOf', Number(fields.resendOf)])
+					: ['resendOf', Number(fields.resendOf)]),
+				// Likewise: a paper letter and a typed one to the same person are two letters.
+				...(paper === true ? ['paper'] : [])
 			]);
 			if (idempotent && 'replay' in idempotent) {
 				const original = await Message.findByPk(idempotent.replay);
@@ -506,7 +510,10 @@ export default class MessageController extends RouteController {
 			await this.#loadAllowed(scope, messageId),
 			'Message ' + messageId
 		);
-		if (forWrite && scope.kind !== 'all' && !isOpen(message.status)) {
+		// A paper letter starts printed and its photo may arrive after the record;
+		// its files stay changeable until it is mailed.
+		const stillMine = isOpen(message.status) || (message.paper && message.status === PRINTED);
+		if (forWrite && scope.kind !== 'all' && !stillMine) {
 			throw AuthzService.forbidden(
 				'Attachments of a ' + message.status + ' letter can no longer be changed.'
 			);

@@ -432,6 +432,47 @@ test('attachments pass through as ciphertext', async () => {
 	assert.ok(client.decryptFile(dl.bytes, nonce, letterKey).equals(pdf));
 });
 
+test('a paper letter in end-to-end mode carries a content key and envelopes for its photo, and starts printed', async () => {
+	const readers = [
+		{ readerType: 'user', readerId: f.alice.id, publicKey: keys.alice.publicKey },
+		{ readerType: 'chapter', readerId: f.group.id, publicKey: groupKeys.publicKey }
+	];
+	// Nothing to print: the body is empty, but the key it is sealed with is what
+	// the photo of the page is encrypted under.
+	const { contentKey, fields } = client.encryptLetter('', readers);
+	const res = await post(
+		'/messaging/message',
+		{ ...fields, sender: 'user', prisoner: f.prisoner1.id, paper: true, relayChapter: f.group.id },
+		alice
+	);
+	assert.equal(res.status, 201, JSON.stringify(res.body));
+	assert.deepEqual([res.body.data.paper, res.body.data.status], [true, 'printed']);
+	const bare = await post(
+		'/messaging/message',
+		{ sender: 'user', prisoner: f.prisoner1.id, paper: true, relayChapter: f.group.id },
+		alice
+	);
+	assert.equal(bare.status, 400, 'end-to-end: a paper letter still needs its key and envelopes');
+	const png = Buffer.concat([
+		Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+		Buffer.alloc(32, 0)
+	]);
+	const { bytes, nonce } = client.encryptFile(png, contentKey);
+	const added = await upload(
+		'/messaging/attachment',
+		{
+			fields: { message: res.body.data.id, nonce },
+			file: { name: 'page.png', type: 'image/png', bytes }
+		},
+		alice
+	);
+	assert.equal(added.status, 201, JSON.stringify(added.body));
+	const dl = await getBytes('/messaging/attachment?id=' + added.body.data.id, member);
+	assert.ok(client.decryptFile(dl.bytes, nonce, contentKey).equals(png));
+	// Gone again, so the thread counts below stay what they were.
+	assert.equal((await del('/messaging/message', { id: res.body.data.id }, admin)).status, 200);
+});
+
 // ---- managed writers: custody, claim, recovery -------------------------------
 
 let writer;

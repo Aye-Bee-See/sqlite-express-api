@@ -144,7 +144,22 @@ test('what a paper letter cannot be: a reply, a letter nobody mails, or a flag t
 	assert.match(nobody.body.errors[0], /one a group mails/);
 	const text = await post('/messaging/message', paper({ paper: 'yes' }), f.alice);
 	assert.equal(text.status, 400);
-	assert.match(text.body.errors[0], /paper must be true or false/);
+	assert.match(text.body.errors[0], /paper must be true, false, or null/);
+	for (const bad of [1, 'true', {}, []]) {
+		assert.equal(
+			(await post('/messaging/message', paper({ paper: bad }), f.alice)).status,
+			400,
+			String(bad)
+		);
+	}
+	// null is "not given", as it is for relayChapter and resendOf: an ordinary letter.
+	const nulled = await post(
+		'/messaging/message',
+		paper({ paper: null, messageText: 'Dear friend' }),
+		f.alice
+	);
+	assert.equal(nulled.status, 201, JSON.stringify(nulled.body));
+	assert.deepEqual([nulled.body.data.paper, nulled.body.data.status], [false, 'queued']);
 	// false is the ordinary letter.
 	const typed = await post(
 		'/messaging/message',

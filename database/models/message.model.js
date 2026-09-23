@@ -223,6 +223,8 @@ export default class Message extends Model {
 	/**
 	 * `paper: true` on a letter the writer wrote by hand and a group will mail.
 	 * Only an outgoing letter can be one: a reply on paper is what every reply is.
+	 * `null` means the same as leaving it out, as it does for relayChapter and
+	 * resendOf; anything but true, false, null, or nothing is refused.
 	 * @throws {ValidationError}
 	 */
 	static #paperFlag(message) {
@@ -231,7 +233,7 @@ export default class Message extends Model {
 			return false;
 		}
 		if (paper !== true) {
-			throw new ValidationError('paper must be true or false.');
+			throw new ValidationError('paper must be true, false, or null (the same as leaving it out).');
 		}
 		if (message.sender === 'prisoner') {
 			throw new ValidationError('paper is for outgoing letters; a reply is recorded as received.');

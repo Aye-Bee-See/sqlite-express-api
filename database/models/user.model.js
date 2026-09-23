@@ -64,6 +64,8 @@ const UPDATABLE = [
 	'anonymousForChapter',
 	'managerNote',
 	'retentionDays',
+	// Only with a password, and only forward (the controller checks): see services/auth-scheme.js.
+	'authScheme',
 	'publicKey',
 	'wrappedPrivateKey',
 	'kdfSalt',
@@ -130,7 +132,17 @@ export default class User extends Model {
 
 	// Create
 
-	static async createUser({ username, password, role, email, name, bio, chapterId, ...rest }) {
+	static async createUser({
+		username,
+		password,
+		role,
+		email,
+		name,
+		bio,
+		chapterId,
+		authScheme = 'plain',
+		...rest
+	}) {
 		User.refuseReserved({ username, email });
 		const keys = {};
 		for (const field of KEY_INPUT) {
@@ -139,7 +151,7 @@ export default class User extends Model {
 			}
 		}
 		return await this.create(
-			{ username, password, role, email, name, bio, chapterId, ...keys },
+			{ username, password, role, email, name, bio, chapterId, authScheme, ...keys },
 			{ individualHooks: true }
 		);
 	}
@@ -477,7 +489,11 @@ export default class User extends Model {
 	 * @param {{username: string, password: string, email?: string}} credentials
 	 * @returns {Promise<[number]>} affected row count
 	 */
-	static async claim(user, { username, password, email, keys = {} }, { transaction } = {}) {
+	static async claim(
+		user,
+		{ username, password, email, keys = {}, authScheme = 'plain' },
+		{ transaction } = {}
+	) {
 		if (!User.isClaimable(user)) {
 			throw new HttpError(409, 'This account cannot be claimed.', 'ClaimError');
 		}
@@ -485,6 +501,7 @@ export default class User extends Model {
 		const values = {
 			username,
 			password,
+			authScheme,
 			claimedAt: new Date(),
 			claimedFrom: user.managedBy,
 			managedBy: null,
@@ -515,10 +532,14 @@ export default class User extends Model {
 	 * @param {object} user fields to change, including `id`
 	 * @returns {Promise<[number]>} affected row count
 	 */
-	static async updateUser(user) {
+	static async updateUser(user, { expect = {} } = {}) {
 		// With individualHooks, Sequelize also returns the affected instances
-		// (password hash included); only ever hand back the count.
-		return await updateById(this, user.id, pick(user, UPDATABLE), { individualHooks: true });
+		// (password hash included); only ever hand back the count. `expect`: column
+		// values the row must still have, e.g. the authScheme the caller checked.
+		return await updateById(this, user.id, pick(user, UPDATABLE), {
+			individualHooks: true,
+			where: expect
+		});
 	}
 
 	static async banUser(userId) {

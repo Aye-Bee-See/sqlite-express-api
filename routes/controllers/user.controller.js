@@ -6,6 +6,7 @@ import ClaimToken from '#models/claim-token.model.js';
 import OrgMemberKey from '#models/org-member-key.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { inTransaction } from '#services/serial.js';
+import * as authScheme from '#services/auth-scheme.js';
 import { eraseAccount, eraseRefusal } from '#db/erase-account.js';
 import bcrypt from 'bcrypt';
 import { audit } from '#rtServices/audit.services.js';
@@ -42,6 +43,7 @@ export default class UserController extends RouteController {
 		this.createToken = this.createToken.bind(this);
 		this.revokeToken = this.revokeToken.bind(this);
 		this.claimInfo = this.claimInfo.bind(this);
+		this.loginParams = this.loginParams.bind(this);
 		this.claim = this.claim.bind(this);
 		this.register = this.create;
 		this.#handleErr = super.handleErr;
@@ -208,6 +210,9 @@ export default class UserController extends RouteController {
 		}
 		try {
 			const keys = KeysController.keyFields(req.body, { newAccount: true });
+			const scheme = authScheme.schemeFrom(req.body);
+			authScheme.checkPassword(scheme, password);
+			authScheme.requireKeysForSplit(scheme, keys);
 			const user = await User.createUser({
 				username,
 				password,
@@ -216,6 +221,7 @@ export default class UserController extends RouteController {
 				name,
 				bio,
 				chapterId,
+				authScheme: scheme,
 				...keys
 			});
 			const strippedPassword = this.#stripPassword(user, req);
@@ -289,6 +295,31 @@ export default class UserController extends RouteController {
 		}
 		try {
 			const custody = !AuthzService.isAdmin(req) && !AuthzService.targetsSelf(req);
+			if (newUser.authScheme !== undefined && newUser.password === undefined) {
+				throw new ValidationError('authScheme travels with a new password, not on its own.');
+			}
+			let expect = {};
+			if (newUser.password !== undefined) {
+				// A split account never goes back, and a split password comes re-wrapped:
+				// the auth key and the wrap key are derived from the same new salt.
+				const stored = await User.findByPk(newUser.id, { attributes: ['id', 'authScheme'] });
+				const scheme = authScheme.schemeFrom(newUser);
+				if (stored) {
+					authScheme.refuseDowngrade(stored.authScheme, scheme);
+					// The write holds only if the scheme is still the one just checked.
+					expect = { authScheme: stored.authScheme };
+				}
+				authScheme.checkPassword(scheme, newUser.password);
+				if (scheme === 'split') {
+					if (!AuthzService.targetsSelf(req)) {
+						throw new ValidationError(
+							"Only the account holder can change a split account's password: the auth key is derived on their device. Use recovery."
+						);
+					}
+					authScheme.requireKeysForSplit(scheme, newUser);
+				}
+				newUser.authScheme = scheme;
+			}
 			if (!custody) {
 				// Key material has its own endpoint with the immutability checks.
 				const keyFields = [...new Set([...KEY_INPUT, ...KEY_COLUMNS])].filter(
@@ -301,10 +332,12 @@ export default class UserController extends RouteController {
 						'Set keys through PUT /auth/keys, not here (' + stray.join(', ') + ').'
 					);
 				}
-				if (crypto.isE2E() && newUser.password !== undefined) {
-					// A new password means a new wrapping of the private key.
+				// A new password means a new wrapping of the private key: in end-to-end mode
+				// for any keyed account, and for a split account in any mode (the auth key
+				// and the wrap key come from the same new salt).
+				if ((crypto.isE2E() || newUser.authScheme === 'split') && newUser.password !== undefined) {
 					const target = await User.findByPk(newUser.id, { attributes: ['id', 'publicKey'] });
-					if (target && target.publicKey) {
+					if (target && (target.publicKey || newUser.authScheme === 'split')) {
 						if (!AuthzService.targetsSelf(req)) {
 							throw new ValidationError(
 								'End-to-end mode: only the account holder can change this password (the private key is wrapped under it); use recovery.'
@@ -433,9 +466,17 @@ export default class UserController extends RouteController {
 				? await withGroupKeyLock(async () => {
 						const group = await Chapter.findByPk(sealedTo.chapterId);
 						KeysController.requireCurrentGroupKey(group, sealedTo.version);
-						return await User.updateUser(newUser);
+						return await User.updateUser(newUser, { expect });
 					})
-				: await User.updateUser(newUser);
+				: await User.updateUser(newUser, { expect });
+			if (!updatedRows[0] && newUser.password !== undefined && (await User.findByPk(newUser.id))) {
+				// The row is there and did not match: its scheme changed while this ran.
+				throw new HttpError(
+					409,
+					"This account's sign-in scheme changed while the password was being set; read it again.",
+					'AuthSchemeError'
+				);
+			}
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
 			if (custodyKeyed) {
 				// The group gave an unclaimed writer their first keys: the writer's
@@ -739,6 +780,35 @@ export default class UserController extends RouteController {
 	}
 
 	/**
+	 * GET /auth/login-params?username=: what a client needs before it can sign
+	 * in: the account's scheme, and for a split account the salt and recipe its
+	 * auth key is derived from. Public. A username that has no account (or a
+	 * plain one, which has no salt) gets a stable made-up salt and the default
+	 * recipe. With REQUIRE_SPLIT_AUTH on, every answer has the same shape, so it
+	 * never says whether an account exists; before that, a plain account is told
+	 * apart by its scheme, because it could not sign in otherwise.
+	 */
+	async loginParams(req, res) {
+		const username = typeof req.query.username === 'string' ? req.query.username : '';
+		try {
+			const user = username ? await User.getUserWithKeys({ username: username.trim() }) : null;
+			const split = Boolean(user && user.authScheme === 'split' && user.kdfSalt);
+			// While plain accounts are still made, the scheme has to be told apart (a
+			// plain account cannot sign in the split way). Once REQUIRE_SPLIT_AUTH is on,
+			// every answer is the same shape: the endpoint says nothing about anyone.
+			const plain = Boolean(user) && !split && !authScheme.requireSplitAuth;
+			this.#handleSuccess(res, {
+				scheme: plain ? 'plain' : 'split',
+				kdfSalt: split ? user.kdfSalt : authScheme.fakeSalt(username),
+				kdfParams: split ? user.kdfParams : authScheme.DEFAULT_KDF_PARAMS
+			});
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
+	/**
 	 * GET /auth/claim?token=…: is the token usable, and for whom?
 	 * Public; reveals only the writer's name and the managing group's name.
 	 */
@@ -783,6 +853,8 @@ export default class UserController extends RouteController {
 				throw new ValidationError('Choose a username and a password to claim the account.');
 			}
 			const { record, writer } = await this.#validClaim(token);
+			const scheme = authScheme.schemeFrom(req.body);
+			authScheme.checkPassword(scheme, password);
 			let keys = {};
 			if (crypto.isE2E()) {
 				// The browser unwrapped the key with the token and re-wrapped it
@@ -797,7 +869,12 @@ export default class UserController extends RouteController {
 					throw new HttpError(409, 'The public key cannot change on claim.', 'KeyChangeError');
 				}
 				delete keys.publicKey;
+			} else if (scheme === 'split') {
+				// The salt the auth key is derived from travels with the key set-up fields.
+				keys = KeysController.keyFields(req.body);
+				delete keys.publicKey;
 			}
+			authScheme.requireKeysForSplit(scheme, keys);
 			// The token is spent and the account taken in one step, each only if
 			// still unspent and unclaimed: two requests with one token cannot both win,
 			// and a claim that fails (a taken username) leaves the token usable.
@@ -811,7 +888,11 @@ export default class UserController extends RouteController {
 					err.condition = 'used';
 					throw err;
 				}
-				await User.claim(writer, { username, password, email, keys }, { transaction });
+				await User.claim(
+					writer,
+					{ username, password, email, keys, authScheme: scheme },
+					{ transaction }
+				);
 			});
 			await audit(null, 'writer.claim', 'user', writer.id, { claimedFrom: writer.managedBy });
 			const claimed = await User.findByPk(writer.id);

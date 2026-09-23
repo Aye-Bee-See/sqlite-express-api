@@ -17,15 +17,18 @@ export default function pick(source, fields) {
 }
 
 /**
- * Update one row by id with only the allowed fields. With nothing to write,
+ * Update one row by id with only the allowed fields; `options.where` adds
+ * conditions the row must still meet (a conditional update). With nothing to write,
  * reports whether the row exists (so the caller's 404 stays truthful) and
  * changes nothing.
  * @returns {Promise<[number]>} Sequelize's affected-row count
  */
-export async function updateById(model, id, values, options = {}) {
+export async function updateById(model, id, values, { where: expect = {}, ...options } = {}) {
+	// `where` adds conditions the row must still meet (what the caller checked),
+	// so that a check and its write cannot be separated by another request.
 	if (Object.keys(values).length === 0) {
-		return [await model.count({ where: { id } })];
+		return [await model.count({ where: { ...expect, id } })];
 	}
-	const [count] = await model.update(values, { ...options, where: { id } });
+	const [count] = await model.update(values, { ...options, where: { ...expect, id } });
 	return [count];
 }

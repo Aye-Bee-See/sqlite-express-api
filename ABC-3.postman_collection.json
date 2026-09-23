@@ -12,6 +12,44 @@
 			"name": "Users",
 			"item": [
 				{
+					"name": "Sign-in Parameters (public; before Login)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/login-params?username={{username}}",
+							"host": ["localhost"],
+							"path": ["auth", "login-params"],
+							"port": "3000",
+							"query": [
+								{
+									"key": "username",
+									"value": "{{username}}"
+								}
+							]
+						},
+						"auth": {
+							"type": "noauth"
+						},
+						"description": "Returns { scheme, kdfSalt, kdfParams }. For a split account derive the auth key from these and send it as the password to Login; for a plain account send the password."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.token) {",
+									"    pm.collectionVariables.set('jwt', body.data.token.token);",
+									"    pm.collectionVariables.set('userId', String(body.data.user.id));",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
 					"name": "Login (seeded admin)",
 					"request": {
 						"method": "POST",

@@ -12,6 +12,7 @@ import { audit } from '#rtServices/audit.services.js';
 import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
 import { inTransaction } from '#services/serial.js';
 import { catchUpReader } from '#db/rewrap-e2e.js';
+import * as authScheme from '#services/auth-scheme.js';
 
 /** How long a recovery challenge stays valid. */
 const RECOVERY_CHALLENGE_MS = 10 * 60 * 1000;
@@ -327,10 +328,21 @@ export default class KeysController extends RouteController {
 					'RecoveryError'
 				);
 			}
-			if (typeof password !== 'string' || password.length < 7) {
+			// Recovery sets a new password, and may move the account to split at the
+			// same time; it never moves one back.
+			// The stored scheme unless the request says otherwise, and through schemeFrom
+			// either way, so that REQUIRE_SPLIT_AUTH is applied here too.
+			const scheme = authScheme.schemeFrom(
+				req.body.authScheme === undefined ? { authScheme: user.authScheme } : req.body
+			);
+			authScheme.refuseDowngrade(user.authScheme, scheme);
+			if (scheme === 'split') {
+				authScheme.checkPassword(scheme, password);
+			} else if (typeof password !== 'string' || password.length < 7) {
 				throw new ValidationError('password must be at least 7 characters.');
 			}
 			const fields = KeysController.#keyFields(req.body);
+			authScheme.requireKeysForSplit(scheme, fields);
 			if (fields.wrappedPrivateKey === undefined) {
 				throw new ValidationError('Send the private key re-wrapped under the new password.');
 			}
@@ -341,9 +353,19 @@ export default class KeysController extends RouteController {
 			// Consume the challenge atomically: a second request with the same
 			// challenge finds it already cleared.
 			const [count] = await User.update(
-				{ ...fields, password, recoveryChallengeHash: null, recoveryChallengeExpiresAt: null },
 				{
-					where: { id: user.id, recoveryChallengeHash: user.recoveryChallengeHash },
+					...fields,
+					password,
+					authScheme: scheme,
+					recoveryChallengeHash: null,
+					recoveryChallengeExpiresAt: null
+				},
+				{
+					where: {
+						id: user.id,
+						recoveryChallengeHash: user.recoveryChallengeHash,
+						authScheme: user.authScheme
+					},
 					individualHooks: true
 				}
 			);
@@ -932,6 +954,11 @@ export default class KeysController extends RouteController {
 					SUM(publicKey IS NULL AND EXISTS (SELECT 1 FROM Messages m WHERE m.user = User.id)) AS withoutKeysWithLetters
 				FROM User WHERE role = 'user' AND managedBy IS NULL AND anonymousForChapter IS NULL`
 			);
+			// Who still signs in by sending their password (services/auth-scheme.js).
+			const schemes = await one(
+				`SELECT SUM(authScheme = 'split') AS split, SUM(authScheme = 'plain') AS plain
+				FROM User WHERE role != 'banned' AND anonymousForChapter IS NULL AND (managedBy IS NULL OR claimedAt IS NOT NULL)`
+			);
 			const letters = await one(
 				`SELECT COUNT(*) AS serverHeld,
 					COUNT(DISTINCT CASE WHEN u.publicKey IS NULL AND u.anonymousForChapter IS NULL THEN u.id END) AS writersWaited,
@@ -958,6 +985,8 @@ export default class KeysController extends RouteController {
 			);
 			this.#handleSuccess(res, {
 				mode: crypto.isE2E() ? 'e2e' : 'server',
+				// Accounts that can sign in: how many still send their password.
+				authSchemes: { split: Number(schemes.split || 0), plain: Number(schemes.plain || 0) },
 				// Without it the server cannot seal old letters to readers who turn up late.
 				serverKeyConfigured,
 				ready: blockers.length === 0,

@@ -34,6 +34,9 @@ class UserRoutes {
 			this.#Controller.create
 		);
 
+		// The salt and scheme a client needs before it can sign in (public).
+		this.Router.get(userEnd.get.loginParams, limiters.loginParams, this.#Controller.loginParams);
+
 		// Login
 		this.Router.post(
 			userEnd.post.login,

@@ -6,6 +6,7 @@
  */
 import { createHash, scryptSync, randomBytes } from 'node:crypto';
 import * as crypto from '../services/crypto.js';
+import sodium from 'libsodium-wrappers';
 
 export const ready = crypto.ready;
 
@@ -54,6 +55,45 @@ export function accountKeys(password, recoveryCode) {
 			recoveryKdfParams: rc.recoveryKdfParams
 		}
 	};
+}
+
+/**
+ * The split scheme (services/auth-scheme.js): one derivation gives a wrap key,
+ * which locks the private key on the device, and an auth key, which is sent as
+ * the password. The master here comes from scrypt, standing in for Argon2id as
+ * everywhere in this client; the two derivations below are the real ones.
+ */
+export function splitKeys(password, recoveryCode) {
+	const kp = keypair();
+	const salt = randomBytes(16).toString('base64');
+	const params = { kdf: 'scrypt', N: 1024, r: 8, p: 1 };
+	const master = deriveKey(password, salt, params);
+	const wrapKey = sodium.crypto_kdf_derive_from_key(32, 1, 'abcwrap_', master);
+	const authKey = sodium.crypto_kdf_derive_from_key(32, 2, 'abcauth_', master);
+	const { ciphertext, nonce } = crypto.encrypt(crypto.decode(kp.privateKey), wrapKey);
+	const rc = wrapPrivateKey(kp.privateKey, recoveryCode, 'recovery');
+	return {
+		privateKey: kp.privateKey,
+		authKey: Buffer.from(authKey).toString('base64'),
+		fields: {
+			authScheme: 'split',
+			publicKey: kp.publicKey,
+			wrappedPrivateKey: JSON.stringify({ ciphertext, nonce }),
+			kdfSalt: salt,
+			kdfParams: params,
+			recoveryWrappedPrivateKey: rc.recoveryWrappedPrivateKey,
+			recoverySalt: rc.recoverySalt,
+			recoveryKdfParams: rc.recoveryKdfParams
+		}
+	};
+}
+
+/** What a client does at sign-in with the answer of GET /auth/login-params. */
+export function authKeyFor(password, kdfSalt, kdfParams) {
+	const master = deriveKey(password, kdfSalt, kdfParams);
+	return Buffer.from(sodium.crypto_kdf_derive_from_key(32, 2, 'abcauth_', master)).toString(
+		'base64'
+	);
 }
 
 /** Seal a content key (or any bytes) to a reader's public key. */

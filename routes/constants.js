@@ -4,7 +4,8 @@ const endpoints = {
 			many: '/users',
 			one: '/user',
 			writers: '/writers',
-			claimInfo: '/claim'
+			claimInfo: '/claim',
+			loginParams: '/login-params'
 		},
 		post: {
 			create: '/user',
@@ -261,6 +262,10 @@ const messages = {
 			writers: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error listing managed writers.' } }
+			},
+			loginParams: {
+				success: { condition: { par: 'Sign-in parameters.' } },
+				error: { condition: { par: 'Error reading sign-in parameters.' } }
 			},
 			claimInfo: {
 				success: { condition: { par: 'Claim token is valid.' } },

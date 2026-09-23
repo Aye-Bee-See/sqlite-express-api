@@ -131,6 +131,8 @@ export const rateLimits = {
 	loginWindowMinutes: envCount('RATE_LIMIT_LOGIN_WINDOW_MINUTES', 15),
 	// Claim token checks per address per window.
 	claimPerIp: envCount('RATE_LIMIT_CLAIM_PER_IP', 20),
+	referencePerUser: envCount('RATE_LIMIT_REFERENCE_PER_USER', 120),
+	penNameCheckPerIp: envCount('RATE_LIMIT_PEN_NAME_PER_IP', 120),
 	claimWindowMinutes: envCount('RATE_LIMIT_CLAIM_WINDOW_MINUTES', 60),
 	// Invitation token checks and acceptances per address per window.
 	invitePerIp: envCount('RATE_LIMIT_INVITE_PER_IP', 20),
@@ -208,6 +210,12 @@ export const backups = {
  * codes), and a superadmin can always create accounts.
  */
 export const openRegistration = envBool(process.env.OPEN_REGISTRATION, false);
+
+/**
+ * How many months a reply reference outlives its letter after mailing, so a
+ * slow reply can still be filed by number (database/models/reply-reference.model.js).
+ */
+export const replyReferenceMonths = envCount('REPLY_REFERENCE_MONTHS', 12);
 
 /** Invite codes (database/models/invite-code.model.js). */
 export const inviteCodes = {

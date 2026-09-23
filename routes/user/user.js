@@ -36,6 +36,18 @@ class UserRoutes {
 
 		// The salt and scheme a client needs before it can sign in (public).
 		this.Router.get(userEnd.get.loginParams, limiters.loginParams, this.#Controller.loginParams);
+		// Pen names: the sign-up form asks whether a name is free (public); an account reads its own history.
+		this.Router.get(
+			userEnd.get.penNameAvailable,
+			limiters.penNameCheck,
+			AuthzService.optionalAuthenticate,
+			this.#Controller.penNameAvailable
+		);
+		this.Router.get(
+			userEnd.get.penName,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.penName
+		);
 
 		// Login
 		this.Router.post(

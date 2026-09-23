@@ -3,6 +3,7 @@ import { default as passport } from 'passport';
 import { messageEnd } from '#routes/constants.js';
 import { default as messageCrtlr } from '#rtControllers/message.controller.js';
 import { uploadSingle } from '#rtServices/upload.services.js';
+import { limiters } from '#rtServices/ratelimit.services.js';
 
 class MessageRoutes {
 	static Router;
@@ -82,6 +83,19 @@ class MessageRoutes {
 			messageEnd.get.missingEnvelopes,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
 			this.#Controller.missingEnvelopes
+		);
+
+		// Filing a reply: by the number on it, or by the writer's pen name.
+		this.Router.get(
+			messageEnd.get.reference,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			limiters.referenceLookup,
+			this.#Controller.reference
+		);
+		this.Router.get(
+			messageEnd.get.writers,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.writers
 		);
 
 		this.Router.get(

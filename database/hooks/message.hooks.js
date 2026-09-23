@@ -3,6 +3,7 @@ import { initialStatusFor } from '#db/letter-status.js';
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
 import ValidationError from '#services/ValidationError.js';
+import ReplyReference from '#models/reply-reference.model.js';
 
 /** Content keys of instances being created, until afterCreate stores the envelope. */
 const pendingKeys = new WeakMap();
@@ -59,7 +60,7 @@ export default {
 		}
 	},
 
-	afterCreate: async (instance) => {
+	afterCreate: async (instance, options = {}) => {
 		const key = pendingKeys.get(instance);
 		pendingKeys.delete(instance);
 		if (key) {
@@ -71,6 +72,17 @@ export default {
 				await instance.destroy({ force: true, hooks: false }).catch(() => {});
 				throw err;
 			}
+		}
+		if (instance.sender !== 'prisoner' && !instance.getDataValue('replyReference')) {
+			// Every outgoing letter carries a reply reference for its footer, whether it
+			// came through createLetter, a seed, or a backfill.
+			const transaction = options.transaction || null;
+			const reference = await ReplyReference.issue(instance, { transaction });
+			await instance.constructor.update(
+				{ replyReference: reference },
+				{ where: { id: instance.id }, hooks: false, transaction }
+			);
+			instance.setDataValue('replyReference', reference);
 		}
 		if (crypto.isE2E()) {
 			instance.setDataValue('messageText', null);

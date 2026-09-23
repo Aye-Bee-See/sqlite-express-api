@@ -99,7 +99,7 @@ export async function runRetention(options = {}) {
 }
 
 async function run({ dryRun = false, now = new Date(), log = console.log } = {}) {
-	const { Message, User, Chat, AuditLog, Attachment, Chapter } = Models;
+	const { Message, User, Chat, AuditLog, Attachment, Chapter, ReplyReference } = Models;
 	// Nothing younger than the shortest window anyone has can be due, so the
 	// database leaves those rows out: the run reads the letters that may go, not
 	// every letter ever mailed.
@@ -138,6 +138,7 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 		replies: 0,
 		attachments: 0,
 		chats: 0,
+		references: 0,
 		dryRun
 	};
 	const perChat = new Map(); // chat id -> letters this run removes from it
@@ -175,6 +176,10 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 		if (remaining === 0) {
 			report.chats += dryRun ? 1 : await Chat.destroy({ where: { id: chatId } });
 		}
+	}
+	// References whose letter is gone and whose year is up hold three ids and go too.
+	if (!dryRun) {
+		report.references = await ReplyReference.purge(now);
 	}
 	if (!dryRun && report.letters + report.replies > 0) {
 		await AuditLog.record({

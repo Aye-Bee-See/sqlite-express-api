@@ -1,5 +1,8 @@
 import { Op } from 'sequelize';
 import Message from '#models/message.model.js';
+import ReplyReference from '#models/reply-reference.model.js';
+import PenName from '#models/pen-name.model.js';
+import { formatReference, normalizeReference } from '#db/reply-reference.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
@@ -14,6 +17,9 @@ import { begin as beginIdempotent, markReplayed } from '#rtServices/idempotency.
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
 import User from '#models/user.model.js';
+import Chapter from '#models/chapter.model.js';
+import Prisoner from '#models/prisoner.model.js';
+import Chat from '#models/chat.model.js';
 import { retentionDefaultDays, retentionMaxDays } from '#constants';
 import { windowFor } from '#db/retention.js';
 
@@ -49,6 +55,8 @@ export default class MessageController extends RouteController {
 		this.createEnvelope = this.createEnvelope.bind(this);
 		this.missingEnvelopes = this.missingEnvelopes.bind(this);
 		this.retention = this.retention.bind(this);
+		this.reference = this.reference.bind(this);
+		this.writers = this.writers.bind(this);
 		this.remove = this.remove.bind(this);
 		this.create = this.create.bind(this);
 		this.createAttachment = this.createAttachment.bind(this);
@@ -219,13 +227,46 @@ export default class MessageController extends RouteController {
 	 * given; see Message.resolveRelayChapter.
 	 */
 	async create(req, res, next) {
-		const { messageText, prisoner, relayChapter, relayNote, paper } = req.body;
+		const { messageText, relayChapter, relayNote, paper, reference } = req.body;
+		let { prisoner } = req.body;
 		let idempotent = null;
 		try {
 			const scope = await threadScope(req);
 			const sender = scope.kind === 'own' ? 'user' : req.body.sender;
-			const user = await resolveWriter(req, scope, req.body.user, { sender, prisoner });
-			const fields = { sender, prisoner, user, relayChapter, resendOf: req.body.resendOf, paper };
+			let user;
+			let repliesTo = null;
+			if (reference !== undefined && reference !== null && reference !== '') {
+				// A reply filed by the number the prisoner copied from the letter: the
+				// reference names the writer, the prisoner, and the letter answered.
+				if (sender !== 'prisoner') {
+					throw new ValidationError('reference goes with a reply (sender prisoner).');
+				}
+				const found = await this.#referenceFor(req, scope, reference);
+				if (prisoner !== undefined && String(prisoner) !== String(found.row.prisoner)) {
+					throw new ValidationError(
+						'That reply reference belongs to a letter to a different prisoner.'
+					);
+				}
+				if (req.body.user !== undefined && String(req.body.user) !== String(found.row.user)) {
+					throw new ValidationError(
+						'That reply reference belongs to a letter by a different writer.'
+					);
+				}
+				prisoner = found.row.prisoner;
+				user = found.row.user;
+				repliesTo = found.row.message ?? null;
+			} else {
+				user = await resolveWriter(req, scope, req.body.user, { sender, prisoner });
+			}
+			const fields = {
+				sender,
+				prisoner,
+				user,
+				relayChapter,
+				resendOf: req.body.resendOf,
+				paper,
+				...(repliesTo ? { repliesTo } : {})
+			};
 			if (crypto.isE2E()) {
 				const { ciphertext, nonce, relayNoteCiphertext, relayNoteNonce } = req.body;
 				Object.assign(fields, { ciphertext, nonce, relayNoteCiphertext, relayNoteNonce });
@@ -253,7 +294,9 @@ export default class MessageController extends RouteController {
 					? []
 					: ['resendOf', Number(fields.resendOf)]),
 				// Likewise: a paper letter and a typed one to the same person are two letters.
-				...(paper === true ? ['paper'] : [])
+				...(paper === true ? ['paper'] : []),
+				// And a reply to one letter is not a reply to another.
+				...(repliesTo || reference ? ['reference', normalizeReference(reference)] : [])
 			]);
 			if (idempotent && 'replay' in idempotent) {
 				const original = await Message.findByPk(idempotent.replay);
@@ -289,6 +332,149 @@ export default class MessageController extends RouteController {
 			if (idempotent && idempotent.release) {
 				await idempotent.release().catch(() => {});
 			}
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * The reply reference the caller typed, resolved to its ids, or the 400/404
+	 * that says why not. A group sees the references of letters it mailed (or
+	 * still holds); a superadmin any. Unknown and someone else's are the same
+	 * 404, so the numbers cannot be used to fish for other groups' threads.
+	 * @throws {HttpError}
+	 */
+	async #referenceFor(req, scope, number) {
+		const { state, row } = await ReplyReference.lookup(number);
+		if (state === 'invalid') {
+			const err = new HttpError(
+				400,
+				'That number has a mistake in it. Check it against the letter.',
+				'ReplyReferenceError'
+			);
+			err.condition = 'checksum';
+			throw err;
+		}
+		let letter = null;
+		let mine = false;
+		if (row) {
+			letter = row.message ? await Message.findByPk(row.message) : null;
+			const chapter = letter ? letter.relayChapter : row.chapter;
+			mine =
+				scope.kind === 'all' ||
+				(scope.kind === 'managed' &&
+					Boolean(scope.chapterId) &&
+					String(chapter) === String(scope.chapterId));
+		}
+		if (!row || !mine) {
+			const err = new HttpError(
+				404,
+				'No letter of yours carries that reply reference.',
+				'ReplyReferenceError'
+			);
+			err.condition = 'unknown';
+			throw err;
+		}
+		return { row, letter };
+	}
+
+	/**
+	 * GET /messaging/reference?number=: what a reply reference points at, for
+	 * the volunteer opening an envelope: the writer (pen name), the prisoner,
+	 * the thread, and the letter answered if it still exists. Staff only.
+	 */
+	async reference(req, res, next) {
+		try {
+			const scope = await threadScope(req);
+			if (scope.kind === 'own') {
+				throw AuthzService.forbidden(
+					'Reply references are looked up by the group that mailed the letter.'
+				);
+			}
+			const { row, letter } = await this.#referenceFor(req, scope, req.query.number);
+			const [writer, prisoner, group] = await Promise.all([
+				User.findByPk(row.user, { attributes: ['id', 'penName', 'name', 'anonymousForChapter'] }),
+				Prisoner.findByPk(row.prisoner, { attributes: ['id', 'birthName', 'chosenName'] }),
+				Chapter.findByPk(letter ? letter.relayChapter : row.chapter, { attributes: ['id', 'name'] })
+			]);
+			const chat = letter
+				? letter.chat
+				: await Chat.findOne({
+						where: { user: row.user, prisoner: row.prisoner },
+						attributes: ['id']
+					}).then((c) => (c ? c.id : null));
+			this.#handleSuccess(res, {
+				reference: formatReference(row.reference),
+				letter: letter
+					? {
+							id: letter.id,
+							chat: letter.chat,
+							status: letter.status,
+							paper: letter.paper,
+							createdAt: letter.createdAt
+						}
+					: null,
+				mailedAt: row.mailedAt,
+				chat,
+				writer: writer
+					? {
+							id: writer.id,
+							penName: writer.penName,
+							name: writer.name,
+							anonymous: Boolean(writer.anonymousForChapter)
+						}
+					: null,
+				prisoner: prisoner
+					? { id: prisoner.id, birthName: prisoner.birthName, chosenName: prisoner.chosenName }
+					: null,
+				careOf: group ? { id: group.id, name: group.name } : null
+			});
+		} catch (err) {
+			this.#fail(res, next, err, err.condition);
+		}
+	}
+
+	/**
+	 * GET /messaging/writers?name=: the writers whose letters this group mailed,
+	 * by current or former pen name, for filing a reply that carries a name and
+	 * no number. Superadmins search every pen name.
+	 */
+	async writers(req, res, next) {
+		const q = typeof req.query.name === 'string' ? req.query.name.trim() : '';
+		try {
+			const scope = await threadScope(req);
+			if (scope.kind === 'own') {
+				throw AuthzService.forbidden(
+					'Writers are searched by the group that mailed their letters.'
+				);
+			}
+			if (q.length < 2) {
+				throw new ValidationError('name must be at least 2 characters.');
+			}
+			const ids =
+				scope.kind === 'all'
+					? null
+					: scope.chapterId
+						? await ReplyReference.writerIdsFor(scope.chapterId)
+						: [];
+			const matches = await PenName.search(q, ids);
+			const writers =
+				matches.size === 0
+					? []
+					: await User.findAll({
+							where: { id: [...matches.keys()] },
+							attributes: ['id', 'penName', 'name', 'anonymousForChapter']
+						});
+			this.#handleSuccess(
+				res,
+				writers.map((w) => ({
+					id: w.id,
+					penName: w.penName,
+					name: w.name,
+					anonymous: Boolean(w.anonymousForChapter),
+					matched: matches.get(w.id)
+				}))
+			);
+		} catch (err) {
 			this.#fail(res, next, err);
 		}
 	}

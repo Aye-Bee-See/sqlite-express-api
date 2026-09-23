@@ -5,7 +5,9 @@ const endpoints = {
 			one: '/user',
 			writers: '/writers',
 			claimInfo: '/claim',
-			loginParams: '/login-params'
+			loginParams: '/login-params',
+			penNameAvailable: '/pen-name-available',
+			penName: '/pen-name'
 		},
 		post: {
 			create: '/user',
@@ -169,7 +171,9 @@ const endpoints = {
 			many: '/messages',
 			one: '/message',
 			retention: '/retention',
-			missingEnvelopes: '/envelopes/missing'
+			missingEnvelopes: '/envelopes/missing',
+			reference: '/reference',
+			writers: '/writers'
 		},
 		post: {
 			create: '/message',
@@ -276,6 +280,14 @@ const messages = {
 			writers: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error listing managed writers.' } }
+			},
+			penNameAvailable: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error checking the pen name.' } }
+			},
+			penName: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the pen name.' } }
 			},
 			loginParams: {
 				success: { condition: { par: 'Sign-in parameters.' } },
@@ -713,6 +725,20 @@ const messages = {
 			getAttachment: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading attachment.' } }
+			},
+			reference: {
+				success: { condition: { par: 'Reply reference found.' } },
+				error: {
+					condition: {
+						par: 'Error looking up the reply reference.',
+						checksum: 'That number has a mistake in it. Check it against the letter.',
+						unknown: 'No letter of yours carries that reply reference.'
+					}
+				}
+			},
+			writers: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error searching writers by pen name.' } }
 			},
 			retention: {
 				success: { condition: { par: null } },

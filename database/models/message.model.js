@@ -1,5 +1,7 @@
 import { Model } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
+import ReplyReference from '#models/reply-reference.model.js';
+import { formatReference } from '#db/reply-reference.js';
 import pick from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import modelsService from '#models/models.service.js';
@@ -215,6 +217,7 @@ export default class Message extends Model {
 			// would be mailed without its envelopes or history, and a retry under the
 			// same Idempotency-Key would make a second one beside it.
 			await LetterKey.destroy({ where: { message: created.id } }).catch(() => {});
+			await ReplyReference.destroy({ where: { message: created.id } }).catch(() => {});
 			await this.destroy({ where: { id: created.id }, force: true }).catch(() => {});
 			throw err;
 		}
@@ -474,6 +477,11 @@ export default class Message extends Model {
 				for (const [chapter, letters] of mailedBy) {
 					await Chapter.countMailed(chapter, letters, { transaction });
 				}
+				// The references start their year, under the group that mailed them.
+				await ReplyReference.markMailed(
+					moves.map(({ message }) => ({ id: message.id, chapter: message.relayChapter ?? null })),
+					{ transaction }
+				);
 			}
 		});
 		return moves.map(({ message, from }) => ({ id: message.id, from }));
@@ -506,15 +514,47 @@ export default class Message extends Model {
 		});
 		const writers = await User.findAll({
 			where: { id: [...new Set(rows.map((row) => row.user))] },
-			attributes: ['id', 'name', 'username', 'managedBy', 'anonymousForChapter']
+			attributes: ['id', 'name', 'penName', 'username', 'managedBy', 'anonymousForChapter']
+		});
+		const groups = await Chapter.findAll({
+			where: { id: [...new Set(rows.map((row) => row.relayChapter).filter(Boolean))] },
+			attributes: ['id', 'name']
 		});
 		const prisonerOf = new Map(prisoners.map((prisoner) => [prisoner.id, prisoner]));
 		const writerOf = new Map(writers.map((writer) => [writer.id, writer]));
+		const groupOf = new Map(groups.map((group) => [group.id, group]));
 		for (const row of rows) {
-			row.setDataValue('prisoner_details', prisonerOf.get(row.prisoner) || null);
-			row.setDataValue('user_details', writerOf.get(row.user) || null);
+			const prisoner = prisonerOf.get(row.prisoner) || null;
+			const writer = writerOf.get(row.user) || null;
+			row.setDataValue('prisoner_details', prisoner);
+			row.setDataValue('user_details', writer);
+			if (row.sender !== 'prisoner') {
+				row.setDataValue(
+					'footer',
+					Message.footerFor(row, writer, prisoner, groupOf.get(row.relayChapter))
+				);
+			}
 		}
 		return rows;
+	}
+
+	/**
+	 * What the printed page's footer says, for the client to lay out and word:
+	 * who to write back to (the pen name, else the name; the group's anonymous
+	 * writer has neither), care of which group, and the reply reference, left out
+	 * where the facility's mail room refuses reference numbers. A reply sheet
+	 * only where the facility allows one.
+	 */
+	static footerFor(row, writer, prisoner, group) {
+		const tags = prisoner && prisoner.prison_details ? prisoner.prison_details.mailRules || [] : [];
+		const anonymous = Boolean(writer && writer.anonymousForChapter);
+		return {
+			name: anonymous ? null : (writer && (writer.penName || writer.name)) || null,
+			anonymous,
+			careOf: group ? { id: group.id, name: group.name } : null,
+			reference: tags.includes('no_reference_numbers') ? null : formatReference(row.replyReference),
+			replySheetAllowed: tags.includes('reply_sheet_allowed')
+		};
 	}
 
 	/**

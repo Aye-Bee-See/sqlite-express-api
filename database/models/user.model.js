@@ -4,6 +4,8 @@ import Schemas from '#schemas/all.schema.js';
 import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
 import Chat from '#models/chat.model.js';
+import PenName from '#models/pen-name.model.js';
+import { inTransaction } from '#services/serial.js';
 import ValidationError from '#services/ValidationError.js';
 import { HttpError } from '#services/HttpError.js';
 
@@ -140,20 +142,74 @@ export default class User extends Model {
 		name,
 		bio,
 		chapterId,
+		penName,
 		authScheme = 'plain',
 		...rest
 	}) {
 		User.refuseReserved({ username, email });
+		await User.checkPenName(penName);
 		const keys = {};
 		for (const field of KEY_INPUT) {
 			if (rest[field] !== undefined) {
 				keys[field] = rest[field];
 			}
 		}
-		return await this.create(
+		const user = await this.create(
 			{ username, password, role, email, name, bio, chapterId, authScheme, ...keys },
 			{ individualHooks: true }
 		);
+		return await User.takePenName(user, penName);
+	}
+
+	/**
+	 * A pen name is checked before the account is made (shape, and taken or not)
+	 * so that the usual case fails before anything is written.
+	 * @throws {ValidationError}
+	 */
+	static async checkPenName(penName, { forUser = null } = {}) {
+		if (penName === undefined || penName === null || penName === '') {
+			return;
+		}
+		const check = await PenName.availability(penName, { forUser });
+		if (!check.available) {
+			throw new ValidationError(check.reason);
+		}
+	}
+
+	/**
+	 * Give a just-made account its pen name. The name was checked a moment ago;
+	 * if it was taken in between, the account goes again rather than stand
+	 * without the name the person chose.
+	 */
+	static async takePenName(user, penName) {
+		if (penName === undefined || penName === null || penName === '') {
+			return user;
+		}
+		try {
+			const name = await inTransaction(this.sequelize, async (transaction) => {
+				const clean = await PenName.claim(user.id, penName, { transaction });
+				await this.update(
+					{ penName: clean },
+					{ where: { id: user.id }, hooks: false, transaction }
+				);
+				return clean;
+			});
+			user.setDataValue('penName', name);
+			return user;
+		} catch (err) {
+			await this.destroy({ where: { id: user.id }, force: true }).catch(() => {});
+			throw err;
+		}
+	}
+
+	/** Change an account's pen name: the old one is kept for ever, and comes back if chosen again. */
+	static async renamePen(userId, penName) {
+		// The history and the column move together, one rename at a time.
+		return await inTransaction(this.sequelize, async (transaction) => {
+			const name = await PenName.claim(userId, penName, { transaction });
+			await this.update({ penName: name }, { where: { id: userId }, hooks: false, transaction });
+			return name;
+		});
 	}
 
 	/**
@@ -407,13 +463,15 @@ export default class User extends Model {
 		email,
 		managerNote,
 		chapterId,
+		penName,
 		publicKey = null,
 		orgWrappedPrivateKey = null
 	}) {
+		await User.checkPenName(penName);
 		// 'writer-' plus 8 hex characters fits the 16-character username limit.
 		const tag = randomBytes(4).toString('hex');
 		const cleanEmail = typeof email === 'string' && email.trim() !== '' ? email.trim() : null;
-		return await this.create(
+		const writer = await this.create(
 			{
 				username: 'writer-' + tag,
 				password: randomBytes(24).toString('base64url'),
@@ -429,6 +487,7 @@ export default class User extends Model {
 			},
 			{ individualHooks: true }
 		);
+		return await User.takePenName(writer, penName);
 	}
 
 	/**
@@ -442,6 +501,7 @@ export default class User extends Model {
 		email,
 		name,
 		bio,
+		penName,
 		sponsoredBy,
 		authScheme = 'plain',
 		keys = {},
@@ -449,6 +509,28 @@ export default class User extends Model {
 	}) {
 		const given = typeof email === 'string' && email.trim() !== '' ? email.trim() : null;
 		User.refuseReserved({ username, email: given ?? undefined });
+		await User.checkPenName(penName);
+		if (penName) {
+			// Inside the join's transaction: the name row and the account commit together.
+			const user = await this.create(
+				{
+					username,
+					password,
+					email: given ?? User.placeholderEmail(randomBytes(4).toString('hex')),
+					name: typeof name === 'string' && name.trim() ? name.trim() : null,
+					bio,
+					role: 'user',
+					sponsoredBy,
+					authScheme,
+					...keys
+				},
+				{ individualHooks: true, transaction }
+			);
+			const clean = await PenName.claim(user.id, penName, { transaction });
+			await this.update({ penName: clean }, { where: { id: user.id }, hooks: false, transaction });
+			user.setDataValue('penName', clean);
+			return user;
+		}
 		return await this.create(
 			{
 				username,

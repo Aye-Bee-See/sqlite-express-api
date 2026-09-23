@@ -16,6 +16,8 @@ import revokedTokenSchema from '#schemas/revoked-token.schema.js';
 import sessionRunSchema from '#schemas/session-run.schema.js';
 import invitationSchema from '#schemas/invitation.schema.js';
 import inviteCodeSchema from '#schemas/invite-code.schema.js';
+import penNameSchema from '#schemas/pen-name.schema.js';
+import replyReferenceSchema from '#schemas/reply-reference.schema.js';
 import mailRuleSchema from '#schemas/mail-rule.schema.js';
 import deviceSchema from '#schemas/device.schema.js';
 import notificationSchema from '#schemas/notification.schema.js';
@@ -40,6 +42,8 @@ export default class Schemas {
 	static sessionRun = sessionRunSchema;
 	static invitation = invitationSchema;
 	static inviteCode = inviteCodeSchema;
+	static penName = penNameSchema;
+	static replyReference = replyReferenceSchema;
 	static mailRule = mailRuleSchema;
 	static device = deviceSchema;
 	static notification = notificationSchema;

@@ -90,6 +90,7 @@ cp .env.example .env
 | `OPEN_REGISTRATION`                           | No       | `false`                                   | `true` lets anyone make an account with `POST /auth/user` and no code. Off by default: writers join with an invite code, and superadmins can always create accounts. See [Invite codes](#invite-codes). |
 | `INVITE_CODES_OUTSTANDING`                    | No       | `20`                                      | Unused invite codes a chapter may have at once. Used codes free their slot; unused ones count until they expire or are cancelled.                                                                       |
 | `INVITE_CODE_DAYS`                            | No       | `30`                                      | How long an invite code works, and the most a batch may ask for.                                                                                                                                        |
+| `REPLY_REFERENCE_MONTHS`                      | No       | `12`                                      | How long a reply reference keeps working after the letter was mailed, once the letter itself is deleted. See [Reply reference](#reply-reference).                                                       |
 | `REQUIRE_SPLIT_AUTH`                          | No       | `false`                                   | `true` refuses to create any new account that would send its password (`authScheme: plain`). Set it once every client uses the split scheme.                                                            |
 | `INVITATION_DAYS`                             | No       | `14`                                      | How long an invitation token works. See [Invitations](#invitations).                                                                                                                                    |
 | `INVITATION_AUTO_ACTIVATE`                    | No       | `false`                                   | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.                                                                |
@@ -179,6 +180,8 @@ The file format (a tar stream, encrypted in chunks with libsodium's secretstream
 
 ### Retention
 
+Reply references outlive their letters for `REPLY_REFERENCE_MONTHS` after mailing (see [Reply reference](#reply-reference)); the retention run removes the expired ones and reports them as `references`.
+
 Letters do not stay forever. Once a letter has been `mailed` or `returned` (or a prisoner reply recorded) for longer than the writer's window, the API deletes it, with its attachments, envelopes, and status history, and removes a chat left empty. Queued and printed letters are never touched, and neither is a letter the writer pinned with `keep: true`. Every run that deletes something writes one `retention.run` entry to the audit log with the counts, then compacts the database file so the deleted pages do not linger.
 
 The window is per writer: `retentionDays` on the account, else `RETENTION_DEFAULT_DAYS` (90). `0` means forever. `RETENTION_MAX_DAYS`, when set, caps every choice including forever. A writer's window covers the prisoner replies in their threads, since they sit in the writer's account. A managing group sets the window for its unclaimed managed writers and for its anonymous writer through `PUT /auth/user`, the same way it edits their names. `GET /messaging/retention` tells a client the default, the cap, and the caller's effective window.
@@ -237,9 +240,9 @@ On a fresh database the JSON files in `database/seeds/` are loaded:
 
 ### Seeded mail rules
 
-There is no rules seed file, for two different reasons. The **master list** of 39 rules is not seed data at all: a migration puts it in the `MailRules` table, so production has it too, and admins extend it from there ([Mail rules](#mail-rules)). Which rules each seeded prison **has** is seed data, and lives with the prisons in `database/seeds/prisonSeed.json`, as a list of tags that the seeder links to the master list:
+There is no rules seed file, for two different reasons. The **master list** of 41 rules is not seed data at all: migrations put it in the `MailRules` table, so production has it too, and admins extend it from there ([Mail rules](#mail-rules)). Which rules each seeded prison **has** is seed data, and lives with the prisons in `database/seeds/prisonSeed.json`, as a list of tags that the seeder links to the master list:
 
-- Every seeded prison has `mailRules`: most carry the common ones (`return_address_required`, `full_name_and_number`, `mail_read_by_staff`, `no_enclosures`) plus two to six others. 34 of the 39 rules are in use somewhere; 6 prisons are `no_photos`.
+- Every seeded prison has `mailRules`: most carry the common ones (`return_address_required`, `full_name_and_number`, `mail_read_by_staff`, `no_enclosures`) plus two to six others. 34 of the 41 rules are in use somewhere; 6 prisons are `no_photos`.
 - 38 prisons have a `pageLimit` (5, 10, or 20), 41 a `photoLimit` (3, 5, or 10; never together with `no_photos`), and 22 a `mailLanguages` list (`["en"]` or `["en", "es"]`).
 - "Test Prison" has a fixed, readable set for trying things out: `return_address_required`, `full_name_and_number`, `plain_envelopes`, `ink_blue_or_black`, `no_polaroids`, `mail_read_by_staff`, with `pageLimit` 10, `photoLimit` 5, and `mailLanguages` `["en", "es"]`.
 
@@ -351,18 +354,20 @@ A token whose user has since been deleted or banned is rejected with `401`.
 
 The endpoints that need no token are limited, so nobody can guess passwords, enumerate usernames through recovery, or scan claim and invitation tokens at speed. A limited request gets `429` with a `Retry-After` header (seconds) and the general error shape, `"name": "RateLimitError"`. Counts live in the API process and reset on restart.
 
-| What                                           | Default           | Environment variable                                                                           |
-| ---------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------- |
-| Failed sign-ins per username                   | 10 per 15 minutes | `RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`                        |
-| Sign-in attempts per address                   | 60 per 15 minutes | `RATE_LIMIT_LOGIN_PER_IP`                                                                      |
-| Claim token checks per address                 | 20 per hour       | `RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`                                   |
-| Invite code checks and joins per address       | 20 per hour       | the claim settings (`RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`)              |
-| Invitation checks and acceptances per address  | 20 per hour       | `RATE_LIMIT_INVITE_PER_IP`, `RATE_LIMIT_INVITE_WINDOW_MINUTES`                                 |
-| Recovery starts per username                   | 5 per hour        | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES`                       |
-| Recovery starts per address                    | 30 per hour       | `RATE_LIMIT_RECOVER_START_PER_IP`                                                              |
-| Recovery finishes per username                 | 5 per hour        | `RATE_LIMIT_RECOVER_FINISH_PER_USER`                                                           |
-| Recovery finishes per address                  | 30 per hour       | `RATE_LIMIT_RECOVER_FINISH_PER_IP`                                                             |
-| Wrong passwords when deleting your own account | 10 per 15 minutes | the sign-in settings (`RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`) |
+| What                                           | Default            | Environment variable                                                                           |
+| ---------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+| Failed sign-ins per username                   | 10 per 15 minutes  | `RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`                        |
+| Sign-in attempts per address                   | 60 per 15 minutes  | `RATE_LIMIT_LOGIN_PER_IP`                                                                      |
+| Claim token checks per address                 | 20 per hour        | `RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`                                   |
+| Invite code checks and joins per address       | 20 per hour        | the claim settings (`RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`)              |
+| Invitation checks and acceptances per address  | 20 per hour        | `RATE_LIMIT_INVITE_PER_IP`, `RATE_LIMIT_INVITE_WINDOW_MINUTES`                                 |
+| Recovery starts per username                   | 5 per hour         | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES`                       |
+| Recovery starts per address                    | 30 per hour        | `RATE_LIMIT_RECOVER_START_PER_IP`                                                              |
+| Recovery finishes per username                 | 5 per hour         | `RATE_LIMIT_RECOVER_FINISH_PER_USER`                                                           |
+| Recovery finishes per address                  | 30 per hour        | `RATE_LIMIT_RECOVER_FINISH_PER_IP`                                                             |
+| Reply reference lookups per account            | 120 per hour       | `RATE_LIMIT_REFERENCE_PER_USER`                                                                |
+| Pen name checks per address                    | 120 per 15 minutes | `RATE_LIMIT_PEN_NAME_PER_IP`                                                                   |
+| Wrong passwords when deleting your own account | 10 per 15 minutes  | the sign-in settings (`RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`) |
 
 Successful sign-ins never count against a username; once the failure limit is reached, even the right password is refused until the window ends. Usernames are compared case-insensitively. Set `RATE_LIMIT_ENABLED=false` to switch limiting off, and set `TRUST_PROXY` when the API is behind a reverse proxy, otherwise every client appears to come from the proxy's address and shares one budget.
 
@@ -403,6 +408,7 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 | Move a letter to `printed` / `mailed`                                   | No                    | As its relay group                                                                  | Yes     |
 | Create managed writers, issue claim tokens                              | No                    | Own group                                                                           | Yes     |
 | Issue, count, and cancel invite codes ([Invite codes](#invite-codes))   | No                    | Own group, if active                                                                | Yes     |
+| Look up a reply reference; search writers by pen name                   | No                    | Letters the group mailed                                                            | Any     |
 | Invite a new group (vouching for it) or a new member of one's own group | No                    | Own group, if active                                                                | Yes     |
 | Approve a group that joined by invitation (`accountStatus`)             | No                    | No                                                                                  | Yes     |
 | Read, edit, delete a group's unclaimed managed writers                  | No                    | Own group                                                                           | Yes     |
@@ -730,6 +736,8 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 | POST   | `/auth/writer/token`         | Group                                           | Generate or regenerate a writer's claim token                                                 |
 | DELETE | `/auth/writer/token`         | Group                                           | Revoke a writer's claim token                                                                 |
 | GET    | `/auth/claim`                | Public                                          | Check a claim token                                                                           |
+| GET    | `/auth/pen-name-available`   | Public                                          | Is a pen name free? ([Pen names](#pen-names))                                                 |
+| GET    | `/auth/pen-name`             | Any                                             | The caller's pen name and every name they have used                                           |
 | POST   | `/auth/claim`                | Public                                          | Claim a managed account                                                                       |
 | GET    | `/auth/keys`                 | Any                                             | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
 | PUT    | `/auth/keys`                 | Any                                             | Set the public key once; re-wrap the private key (password change, recovery code)             |
@@ -755,6 +763,7 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 | `email`                    | Required, unique, must look like an email address.                                                                                                                                                                                                                               |
 | `role`                     | `admin`, `user`, `chapter`, or `banned`. Case-insensitive. Defaults to `user`. Only an admin may set anything else or change it later.                                                                                                                                           |
 | `name`                     | Optional display name, 3 to 32 characters.                                                                                                                                                                                                                                       |
+| `penName`                  | The site-unique name letters are signed with; see [Pen names](#pen-names). Optional in the API (clients ask for it at sign-up), 3 to 40 characters, changeable; old names are kept for ever.                                                                                     |
 | `bio`                      | Optional, 12 to 2400 characters.                                                                                                                                                                                                                                                 |
 | `managedBy`                | Id of the group holding this account in custody (a managed writer). `null` for independent accounts and once claimed. Admin-only to set directly.                                                                                                                                |
 | `claimedAt`, `claimedFrom` | When the writer claimed the account and from which group; both `null` until then. Read-only.                                                                                                                                                                                     |
@@ -992,6 +1001,16 @@ curl -s -X POST http://localhost:3000/auth/join -H 'Content-Type: application/js
 `code`, `username`, and `password` are required; `email`, `name`, and `bio` are optional (without an email, a placeholder address is stored, as for managed writers). The body takes the same `authScheme` and key fields as `POST /auth/user` (see [Signing in without sending the password](#signing-in-without-sending-the-password) and [End-to-end mode](#end-to-end-mode)); a client in end-to-end mode makes the keypair and sends the wrapped private key with the join, and `REQUIRE_SPLIT_AUTH` applies. `201` with `user` (the new record, role `user`, `sponsoredBy` the chapter, no key material) and `chapter: { id, name }`. The account is signed in with `POST /auth/login` like any other.
 
 The code is spent only once the account's fields have been checked, and spending it and making the account are one transaction, so a join that still fails (a taken username, say) leaves the code unspent and a typo does not burn a slip. Two joins racing on one code make one account; the other gets `410`.
+
+### Pen names
+
+A **pen name** is the name a writer's letters are signed with and the name a prisoner writes back to (decided 22 September 2026). It is unique across the site, whatever the case or spacing (`James Hollow`, `james hollow`, and `JAMES  HOLLOW` are one name), two parts encouraged so that a mail room reads it as a name, chosen at sign-up and changeable. **Old names are kept for ever and never given to anyone else**: a reply addressed to a name someone used last year still finds them, and nobody can be impersonated by taking a name they gave up. An account may return to its own old name, in the spelling it was first given.
+
+- `penName` is accepted on `POST /auth/user`, `POST /auth/join`, `POST /auth/claim`, `POST /invitation/accept`, and `POST /auth/writer` (the group names the writer it manages), and changed with `PUT /auth/user` by the account itself, a superadmin, or the managing group of an unclaimed writer. A name that is taken, or the wrong shape, is a `400` and nothing is made or changed.
+- Shape: 3 to 40 characters, starting with a letter, of letters in any script, digits, spaces, hyphens, apostrophes, and dots. The API stores it with one space between words.
+- `GET /auth/pen-name-available?name=` (public, rate limited) answers `{ available, name, reason, twoParts }` for the sign-up form: `reason` says why not; `twoParts` lets the form nudge towards a two-part name without requiring one. A signed-in caller asking about their own old name hears `available: true`.
+- `GET /auth/pen-name` (any signed-in account) answers `{ penName, names: [{ name, current, since }] }`, current first.
+- `penName` travels in `user_details` on the print view, and the letter's [footer](#reply-reference) says it.
 
 ### Managed writers
 
@@ -1426,7 +1445,7 @@ curl -s http://localhost:3000/prison/mail-rules
 }
 ```
 
-(`rules` abbreviated. A new database starts with 39 rules, put there by a migration, so production has them too; they are not seed data.) Rules are listed category by category, in the order of `categories`, which is also the order a facility's `mailRules` come back in. `label` and `description` are default English wording; a client with its own translations keys them on `tag`, which never changes. Because admins can add rules, a client should fetch this list rather than compile it in, and show the `label` for a tag it has no translation for. Retired rules are left out; staff get them too with `?retired=true`.
+(`rules` abbreviated. A new database starts with 41 rules, put there by migrations, so production has them too; they are not seed data.) Rules are listed category by category, in the order of `categories`, which is also the order a facility's `mailRules` come back in. `label` and `description` are default English wording; a client with its own translations keys them on `tag`, which never changes. Because admins can add rules, a client should fetch this list rather than compile it in, and show the `label` for a tag it has no translation for. Retired rules are left out; staff get them too with `?retired=true`.
 
 ##### A facility's rules
 
@@ -1764,6 +1783,8 @@ Body: `{"id": 41}`. Deletes the chat's messages, then the chat. Returns `"data":
 | Method | Path                           | Auth                 | Purpose                                                                     |
 | ------ | ------------------------------ | -------------------- | --------------------------------------------------------------------------- |
 | POST   | `/messaging/message`           | Scoped               | Send a message (creates the chat if needed)                                 |
+| GET    | `/messaging/reference`         | Group or admin       | What a reply reference points at ([Reply reference](#reply-reference))      |
+| GET    | `/messaging/writers`           | Group or admin       | Writers whose letters the group mailed, by current or old pen name          |
 | GET    | `/messaging/messages`          | Scoped               | List messages                                                               |
 | GET    | `/messaging/message`           | Scoped               | Get one message by id                                                       |
 | PUT    | `/messaging/message`           | Scoped               | Update a message (while still queued, unless admin)                         |
@@ -1856,6 +1877,10 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 | `statusChangedAt`, `statusChangedBy`    |          | Read-only. When the status last changed and which account changed it.                                                                                                                                                                                                                 |
 | `keep`                                  | boolean  | Pinned: exempt from retention. The only field a writer may change on a mailed letter.                                                                                                                                                                                                 |
 | `paper`                                 | boolean  | On create only. `true` for a letter written by hand and handed to the relay group to mail; see [Paper letters](#paper-letters). `false`, `null`, and omitted are the ordinary letter; anything else is a `400`. Read-only afterwards.                                                 |
+| `replyReference`                        | string   | Read-only. Nine digits, issued by the server to every outgoing letter, printed in the footer as `4827-1935-6`; see [Reply reference](#reply-reference). Replies have none.                                                                                                            |
+| `repliesTo`                             | integer  | Read-only. On a reply filed by reference: the id of the letter it answers, or `null` once that letter is gone.                                                                                                                                                                        |
+| `reference`                             | string   | On create only, with `sender: prisoner`: the reply reference on the envelope. The server fills in `user`, `prisoner`, and `repliesTo` from it.                                                                                                                                        |
+| `footer`                                | object   | With `full=true`, on outgoing letters: what the printed footer says. See [Reply reference](#reply-reference).                                                                                                                                                                         |
 | `returnReason`                          | string   | Read-only. Why a `returned` letter came back; `null` otherwise. Set through `PUT /messaging/status`.                                                                                                                                                                                  |
 | `returnNote`                            | string   | Read-only. What the envelope said when the letter came back (the `note` given with the return, at most 200 characters, never encrypted); `null` otherwise. The same text is on the `returned` row of `status_history`; this copy saves reading the history for every returned letter. |
 | `heldReason`                            | string   | Read-only. Why a queued letter is held (`choose_relay`, `reseal_needed`, `prisoner_free`), or `null`. See [Moved and freed](#moved-and-freed).                                                                                                                                        |
@@ -1916,6 +1941,38 @@ curl -s -X POST http://localhost:3000/messaging/message \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"sender":"user","prisoner":1,"paper":true}'
 ```
+
+#### Reply reference
+
+When a reply arrives at the group's PO box, the volunteer has only what the prisoner wrote on it. So every outgoing letter carries a **reply reference** in its footer (decided 22 September 2026): nine random digits, the last a check digit, printed as `4827-1935-6`, with a sentence asking the prisoner to write it at the top of their reply. Digits only, because it is copied by hand by people writing in many alphabets; a check digit, so that a slip of the pen is refused as a typo instead of filing someone's letter in a stranger's thread; random, so a number says nothing about how many letters the network sends. **No QR code or barcode on anything that goes inside a prison.**
+
+The API issues the number (`replyReference` on the message) and supplies what the footer says; the client lays the page out and words it in the letter's language. With `full=true`, every outgoing letter carries:
+
+```json
+"footer": {
+	"name": "James Hollow",
+	"anonymous": false,
+	"careOf": { "id": 3, "name": "PDX ABC" },
+	"reference": "4827-1935-6",
+	"replySheetAllowed": false
+}
+```
+
+- `name` is the writer's pen name, else their `name`; `null` with `anonymous: true` for the group's shared anonymous writer (the footer then names the group only). `careOf` is the relay group whose address the reply comes to.
+- `reference` is `null` when the facility carries the mail rule **`no_reference_numbers`** (its mail room refuses unexplained numbers): the footer then says the name and "c/o" the group only. The number still exists on the letter.
+- `replySheetAllowed` is `true` only when the facility carries **`reply_sheet_allowed`**: a blank reply sheet with the return address and the reference may be enclosed. Off everywhere else, since many facilities refuse blank paper, and it counts against `pageLimit`.
+
+A suggested footer, to be agreed once for all clients and read by a group that knows a strict facility: _"Write back to James Hollow, c/o PDX ABC. Reference 4827-1935-6: please write this number at the top of your reply."_
+
+**Filing a reply.** `GET /messaging/reference?number=4827-1935-6` (group admins of the group that mailed or holds the letter, and superadmins; rate limited per account):
+
+- a number whose check digit does not match is a `400` `ReplyReferenceError` with `condition: "checksum"` ("That number has a mistake in it. Check it against the letter."); nothing is looked up;
+- a number that is not this group's, or was never issued, is the same `404` with `condition: "unknown"`, so the numbers cannot be used to fish for other groups' threads;
+- otherwise `200` with `{ reference, letter: { id, chat, status, paper, createdAt } | null, mailedAt, chat, writer: { id, penName, name, anonymous }, prisoner: { id, birthName, chosenName }, careOf }`. `letter` is `null` once the letter itself has been deleted; `chat` is the thread to open, or `null` if it is gone too.
+
+Then `POST /messaging/message { "sender": "prisoner", "reference": "4827-1935-6", "messageText": "..." }` records the reply: the server fills in `user` and `prisoner` from the number and sets `repliesTo` to the letter answered (if it still exists), so the writer sees which letter a reply answers. A `user` or `prisoner` in the body must agree with the number (`400` otherwise); `reference` on an outgoing letter is a `400`. A reply with a name and no number is filed as before, and `GET /messaging/writers?name=` (group or admin; at least two characters) searches the writers whose letters this group mailed by current **or former** pen name, answering `[{ id, penName, name, anonymous, matched: { name, current } }]`; superadmins search every pen name.
+
+**After the letter is gone.** Letters are deleted by [retention](#retention), and prison mail is slow. The reference outlives its letter as a row of three ids (writer, prisoner, group) and no content, for `REPLY_REFERENCE_MONTHS` (12) after mailing; a late reply still finds its writer and re-opens the thread. A reference whose letter was deleted before it was mailed goes at the next retention run; every reference goes with its writer's account. Replies, which have no reference, are unaffected.
 
 #### GET /messaging/messages
 

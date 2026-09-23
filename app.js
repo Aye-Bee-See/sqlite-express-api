@@ -14,6 +14,7 @@ import InvitationRoutes from '#routes/invitation/invitation.js';
 import NotificationRoutes from '#routes/notification/notification.js';
 import * as push from '#services/push.js';
 import KeysRoutes from '#routes/keys/keys.js';
+import InviteCodeRoutes from '#routes/invite-code/invite-code.js';
 import ErrorService from '#rtServices/error.services.js';
 import { singleIds } from '#rtServices/request-shape.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
@@ -95,6 +96,7 @@ export function createApp() {
 
 	app.use('/auth', authRouter.Router);
 	app.use('/auth', KeysRoutes.Router);
+	app.use('/auth', InviteCodeRoutes.Router);
 	app.use('/auth', NotificationRoutes.Router);
 	app.use('/prison', prisonRoutes.Router);
 	app.use('/prisoner', PrisonerRoutes.Router);

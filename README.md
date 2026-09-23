@@ -60,40 +60,43 @@ Copy `.env.example` to `.env` and edit it. `.env` is git-ignored.
 cp .env.example .env
 ```
 
-| Variable                                      | Required | Default                                   | Purpose                                                                                                                                                             |
-| --------------------------------------------- | -------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `JWT_SECRET`                                  | Yes      | none                                      | Secret used to sign and verify login tokens. Login fails without it.                                                                                                |
-| `PORT`                                        | Yes      | none                                      | TCP port to listen on.                                                                                                                                              |
-| `ADMIN_USERNAME`                              | No       | none                                      | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                                   |
-| `ADMIN_PASSWORD`                              | No       | none                                      | Password for that account, at least 7 characters.                                                                                                                   |
-| `ADMIN_EMAIL`                                 | No       | none                                      | Email for that account.                                                                                                                                             |
-| `CORS_ORIGIN`                                 | No       | `http://localhost:3001`                   | Browser origins allowed by CORS, comma-separated.                                                                                                                   |
-| `DB_RESET`                                    | No       | `false`                                   | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                                         |
-| `DB_SEED`                                     | No       | `true`                                    | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                                               |
-| `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement **with its values** (password hashes, token hashes, wrapped keys). Development only.                                              |
-| `DB_STORAGE`                                  | No       | `database.sqlite`                         | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                                          |
-| `UPLOAD_DIR`                                  | No       | `uploads`                                 | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.                               |
-| `UPLOAD_MAX_BYTES`                            | No       | `20971520`                                | Largest accepted upload (20 MiB).                                                                                                                                   |
-| `RATE_LIMIT_*`                                | No       | see [Rate limits](#rate-limits)           | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                                             |
-| `ROTATION_MAX_BYTES`                          | No       | `33554432` (32 MB)                        | Largest body of `POST /auth/chapter-rotation`, which re-seals every letter of a group in one request (about 150 bytes a letter). Other JSON bodies stay at 100 KB.  |
-| `BACKUP_PUBLIC_KEY`                           | No       | none                                      | The public half of the backup key (`npm run backup:keygen`, run on your own computer). Without it no backups are made. See [Backups](#backups).                     |
-| `BACKUP_DIR`                                  | No       | `backups`                                 | Where backups are written. Ideally another disk.                                                                                                                    |
-| `BACKUP_KEEP`                                 | No       | `14`                                      | How many backups to keep.                                                                                                                                           |
-| `BACKUP_EVERY_HOURS`                          | No       | off                                       | Let the running server make a backup whenever the newest is older than this. Leave unset when cron does it.                                                         |
-| `TRUST_PROXY`                                 | No       | none                                      | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                                      |
-| `ENCRYPTION_MODE`                             | No       | `server`                                  | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                                            |
-| `ENCRYPTION_KEY`                              | Yes      | none                                      | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                                      |
-| `RETENTION_DEFAULT_DAYS`                      | No       | `90`                                      | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention).                  |
-| `RETENTION_MAX_DAYS`                          | No       | none                                      | Caps what a writer may choose, including \"forever\".                                                                                                               |
-| `IDEMPOTENCY_DAYS`                            | No       | `30`                                      | How long an `Idempotency-Key` is remembered. Long, so a phone that was offline for weeks still cannot send a second copy.                                           |
-| `CLAIM_TOKEN_DAYS`                            | No       | `14`                                      | How long a claim token works. It was 72 hours until 21 September 2026: a code handed over at a Thursday letter night was gone by Sunday.                            |
-| `REQUIRE_SPLIT_AUTH`                          | No       | `false`                                   | `true` refuses to create any new account that would send its password (`authScheme: plain`). Set it once every client uses the split scheme.                        |
-| `INVITATION_DAYS`                             | No       | `14`                                      | How long an invitation token works. See [Invitations](#invitations).                                                                                                |
-| `INVITATION_AUTO_ACTIVATE`                    | No       | `false`                                   | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.                            |
-| `FCM_SERVICE_ACCOUNT_FILE`                    | No       | none                                      | Path to a Firebase service-account key (JSON), kept out of git. Without it devices may register and no push is sent. See [Push notifications](#push-notifications). |
-| `PUSH_IOS_ALERT_TITLE`, `PUSH_IOS_ALERT_BODY` | No       | `New activity`, `Open the app to see it.` | The only visible words a push ever carries (iOS). Keep them bland.                                                                                                  |
-| `NOTIFICATION_DAYS`                           | No       | `30`                                      | How long an entry stays in an account's notification feed.                                                                                                          |
-| `NODE_ENV`                                    | No       | none                                      | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                                          |
+| Variable                                      | Required | Default                                   | Purpose                                                                                                                                                                                                 |
+| --------------------------------------------- | -------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JWT_SECRET`                                  | Yes      | none                                      | Secret used to sign and verify login tokens. Login fails without it.                                                                                                                                    |
+| `PORT`                                        | Yes      | none                                      | TCP port to listen on.                                                                                                                                                                                  |
+| `ADMIN_USERNAME`                              | No       | none                                      | Together with the next two: an administrator account created on boot if no user with this username exists. All three must be set.                                                                       |
+| `ADMIN_PASSWORD`                              | No       | none                                      | Password for that account, at least 7 characters.                                                                                                                                                       |
+| `ADMIN_EMAIL`                                 | No       | none                                      | Email for that account.                                                                                                                                                                                 |
+| `CORS_ORIGIN`                                 | No       | `http://localhost:3001`                   | Browser origins allowed by CORS, comma-separated.                                                                                                                                                       |
+| `DB_RESET`                                    | No       | `false`                                   | `true` drops every table and replays all migrations on boot. All data is lost, and every token issued before stops working.                                                                             |
+| `DB_SEED`                                     | No       | `true`                                    | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                                                                                   |
+| `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement **with its values** (password hashes, token hashes, wrapped keys). Development only.                                                                                  |
+| `DB_STORAGE`                                  | No       | `database.sqlite`                         | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                                                                              |
+| `UPLOAD_DIR`                                  | No       | `uploads`                                 | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.                                                                   |
+| `UPLOAD_MAX_BYTES`                            | No       | `20971520`                                | Largest accepted upload (20 MiB).                                                                                                                                                                       |
+| `RATE_LIMIT_*`                                | No       | see [Rate limits](#rate-limits)           | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                                                                                 |
+| `ROTATION_MAX_BYTES`                          | No       | `33554432` (32 MB)                        | Largest body of `POST /auth/chapter-rotation`, which re-seals every letter of a group in one request (about 150 bytes a letter). Other JSON bodies stay at 100 KB.                                      |
+| `BACKUP_PUBLIC_KEY`                           | No       | none                                      | The public half of the backup key (`npm run backup:keygen`, run on your own computer). Without it no backups are made. See [Backups](#backups).                                                         |
+| `BACKUP_DIR`                                  | No       | `backups`                                 | Where backups are written. Ideally another disk.                                                                                                                                                        |
+| `BACKUP_KEEP`                                 | No       | `14`                                      | How many backups to keep.                                                                                                                                                                               |
+| `BACKUP_EVERY_HOURS`                          | No       | off                                       | Let the running server make a backup whenever the newest is older than this. Leave unset when cron does it.                                                                                             |
+| `TRUST_PROXY`                                 | No       | none                                      | Express "trust proxy" value when the API sits behind a reverse proxy (`1` for one hop), so rate limits see the client address.                                                                          |
+| `ENCRYPTION_MODE`                             | No       | `server`                                  | How letters are encrypted; see [Encryption](#encryption). `e2e` is reserved for the browser-side design.                                                                                                |
+| `ENCRYPTION_KEY`                              | Yes      | none                                      | Base64 of 32 random bytes; `npm run keygen` prints one. Wraps every letter's content key. Losing it means losing every letter.                                                                          |
+| `RETENTION_DEFAULT_DAYS`                      | No       | `90`                                      | Days a writer's letters and replies stay after mailing when the writer has not chosen a window. `0` keeps everything. See [Retention](#retention).                                                      |
+| `RETENTION_MAX_DAYS`                          | No       | none                                      | Caps what a writer may choose, including \"forever\".                                                                                                                                                   |
+| `IDEMPOTENCY_DAYS`                            | No       | `30`                                      | How long an `Idempotency-Key` is remembered. Long, so a phone that was offline for weeks still cannot send a second copy.                                                                               |
+| `CLAIM_TOKEN_DAYS`                            | No       | `14`                                      | How long a claim token works. It was 72 hours until 21 September 2026: a code handed over at a Thursday letter night was gone by Sunday.                                                                |
+| `OPEN_REGISTRATION`                           | No       | `false`                                   | `true` lets anyone make an account with `POST /auth/user` and no code. Off by default: writers join with an invite code, and superadmins can always create accounts. See [Invite codes](#invite-codes). |
+| `INVITE_CODES_OUTSTANDING`                    | No       | `20`                                      | Unused invite codes a chapter may have at once. Used codes free their slot; unused ones count until they expire or are cancelled.                                                                       |
+| `INVITE_CODE_DAYS`                            | No       | `30`                                      | How long an invite code works, and the most a batch may ask for.                                                                                                                                        |
+| `REQUIRE_SPLIT_AUTH`                          | No       | `false`                                   | `true` refuses to create any new account that would send its password (`authScheme: plain`). Set it once every client uses the split scheme.                                                            |
+| `INVITATION_DAYS`                             | No       | `14`                                      | How long an invitation token works. See [Invitations](#invitations).                                                                                                                                    |
+| `INVITATION_AUTO_ACTIVATE`                    | No       | `false`                                   | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.                                                                |
+| `FCM_SERVICE_ACCOUNT_FILE`                    | No       | none                                      | Path to a Firebase service-account key (JSON), kept out of git. Without it devices may register and no push is sent. See [Push notifications](#push-notifications).                                     |
+| `PUSH_IOS_ALERT_TITLE`, `PUSH_IOS_ALERT_BODY` | No       | `New activity`, `Open the app to see it.` | The only visible words a push ever carries (iOS). Keep them bland.                                                                                                                                      |
+| `NOTIFICATION_DAYS`                           | No       | `30`                                      | How long an entry stays in an account's notification feed.                                                                                                                                              |
+| `NODE_ENV`                                    | No       | none                                      | `development` adds the underlying error message and stack trace to `500` responses. Leave unset elsewhere.                                                                                              |
 
 ### Start
 
@@ -259,7 +262,8 @@ The numeric `id` a seeded account receives is **not** guaranteed to match its po
 
 These work without a token:
 
-- `POST /auth/user` registers an account. It always gets the `user` role.
+- `POST /auth/join` makes an account with an invite code from a chapter, and `GET /auth/join` checks one; see [Invite codes](#invite-codes). This is how writers join.
+- `POST /auth/user` registers an account without a code. It always gets the `user` role, and it is **closed unless `OPEN_REGISTRATION=true`**: with the default, a caller without an admin token gets `403`.
 - `POST /auth/login` returns a token.
 - `GET /auth/claim` and `POST /auth/claim` check and use a claim token; see [Managed writers](#managed-writers).
 - Every **GET** on prisons, prisoners, and chapters (the public directory), and the master list of mail rules. Anonymous callers see only records whose `recordStatus` is `published`; see [Record status](#record-status).
@@ -348,6 +352,7 @@ The endpoints that need no token are limited, so nobody can guess passwords, enu
 | Failed sign-ins per username                   | 10 per 15 minutes | `RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`                        |
 | Sign-in attempts per address                   | 60 per 15 minutes | `RATE_LIMIT_LOGIN_PER_IP`                                                                      |
 | Claim token checks per address                 | 20 per hour       | `RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`                                   |
+| Invite code checks and joins per address       | 20 per hour       | the claim settings (`RATE_LIMIT_CLAIM_PER_IP`, `RATE_LIMIT_CLAIM_WINDOW_MINUTES`)              |
 | Invitation checks and acceptances per address  | 20 per hour       | `RATE_LIMIT_INVITE_PER_IP`, `RATE_LIMIT_INVITE_WINDOW_MINUTES`                                 |
 | Recovery starts per username                   | 5 per hour        | `RATE_LIMIT_RECOVER_START_PER_USER`, `RATE_LIMIT_RECOVER_WINDOW_MINUTES`                       |
 | Recovery starts per address                    | 30 per hour       | `RATE_LIMIT_RECOVER_START_PER_IP`                                                              |
@@ -391,6 +396,7 @@ A revoked token gets `401` like any bad token. Logged-out token ids are kept onl
 | Approve or reject proposals; read the audit log and summary             | No                    | No                                                                                  | Yes     |
 | Move a letter to `printed` / `mailed`                                   | No                    | As its relay group                                                                  | Yes     |
 | Create managed writers, issue claim tokens                              | No                    | Own group                                                                           | Yes     |
+| Issue, count, and cancel invite codes ([Invite codes](#invite-codes))   | No                    | Own group, if active                                                                | Yes     |
 | Invite a new group (vouching for it) or a new member of one's own group | No                    | Own group, if active                                                                | Yes     |
 | Approve a group that joined by invitation (`accountStatus`)             | No                    | No                                                                                  | Yes     |
 | Read, edit, delete a group's unclaimed managed writers                  | No                    | Own group                                                                           | Yes     |
@@ -414,7 +420,7 @@ A `chapter` account is scoped to its group. It sees the threads of the writers i
 
 ### Creating accounts with other roles
 
-Registration always yields `role: user`. To create a `chapter`, `admin`, or `banned` account, an admin calls the same endpoint with their token:
+Joining with an invite code, and registration where it is open, always yield `role: user`. To create a `chapter`, `admin`, or `banned` account, or any account at all while registration is closed, an admin calls `POST /auth/user` with their token:
 
 ```bash
 curl -s -X POST http://localhost:3000/auth/user \
@@ -684,35 +690,40 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 ### Users
 
-| Method | Path                         | Auth                                          | Purpose                                                                                       |
-| ------ | ---------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| POST   | `/auth/user`                 | Public                                        | Register (role `user`); admins may set other roles                                            |
-| POST   | `/auth/login`                | Public                                        | Log in and receive a token                                                                    |
-| POST   | `/auth/logout`               | Any                                           | End this token, or every token for the account with `{"everywhere": true}`                    |
-| POST   | `/auth/revoke`               | Admin                                         | End every token for an account without banning it                                             |
-| GET    | `/auth/users`                | Admin                                         | List users, optionally by role                                                                |
-| GET    | `/auth/user`                 | Self or admin                                 | Get one user by id, email, or username; a group may read its unclaimed writers                |
-| PUT    | `/auth/user`                 | Self or admin                                 | Update a user; a group may edit its unclaimed writers' name, email, note                      |
-| DELETE | `/auth/user`                 | Self or admin                                 | Delete a user; a group may delete its unclaimed writers                                       |
-| POST   | `/auth/writer`               | Group                                         | Create a managed writer under the caller's group                                              |
-| GET    | `/auth/writers`              | Group                                         | List the group's managed writers (admins: all, or `?chapter=`)                                |
-| POST   | `/auth/writer/token`         | Group                                         | Generate or regenerate a writer's claim token                                                 |
-| DELETE | `/auth/writer/token`         | Group                                         | Revoke a writer's claim token                                                                 |
-| GET    | `/auth/claim`                | Public                                        | Check a claim token                                                                           |
-| POST   | `/auth/claim`                | Public                                        | Claim a managed account                                                                       |
-| GET    | `/auth/keys`                 | Any                                           | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
-| PUT    | `/auth/keys`                 | Any                                           | Set the public key once; re-wrap the private key (password change, recovery code)             |
-| GET    | `/auth/public-key`           | Any                                           | A user's or group's public key, to seal an envelope to                                        |
-| GET    | `/auth/recover`              | Public                                        | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
-| POST   | `/auth/recover`              | Public                                        | Finish recovery with the opened challenge and a re-wrapped key                                |
-| PUT    | `/auth/chapter-keys`         | Group admin of the chapter (not a superadmin) | Give a group its keypair (once) and the first member the wrapped group key                    |
-| PUT    | `/auth/member-key`           | Group-owner admin only                        | Hand the wrapped group key to a member                                                        |
-| PUT    | `/auth/chapter-owner`        | Group-owner admin, or superadmin              | Make another group admin the chapter's group-owner admin                                      |
-| DELETE | `/auth/member-key`           | Group-owner admin only                        | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
-| GET    | `/auth/member-keys`          | Group member or admin                         | Which members hold the group key                                                              |
-| GET    | `/auth/chapter-rotation`     | Group-owner admin, holding the key            | Everything sealed to the group key, for re-sealing                                            |
-| POST   | `/auth/chapter-rotation`     | Group-owner admin, holding the key            | Replace the group keypair; members left out lose access                                       |
-| GET    | `/auth/encryption-readiness` | Admin                                         | Who still has to set up keys, and whether the switch to e2e can go ahead                      |
+| Method | Path                         | Auth                                            | Purpose                                                                                       |
+| ------ | ---------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| POST   | `/auth/join`                 | Public                                          | Make an account with an invite code ([Invite codes](#invite-codes))                           |
+| GET    | `/auth/join`                 | Public                                          | Check an invite code: which chapter, until when                                               |
+| POST   | `/auth/invite-codes`         | Group admin of an active chapter, or superadmin | Issue a batch of invite codes, shown once                                                     |
+| GET    | `/auth/invite-codes`         | Group admin of an active chapter, or superadmin | The chapter's batches with counts                                                             |
+| DELETE | `/auth/invite-codes`         | Group admin of an active chapter, or superadmin | Cancel unused codes, one batch or all                                                         |
+| POST   | `/auth/user`                 | Admin (public only with `OPEN_REGISTRATION`)    | Create an account; admins may set other roles                                                 |
+| POST   | `/auth/login`                | Public                                          | Log in and receive a token                                                                    |
+| POST   | `/auth/logout`               | Any                                             | End this token, or every token for the account with `{"everywhere": true}`                    |
+| POST   | `/auth/revoke`               | Admin                                           | End every token for an account without banning it                                             |
+| GET    | `/auth/users`                | Admin                                           | List users, optionally by role                                                                |
+| GET    | `/auth/user`                 | Self or admin                                   | Get one user by id, email, or username; a group may read its unclaimed writers                |
+| PUT    | `/auth/user`                 | Self or admin                                   | Update a user; a group may edit its unclaimed writers' name, email, note                      |
+| DELETE | `/auth/user`                 | Self or admin                                   | Delete a user; a group may delete its unclaimed writers                                       |
+| POST   | `/auth/writer`               | Group                                           | Create a managed writer under the caller's group                                              |
+| GET    | `/auth/writers`              | Group                                           | List the group's managed writers (admins: all, or `?chapter=`)                                |
+| POST   | `/auth/writer/token`         | Group                                           | Generate or regenerate a writer's claim token                                                 |
+| DELETE | `/auth/writer/token`         | Group                                           | Revoke a writer's claim token                                                                 |
+| GET    | `/auth/claim`                | Public                                          | Check a claim token                                                                           |
+| POST   | `/auth/claim`                | Public                                          | Claim a managed account                                                                       |
+| GET    | `/auth/keys`                 | Any                                             | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
+| PUT    | `/auth/keys`                 | Any                                             | Set the public key once; re-wrap the private key (password change, recovery code)             |
+| GET    | `/auth/public-key`           | Any                                             | A user's or group's public key, to seal an envelope to                                        |
+| GET    | `/auth/recover`              | Public                                          | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
+| POST   | `/auth/recover`              | Public                                          | Finish recovery with the opened challenge and a re-wrapped key                                |
+| PUT    | `/auth/chapter-keys`         | Group admin of the chapter (not a superadmin)   | Give a group its keypair (once) and the first member the wrapped group key                    |
+| PUT    | `/auth/member-key`           | Group-owner admin only                          | Hand the wrapped group key to a member                                                        |
+| PUT    | `/auth/chapter-owner`        | Group-owner admin, or superadmin                | Make another group admin the chapter's group-owner admin                                      |
+| DELETE | `/auth/member-key`           | Group-owner admin only                          | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
+| GET    | `/auth/member-keys`          | Group member or admin                           | Which members hold the group key                                                              |
+| GET    | `/auth/chapter-rotation`     | Group-owner admin, holding the key              | Everything sealed to the group key, for re-sealing                                            |
+| POST   | `/auth/chapter-rotation`     | Group-owner admin, holding the key              | Replace the group keypair; members left out lose access                                       |
+| GET    | `/auth/encryption-readiness` | Admin                                           | Who still has to set up keys, and whether the switch to e2e can go ahead                      |
 
 #### User fields
 
@@ -894,6 +905,73 @@ Refused with `409` `AccountDeleteError`:
 - **a group's shared anonymous account**, for everyone: it holds the anonymous letters of all the people the group wrote for.
 
 Clients should say in words what will happen before sending this, and in end-to-end mode remind the person that their recovery code and keys become useless.
+
+### Invite codes
+
+Writers join with an invite code. A chapter issues a batch, prints the codes as slips, and hands them out at a letter night or to anyone it vouches for. A newcomer types the code into the app, picks a username and password, and the account is theirs from the first request: no custody, nothing to claim, nothing for the chapter to hand over. The account records the chapter that vouched for it in `sponsoredBy`, set once and never changed (a `PUT` that names it is `403`). Compare [Managed writers](#managed-writers), where the chapter writes for the person until they claim the account.
+
+The chapter sees **counts only**: how many codes of a batch are used, unused, cancelled, expired. The code row never learns which account used it, the account never records which code made it, and the audit log says only that a code of a batch was used. A chapter cannot list the accounts it sponsored.
+
+A code is 12 characters of Crockford base32, shown as `XXXX-XXXX-XXXX`. Case, dashes, and spaces do not matter, and `O`, `I`, and `L` read as `0`, `1`, and `1`. Codes are stored only as hashes; the answer to `POST /auth/invite-codes` is the only time the server says them. A code works for `INVITE_CODE_DAYS` (30 unless set) or the shorter life the batch asked for, is single use, and stops working if its chapter is not `active`. Codes never travel by email or push from the API. The two public endpoints are [rate limited](#rate-limits).
+
+**The quota.** A chapter may have at most `INVITE_CODES_OUTSTANDING` (20 unless set) unused codes at a time. A used code frees its slot at once; an unused one counts until it expires or the chapter cancels it. So a chapter can print twenty for a letter night, print again for the ones that were used, and cannot keep fifty live codes to hand out at will. `GET /auth/invite-codes` shows `outstanding` and `limit`; an issue that would go over is `409` (`InviteQuotaError`) with the numbers in `error`.
+
+#### POST /auth/invite-codes
+
+```bash
+curl -s -X POST http://localhost:3000/auth/invite-codes \
+  -H "Authorization: Bearer $CHAPTER_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"count":20,"label":"Letter night, 2 October"}'
+```
+
+| Field     | Notes                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------- |
+| `count`   | Required, 1 to 50                                                                                       |
+| `label`   | Optional, up to 80 characters; shown in the batch list so the chapter knows which slips these were      |
+| `days`    | Optional, 1 to `INVITE_CODE_DAYS`; a shorter life for codes that should die with the event they are for |
+| `chapter` | Superadmins name the chapter; a group admin's own is used and any `chapter` in the body must match it   |
+
+`201`:
+
+```json
+{
+	"data": {
+		"chapter": 1,
+		"batch": "k3Zp0Q9x",
+		"label": "Letter night, 2 October",
+		"expiresAt": "2026-10-22T19:00:00.000Z",
+		"codes": ["7Q4M-2XKD-9HBT", "..."],
+		"outstanding": 20,
+		"limit": 20
+	},
+	"info": "Invite codes issued. They are shown once."
+}
+```
+
+`400` for a bad `count`, `label`, or `days`; `403` for a group admin whose chapter is not active, or who names another chapter; `409` `InviteQuotaError` over the quota.
+
+#### GET /auth/invite-codes
+
+`?chapter=` for superadmins. `200` with `chapter`, `outstanding`, `limit`, and `batches`, newest first, each `{ batch, label, createdAt, expiresAt, total, used, cancelled, expired, unused }`. Never the codes.
+
+#### DELETE /auth/invite-codes
+
+Body `{"batch": "k3Zp0Q9x"}` cancels the unused codes of one batch; `{"all": true}` cancels every unused code of the chapter. `200` with `cancelled` (how many) and the new `outstanding`. Used codes are untouched: an account made with a cancelled batch stays.
+
+#### GET /auth/join
+
+`?code=7Q4M-2XKD-9HBT`, public. `200` with `chapter: { id, name }` and `expiresAt` when the code is usable, so the app can say who is vouching before asking for a username. `404` for a code that was never issued; `410` for one that was `used`, `cancelled`, or `expired`, or whose chapter is not active, with `info` saying which. The same states come back from `POST /auth/join`.
+
+#### POST /auth/join
+
+```bash
+curl -s -X POST http://localhost:3000/auth/join -H 'Content-Type: application/json' \
+  -d '{"code":"7Q4M-2XKD-9HBT","username":"sam","password":"a long enough password","name":"Sam"}'
+```
+
+`code`, `username`, and `password` are required; `email`, `name`, and `bio` are optional (without an email, a placeholder address is stored, as for managed writers). The body takes the same `authScheme` and key fields as `POST /auth/user` (see [Signing in without sending the password](#signing-in-without-sending-the-password) and [End-to-end mode](#end-to-end-mode)); a client in end-to-end mode makes the keypair and sends the wrapped private key with the join, and `REQUIRE_SPLIT_AUTH` applies. `201` with `user` (the new record, role `user`, `sponsoredBy` the chapter, no key material) and `chapter: { id, name }`. The account is signed in with `POST /auth/login` like any other.
+
+The code is spent only once the account's fields have been checked, and a join that still fails (a taken username, say) gives the code back, so a typo does not burn a slip. Two joins racing on one code make one account; the other gets `410`.
 
 ### Managed writers
 

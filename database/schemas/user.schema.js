@@ -98,6 +98,10 @@ const userSchema = {
 		type: DataTypes.INTEGER
 	},
 	/** Internal note, visible to the managing chapter and admins only. */
+	/** The chapter whose invite code made this account. Set once, by the API; never changes. */
+	sponsoredBy: {
+		type: DataTypes.INTEGER
+	},
 	managerNote: {
 		type: DataTypes.TEXT
 	},

@@ -1,6 +1,6 @@
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
-import User, { KEY_INPUT } from '#models/user.model.js';
+import User, { KEY_INPUT, KEY_COLUMNS } from '#models/user.model.js';
 import Chapter from '#models/chapter.model.js';
 import OrgMemberKey from '#models/org-member-key.model.js';
 import LetterKey from '#models/letter-key.model.js';
@@ -54,6 +54,11 @@ export default class KeysController extends RouteController {
 		}
 		const errorVar = !(err instanceof Error) ? new Error(err) : err;
 		this.#handleErr(res, errorVar);
+	}
+
+	/** The columns no read hands out but GET /auth/keys and the recovery flow. */
+	static hiddenColumns() {
+		return KEY_COLUMNS;
 	}
 
 	/** The key fields a client sent, validated for shape. */

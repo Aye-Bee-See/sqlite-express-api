@@ -25,6 +25,8 @@ process.env.CORS_ORIGIN = 'http://localhost:3001';
 process.env.NODE_ENV = 'test';
 process.env.ENCRYPTION_MODE = process.env.ENCRYPTION_MODE || 'server';
 process.env.RATE_LIMIT_ENABLED = process.env.RATE_LIMIT_ENABLED || 'false';
+// Tests make accounts with POST /auth/user; the real default is off (registration-closed.test.js).
+process.env.OPEN_REGISTRATION = process.env.OPEN_REGISTRATION || 'true';
 process.env.ENCRYPTION_KEY = 'dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdCE=';
 process.env.UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'abc-uploads-'));
 process.env.UPLOAD_MAX_BYTES = String(64 * 1024);

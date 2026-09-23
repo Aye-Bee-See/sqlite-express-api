@@ -432,6 +432,39 @@ export default class User extends Model {
 	}
 
 	/**
+	 * An account made with a chapter's invite code: the person's from the first
+	 * request (no custody, nothing to claim), with the chapter recorded as its
+	 * sponsor. Without an email a placeholder is stored, as for managed writers.
+	 */
+	static async createSponsored({
+		username,
+		password,
+		email,
+		name,
+		bio,
+		sponsoredBy,
+		authScheme = 'plain',
+		keys = {}
+	}) {
+		const given = typeof email === 'string' && email.trim() !== '' ? email.trim() : null;
+		User.refuseReserved({ username, email: given ?? undefined });
+		return await this.create(
+			{
+				username,
+				password,
+				email: given ?? User.placeholderEmail(randomBytes(4).toString('hex')),
+				name: typeof name === 'string' && name.trim() ? name.trim() : null,
+				bio,
+				role: 'user',
+				sponsoredBy,
+				authScheme,
+				...keys
+			},
+			{ individualHooks: true }
+		);
+	}
+
+	/**
 	 * The chapter's anonymous-writer account, created on first use.
 	 * @param {number} chapterId
 	 * @returns {Promise<User>}

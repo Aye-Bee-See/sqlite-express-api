@@ -178,6 +178,13 @@ export const limiters = {
 		windowMs: minutes(rateLimits.claimWindowMinutes),
 		perIp: rateLimits.claimPerIp
 	}),
+	// Invite codes are tried against the server and nothing else: limited like claim checks.
+	join: limit({
+		name: 'join',
+		what: 'invite code checks',
+		windowMs: minutes(rateLimits.claimWindowMinutes),
+		perIp: rateLimits.claimPerIp
+	}),
 	inviteCheck: limit({
 		name: 'invite',
 		what: 'invitation token checks',

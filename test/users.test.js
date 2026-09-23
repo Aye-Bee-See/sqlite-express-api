@@ -42,6 +42,7 @@ test('user list returns full rows without hashes and paginates', async () => {
 		'retentionDays',
 		'role',
 		'sessionsRevokedAt',
+		'sponsoredBy',
 		'updatedAt',
 		'username'
 	]);

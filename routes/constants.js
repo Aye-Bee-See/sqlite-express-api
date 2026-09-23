@@ -24,6 +24,19 @@ const endpoints = {
 			revokeToken: '/writer/token'
 		}
 	},
+	inviteCode: {
+		get: {
+			many: '/invite-codes',
+			one: '/join'
+		},
+		post: {
+			create: '/invite-codes',
+			createAccount: '/join'
+		},
+		delete: {
+			remove: '/invite-codes'
+		}
+	},
 	keys: {
 		get: {
 			one: '/keys',
@@ -455,6 +468,52 @@ const messages = {
 			}
 		}
 	},
+	inviteCode: {
+		get: {
+			many: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing invite codes.' } }
+			},
+			one: {
+				success: { condition: { par: 'Invite code is valid.' } },
+				error: {
+					condition: {
+						par: 'Error checking invite code.',
+						unknown: 'Invite code not found.',
+						used: 'Invite code already used.',
+						cancelled: 'Invite code cancelled.',
+						expired: 'Invite code expired.',
+						inactive: 'The chapter that issued this invite code is not active.'
+					}
+				}
+			}
+		},
+		post: {
+			create: {
+				success: { condition: { par: 'Invite codes issued. They are shown once.' } },
+				error: { condition: { par: 'Error issuing invite codes.' } }
+			},
+			createAccount: {
+				success: { condition: { par: 'Welcome. Your account is yours.' } },
+				error: {
+					condition: {
+						par: 'Error joining with the invite code.',
+						unknown: 'Invite code not found.',
+						used: 'Invite code already used.',
+						cancelled: 'Invite code cancelled.',
+						expired: 'Invite code expired.',
+						inactive: 'The chapter that issued this invite code is not active.'
+					}
+				}
+			}
+		},
+		delete: {
+			remove: {
+				success: { condition: { par: 'Unused invite codes cancelled.' } },
+				error: { condition: { par: 'Error cancelling invite codes.' } }
+			}
+		}
+	},
 	keys: {
 		get: {
 			one: {
@@ -835,5 +894,6 @@ export const {
 	moderation: moderationEnd,
 	invitation: invitationEnd,
 	notification: notificationEnd,
-	keys: keysEnd
+	keys: keysEnd,
+	inviteCode: inviteCodeEnd
 } = endpoints;

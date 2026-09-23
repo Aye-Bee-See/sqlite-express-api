@@ -15,6 +15,7 @@ import OrgMemberKey from '#models/org-member-key.model.js';
 import RevokedToken from '#models/revoked-token.model.js';
 import SessionRun from '#models/session-run.model.js';
 import Invitation from '#models/invitation.model.js';
+import InviteCode from '#models/invite-code.model.js';
 import MailRule from '#models/mail-rule.model.js';
 import Device from '#models/device.model.js';
 import Notification from '#models/notification.model.js';
@@ -83,6 +84,7 @@ export {
 	RevokedToken,
 	SessionRun,
 	Invitation,
+	InviteCode,
 	MailRule,
 	Device,
 	Notification,

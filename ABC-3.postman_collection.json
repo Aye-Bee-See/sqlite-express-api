@@ -114,7 +114,7 @@
 					"response": []
 				},
 				{
-					"name": "Register (public, always role user)",
+					"name": "Register Without A Code (only with OPEN_REGISTRATION=true)",
 					"request": {
 						"method": "POST",
 						"header": [],
@@ -483,6 +483,130 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"token\": \"{{claimToken}}\",\n    \"username\": \"samwriter\",\n    \"password\": \"longenough\",\n    \"email\": \"sam@example.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Issue Invite Codes (group admin or superadmin; shown once)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/invite-codes",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "invite-codes"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"count\": 5,\n    \"label\": \"Letter night, 2 October\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body && body.data && body.data.codes && body.data.codes.length) {",
+									"    pm.collectionVariables.set('inviteCode', body.data.codes[0]);",
+									"    pm.collectionVariables.set('inviteBatch', body.data.batch);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "List Invite Code Batches (counts only)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/invite-codes",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "invite-codes"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Unused Invite Codes (one batch)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/invite-codes",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "invite-codes"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"batch\": \"{{inviteBatch}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check Invite Code (public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/join?code={{inviteCode}}",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "join"],
+							"query": [
+								{
+									"key": "code",
+									"value": "{{inviteCode}}"
+								}
+							]
+						},
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Join With Invite Code (public)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "localhost:3000/auth/join",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["auth", "join"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"{{inviteCode}}\",\n    \"username\": \"samjoins\",\n    \"password\": \"longenough\",\n    \"name\": \"Sam\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -3090,6 +3214,16 @@
 		},
 		{
 			"key": "deviceId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "inviteCode",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "inviteBatch",
 			"value": "",
 			"type": "string"
 		}

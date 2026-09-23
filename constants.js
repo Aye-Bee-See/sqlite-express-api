@@ -201,3 +201,20 @@ export const backups = {
 	/** Make one from inside the running server this often; 0 (the default) leaves it to cron. */
 	everyHours: envCount('BACKUP_EVERY_HOURS', 0)
 };
+
+/**
+ * Whether anyone may make an account with POST /auth/user and no code. Off by
+ * default: writers join with an invite code from a chapter (README, Invite
+ * codes), and a superadmin can always create accounts.
+ */
+export const openRegistration = envBool(process.env.OPEN_REGISTRATION, false);
+
+/** Invite codes (database/models/invite-code.model.js). */
+export const inviteCodes = {
+	/** Unused, unexpired codes a chapter may have at once. */
+	outstanding: envCount('INVITE_CODES_OUTSTANDING', 20),
+	/** How long a code works, and the most a batch may ask for. */
+	days: envCount('INVITE_CODE_DAYS', 30),
+	/** Codes in one batch, at most. */
+	batchMax: 50
+};

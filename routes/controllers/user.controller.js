@@ -8,6 +8,7 @@ import OrgMemberKey from '#models/org-member-key.model.js';
 import ValidationError from '#services/ValidationError.js';
 import { inTransaction } from '#services/serial.js';
 import * as authScheme from '#services/auth-scheme.js';
+import { openRegistration } from '#constants';
 import { eraseAccount, eraseRefusal } from '#db/erase-account.js';
 import bcrypt from 'bcrypt';
 import { audit } from '#rtServices/audit.services.js';
@@ -209,6 +210,14 @@ export default class UserController extends RouteController {
 				AuthzService.forbidden('Only an admin can create a user with role "' + role + '".')
 			);
 		}
+		if (!AuthzService.isAdmin(req) && !openRegistration) {
+			// The front door is an invite code from a chapter (POST /auth/join).
+			return next(
+				AuthzService.forbidden(
+					'Accounts are made with an invite code from a chapter (POST /auth/join). Public registration is off on this server.'
+				)
+			);
+		}
 		try {
 			const keys = KeysController.keyFields(req.body, { newAccount: true });
 			const scheme = authScheme.schemeFrom(req.body);
@@ -247,6 +256,14 @@ export default class UserController extends RouteController {
 		}
 		if (newUser.chapterId !== undefined && !AuthzService.isAdmin(req)) {
 			return next(AuthzService.forbidden("Only an admin can change a user's group membership."));
+		}
+		if (newUser.sponsoredBy !== undefined) {
+			// Set by POST /auth/join, once; the chapter that vouched for the account is a fact, not a setting.
+			return next(
+				AuthzService.forbidden(
+					'sponsoredBy is set when an account joins with an invite code and never changes.'
+				)
+			);
 		}
 		for (const field of ['managedBy', 'claimedAt', 'claimedFrom', 'anonymousForChapter']) {
 			if (newUser[field] !== undefined && !AuthzService.isAdmin(req)) {

@@ -103,7 +103,7 @@ test('only an admin sets account status; a chapter-created group starts pending'
 	const proposed = await post(
 		'/moderation/submission',
 		{ resource: 'chapter', target: own.body.data.id, fields: { accountStatus: 'suspended' } },
-		alice
+		chapter
 	);
 	assert.equal(proposed.status, 400, 'account status is reviewer-only in moderation');
 });
@@ -112,14 +112,25 @@ test('only an admin sets account status; a chapter-created group starts pending'
 
 test('a pending group account can read but not act', async () => {
 	assert.equal((await get('/prison/prisons', pendingMember)).status, 200);
-	const write = await put('/prison/prison', { id: f.prison.id, notes: 'x' }, pendingMember);
-	assert.equal(write.status, 403);
-	assert.match(write.body.info, /waiting for network approval/);
+	// Directory writes are superadmins' now; a group proposes, and a pending group not even that.
 	assert.equal(
-		(await post('/prisoner/prisoner', { birthName: 'X', prison: f.prison.id }, pendingMember))
-			.status,
+		(await put('/prison/prison', { id: f.prison.id, notes: 'x' }, pendingMember)).status,
 		403
 	);
+	const write = await post(
+		'/moderation/submission',
+		{ resource: 'prison', target: f.prison.id, fields: { notes: 'x' } },
+		pendingMember
+	);
+	assert.equal(write.status, 403);
+	assert.match(write.body.info, /waiting for network approval/);
+	const link = await put(
+		'/prison/relay',
+		{ prison: f.prison.id, chapter: pendingGroup.id },
+		pendingMember
+	);
+	assert.equal(link.status, 403);
+	assert.match(link.body.info, /waiting for network approval/);
 	const writer = await post('/auth/writer', { name: 'Someone' }, pendingMember);
 	assert.equal(writer.status, 403);
 	assert.match(writer.body.info, /waiting for network approval/);
@@ -135,13 +146,23 @@ test('a pending group account can read but not act', async () => {
 
 	await Chapter.update({ accountStatus: 'active' }, { where: { id: pendingGroup.id } });
 	assert.equal(
-		(await put('/prison/prison', { id: f.prison.id, notes: 'now allowed' }, pendingMember)).status,
-		200
+		(
+			await post(
+				'/moderation/submission',
+				{ resource: 'prison', target: f.prison.id, fields: { notes: 'now allowed' } },
+				pendingMember
+			)
+		).status,
+		201
 	);
 	assert.equal((await post('/auth/writer', { name: 'Someone' }, pendingMember)).status, 201);
 
 	await Chapter.update({ accountStatus: 'suspended' }, { where: { id: pendingGroup.id } });
-	const suspended = await put('/prison/prison', { id: f.prison.id, notes: 'x' }, pendingMember);
+	const suspended = await post(
+		'/moderation/submission',
+		{ resource: 'prison', target: f.prison.id, fields: { notes: 'x' } },
+		pendingMember
+	);
 	assert.equal(suspended.status, 403);
 	assert.match(suspended.body.info, /suspended/);
 	await Chapter.update({ accountStatus: 'pending' }, { where: { id: pendingGroup.id } });
@@ -149,7 +170,11 @@ test('a pending group account can read but not act', async () => {
 
 test('a group without any chapter record is refused with the older message', async () => {
 	const orphan = await makeUser({ role: 'chapter', username: 'orphan' });
-	const res = await put('/prison/prison', { id: f.prison.id, notes: 'x' }, { token: orphan.token });
+	const res = await post(
+		'/moderation/submission',
+		{ resource: 'prison', target: f.prison.id, fields: { notes: 'x' } },
+		{ token: orphan.token }
+	);
 	assert.equal(res.status, 403);
 	assert.match(res.body.info, /not a member of a group yet/);
 });

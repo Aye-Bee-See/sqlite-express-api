@@ -22,7 +22,10 @@ class ModerationRoutes {
 		const admin = AuthzService.requireRole(AuthzService.ADMIN);
 
 		// Proposals: any signed-in account files and sees its own; admins see all.
-		this.Router.post(moderationEnd.post.create, authenticate, this.#Controller.create);
+		// Proposals come from chapter accounts and superadmins; writers cannot propose yet
+		// (decided 22 September 2026). Third parties write to the listed contact address.
+		const staff = AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER);
+		this.Router.post(moderationEnd.post.create, authenticate, staff, this.#Controller.create);
 		this.Router.get(moderationEnd.get.many, authenticate, this.#Controller.getMany);
 		this.Router.get(moderationEnd.get.one, authenticate, this.#Controller.getOne);
 		this.Router.delete(moderationEnd.delete.remove, authenticate, this.#Controller.remove);

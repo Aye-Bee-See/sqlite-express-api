@@ -26,12 +26,13 @@ class PrisonRoutes {
 	 *
 	 ***/
 	static #router() {
-		// Create
+		// Create: superadmins only. A group admin proposes through POST /moderation/submission
+		// (decided 22 September 2026); the group's own links (relay, support) are still theirs.
 
 		this.Router.post(
 			prisonEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			AuthzService.requireRole(AuthzService.ADMIN),
 			this.#Controller.create
 		);
 
@@ -66,7 +67,7 @@ class PrisonRoutes {
 		this.Router.put(
 			prisonEnd.put.update,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			AuthzService.requireRole(AuthzService.ADMIN),
 			this.#Controller.update
 		);
 		// Relay groups
@@ -88,7 +89,7 @@ class PrisonRoutes {
 		this.Router.delete(
 			prisonEnd.delete.remove,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
+			AuthzService.requireRole(AuthzService.ADMIN),
 			this.#Controller.remove
 		);
 	}

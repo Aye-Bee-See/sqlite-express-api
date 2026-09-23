@@ -46,11 +46,7 @@ test('an admin adds a rule to the master list, and facilities can then carry it'
 	assert.ok(await AuditLog.findOne({ where: { action: 'mail-rule.create' } }));
 
 	// Before it was on the list it was refused; now any staff member can use it.
-	const tagged = await put(
-		'/prison/prison',
-		{ id: f.prison.id, mailRules: ['no_crayon'] },
-		chapter
-	);
+	const tagged = await put('/prison/prison', { id: f.prison.id, mailRules: ['no_crayon'] }, admin);
 	assert.equal(tagged.status, 200, JSON.stringify(tagged.body));
 	const read = (await get('/prison/prison?id=' + f.prison.id)).body.data;
 	assert.deepEqual(read.mailRules, ['no_crayon']);
@@ -330,7 +326,7 @@ test('null is not a list of rules', async () => {
 	const proposed = await post(
 		'/moderation/submission',
 		{ resource: 'prison', fields: { prisonName: 'Proposed', address: {}, mailRules: null } },
-		alice
+		chapter
 	);
 	assert.equal(proposed.status, 400);
 	const none = await post(

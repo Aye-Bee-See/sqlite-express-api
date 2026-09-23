@@ -57,17 +57,26 @@ test('a 403 uses the general error shape', async () => {
 	});
 });
 
-test('chapter and admin roles can write directory resources', async () => {
-	for (const who of [f.chapter, f.admin]) {
-		const created = await post(
-			'/prison/prison',
-			{ prisonName: 'By ' + who.user.role, address: {} },
-			{ token: who.token }
-		);
-		assert.equal(created.status, 201);
-		const removed = await del('/prison/prison', { id: created.body.data.id }, { token: who.token });
-		assert.equal(removed.status, 200);
+test('only admins write directory records; a chapter proposes instead', async () => {
+	const created = await post('/prison/prison', { prisonName: 'By admin', address: {} }, f.admin);
+	assert.equal(created.status, 201);
+	for (const call of [
+		() => post('/prison/prison', { prisonName: 'By chapter', address: {} }, f.chapter),
+		() => put('/prison/prison', { id: created.body.data.id, notes: 'x' }, f.chapter),
+		() => del('/prison/prison', { id: created.body.data.id }, f.chapter),
+		() => post('/prisoner/prisoner', { birthName: 'X', prison: created.body.data.id }, f.chapter),
+		() => put('/prisoner/prisoner', { id: f.prisoner1.id, chosenName: 'X' }, f.chapter),
+		() => del('/prisoner/prisoner', { id: f.prisoner1.id }, f.chapter)
+	]) {
+		assert.equal((await call()).status, 403);
 	}
+	const proposed = await post(
+		'/moderation/submission',
+		{ resource: 'prison', target: created.body.data.id, fields: { notes: 'Mail is slow' } },
+		f.chapter
+	);
+	assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
+	assert.equal((await del('/prison/prison', { id: created.body.data.id }, f.admin)).status, 200);
 });
 
 test('listing users is admin-only', async () => {

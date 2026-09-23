@@ -1,6 +1,6 @@
 # Switching to end-to-end encryption
 
-A checklist for moving a running Aye Bee See API from `ENCRYPTION_MODE=server` to `ENCRYPTION_MODE=e2e`. Read it all once before starting; the steps are in order, and the last one is the only one that cannot be undone.
+A checklist for moving a running letters.support (formerly Aye Bee See) API from `ENCRYPTION_MODE=server` to `ENCRYPTION_MODE=e2e`. Read it all once before starting; the steps are in order, and the last one is the only one that cannot be undone.
 
 ## What changes, in one paragraph
 

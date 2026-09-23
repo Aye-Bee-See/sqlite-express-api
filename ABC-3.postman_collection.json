@@ -5,7 +5,7 @@
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "745352",
 		"_collection_link": "https://grey-capsule-851285.postman.co/workspace/New-Team-Workspace~888ea448-f754-4185-84a6-843519301acd/collection/745352-7ef40856-4522-430b-a6dd-ee52f64154ec?action=share&source=collection_link&creator=745352",
-		"description": "Aye Bee See API. Run 'Users > Login' first: its test script stores the token in the {{jwt}} collection variable, which every other request sends as a bearer token. Registration and login are the only public requests. Ids in bodies are examples from the seed data; seeded ids are not guaranteed, so read them from list responses."
+		"description": "letters.support API (formerly Aye Bee See). Run 'Users > Login' first: its test script stores the token in the {{jwt}} collection variable, which every other request sends as a bearer token. Registration and login are the only public requests. Ids in bodies are examples from the seed data; seeded ids are not guaranteed, so read them from list responses."
 	},
 	"item": [
 		{

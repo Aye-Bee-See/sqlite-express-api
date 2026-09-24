@@ -15,6 +15,7 @@ import NotificationRoutes from '#routes/notification/notification.js';
 import * as push from '#services/push.js';
 import KeysRoutes from '#routes/keys/keys.js';
 import InviteCodeRoutes from '#routes/invite-code/invite-code.js';
+import NewsRoutes from '#routes/news/news.js';
 import ErrorService from '#rtServices/error.services.js';
 import { singleIds } from '#rtServices/request-shape.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
@@ -105,6 +106,7 @@ export function createApp() {
 	app.use('/chapter', ChapterRoutes.Router);
 	app.use('/moderation', ModerationRoutes.Router);
 	app.use('/invitation', InvitationRoutes.Router);
+	app.use('/news', NewsRoutes.Router);
 
 	// Unknown routes get a JSON 404 instead of Express's HTML page.
 	app.use((req, res, next) => {

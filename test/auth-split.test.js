@@ -343,3 +343,39 @@ test('in server mode a split account needs no keys: the salt and recipe travel a
 	assert.equal(half.status, 400);
 	assert.match(half.body.errors[0], /kdfSalt and kdfParams go together/);
 });
+
+test('the Argon2id step matches the vector every client checks against', async () => {
+	// The step before the two derivations: master = crypto_pwhash(32, NFKC(password), salt, params).
+	// test/e2e-client.js uses scrypt as a stand-in; this is the real thing, so the web,
+	// Android, and iOS sides have one number to compare with.
+	// The sumo package's ESM entry (0.7.16) points at a file it does not ship; its CommonJS entry is whole.
+	const { createRequire } = await import('node:module');
+	const sumo = createRequire(import.meta.url)('libsodium-wrappers-sumo');
+	await sumo.ready;
+	const salt = new Uint8Array(16).map((_, i) => i);
+	const params = { kdf: 'argon2id', alg: 2, opslimit: 2, memlimit: 67108864 };
+	const master = (password) =>
+		sumo.crypto_pwhash(
+			32,
+			sumo.from_string(password.normalize('NFKC')),
+			salt,
+			params.opslimit,
+			params.memlimit,
+			sumo.crypto_pwhash_ALG_ARGON2ID13
+		);
+	assert.equal(sumo.crypto_pwhash_ALG_ARGON2ID13, params.alg);
+	const m = master('correct horse battery staple');
+	assert.equal(Buffer.from(m).toString('base64'), 'wFzkxN1+DkXuYBHMWdBoreR98bAfwM+c1GeL32ilt7A=');
+	assert.equal(
+		Buffer.from(sodium.crypto_kdf_derive_from_key(32, 1, 'abcwrap_', m)).toString('base64'),
+		'tOggbVRmxTeDlXjvpt6YS1UxcYLSb8DRaDfpFMXoEv8='
+	);
+	assert.equal(
+		Buffer.from(sodium.crypto_kdf_derive_from_key(32, 2, 'abcauth_', m)).toString('base64'),
+		'OY25VECyUEJUDcyPZSqK4R+oG5BvSzBlQNOrdiwgkR4='
+	);
+	// NFKC: the composed and the decomposed spelling of one word are one password.
+	const composed = Buffer.from(master('caf\u00e9')).toString('base64');
+	assert.equal(composed, 'lEpmh4tmC0xaD5DhMboQo/3Hw7JqT3VThdqq0n1pImc=');
+	assert.equal(Buffer.from(master('cafe\u0301')).toString('base64'), composed);
+});

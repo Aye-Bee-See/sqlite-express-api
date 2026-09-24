@@ -65,7 +65,8 @@ const endpoints = {
 	prisoner: {
 		get: {
 			many: '/prisoners',
-			one: '/prisoner'
+			one: '/prisoner',
+			filters: '/filters'
 		},
 		post: {
 			create: '/prisoner'
@@ -83,7 +84,8 @@ const endpoints = {
 		get: {
 			many: '/prisons',
 			one: '/prison',
-			mailRules: '/mail-rules'
+			mailRules: '/mail-rules',
+			filters: '/filters'
 		},
 		post: {
 			create: '/prison',
@@ -371,6 +373,10 @@ const messages = {
 	},
 	prisoner: {
 		get: {
+			filters: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the filter values.' } }
+			},
 			many: {
 				success: { condition: { par: 'Successfully retireved prisoners list' } },
 				error: {
@@ -419,6 +425,10 @@ const messages = {
 	},
 	prison: {
 		get: {
+			filters: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the filter values.' } }
+			},
 			many: {
 				success: { condition: { par: 'Successfully retireved prisons list' } },
 				error: {

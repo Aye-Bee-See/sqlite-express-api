@@ -1,4 +1,4 @@
-import { Op } from 'sequelize';
+import { Op, fn, col } from 'sequelize';
 import AuthzService from '#rtServices/authz.services.js';
 import ValidationError from '#services/ValidationError.js';
 import { RECORD_STATUSES } from '#db/record-status.js';
@@ -36,6 +36,31 @@ export const SORT_BY_CREATED = {
  * @returns {{publishedOnly: boolean, where: object, order: Array}}
  * @throws {ValidationError} listing every bad parameter at once
  */
+/**
+ * The distinct values of a few columns, with how many records carry each, for
+ * the filter chips on a list page. Only records the caller could list are
+ * counted; nulls are left out.
+ * @param {import('sequelize').ModelStatic} model
+ * @param {string[]} fields
+ * @param {object} where visibility, as readOptions builds it
+ * @returns {Promise<Record<string, {value: string, count: number}[]>>}
+ */
+export async function filterValues(model, fields, where) {
+	const out = {};
+	for (const field of fields) {
+		const rows = await model.findAll({
+			attributes: [field, [fn('COUNT', col('id')), 'count']],
+			where: { ...where, [field]: { [Op.ne]: null } },
+			group: [field],
+			raw: true
+		});
+		out[field] = rows
+			.map((row) => ({ value: row[field], count: Number(row.count) }))
+			.sort((a, b) => b.count - a.count || String(a.value).localeCompare(String(b.value)));
+	}
+	return out;
+}
+
 export function readOptions(req, { searchFields = [], sorts = {}, filters = {} } = {}) {
 	const publishedOnly = AuthzService.publishedOnly(req);
 	const { recordStatus, q, sort } = req.query;

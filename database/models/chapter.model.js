@@ -85,7 +85,16 @@ export default class Chapter extends Model {
 				as: 'supported_prisoners',
 				through: { attributes: ['description'] },
 				...Prisoner.publicAttributes(publishedOnly),
-				...publishedOnlyOpts
+				...publishedOnlyOpts,
+				// "Held at", for the group page's tiles, without a second request.
+				include: [
+					{
+						model: Prison,
+						as: 'prison_details',
+						attributes: ['id', 'prisonName', 'country'],
+						...publishedOnlyOpts
+					}
+				]
 			},
 			{
 				model: Prison,

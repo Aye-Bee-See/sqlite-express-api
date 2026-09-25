@@ -2,249 +2,593 @@
 	"seeds": [
 		{
 			"username": "admin",
-			"password": "abcpassword",
 			"role": "admin",
-			"email": "admin@localhost"
+			"email": "admin@localhost",
+			"password": "sgecshRAYib5Nf55Ru7liO8bcl6I8/FtrhDmYah1zkc=",
+			"authScheme": "split",
+			"kdfSalt": "MKnVRJ266hcJF6h7DwJ6fA==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user1",
-			"password": "password1",
 			"role": "user",
-			"email": "user1@example.com"
+			"email": "user1@example.com",
+			"password": "aD/PVGjCvujCGMIXpiG8mJZ+ZLFh/05HPK3mC36nOuI=",
+			"authScheme": "split",
+			"kdfSalt": "/b/CKeIx9Tcir0xE9aR4yA==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user2",
-			"password": "password2",
 			"role": "user",
-			"email": "user2@example.com"
+			"email": "user2@example.com",
+			"password": "Pw1MlquLNRo/bItnFHRQyM6V1kv006lu6EggoYvAP0A=",
+			"authScheme": "split",
+			"kdfSalt": "rO5mpiKrdw5fzPIl5c5zKw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user3",
-			"password": "password3",
 			"role": "user",
-			"email": "user3@example.com"
+			"email": "user3@example.com",
+			"password": "YTE7dn3z9tXZiN4UyFqyXxri0kVFgzMYXAZDT2sNsnY=",
+			"authScheme": "split",
+			"kdfSalt": "haeIfBNefRRmzwuW6IMMKg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user4",
-			"password": "password4",
 			"role": "user",
-			"email": "user4@example.com"
+			"email": "user4@example.com",
+			"password": "rqiaUf2bzpA6zav4fhK0sykE8r0RNYthFdi5MU9Y+rA=",
+			"authScheme": "split",
+			"kdfSalt": "l5mOLz3+6YA26yyJS1xKPQ==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user5",
-			"password": "password5",
 			"role": "user",
-			"email": "user5@example.com"
+			"email": "user5@example.com",
+			"password": "ZVhj6D8uGymL1guTzdcCE84D9aSj1oMLi9KE9gQYT0Y=",
+			"authScheme": "split",
+			"kdfSalt": "kCFCwmGc3LD3S3yNcpwBYg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user6",
-			"password": "password6",
 			"role": "user",
-			"email": "user6@example.com"
+			"email": "user6@example.com",
+			"password": "SjQDx3Z6T8u+hOq0vCm1Tpws7cgnb+LQJtysCcKlnis=",
+			"authScheme": "split",
+			"kdfSalt": "6CYYDNsmazpra4I6n6jMiA==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user7",
-			"password": "password7",
 			"role": "user",
-			"email": "user7@example.com"
+			"email": "user7@example.com",
+			"password": "Vf0S16jcpUU61wIc8WarrqgNf/lSJyIfy+ChXq2tKIs=",
+			"authScheme": "split",
+			"kdfSalt": "1slkTQHtAPqX8N+hT9arJw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user8",
-			"password": "password8",
 			"role": "user",
-			"email": "user8@example.com"
+			"email": "user8@example.com",
+			"password": "vf16Kfa8yYKbOWbHThBbyx/8pE8hqPh1eYn5pRQ+M6E=",
+			"authScheme": "split",
+			"kdfSalt": "a5MPo9amwKJdNlKYSYBO0w==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user9",
-			"password": "password9",
 			"role": "user",
-			"email": "user9@example.com"
+			"email": "user9@example.com",
+			"password": "Wy9vdk0WN6oGgbiuSC1u14A4FegQbrBc6ZFGs2bMJQg=",
+			"authScheme": "split",
+			"kdfSalt": "NyY5BXP+8jLrTUlbcyaCHQ==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user10",
-			"password": "password10",
 			"role": "user",
-			"email": "user10@example.com"
+			"email": "user10@example.com",
+			"password": "CE7T2nvX2jWjEi59KE7SHFSYM2Z9wCx1VUwuNxKTEN0=",
+			"authScheme": "split",
+			"kdfSalt": "lbUHpiVJq51VvJ37pdRJXg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user11",
-			"password": "password11",
 			"role": "user",
-			"email": "user11@example.com"
+			"email": "user11@example.com",
+			"password": "sUCIlSCUyrbvqAUu91Le76yJJ8ewTB4ypLtvr30A3ss=",
+			"authScheme": "split",
+			"kdfSalt": "r3jN4XQoH+0EF8x3sQD7eg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user12",
-			"password": "password12",
 			"role": "user",
-			"email": "user12@example.com"
+			"email": "user12@example.com",
+			"password": "DLpXCicmPe6kq91WnyAWLgvOPGtwGzl6/MH5eXAkRxU=",
+			"authScheme": "split",
+			"kdfSalt": "DCnda+D/cjIuJTYXT41zxw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user13",
-			"password": "password13",
 			"role": "user",
-			"email": "user13@example.com"
+			"email": "user13@example.com",
+			"password": "TQnb9L4i1MeFkBQAao5I9VQGFMxy8E8lNu1+HHMrXxI=",
+			"authScheme": "split",
+			"kdfSalt": "WzxTeaZcp/u+GNd/UryB8w==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user14",
-			"password": "password14",
 			"role": "user",
-			"email": "user14@example.com"
+			"email": "user14@example.com",
+			"password": "V84cz717OXLk5R6PggZOuvyAHeUj6vpDa5MzWYt4Emo=",
+			"authScheme": "split",
+			"kdfSalt": "lwKaVoUj7OWWmGlBXm954g==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user15",
-			"password": "password15",
 			"role": "user",
-			"email": "user15@example.com"
+			"email": "user15@example.com",
+			"password": "1BhIaEpuSggymQAqMymXweyuNdLDc/Q72I1s/IJ2X3w=",
+			"authScheme": "split",
+			"kdfSalt": "8/4oNf1n6xPRO8V+rs+7cw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user16",
-			"password": "password16",
 			"role": "user",
-			"email": "user16@example.com"
+			"email": "user16@example.com",
+			"password": "iQ7fHzrqw93vx7/8sgRW/cmHpr4l5I3wq6nhNlJkKXM=",
+			"authScheme": "split",
+			"kdfSalt": "nIVRP6cmJJJgdOyUW6YS2Q==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user17",
-			"password": "password17",
 			"role": "user",
-			"email": "user17@example.com"
+			"email": "user17@example.com",
+			"password": "gcMiwjWvWn6A1YIguzjTgCCc8MRWrWuTx3x8HwJb7SE=",
+			"authScheme": "split",
+			"kdfSalt": "WmXOv2h1oO4yzRMJFJC+9Q==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user18",
-			"password": "password18",
 			"role": "user",
-			"email": "user18@example.com"
+			"email": "user18@example.com",
+			"password": "CkalpATIZZmgGGgwJlu5/+bgREeJky5KCWSm2JUa5T4=",
+			"authScheme": "split",
+			"kdfSalt": "xEmyGkE/yClanxQ16Q/TkQ==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user19",
-			"password": "password19",
 			"role": "user",
-			"email": "user19@example.com"
+			"email": "user19@example.com",
+			"password": "ZKcKDqgFqdSgvGZvQK6s8W1jSYN7FCGwHfC3cCXu4D0=",
+			"authScheme": "split",
+			"kdfSalt": "j20nnnDj+Sg416IHYJR5+g==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user20",
-			"password": "password20",
 			"role": "user",
-			"email": "user20@example.com"
+			"email": "user20@example.com",
+			"password": "32GdWBTcEM2110/I98DDss+x4fAKwWbSeE8cDFPNPPs=",
+			"authScheme": "split",
+			"kdfSalt": "tsAN2ebGBI2M7C/dhrIHUw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user21",
-			"password": "password21",
 			"role": "user",
-			"email": "user21@example.com"
+			"email": "user21@example.com",
+			"password": "WMMJXwEOCqQxAdIHB4/fu8zqrANUB0FhHJv+dZ5pQaE=",
+			"authScheme": "split",
+			"kdfSalt": "tX8lsB/b6837FLN1oGafjg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user22",
-			"password": "password22",
 			"role": "user",
-			"email": "user22@example.com"
+			"email": "user22@example.com",
+			"password": "Smmg9u5fTjfZrlgb0C1/pJG8ciSbeJ6jcOfHavoP9eQ=",
+			"authScheme": "split",
+			"kdfSalt": "Pv+bVqi5BkacwhsR2V9kEA==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user23",
-			"password": "password23",
 			"role": "user",
-			"email": "user23@example.com"
+			"email": "user23@example.com",
+			"password": "7hqd4rmwgHdDWxklgBysedDXcgjYAv64PPszJFvOuzk=",
+			"authScheme": "split",
+			"kdfSalt": "TnFmimh0DMhqUwrkuVFEFw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user24",
-			"password": "password24",
 			"role": "user",
-			"email": "user24@example.com"
+			"email": "user24@example.com",
+			"password": "mnaXqZU2dxVnezeaujisOVCSzkSZa/dkAVHWfy+jmzQ=",
+			"authScheme": "split",
+			"kdfSalt": "Up2XV9/+4/C58lN/29Sb4Q==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user25",
-			"password": "password25",
 			"role": "user",
-			"email": "user25@example.com"
+			"email": "user25@example.com",
+			"password": "BfbbxgtB89NPsE/ppXTRWTQa5VFEEmpx0AkeTu8yxzQ=",
+			"authScheme": "split",
+			"kdfSalt": "GoR8tzWnIIVnOSX+X03wpg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user26",
-			"password": "password26",
 			"role": "user",
-			"email": "user26@example.com"
+			"email": "user26@example.com",
+			"password": "hfyIdVRncNrt6zSrRE2l/e0U3bvyciFyua5k+5hCcgk=",
+			"authScheme": "split",
+			"kdfSalt": "rgbN41TZIiU2ruU3GFxETg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user27",
-			"password": "password27",
 			"role": "user",
-			"email": "user27@example.com"
+			"email": "user27@example.com",
+			"password": "URnd8re8HHSEGp4isB22ojvXH10eVhL1Neqby0Pjv18=",
+			"authScheme": "split",
+			"kdfSalt": "4s+qsbJZrf6K1HSUJo+cZg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user28",
-			"password": "password28",
 			"role": "user",
-			"email": "user28@example.com"
+			"email": "user28@example.com",
+			"password": "LB6sdzwfyR4Yqck8sgx2ZNwI+YGURT0bzD80rBHo2RQ=",
+			"authScheme": "split",
+			"kdfSalt": "jclRE+YbPMRdEw6H1qkrEw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user29",
-			"password": "password29",
 			"role": "user",
-			"email": "user29@example.com"
+			"email": "user29@example.com",
+			"password": "BYvq70EAo+dWE2uzvVgmtSO6baVOATNK6QB0XUL5egA=",
+			"authScheme": "split",
+			"kdfSalt": "rvAYcWN+b8WskJJN421NOQ==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user30",
-			"password": "password30",
 			"role": "user",
-			"email": "user30@example.com"
+			"email": "user30@example.com",
+			"password": "ueCm4uf/NTIPOI5Sl1HyWekwOOP9+i/tJ99c2A9TsS4=",
+			"authScheme": "split",
+			"kdfSalt": "kWJtpSOLL7jiE1JsUJnZgA==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user31",
-			"password": "password31",
 			"role": "user",
-			"email": "user31@example.com"
+			"email": "user31@example.com",
+			"password": "BmL2uBtbShbpQodGUCKgHcsV8sVhec6EH3/495W+Y98=",
+			"authScheme": "split",
+			"kdfSalt": "DOxboyXjVS7mjGeR+wWxDA==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user32",
-			"password": "password32",
 			"role": "user",
-			"email": "user32@example.com"
+			"email": "user32@example.com",
+			"password": "/qbT9UjSTmk1q1f/cfEp9f+049NF/1WX0AWD1tOHv6Y=",
+			"authScheme": "split",
+			"kdfSalt": "EqmyYbYt53UiVFqqCBXWRQ==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user33",
-			"password": "password33",
 			"role": "user",
-			"email": "user33@example.com"
+			"email": "user33@example.com",
+			"password": "SS7AGNUQfwSqDXlNUI+aiUpvrxTQAu+QhxNOYC51uUc=",
+			"authScheme": "split",
+			"kdfSalt": "HnaCy0Oeet0cKX8K4IR2Qg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user34",
-			"password": "password34",
 			"role": "user",
-			"email": "user34@example.com"
+			"email": "user34@example.com",
+			"password": "QEPy78Xc0YpqfWU9fuhPvmHzpuoHw4/q6KWlfVFzfh8=",
+			"authScheme": "split",
+			"kdfSalt": "9MRndRIHJZYF/gr/r8r16w==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user35",
-			"password": "password35",
 			"role": "user",
-			"email": "user35@example.com"
+			"email": "user35@example.com",
+			"password": "CHfbAiNMJHF1NVwKOzejZggOuVip0nxXExfrAqUcaLw=",
+			"authScheme": "split",
+			"kdfSalt": "w/yqimMvynGdIQJnhQKW/g==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user36",
-			"password": "password36",
 			"role": "user",
-			"email": "user36@example.com"
+			"email": "user36@example.com",
+			"password": "sZCAX2imyEz3J8VSup8wYMYpr1k1Gyvi9MN/1tdjnUk=",
+			"authScheme": "split",
+			"kdfSalt": "WOPr87cIWpAiKPGBIP1mLg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user37",
-			"password": "password37",
 			"role": "user",
-			"email": "user37@example.com"
+			"email": "user37@example.com",
+			"password": "zGgabXE4ABKAu9oHXqBXSBolotRq3XUiAH/2zAgXAsc=",
+			"authScheme": "split",
+			"kdfSalt": "MT7u5opecY0d/l6wCpbJ0Q==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user38",
-			"password": "password38",
 			"role": "user",
-			"email": "user38@example.com"
+			"email": "user38@example.com",
+			"password": "o5Hct0Ozt7GuG+MBKEQtJc6MPj9V71NG8TUBufKOdcI=",
+			"authScheme": "split",
+			"kdfSalt": "bAD5rjCVkM/VXpQ8TIAOAg==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user39",
-			"password": "password39",
 			"role": "user",
-			"email": "user39@example.com"
+			"email": "user39@example.com",
+			"password": "Z2L8gElnr1HgDWXII6kIltR0g7Pxc0j11hFcNnq1tec=",
+			"authScheme": "split",
+			"kdfSalt": "HVQwczKmppmXbSfHwwMOvA==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		},
 		{
 			"username": "user40",
-			"password": "password40",
 			"role": "user",
-			"email": "user40@example.com"
+			"email": "user40@example.com",
+			"password": "2+skz4JLTNEMiIcf+U/ajjVsWFp5PrK6JNw938J//A4=",
+			"authScheme": "split",
+			"kdfSalt": "UIcD1xAkopKXhXkziPT5Cw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
+		},
+		{
+			"username": "chapter1",
+			"role": "chapter",
+			"email": "chapter1@example.com",
+			"name": "Chapter One",
+			"chapterId": 1,
+			"password": "5OiBrGNReR8FZ5Bbhc8TiLTV4qZZz1EzdaRjoIJ4cXs=",
+			"authScheme": "split",
+			"kdfSalt": "qifY56MalvP+IApPhTLeTw==",
+			"kdfParams": {
+				"kdf": "argon2id",
+				"alg": 2,
+				"opslimit": 2,
+				"memlimit": 67108864
+			}
 		}
 	]
 }

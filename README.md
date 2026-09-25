@@ -235,12 +235,12 @@ On a fresh database the JSON files in `database/seeds/` are loaded:
 
 | Resource  | Rows | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | --------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Users     | 41   | One admin plus forty regular users.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Users     | 42   | One superadmin, one group admin of Test Chapter, and forty writers, all split-scheme accounts (see [Credentials](#credentials)).                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Prisons   | 46   | "Test Prison" (made up, with a fixed, readable rule set), then 45 real facilities in Belarus, Chile, France, Germany, Greece, Indonesia, Italy, Russia, Spain, the United Kingdom, and the United States, with the postal addresses the sources gave. **Mail rules are seeded here**, as tags on each prison (see below).                                                                                                                                                                                                                                                   |
 | Prisoners | 58   | Real anarchist and political prisoners, compiled in September 2026 from chapter and support-site profiles (ABC Belarus, avtonom.org, tameio.net, Cruz Negra Anarquista, prisonersolidarity.com, Bristol ABC, and others), each with the source URL in `supportWebsite` (one record, whose only source is a printed zine, names it in `verificationNotes` instead). 38 are `published`; 20 whose address is dated or partial are `pending` (staff only) with the caveat in `verificationNotes`. 53 `incarcerated`, 5 `pretrial`, none `free`. Prisoner N is not in prison N. |
 | Chats     | 40   | Chat N pairs user N with prisoner N (the first forty prisoners).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Messages  | 40   | One short greeting per chat, all sent by the user side.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Chapters  | 1    | "Test Chapter": active, `networkRole` `both`, three services. No `chapter`-role account is seeded; create one as the admin (`POST /auth/user` with `role` and `chapterId`) or through an [invitation](#invitations).                                                                                                                                                                                                                                                                                                                                                        |
+| Chapters  | 1    | "Test Chapter": active, `networkRole` `both`, three services. `chapter1` is its one group admin; it is not linked as the relay group of any facility until someone attaches it (`PUT /prison/relay`).                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Seeded mail rules
 
@@ -256,12 +256,25 @@ Seeding only fills empty tables. A database seeded before 23 September 2026 keep
 
 ### Credentials
 
-| Username             | Password                     | Role    | Email                   |
-| -------------------- | ---------------------------- | ------- | ----------------------- |
-| `admin`              | `abcpassword`                | `admin` | `admin@localhost`       |
-| `user1` ... `user40` | `password1` ... `password40` | `user`  | `user1@example.com` ... |
+| Username             | Password                     | Role                                    | Email                   |
+| -------------------- | ---------------------------- | --------------------------------------- | ----------------------- |
+| `admin`              | `abcpassword`                | `admin` (superadmin)                    | `admin@localhost`       |
+| `chapter1`           | `a long enough password`     | `chapter` (group admin of Test Chapter) | `chapter1@example.com`  |
+| `user1` ... `user40` | `password1` ... `password40` | `user`                                  | `user1@example.com` ... |
 
 Plus whatever you configured in `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL`.
+
+**Every seeded account uses the split scheme** ([Signing in without sending the password](#signing-in-without-sending-the-password)), because the web client refuses to send a password to the server. So the passwords above are what you type into a client; the API itself never accepts them. For curl and scripts, derive the auth key the client would send, then log in with it:
+
+```bash
+npm run auth-key -- user1 password1 http://localhost:3069
+```
+
+```bash
+curl -s -X POST http://localhost:3069/auth/login -H 'Content-Type: application/json' -d '{"username":"user1","password":"<the key printed above>"}'
+```
+
+The seed's salts are deterministic (derived from the username), so the seeded auth keys are the same on every fresh database, and `test/seed-accounts.test.js` checks they match the documented passwords. Seeded accounts have no keys (no `publicKey`), which a server-mode development server does not need; in end-to-end mode a client gives an account keys at its first sign-in.
 
 The numeric `id` a seeded account receives is **not** guaranteed to match its position in the seed file. In one verified run `admin` was id 3 and `user4` was id 1. Read ids from responses rather than assuming them. This also means "user N is paired with prisoner N" refers to database ids, not to the `userN` usernames.
 

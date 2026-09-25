@@ -119,7 +119,8 @@ for (const storage of ['a file', ':memory:']) {
 					DB_STORAGE: storage === ':memory:' ? ':memory:' : join(dir, 'database.sqlite'),
 					UPLOAD_DIR: join(dir, 'uploads'),
 					DB_RESET: 'true',
-					DB_SEED: 'true'
+					DB_SEED: 'true',
+					ENCRYPTION_MODE: 'server'
 				},
 				{ stopAfter: 'Ready to serve requests.', patience: 60_000 }
 			);
@@ -141,6 +142,28 @@ test('a previous key that is the current key is a mistake the server names and s
 		});
 		assert.equal(code, 1, output);
 		assert.match(output, /ENCRYPTION_KEY_PREVIOUS is the same as ENCRYPTION_KEY/);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('with no ENCRYPTION_MODE and no ENCRYPTION_KEY the server starts end-to-end', async () => {
+	// letters.support runs end-to-end from its first day; server mode has to be asked for.
+	// Seed letters are plaintext, so an end-to-end start seeds none.
+	const dir = mkdtempSync(join(tmpdir(), 'abc-boot-'));
+	try {
+		const { code, output } = await boot(
+			{
+				DB_STORAGE: join(dir, 'database.sqlite'),
+				UPLOAD_DIR: join(dir, 'uploads'),
+				DB_SEED: 'true',
+				ENCRYPTION_KEY: ''
+			},
+			{ stopAfter: 'Ready to serve requests.', patience: 60_000 }
+		);
+		assert.equal(code, 0, output);
+		assert.match(output, /users: \d+ seeded/, output);
+		assert.match(output, /messages: 0 seeded/, output);
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

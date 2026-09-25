@@ -1,5 +1,6 @@
 import { Model, Op } from 'sequelize';
 import { createHash, randomBytes } from 'node:crypto';
+import { normalizeToken } from '#models/claim-token.model.js';
 import Schemas from '#schemas/all.schema.js';
 import { inviteCodes as settings } from '#constants';
 import ValidationError from '#services/ValidationError.js';
@@ -31,7 +32,7 @@ const oneBatchAtATime = createSerialQueue();
 
 /** Upper case, dashes and spaces gone, and Crockford's look-alikes folded (O to 0, I and L to 1). */
 export function normalizeCode(code) {
-	return String(code).toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+	return normalizeToken(code);
 }
 
 export function hashCode(code) {

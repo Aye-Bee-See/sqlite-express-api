@@ -101,6 +101,8 @@ cp .env.example .env
 
 ### Start
 
+The examples in this README use `http://localhost:3000`, the default `PORT`. The project's development server runs with `PORT=3069` (and the web client is configured for it); substitute whatever your `.env` says.
+
 ```bash
 npm start
 ```
@@ -322,6 +324,10 @@ Every account has an `authScheme`: `plain` or `split`.
 
 - **`plain`**: the password itself is sent to `POST /auth/login` and checked against a bcrypt hash. The server never stores it, but it sees it at every sign-in, and in end-to-end mode the password is the one secret the account's private key is locked with. This is how every account made before September 2026 works, and how the seeded admin works.
 - **`split`**: the device runs the slow derivation once and derives **two** values from the result. The _wrap key_ locks the private key and never leaves the device. The _auth key_ is sent as the password. Knowing one does not give the other. The server keeps doing what it does now (hash and compare); it never sees anything that opens a letter, so a tampered server records nothing useful.
+
+**Test vector for the first step** (`test/auth-split.test.js`, run with the `sumo` build of libsodium): password `correct horse battery staple`, salt the sixteen bytes `00 01 … 0f` (`AAECAwQFBgcICQoLDA0ODw==`), parameters `{"kdf":"argon2id","alg":2,"opslimit":2,"memlimit":67108864}` → `master` = `wFzkxN1+DkXuYBHMWdBoreR98bAfwM+c1GeL32ilt7A=`, `wrapKey` = `tOggbVRmxTeDlXjvpt6YS1UxcYLSb8DRaDfpFMXoEv8=`, `authKey` = `OY25VECyUEJUDcyPZSqK4R+oG5BvSzBlQNOrdiwgkR4=`. Passwords are normalised to Unicode NFKC and hashed as UTF-8, so `café` spelt with a precomposed é and with e + combining acute give the same `master` (`lEpmh4tmC0xaD5DhMboQo/3Hw7JqT3VThdqq0n1pImc=` with the salt above).
+
+**Typed codes** (claim tokens, invitation tokens, invite codes, and recovery codes) are normalised the same way everywhere before they are hashed or fed to a KDF: upper case, letters and digits only (dashes, spaces, and dots dropped), and `O` read as `0`, `I` and `L` as `1`. A client wrapping a key under a claim token or a recovery code must apply the same rule, so that a code typed with dashes or an `O` for a `0` still opens the key. Claim and invitation tokens are 24 characters of the Crockford base32 alphabet (no `I`, `L`, `O`, `U`); recovery codes are the client's to make, and the suggested shape is the same alphabet in six groups of four. Recovery and claim wrapping use the same Argon2id parameters as the password, each with its own random 16-byte salt.
 
 **The derivation, which every client must match byte for byte** (test vector in `test/auth-split.test.js`):
 
@@ -1250,40 +1256,41 @@ Nobody has to be chased for keys. When an account first becomes able to read wha
 
 ### Prisons
 
-| Method | Path                 | Auth                | Purpose                                                  |
-| ------ | -------------------- | ------------------- | -------------------------------------------------------- |
-| POST   | `/prison/prison`     | Admin               | Create a prison                                          |
-| GET    | `/prison/prisons`    | Public              | List prisons                                             |
-| GET    | `/prison/prison`     | Public              | Get one prison by id                                     |
-| PUT    | `/prison/prison`     | Admin               | Update a prison                                          |
-| GET    | `/prison/mail-rules` | Public              | The master list of mail rules: tags, categories, wording |
-| POST   | `/prison/mail-rule`  | Admin               | Add a rule to the master list                            |
-| PUT    | `/prison/mail-rule`  | Admin               | Reword, recategorise, retire, or restore a rule          |
-| DELETE | `/prison/mail-rule`  | Admin               | Delete a rule no facility carries                        |
-| PUT    | `/prison/relay`      | Admin, or own group | Attach a relay group to a prison                         |
-| DELETE | `/prison/relay`      | Admin, or own group | Detach a relay group from a prison                       |
-| DELETE | `/prison/prison`     | Admin               | Delete a prison                                          |
+| Method | Path                 | Auth                | Purpose                                                                   |
+| ------ | -------------------- | ------------------- | ------------------------------------------------------------------------- |
+| POST   | `/prison/prison`     | Admin               | Create a prison                                                           |
+| GET    | `/prison/prisons`    | Public              | List prisons                                                              |
+| GET    | `/prison/filters`    | Public              | The distinct `country` and `routing` values with counts, for filter chips |
+| GET    | `/prison/prison`     | Public              | Get one prison by id                                                      |
+| PUT    | `/prison/prison`     | Admin               | Update a prison                                                           |
+| GET    | `/prison/mail-rules` | Public              | The master list of mail rules: tags, categories, wording                  |
+| POST   | `/prison/mail-rule`  | Admin               | Add a rule to the master list                                             |
+| PUT    | `/prison/mail-rule`  | Admin               | Reword, recategorise, retire, or restore a rule                           |
+| DELETE | `/prison/mail-rule`  | Admin               | Delete a rule no facility carries                                         |
+| PUT    | `/prison/relay`      | Admin, or own group | Attach a relay group to a prison                                          |
+| DELETE | `/prison/relay`      | Admin, or own group | Detach a relay group from a prison                                        |
+| DELETE | `/prison/prison`     | Admin               | Delete a prison                                                           |
 
 Since 22 September 2026 the directory is written by superadmins only. A group admin who knows a facility has changed proposes the change through [Moderation](#moderation) (`POST /moderation/submission`), with evidence encouraged but not required, and a superadmin applies it. A group still declares its own links: which facilities it relays for and which prisoners it supports (`PUT /prison/relay`, `PUT /prisoner/support`, own group only, while active). Third parties write to the contact address the site lists; there is no public form.
 
 #### Prison fields
 
-| Field               | Type     | Notes                                                                                                                                                                                           |
-| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `prisonName`        | string   | Required.                                                                                                                                                                                       |
-| `country`           | string   | Free text.                                                                                                                                                                                      |
-| `routing`           | string   | How mail reaches the facility: `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                       |
-| `scanService`       | string   | Details of the scan service, if any.                                                                                                                                                            |
-| `mailRules`         | array    | The tags of this facility's rules, each one an entry of the [master list](#mail-rules). Default `[]`. Read in master-list order; `mail_rule_details` carries the same rules with their wording. |
-| `pageLimit`         | integer  | Most single-sided pages per letter; `null` for no limit. At least 1.                                                                                                                            |
-| `photoLimit`        | integer  | Most loose photographs per envelope; `null` for no stated limit. At least 1. Cannot be set on a facility tagged `no_photos`.                                                                    |
-| `mailLanguages`     | array    | Two-letter ISO 639-1 codes, lower case, that mail must be written in, for example `["en", "es"]`; `null` or `[]` for no restriction.                                                            |
-| `notes`             | string   | Public notes, e.g. delivery risk.                                                                                                                                                               |
-| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                                                                                                                    |
-| `verifiedAt`        | datetime | When it was verified.                                                                                                                                                                           |
-| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                                                                                                             |
-| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status).                                                                                                  |
-| `address`           | object   | Required. Free-form JSON; the seeds use `{"street": "..."}`.                                                                                                                                    |
+| Field               | Type     | Notes                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prisonName`        | string   | Required.                                                                                                                                                                                                                                                                                                                                                                                      |
+| `country`           | string   | Free text.                                                                                                                                                                                                                                                                                                                                                                                     |
+| `routing`           | string   | How mail reaches the facility: `direct`, `scan_only`, `direct_and_scan`, or `relay_only`.                                                                                                                                                                                                                                                                                                      |
+| `scanService`       | string   | Details of the scan service, if any.                                                                                                                                                                                                                                                                                                                                                           |
+| `mailRules`         | array    | The tags of this facility's rules, each one an entry of the [master list](#mail-rules). Default `[]`. Read in master-list order; `mail_rule_details` carries the same rules with their wording.                                                                                                                                                                                                |
+| `pageLimit`         | integer  | Most single-sided pages per letter; `null` for no limit. At least 1.                                                                                                                                                                                                                                                                                                                           |
+| `photoLimit`        | integer  | Most loose photographs per envelope; `null` for no stated limit. At least 1. Cannot be set on a facility tagged `no_photos`.                                                                                                                                                                                                                                                                   |
+| `mailLanguages`     | array    | Two-letter ISO 639-1 codes, lower case, that mail must be written in, for example `["en", "es"]`; `null` or `[]` for no restriction.                                                                                                                                                                                                                                                           |
+| `notes`             | string   | Public notes, e.g. delivery risk.                                                                                                                                                                                                                                                                                                                                                              |
+| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                                                                                                                                                                                                                                                                                                                   |
+| `verifiedAt`        | datetime | When it was verified.                                                                                                                                                                                                                                                                                                                                                                          |
+| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                                                                                                                                                                                                                                                                                                            |
+| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only. See [Record status](#record-status).                                                                                                                                                                                                                                                                                                 |
+| `address`           | object   | Required. `street`, `city`, and `postalCode` for search and display, plus optionally **`lines`**: the exact lines to print on an envelope, in the order the facility or its support group says to write them (postal code first in Belarus and Russia, last in the US). One to eight non-empty strings. A client prints `lines` as given when present, and otherwise composes from the fields. |
 
 #### POST /prison/prison
 
@@ -1492,17 +1499,37 @@ Body: `{"id": 53}`. Fails with `400` while the prison still has prisoners.
 
 ### Prisoners
 
-| Method | Path                  | Auth                | Purpose                              |
-| ------ | --------------------- | ------------------- | ------------------------------------ |
-| POST   | `/prisoner/prisoner`  | Admin               | Create a prisoner                    |
-| GET    | `/prisoner/prisoners` | Public              | List prisoners, optionally by prison |
-| GET    | `/prisoner/prisoner`  | Public              | Get one prisoner by id               |
-| PUT    | `/prisoner/prisoner`  | Admin               | Update a prisoner                    |
-| PUT    | `/prisoner/support`   | Admin, or own group | Link a support group to a prisoner   |
-| DELETE | `/prisoner/support`   | Admin, or own group | Unlink a support group               |
-| DELETE | `/prisoner/prisoner`  | Admin               | Delete a prisoner                    |
+| Method | Path                  | Auth                | Purpose                                                                  |
+| ------ | --------------------- | ------------------- | ------------------------------------------------------------------------ |
+| POST   | `/prisoner/prisoner`  | Admin               | Create a prisoner                                                        |
+| GET    | `/prisoner/prisoners` | Public              | List prisoners, optionally by prison                                     |
+| GET    | `/prisoner/filters`   | Public              | The distinct `country` and `status` values with counts, for filter chips |
+| GET    | `/prisoner/prisoner`  | Public              | Get one prisoner by id                                                   |
+| PUT    | `/prisoner/prisoner`  | Admin               | Update a prisoner                                                        |
+| PUT    | `/prisoner/support`   | Admin, or own group | Link a support group to a prisoner                                       |
+| DELETE | `/prisoner/support`   | Admin, or own group | Unlink a support group                                                   |
+| DELETE | `/prisoner/prisoner`  | Admin               | Delete a prisoner                                                        |
 
 Writes are superadmins' only; a group admin proposes through [Moderation](#moderation). See the note under [Prisons](#prisons).
+
+#### GET /prisoner/filters and GET /prison/filters
+
+The values a list page builds its filter chips from, each with how many records carry it, over the records the caller could list (published only for the public; everything for staff). No parameters.
+
+```json
+{
+	"country": [
+		{ "value": "Russia", "count": 12 },
+		{ "value": "Greece", "count": 12 }
+	],
+	"status": [
+		{ "value": "incarcerated", "count": 53 },
+		{ "value": "pretrial", "count": 5 }
+	]
+}
+```
+
+`/prison/filters` answers `country` and `routing` the same way. Sorted by count, then value; `null` values are left out.
 
 #### Prisoner fields
 
@@ -2240,6 +2267,8 @@ Parameters: `page`, `page_size`, `q`, `sort`, and (staff) `recordStatus`.
 ```
 
 #### GET /chapter/chapter, PUT /chapter/chapter, DELETE /chapter/chapter
+
+With `full=true`, each entry of `supported_prisoners` carries a `prison_details` summary (`id`, `prisonName`, `country`) like a prisoner list row, or `null` when the caller may not see that facility; `relay_prisons` carries the facilities' rules.
 
 `?id=1` for GET (add `full=true` to embed `supported_prisoners` and `relay_prisons`); `{"id": 2, ...}` in the body for PUT and DELETE. A missing id is a `404` on all three.
 

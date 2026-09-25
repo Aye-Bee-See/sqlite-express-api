@@ -43,6 +43,11 @@ class PrisonerRoutes {
 			AuthzService.optionalAuthenticate,
 			this.#Controller.getMany
 		);
+		this.Router.get(
+			prisonerEnd.get.filters,
+			AuthzService.optionalAuthenticate,
+			this.#Controller.filters
+		);
 
 		this.Router.get(
 			prisonerEnd.get.one,

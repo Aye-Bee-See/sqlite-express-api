@@ -20,8 +20,23 @@ function encode(bytes) {
 	return out;
 }
 
+/**
+ * What a typed code is before it is hashed or used: upper case, letters and
+ * digits only (dashes, spaces, and dots dropped), and Crockford's look-alikes
+ * folded (O to 0, I and L to 1). Claim tokens, invitation tokens, invite
+ * codes, and recovery codes share this rule, so a client derives the same
+ * secret from a code however it was typed or grouped.
+ */
+export function normalizeToken(token) {
+	return String(token ?? '')
+		.toUpperCase()
+		.replace(/[^A-Z0-9]/g, '')
+		.replace(/O/g, '0')
+		.replace(/[IL]/g, '1');
+}
+
 export function hashToken(token) {
-	return createHash('sha256').update(String(token).trim().toUpperCase()).digest('hex');
+	return createHash('sha256').update(normalizeToken(token)).digest('hex');
 }
 
 export default class ClaimToken extends Model {

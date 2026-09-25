@@ -8,9 +8,31 @@ const prisonSchema = {
 		type: DataTypes.STRING,
 		allowNull: false
 	},
+	/**
+	 * Free-form JSON: `street`, `city`, `postalCode` for search and display, and
+	 * optionally `lines`, the exact lines to print on an envelope in the order the
+	 * facility (or its support group) says to write them, which differs by country.
+	 */
 	address: {
 		type: DataTypes.JSON,
-		allowNull: false
+		allowNull: false,
+		validate: {
+			isAddress(value) {
+				if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+					throw new Error('address must be an object.');
+				}
+				if (value.lines !== undefined) {
+					const ok =
+						Array.isArray(value.lines) &&
+						value.lines.length >= 1 &&
+						value.lines.length <= 8 &&
+						value.lines.every((line) => typeof line === 'string' && line.trim() !== '');
+					if (!ok) {
+						throw new Error('address.lines must be 1 to 8 non-empty strings, the lines to print.');
+					}
+				}
+			}
+		}
 	},
 	country: {
 		type: DataTypes.STRING

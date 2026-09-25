@@ -4,7 +4,7 @@
 	"description": "The letters.support API: letters to incarcerated people, printed and mailed by volunteer chapters.",
 	"main": "index.js",
 	"engines": {
-		"node": ">=18"
+		"node": ">=20.17"
 	},
 	"type": "module",
 	"scripts": {
@@ -52,7 +52,7 @@
 		"passport-jwt": "^4.0.1",
 		"passport-local": "^1.0.0",
 		"sequelize": "^6.37.2",
-		"sqlite3": "^5.1.7",
+		"sqlite3": "^6.0.1",
 		"umzug": "^3.8.3"
 	},
 	"imports": {
@@ -129,6 +129,7 @@
 		"eslint-plugin-prettier": "^5.4.1",
 		"globals": "^16.2.0",
 		"husky": "^9.1.7",
+		"libsodium-wrappers-sumo": "^0.7.16",
 		"lint-staged": "^16.1.1",
 		"nodemon": "^3.1.0",
 		"prettier": "3.5.3",

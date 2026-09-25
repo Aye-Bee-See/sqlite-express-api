@@ -1,8 +1,9 @@
 import { Op } from 'sequelize';
 import Prisoner from '#models/prisoner.model.js';
 import RouteController from '#rtControllers/route.controller.js';
+import { publishedWhere } from '#db/record-status.js';
 import { watchPrisoner, afterPrisonerChange } from '#rtServices/prisoner-change.services.js';
-import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+import { readOptions, SORT_BY_CREATED, filterValues } from '#rtControllers/directory.helpers.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { staleVerificationWhere } from '#db/record-status.js';
 import { audit } from '#rtServices/audit.services.js';
@@ -33,6 +34,7 @@ export default class PrisonerController extends RouteController {
 		 */
 		super('prisoner');
 		this.getMany = this.getMany.bind(this);
+		this.filters = this.filters.bind(this);
 		this.getOne = this.getOne.bind(this);
 		this.update = this.update.bind(this);
 		this.remove = this.remove.bind(this);
@@ -55,6 +57,21 @@ export default class PrisonerController extends RouteController {
 	 * embeds the prison and support groups and, for admins listing by prison,
 	 * each prisoner's chats.
 	 */
+	/**
+	 * GET /prisoner/filters: the values the list pages build their filter chips
+	 * from ([`country`, `status`]), each with a count, over the records the caller could list.
+	 */
+	async filters(req, res) {
+		try {
+			const { publishedOnly } = readOptions(req);
+			const where = publishedOnly ? publishedWhere(true) : {};
+			this.handleSuccess(res, await filterValues(Prisoner, ['country', 'status'], where));
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.handleErr(res, errorVar);
+		}
+	}
+
 	async getMany(req, res) {
 		const { prison, full, page, page_size } = req.query;
 		const limits = this.#handleLimits(page, page_size);

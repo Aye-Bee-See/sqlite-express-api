@@ -14,16 +14,45 @@ export function keypair() {
 	return crypto.keypair();
 }
 
-/** Derive a 32-byte wrapping key from a secret (password, recovery code, claim token). */
-export function deriveKey(secret, saltB64, params = { N: 1024, r: 8, p: 1 }) {
-	return new Uint8Array(scryptSync(String(secret), Buffer.from(saltB64, 'base64'), 32, params));
+/**
+ * What a typed code is before it is hashed or fed to a KDF, the same rule the
+ * server applies (database/models/claim-token.model.js): upper case, letters
+ * and digits only, O to 0, I and L to 1. Every client wrapping a key under a
+ * claim token or a recovery code applies it, so the code opens the key however
+ * it was typed or grouped.
+ */
+export function normalizeCode(code) {
+	return String(code ?? '')
+		.toUpperCase()
+		.replace(/[^A-Z0-9]/g, '')
+		.replace(/O/g, '0')
+		.replace(/[IL]/g, '1');
 }
 
-/** Wrap a private key under a secret: returns the fields the API stores. */
+/**
+ * Derive a 32-byte wrapping key from a secret. A password is used as typed
+ * (NFKC, which the real clients apply); a code (recovery code, claim token) is
+ * normalised first: `{ code: true }`.
+ */
+export function deriveKey(
+	secret,
+	saltB64,
+	params = { N: 1024, r: 8, p: 1 },
+	{ code = false } = {}
+) {
+	const bytes = code ? normalizeCode(secret) : String(secret).normalize('NFKC');
+	return new Uint8Array(scryptSync(bytes, Buffer.from(saltB64, 'base64'), 32, params));
+}
+
+/**
+ * Wrap a private key under a secret: returns the fields the API stores. The
+ * prefix says which secret it is: '' for the password, 'recovery' or 'claim'
+ * for a code, which is normalised before use.
+ */
 export function wrapPrivateKey(privateKeyB64, secret, prefix) {
 	const salt = randomBytes(16).toString('base64');
 	const params = { kdf: 'scrypt', N: 1024, r: 8, p: 1 };
-	const key = deriveKey(secret, salt, params);
+	const key = deriveKey(secret, salt, params, { code: prefix !== '' });
 	const { ciphertext, nonce } = crypto.encrypt(crypto.decode(privateKeyB64), key);
 	const wrapped = JSON.stringify({ ciphertext, nonce });
 	return {
@@ -33,9 +62,11 @@ export function wrapPrivateKey(privateKeyB64, secret, prefix) {
 	};
 }
 
-export function unwrapPrivateKey(wrapped, secret, salt, params) {
+export function unwrapPrivateKey(wrapped, secret, salt, params, { code = false } = {}) {
 	const { ciphertext, nonce } = JSON.parse(wrapped);
-	return crypto.encode(crypto.decrypt(ciphertext, nonce, deriveKey(secret, salt, params)));
+	return crypto.encode(
+		crypto.decrypt(ciphertext, nonce, deriveKey(secret, salt, params, { code }))
+	);
 }
 
 /** Registration material for a password and a recovery code. */
@@ -156,5 +187,5 @@ export function claimToken() {
 }
 
 export function hashToken(token) {
-	return createHash('sha256').update(String(token).trim().toUpperCase()).digest('hex');
+	return createHash('sha256').update(normalizeCode(token)).digest('hex');
 }

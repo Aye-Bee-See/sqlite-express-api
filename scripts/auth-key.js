@@ -37,6 +37,18 @@ if (scheme !== 'split') {
 	);
 	process.exit(1);
 }
+// The one recipe the clients agreed on (README, "End-to-end encryption"). The
+// server stores any recipe a client names, so refuse the rest rather than
+// print a key that can never sign in.
+if (kdfParams?.kdf !== 'argon2id' || kdfParams.alg !== sumo.crypto_pwhash_ALG_ARGON2ID13) {
+	console.error(
+		username +
+			"'s recipe is not Argon2id 1.3 (" +
+			JSON.stringify(kdfParams) +
+			'); this script derives only that one.'
+	);
+	process.exit(1);
+}
 const master = sumo.crypto_pwhash(
 	32,
 	sumo.from_string(password.normalize('NFKC')),

@@ -53,6 +53,6 @@ test('every seeded account is a split account whose auth key comes from its docu
 		);
 	}
 	const chapter = seeds.find((row) => row.username === 'chapter1');
-	assert.deepEqual([chapter.role, chapter.chapterId], ['chapter', 1]);
+	assert.deepEqual([chapter.role, chapter.chapter], ['chapter', 'Test Chapter']);
 	assert.equal(seeds.filter((row) => row.role === 'admin').length, 1);
 });

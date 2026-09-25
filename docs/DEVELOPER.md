@@ -52,10 +52,10 @@ npm run dev
 Notes:
 
 - `npm ci` works and is preferred; the lockfile is in sync. `bcrypt` and `sqlite3` are native modules with prebuilt binaries for Intel and Apple Silicon Macs; their install scripts are pre-approved in `package.json` (see [Tooling](#tooling)).
-- Verified on Node 24 and Node 26. `engines.node` is `>=18`. Node 26 specifically needs `jsonwebtoken` 9.0.3 or newer (already pinned) because it removed `SlowBuffer`.
+- Verified on Node 24 and Node 26. `engines.node` is `>=20.17`. Node 26 specifically needs `jsonwebtoken` 9.0.3 or newer (already pinned) because it removed `SlowBuffer`.
 - `npm ci` runs the `prepare` script, which installs the Husky pre-commit hook.
 - The database is created and seeded on first boot and persists afterwards. `DB_RESET=true npm start` wipes it.
-- To get an admin token, log in as the seeded `admin` / `abcpassword`, or set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` in `.env`.
+- To get an admin token, log in as the seeded `admin` with the auth key `npm run auth-key -- admin abcpassword` prints (seeded accounts use the split scheme and never accept their password), or set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` in `.env`.
 
 `npm test` runs the suite against an in-memory database in a couple of seconds and needs no `.env`. See [Tests](#tests). Schema changes are migrations; see [Migrations](#migrations).
 

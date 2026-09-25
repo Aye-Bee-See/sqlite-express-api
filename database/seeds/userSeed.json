@@ -579,7 +579,7 @@
 			"role": "chapter",
 			"email": "chapter1@example.com",
 			"name": "Chapter One",
-			"chapterId": 1,
+			"chapter": "Test Chapter",
 			"password": "5OiBrGNReR8FZ5Bbhc8TiLTV4qZZz1EzdaRjoIJ4cXs=",
 			"authScheme": "split",
 			"kdfSalt": "qifY56MalvP+IApPhTLeTw==",

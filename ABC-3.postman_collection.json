@@ -62,7 +62,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"abcpassword\"\n}",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"sgecshRAYib5Nf55Ru7liO8bcl6I8/FtrhDmYah1zkc=\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"

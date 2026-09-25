@@ -1,5 +1,26 @@
 process.env.NEWS_FEED_URL = 'https://feed.example/feed/';
 
+// With a URL set, boot schedules a pull through the global fetch. Nothing in the
+// tests reaches the network: the global fetch is a stub that records its calls
+// and answers an empty feed, and the tests below hand `refresh` their own.
+const bootCalls = [];
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, options) => {
+	if (!String(url).startsWith('https://feed.example/')) {
+		return realFetch(url, options); // the test's own calls to the API
+	}
+	bootCalls.push({
+		url: String(url),
+		ua: options && options.headers && options.headers['user-agent']
+	});
+	return {
+		ok: true,
+		status: 200,
+		body: null,
+		text: async () => '<rss><channel><title>empty</title></channel></rss>'
+	};
+};
+
 const { test, before, after } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
 const { startServer, stopServer, get } = await import('./helpers.js');
@@ -34,7 +55,20 @@ const FEED = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:con
 </channel></rss>`;
 
 before(startServer);
-after(stopServer);
+after(async () => {
+	await stopServer();
+	globalThis.fetch = realFetch;
+});
+
+test('the boot pull goes through the (stubbed) fetch with an honest user agent, and never the network', async () => {
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	assert.deepEqual(
+		bootCalls.map((c) => c.url),
+		['https://feed.example/feed/']
+	);
+	assert.match(bootCalls[0].ua, /^letters\.support\//);
+	assert.equal(await NewsItem.count(), 0, 'the boot pull found an empty feed');
+});
 
 test('the reader takes what the front page needs from a WordPress feed and nothing it should not', () => {
 	const items = parseRss(FEED);
@@ -106,6 +140,11 @@ test('the server pulls the feed, keeps the newest, and hands the front page a sh
 	assert.equal((await get('/news?limit=0')).status, 400);
 	assert.equal((await get('/news?limit=21')).status, 400);
 	assert.equal((await get('/news?limit=two')).status, 400);
+	assert.equal(
+		(await get('/news', { token: 'not-a-token' })).status,
+		401,
+		'a bad token is refused, as on every public read'
+	);
 
 	// A feed that refuses or vanishes leaves what was last fetched.
 	await assert.rejects(
@@ -116,6 +155,28 @@ test('the server pulls the feed, keeps the newest, and hands the front page a sh
 		/answered 403/
 	);
 	assert.equal((await get('/news')).body.data.length, 3, 'the last good pull stays');
+	// A feed of any size costs at most the cap: the body is abandoned past it.
+	const huge = { ok: true, status: 200, body: null, text: async () => 'x'.repeat(2_000_001) };
+	await assert.rejects(
+		NewsItem.refresh({ fetch: async () => huge, log: () => {} }),
+		/larger than 2000000 bytes/
+	);
+	const stream = new ReadableStream({
+		start(controllerStream) {
+			for (let i = 0; i < 3; i += 1) {
+				controllerStream.enqueue(new TextEncoder().encode('y'.repeat(1_000_000)));
+			}
+			controllerStream.close();
+		}
+	});
+	await assert.rejects(
+		NewsItem.refresh({
+			fetch: async () => ({ ok: true, status: 200, body: stream, text: async () => '' }),
+			log: () => {}
+		}),
+		/larger than 2000000 bytes/
+	);
+	assert.equal((await get('/news')).body.data.length, 3, 'still the last good list');
 	// Only the newest `keep` survive when the feed is long.
 	const many =
 		'<rss><channel>' +

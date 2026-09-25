@@ -107,12 +107,41 @@ export async function fetchFeed(url, { fetch: doFetch = globalThis.fetch } = {})
 		if (!res.ok) {
 			throw new Error('The feed answered ' + res.status + '.');
 		}
-		const text = await res.text();
-		if (text.length > MAX_BYTES) {
-			throw new Error('The feed is larger than ' + MAX_BYTES + ' bytes.');
-		}
-		return parseRss(text);
+		return parseRss(await readBounded(res, MAX_BYTES, controller));
 	} finally {
 		clearTimeout(timer);
 	}
+}
+
+/**
+ * The body as text, read chunk by chunk and abandoned the moment it passes
+ * `max` bytes, so a feed of any size costs at most that much memory.
+ * @throws {Error} over the cap
+ */
+async function readBounded(res, max, controller) {
+	if (!res.body || typeof res.body.getReader !== 'function') {
+		// A stand-in response (tests) with text() only.
+		const text = await res.text();
+		if (Buffer.byteLength(text) > max) {
+			throw new Error('The feed is larger than ' + max + ' bytes.');
+		}
+		return text;
+	}
+	const reader = res.body.getReader();
+	const chunks = [];
+	let size = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) {
+			break;
+		}
+		size += value.byteLength;
+		if (size > max) {
+			controller.abort();
+			await reader.cancel().catch(() => {});
+			throw new Error('The feed is larger than ' + max + ' bytes.');
+		}
+		chunks.push(value);
+	}
+	return Buffer.concat(chunks).toString('utf8');
 }

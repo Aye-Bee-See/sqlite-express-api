@@ -259,7 +259,7 @@ Each alias lists several extension fallbacks. Include the `.js` extension in imp
 | `uploadMaxBytes`       | `UPLOAD_MAX_BYTES`       | `10485760`                     | `upload.services.js`: multer file size limit.                                                     |
 | `retentionDefaultDays` | `RETENTION_DEFAULT_DAYS` | `90`                           | `database/retention.js`: window when the writer chose none; 0 = forever.                          |
 | `retentionMaxDays`     | `RETENTION_MAX_DAYS`     | none                           | Cap on any writer's choice, including forever.                                                    |
-| `encryptionMode`       | `ENCRYPTION_MODE`        | `server`                       | `services/crypto.js`: `server` (API holds the key) or `e2e` (browsers hold the keys).             |
+| `encryptionMode`       | `ENCRYPTION_MODE`        | `e2e`                          | `services/crypto.js`: `server` (API holds the key) or `e2e` (browsers hold the keys).             |
 | `encryptionKey`        | `ENCRYPTION_KEY`         | none (required in server mode) | `services/crypto.js`: base64 32-byte key that wraps content keys; the rewrap script needs it too. |
 
 The three `db*` values go through `envBool` (`constants.js:22`), which accepts `true/false`, `1/0`, `yes/no`, `on/off` in any case and otherwise returns the default. `NODE_ENV=development` is read directly by the two error renderers to decide whether 500 responses include the underlying message and stack.

@@ -70,11 +70,12 @@ export const uploadDir = UPLOAD_DIR || 'uploads';
  * How letters are encrypted. `server`: the API encrypts letter bodies, relay
  * notes, and attachments with per-letter content keys wrapped by
  * ENCRYPTION_KEY, and decrypts them for authorised readers (the API can read
- * letters). `e2e`: reserved for the browser-side design, where the server
- * only ever holds ciphertext and envelopes wrapped to readers' public keys.
+ * letters). `e2e` (the default; the project runs end-to-end from its first
+ * day): the server only ever holds ciphertext and envelopes wrapped to
+ * readers' public keys.
  */
 export const ENCRYPTION_MODES = ['server', 'e2e'];
-export const encryptionMode = ENCRYPTION_MODE || 'server';
+export const encryptionMode = ENCRYPTION_MODE || 'e2e';
 /** Base64 of 32 random bytes; required in `server` mode. `npm run keygen` makes one. */
 export const encryptionKey = ENCRYPTION_KEY || '';
 /**

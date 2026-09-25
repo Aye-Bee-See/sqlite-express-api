@@ -23,6 +23,7 @@
 		"backup": "node database/backup-cli.js run",
 		"backup:status": "node database/backup-cli.js status",
 		"backup:keygen": "node database/backup-cli.js keygen",
+		"auth-key": "node scripts/auth-key.js",
 		"backup:info": "node database/backup-cli.js info",
 		"backup:verify": "node database/backup-cli.js verify",
 		"backup:restore": "node database/backup-cli.js restore",

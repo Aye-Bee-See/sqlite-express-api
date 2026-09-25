@@ -8,6 +8,7 @@ import Utilities from '#services/Utilities.js';
 
 /*
  Order of seeding:
+ Chapter (a seeded group admin belongs to it)
  User
  Prison
  Prisoner (Requires Prison)
@@ -17,16 +18,16 @@ import Utilities from '#services/Utilities.js';
 
 export async function createSeeds() {
 	const seeds = [
+		createChapterSeed,
 		createUserSeed,
 		createPrisonSeed,
 		createPrisonerSeed,
 		createChatSeed,
-		createMessageSeed,
-		createChapterSeed
+		createMessageSeed
 	];
 
 	const seedsData = await Utilities.resolveSequential(seeds);
-	const names = ['users', 'prisons', 'prisoners', 'chats', 'messages', 'chapters'];
+	const names = ['chapters', 'users', 'prisons', 'prisoners', 'chats', 'messages'];
 	const summary = names.map((name, i) => {
 		const rows = seedsData[i];
 		return Array.isArray(rows)

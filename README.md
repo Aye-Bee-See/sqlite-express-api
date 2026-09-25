@@ -235,12 +235,12 @@ On a fresh database the JSON files in `database/seeds/` are loaded:
 
 | Resource  | Rows | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | --------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Users     | 41   | One admin plus forty regular users.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Users     | 42   | One superadmin, one group admin of Test Chapter, and forty writers, all split-scheme accounts (see [Credentials](#credentials)).                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Prisons   | 46   | "Test Prison" (made up, with a fixed, readable rule set), then 45 real facilities in Belarus, Chile, France, Germany, Greece, Indonesia, Italy, Russia, Spain, the United Kingdom, and the United States, with the postal addresses the sources gave. **Mail rules are seeded here**, as tags on each prison (see below).                                                                                                                                                                                                                                                   |
 | Prisoners | 58   | Real anarchist and political prisoners, compiled in September 2026 from chapter and support-site profiles (ABC Belarus, avtonom.org, tameio.net, Cruz Negra Anarquista, prisonersolidarity.com, Bristol ABC, and others), each with the source URL in `supportWebsite` (one record, whose only source is a printed zine, names it in `verificationNotes` instead). 38 are `published`; 20 whose address is dated or partial are `pending` (staff only) with the caveat in `verificationNotes`. 53 `incarcerated`, 5 `pretrial`, none `free`. Prisoner N is not in prison N. |
 | Chats     | 40   | Chat N pairs user N with prisoner N (the first forty prisoners).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Messages  | 40   | One short greeting per chat, all sent by the user side.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Chapters  | 1    | "Test Chapter": active, `networkRole` `both`, three services. No `chapter`-role account is seeded; create one as the admin (`POST /auth/user` with `role` and `chapterId`) or through an [invitation](#invitations).                                                                                                                                                                                                                                                                                                                                                        |
+| Chapters  | 1    | "Test Chapter": active, `networkRole` `both`, three services. `chapter1` is its one group admin; it is not linked as the relay group of any facility until someone attaches it (`PUT /prison/relay`).                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Seeded mail rules
 
@@ -256,12 +256,25 @@ Seeding only fills empty tables. A database seeded before 23 September 2026 keep
 
 ### Credentials
 
-| Username             | Password                     | Role    | Email                   |
-| -------------------- | ---------------------------- | ------- | ----------------------- |
-| `admin`              | `abcpassword`                | `admin` | `admin@localhost`       |
-| `user1` ... `user40` | `password1` ... `password40` | `user`  | `user1@example.com` ... |
+| Username             | Password                     | Role                                    | Email                   |
+| -------------------- | ---------------------------- | --------------------------------------- | ----------------------- |
+| `admin`              | `abcpassword`                | `admin` (superadmin)                    | `admin@localhost`       |
+| `chapter1`           | `a long enough password`     | `chapter` (group admin of Test Chapter) | `chapter1@example.com`  |
+| `user1` ... `user40` | `password1` ... `password40` | `user`                                  | `user1@example.com` ... |
 
 Plus whatever you configured in `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL`.
+
+**Every seeded account uses the split scheme** ([Signing in without sending the password](#signing-in-without-sending-the-password)), because the web client refuses to send a password to the server. So the passwords above are what you type into a client; the API itself never accepts them. For curl and scripts, derive the auth key the client would send, then log in with it:
+
+```bash
+npm run auth-key -- user1 password1 http://localhost:3069
+```
+
+```bash
+curl -s -X POST http://localhost:3069/auth/login -H 'Content-Type: application/json' -d '{"username":"user1","password":"<the key printed above>"}'
+```
+
+The seed's salts are deterministic (derived from the username), so the seeded auth keys are the same on every fresh database, and `test/seed-accounts.test.js` checks they match the documented passwords. Seeded accounts have no keys (no `publicKey`), which a server-mode development server does not need; in end-to-end mode a client gives an account keys at its first sign-in.
 
 The numeric `id` a seeded account receives is **not** guaranteed to match its position in the seed file. In one verified run `admin` was id 3 and `user4` was id 1. Read ids from responses rather than assuming them. This also means "user N is paired with prisoner N" refers to database ids, not to the `userN` usernames.
 
@@ -283,10 +296,12 @@ Everything else, including every write, requires a bearer token. A token that is
 
 ### Logging in
 
+The seeded `admin` is a split account, so `password` is its auth key: what `npm run auth-key -- admin abcpassword` prints, the same on every seeded database ([Credentials](#credentials)).
+
 ```bash
 curl -s -X POST http://localhost:3000/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"abcpassword"}'
+  -d '{"username":"admin","password":"sgecshRAYib5Nf55Ru7liO8bcl6I8/FtrhDmYah1zkc="}'
 ```
 
 ```json
@@ -325,7 +340,7 @@ curl -s -X POST http://localhost:3000/auth/login \
 
 Every account has an `authScheme`: `plain` or `split`.
 
-- **`plain`**: the password itself is sent to `POST /auth/login` and checked against a bcrypt hash. The server never stores it, but it sees it at every sign-in, and in end-to-end mode the password is the one secret the account's private key is locked with. This is how every account made before September 2026 works, and how the seeded admin works.
+- **`plain`**: the password itself is sent to `POST /auth/login` and checked against a bcrypt hash. The server never stores it, but it sees it at every sign-in, and in end-to-end mode the password is the one secret the account's private key is locked with. This is how every account made before September 2026 works, and how the bootstrap admin from `ADMIN_USERNAME` / `ADMIN_PASSWORD` works. The seeded accounts are all `split` ([Credentials](#credentials)).
 - **`split`**: the device runs the slow derivation once and derives **two** values from the result. The _wrap key_ locks the private key and never leaves the device. The _auth key_ is sent as the password. Knowing one does not give the other. The server keeps doing what it does now (hash and compare); it never sees anything that opens a letter, so a tampered server records nothing useful.
 
 **Test vector for the first step** (`test/auth-split.test.js`, run with the `sumo` build of libsodium): password `correct horse battery staple`, salt the sixteen bytes `00 01 … 0f` (`AAECAwQFBgcICQoLDA0ODw==`), parameters `{"kdf":"argon2id","alg":2,"opslimit":2,"memlimit":67108864}` → `master` = `wFzkxN1+DkXuYBHMWdBoreR98bAfwM+c1GeL32ilt7A=`, `wrapKey` = `tOggbVRmxTeDlXjvpt6YS1UxcYLSb8DRaDfpFMXoEv8=`, `authKey` = `OY25VECyUEJUDcyPZSqK4R+oG5BvSzBlQNOrdiwgkR4=`. Passwords are normalised to Unicode NFKC and hashed as UTF-8, so `café` spelt with a precomposed é and with e + combining acute give the same `master` (`lEpmh4tmC0xaD5DhMboQo/3Hw7JqT3VThdqq0n1pImc=` with the salt above).
@@ -1132,7 +1147,7 @@ A key made on one device works on another because the private key lives on the s
 | A demand for stored data                                      | Yes                                                                                                                                              |
 | The running server is modified to record passwords at sign-in | **Yes, for `split` accounts** (see [Signing in without sending the password](#signing-in-without-sending-the-password)); **no** for `plain` ones |
 
-The last row depends on how the account signs in. A `plain` account sends its password to `POST /auth/login`, and the password is what the locking key is derived from: a tampered server could record it and unlock that account's private key. A `split` account never sends the password: the device derives one value to sign in with and another that locks the key and never leaves the device. Every account made by a client that has moved to the split scheme is protected; the seeded admin and any account made the old way are not until they change their password. Two limits no API change removes: a web client runs whatever code its host serves, and the server always sees who writes to whom and when.
+The last row depends on how the account signs in. A `plain` account sends its password to `POST /auth/login`, and the password is what the locking key is derived from: a tampered server could record it and unlock that account's private key. A `split` account never sends the password: the device derives one value to sign in with and another that locks the key and never leaves the device. Every account made by a client that has moved to the split scheme is protected; the bootstrap admin from `ADMIN_USERNAME` and any account made the old way are not until they change their password. Two limits no API change removes: a web client runs whatever code its host serves, and the server always sees who writes to whom and when.
 
 #### Account keys
 
@@ -2605,7 +2620,7 @@ None of these break anything, but clients should know about them.
 
 `ABC-3.postman_collection.json` in the repository root matches the current API. Import it, then:
 
-1. Run **Users › Login (seeded admin)**. Its test script stores the token in the `{{jwt}}` collection variable and the admin's id in `{{userId}}`.
+1. Run **Users › Login (seeded admin)**. It sends the seeded admin's auth key (`sgecshRAYib5Nf55Ru7liO8bcl6I8/FtrhDmYah1zkc=`, from `npm run auth-key -- admin abcpassword`), not the password. Its test script stores the token in the `{{jwt}}` collection variable and the admin's id in `{{userId}}`.
 2. Every other request sends `{{jwt}}` as a bearer token automatically.
 3. Ids in request bodies are examples from the seed data; adjust them from list responses.
 

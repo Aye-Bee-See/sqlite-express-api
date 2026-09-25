@@ -553,16 +553,33 @@ test('claiming moves the keypair to the writer; the group loses its copy', async
 	assert.equal(issued.status, 201, JSON.stringify(issued.body));
 	assert.equal(issued.body.data.token, undefined, 'the server never learns the token');
 
-	const info = await get('/auth/claim?token=' + token.toLowerCase());
-	assert.equal(info.status, 200);
+	// Typed from a slip: lower case, in groups, with an O for a 0. The server finds
+	// the token and the device opens the key, both through the one normalisation.
+	const typed = token
+		.toLowerCase()
+		.replace(/(.{4})(?=.)/g, '$1-')
+		.replace(/0/g, 'o');
+	const info = await get('/auth/claim?token=' + encodeURIComponent(typed));
+	assert.equal(info.status, 200, JSON.stringify(info.body));
 	assert.equal(info.body.data.publicKey, writerKeys.publicKey);
 	const priv = client.unwrapPrivateKey(
 		info.body.data.claimWrappedPrivateKey,
-		token,
+		typed,
 		info.body.data.claimSalt,
-		info.body.data.claimKdfParams
+		info.body.data.claimKdfParams,
+		{ code: true }
 	);
 	assert.equal(priv, writerKeys.privateKey);
+	assert.throws(
+		() =>
+			client.unwrapPrivateKey(
+				info.body.data.claimWrappedPrivateKey,
+				typed,
+				info.body.data.claimSalt,
+				info.body.data.claimKdfParams
+			),
+		'the raw typed string does not open it; the rule is not optional'
+	);
 
 	const pw = client.wrapPrivateKey(priv, 'heldpass', '');
 	const rc = client.wrapPrivateKey(priv, 'RECOVERY-held', 'recovery');
@@ -618,11 +635,13 @@ test('recovery proves possession of the private key before resetting the passwor
 	const start = await get('/auth/recover?username=held');
 	assert.equal(start.status, 200);
 	assert.equal((await get('/auth/recover?username=nobody')).status, 404);
+	// The recovery code as a person might type it: the rule makes it the same code.
 	const priv = client.unwrapPrivateKey(
 		start.body.data.recoveryWrappedPrivateKey,
-		'RECOVERY-held',
+		'recovery held',
 		start.body.data.recoverySalt,
-		start.body.data.recoveryKdfParams
+		start.body.data.recoveryKdfParams,
+		{ code: true }
 	);
 	assert.equal(priv, writerKeys.privateKey);
 	const challenge = Buffer.from(

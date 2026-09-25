@@ -62,6 +62,28 @@ test('an address may carry the exact lines to print, in the order the facility s
 		f.admin
 	);
 	assert.equal(notObject.status, 400);
+	// An update is validated the same way (Sequelize validates Model.update by default).
+	const badUpdate = await put(
+		'/prison/prison',
+		{ id: ok.body.data.id, address: { street: 'x', lines: [''] } },
+		f.admin
+	);
+	assert.equal(badUpdate.status, 400, JSON.stringify(badUpdate.body));
+	assert.match(badUpdate.body.errors[0], /address.lines/);
+	assert.equal(
+		(await get('/prison/prison?id=' + ok.body.data.id)).body.data.address.lines.length,
+		3,
+		'nothing was written'
+	);
+	const goodUpdate = await put(
+		'/prison/prison',
+		{ id: ok.body.data.id, address: { street: 'x', lines: ['One line'] } },
+		f.admin
+	);
+	assert.equal(goodUpdate.status, 200);
+	assert.deepEqual((await get('/prison/prison?id=' + ok.body.data.id)).body.data.address.lines, [
+		'One line'
+	]);
 	// Structured fields alone are still fine.
 	assert.equal(
 		(await post('/prison/prison', { prisonName: 'Plain', address: { street: '1 Main' } }, f.admin))

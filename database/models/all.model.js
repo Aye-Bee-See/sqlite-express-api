@@ -18,6 +18,7 @@ import Invitation from '#models/invitation.model.js';
 import InviteCode from '#models/invite-code.model.js';
 import PenName from '#models/pen-name.model.js';
 import ReplyReference from '#models/reply-reference.model.js';
+import NewsItem from '#models/news-item.model.js';
 import MailRule from '#models/mail-rule.model.js';
 import Device from '#models/device.model.js';
 import Notification from '#models/notification.model.js';
@@ -89,6 +90,7 @@ export {
 	InviteCode,
 	PenName,
 	ReplyReference,
+	NewsItem,
 	MailRule,
 	Device,
 	Notification,

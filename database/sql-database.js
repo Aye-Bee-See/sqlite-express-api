@@ -43,6 +43,7 @@ export const Invitation = Models.Invitation.init(sequelize, Sequelize);
 export const InviteCode = Models.InviteCode.init(sequelize, Sequelize);
 export const PenName = Models.PenName.init(sequelize, Sequelize);
 export const ReplyReference = Models.ReplyReference.init(sequelize, Sequelize);
+export const NewsItem = Models.NewsItem.init(sequelize, Sequelize);
 export const MailRule = Models.MailRule.init(sequelize, Sequelize);
 export const Device = Models.Device.init(sequelize, Sequelize);
 export const Notification = Models.Notification.init(sequelize, Sequelize);
@@ -66,6 +67,7 @@ Invitation.associate(Models);
 InviteCode.associate(Models);
 PenName.associate(Models);
 ReplyReference.associate(Models);
+NewsItem.associate(Models);
 MailRule.associate(Models);
 Device.associate(Models);
 Notification.associate(Models);
@@ -115,6 +117,9 @@ export const ready = (async () => {
 			]).catch((err) => console.error('[sessions] sweep failed', err)),
 		SWEEP_INTERVAL_MS
 	).unref();
+	// The front-page news is pulled after the database is ready; a slow or
+	// refusing feed never delays boot or fails it.
+	NewsItem.schedule({ log });
 	if (crypto.isE2E()) {
 		const leftover = await LetterKey.count({ where: { readerType: 'server' } });
 		if (leftover > 0) {

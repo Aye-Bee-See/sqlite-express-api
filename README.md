@@ -91,6 +91,8 @@ cp .env.example .env
 | `INVITE_CODES_OUTSTANDING`                    | No       | `20`                                      | Unused invite codes a chapter may have at once. Used codes free their slot; unused ones count until they expire or are cancelled.                                                                       |
 | `INVITE_CODE_DAYS`                            | No       | `30`                                      | How long an invite code works, and the most a batch may ask for.                                                                                                                                        |
 | `REPLY_REFERENCE_MONTHS`                      | No       | `12`                                      | How long a reply reference keeps working after the letter was mailed, once the letter itself is deleted. See [Reply reference](#reply-reference).                                                       |
+| `NEWS_FEED_URL`                               | No       | unset                                     | The RSS feed the front page's news is pulled from, for example `https://www.abcf.net/feed/`. Unset turns the news off. See [News](#news).                                                               |
+| `NEWS_EVERY_HOURS`                            | No       | `6`                                       | How often the server pulls the feed.                                                                                                                                                                    |
 | `REQUIRE_SPLIT_AUTH`                          | No       | `false`                                   | `true` refuses to create any new account that would send its password (`authScheme: plain`). Set it once every client uses the split scheme.                                                            |
 | `INVITATION_DAYS`                             | No       | `14`                                      | How long an invitation token works. See [Invitations](#invitations).                                                                                                                                    |
 | `INVITATION_AUTO_ACTIVATE`                    | No       | `false`                                   | `true` makes a group that joins by invitation active and listed at once, on the strength of the vouch. By default it waits for an admin.                                                                |
@@ -275,6 +277,7 @@ These work without a token:
 - `GET /auth/claim` and `POST /auth/claim` check and use a claim token; see [Managed writers](#managed-writers).
 - Every **GET** on prisons, prisoners, and chapters (the public directory), and the master list of mail rules. Anonymous callers see only records whose `recordStatus` is `published`; see [Record status](#record-status).
 - `GET /health`.
+- `GET /news`: the front-page news items, pulled by the server from an RSS feed; see [News](#news).
 
 Everything else, including every write, requires a bearer token. A token that is present but invalid is rejected with `401` even on public routes.
 
@@ -2482,6 +2485,29 @@ npm run push:check
 It sends one message to a deliberately fake device token. The good answer is `OK. Google accepted the credentials and the request, and refused the fake token`: Google can only say the token is invalid after accepting the service account and understanding the request, and nothing is delivered to anyone. A refusal names the cause (for example the Cloud Messaging API (V1) not being enabled). To ring a real device, pass its registration token: `npm run push:check -- <token> [android|ios|web]`. An unknown platform is refused before anything is sent. For iOS, upload an APNs authentication key to the same Firebase project; nothing changes in the API.
 
 Phones without Google services cannot receive FCM. The sender takes pluggable providers (`services/push.js`), so an open one such as UnifiedPush can be added beside it; until then those devices rely on fetching the feed.
+
+### News
+
+The front page shows a few news items from an RSS feed (the Anarchist Black Cross Federation's, `https://www.abcf.net/feed/`, is the one the web client wants). **The server pulls the feed, not the visitor's browser**, so a visitor's address never reaches the other site: the API fetches it on a schedule with an honest user agent, keeps the newest twenty items, and answers a short list.
+
+| Method | Path    | Auth   | Purpose                                         |
+| ------ | ------- | ------ | ----------------------------------------------- |
+| GET    | `/news` | Public | The newest items, `?limit=` 1 to 20 (default 5) |
+
+```json
+{
+	"data": [
+		{
+			"title": "NYC Running Down the Walls postponed to 10.18",
+			"url": "https://www.abcf.net/blog/nyc-running-down-the-walls-postponed-to-10-18/",
+			"date": "2026-09-19T23:04:57.000Z",
+			"summary": "The NYC run moves to October 18. Same route and same time."
+		}
+	]
+}
+```
+
+`summary` is the item's description (or its content when the description is empty) with tags stripped and entities decoded, cut at a word to about 300 characters; `date` is the item's publication date, or `null` when the feed gave none. Off unless `NEWS_FEED_URL` is set, in which case the API pulls it at boot and every `NEWS_EVERY_HOURS` (6); with it unset, or before the first successful pull, the list is empty. A pull that fails is logged and the last good list stays. Nothing is ever posted or edited through the API.
 
 ### Invitations
 

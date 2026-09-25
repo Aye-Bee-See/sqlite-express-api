@@ -217,6 +217,19 @@ export const openRegistration = envBool(process.env.OPEN_REGISTRATION, false);
  */
 export const replyReferenceMonths = envCount('REPLY_REFERENCE_MONTHS', 12);
 
+/**
+ * The front-page news feed, pulled by the server so visitors never fetch it
+ * (services/news-feed.js). Off unless NEWS_FEED_URL is set.
+ */
+export const newsFeed = {
+	url: (process.env.NEWS_FEED_URL || '').trim(),
+	everyHours: Math.max(1, envCount('NEWS_EVERY_HOURS', 6)),
+	/** How many items are kept, and the most GET /news hands out. */
+	keep: 20,
+	/** How many GET /news answers with by default. */
+	show: 5
+};
+
 /** Invite codes (database/models/invite-code.model.js). */
 export const inviteCodes = {
 	/** Unused, unexpired codes a chapter may have at once. */

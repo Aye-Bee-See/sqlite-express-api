@@ -26,6 +26,11 @@ const endpoints = {
 			revokeToken: '/writer/token'
 		}
 	},
+	news: {
+		get: {
+			many: '/'
+		}
+	},
 	inviteCode: {
 		get: {
 			many: '/invite-codes',
@@ -490,6 +495,14 @@ const messages = {
 			}
 		}
 	},
+	news: {
+		get: {
+			many: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the news.' } }
+			}
+		}
+	},
 	inviteCode: {
 		get: {
 			many: {
@@ -931,5 +944,6 @@ export const {
 	invitation: invitationEnd,
 	notification: notificationEnd,
 	keys: keysEnd,
-	inviteCode: inviteCodeEnd
+	inviteCode: inviteCodeEnd,
+	news: newsEnd
 } = endpoints;

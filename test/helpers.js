@@ -27,6 +27,8 @@ process.env.ENCRYPTION_MODE = process.env.ENCRYPTION_MODE || 'server';
 process.env.RATE_LIMIT_ENABLED = process.env.RATE_LIMIT_ENABLED || 'false';
 // Tests make accounts with POST /auth/user; the real default is off (registration-closed.test.js).
 process.env.OPEN_REGISTRATION = process.env.OPEN_REGISTRATION || 'true';
+// The news feed is pulled from the network; tests that want it set a URL and hand in their own fetch.
+process.env.NEWS_FEED_URL = process.env.NEWS_FEED_URL ?? '';
 process.env.ENCRYPTION_KEY = 'dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdCE=';
 process.env.UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'abc-uploads-'));
 process.env.UPLOAD_MAX_BYTES = String(64 * 1024);

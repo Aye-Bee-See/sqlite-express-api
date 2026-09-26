@@ -92,9 +92,9 @@ const commands = {
 		const key = await readPrivateKey(need(flags.key, '--key <private key file>'));
 		const result = await verifyBackup(need(positional[0], 'the backup file'), key);
 		show(result);
-		if (result.attachmentsWithoutFile.length > 0) {
+		if (result.filesMissingFromArchive.length > 0) {
 			console.error(
-				result.attachmentsWithoutFile.length +
+				result.filesMissingFromArchive.length +
 					' attachment(s) are in the database and have no file in the backup.'
 			);
 			process.exitCode = 1;

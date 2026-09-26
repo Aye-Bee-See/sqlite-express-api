@@ -72,7 +72,8 @@ cp .env.example .env
 | `DB_SEED`                                     | No       | `true`                                    | `false` skips loading the seed files. Seeding only ever fills empty tables, so leaving it on is safe.                                                                                                   |
 | `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement **with its values** (password hashes, token hashes, wrapped keys). Development only.                                                                                  |
 | `DB_STORAGE`                                  | No       | `database.sqlite`                         | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                                                                              |
-| `UPLOAD_DIR`                                  | No       | `uploads`                                 | Directory for attachment files, relative to the working directory or absolute. Created on first upload. Back it up with the database.                                                                   |
+| `UPLOAD_DIR`                                  | No       | `uploads`                                 | Directory for attachment files and directory photos, relative to the working directory or absolute. Created on first upload. Back it up with the database.                                              |
+| `PHOTO_MAX_BYTES`                             | No       | `5242880`                                 | Largest accepted directory photo (5 MiB). See [Photos](#photos).                                                                                                                                        |
 | `UPLOAD_MAX_BYTES`                            | No       | `20971520`                                | Largest accepted upload (20 MiB).                                                                                                                                                                       |
 | `RATE_LIMIT_*`                                | No       | see [Rate limits](#rate-limits)           | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                                                                                 |
 | `PEN_NAME_COOLDOWN_DAYS`                      | No       | `90`                                      | Days between one pen name change and the next, of any kind. `0` allows a change at any time. See [Pen names](#pen-names).                                                                               |
@@ -171,14 +172,14 @@ A backup is encrypted to a **public key**. The server holds only that, so it can
 
 **Commands**
 
-| Command                                                              | Where                | What it does                                                                                                                                                                                                                                                                                |
-| -------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run backup`                                                     | Server               | Makes `backups/abc-backup-<date>.abcbak`: a consistent copy of the database (taken by SQLite, safe while the API runs) and every attachment file it refers to. Removes all but the newest `BACKUP_KEEP` (14). An attachment whose file is missing is reported and does not stop the backup. |
-| `npm run backup:status -- --max-age-hours 26`                        | Server               | Prints the newest backup and its age; **exits 1** when there is none or it is too old. For monitoring. Admins also see this under `backups` in `GET /moderation/summary`.                                                                                                                   |
-| `npm run backup:info -- <file>`                                      | Anywhere             | When it was made and for which key. Needs no key.                                                                                                                                                                                                                                           |
-| `npm run backup:verify -- <file> --key abc-backup-private.key`       | Your computer        | Opens it, checks every file against its checksum, runs SQLite's integrity check, and checks that every attachment in the database has its file. Leaves nothing behind. **Do this now and then: a backup nobody has opened is a hope, not a backup.**                                        |
-| `npm run backup:restore -- <file> --key <key file> --to <new dir>`   | Wherever you restore | Unpacks and checks it into a **new** directory. It never writes over anything; it prints the four steps to put the files in place (stop the API, move the old files aside, copy, start).                                                                                                    |
-| `npm run backup:decrypt -- <file> --key <key file> --out backup.tar` | Your computer        | A plain `tar` archive any tool opens, with or without this repository. It is the whole database in the clear: delete it when you are done.                                                                                                                                                  |
+| Command                                                              | Where                | What it does                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run backup`                                                     | Server               | Makes `backups/abc-backup-<date>.abcbak`: a consistent copy of the database (taken by SQLite, safe while the API runs) and every file it refers to: attachments and directory photos. Removes all but the newest `BACKUP_KEEP` (14). A file that is missing is reported and does not stop the backup. |
+| `npm run backup:status -- --max-age-hours 26`                        | Server               | Prints the newest backup and its age; **exits 1** when there is none or it is too old. For monitoring. Admins also see this under `backups` in `GET /moderation/summary`.                                                                                                                             |
+| `npm run backup:info -- <file>`                                      | Anywhere             | When it was made and for which key. Needs no key.                                                                                                                                                                                                                                                     |
+| `npm run backup:verify -- <file> --key abc-backup-private.key`       | Your computer        | Opens it, checks every file against its checksum, runs SQLite's integrity check, and checks that every attachment in the database has its file. Leaves nothing behind. **Do this now and then: a backup nobody has opened is a hope, not a backup.**                                                  |
+| `npm run backup:restore -- <file> --key <key file> --to <new dir>`   | Wherever you restore | Unpacks and checks it into a **new** directory. It never writes over anything; it prints the four steps to put the files in place (stop the API, move the old files aside, copy, start).                                                                                                              |
+| `npm run backup:decrypt -- <file> --key <key file> --out backup.tar` | Your computer        | A plain `tar` archive any tool opens, with or without this repository. It is the whole database in the clear: delete it when you are done.                                                                                                                                                            |
 
 After a restore, everyone who signed in since the backup was made is signed out ([Signing out and revoking tokens](#signing-out-and-revoking-tokens)), and whatever was written since is gone: that is what the age of the newest backup means.
 
@@ -411,6 +412,7 @@ Everything that writes a row nobody else asked for is counted **per account**, o
 | Invitations and batches of invite codes, together            | 20 per hour  | `RATE_LIMIT_INVITES_PER_USER`     |
 | Group key rotations                                          | 5 per hour   | `RATE_LIMIT_ROTATIONS_PER_USER`   |
 | Device registrations                                         | 30 per hour  | `RATE_LIMIT_DEVICES_PER_USER`     |
+| Directory photos uploaded                                    | 60 per hour  | `RATE_LIMIT_PHOTOS_PER_USER`      |
 | Sign-ups per address (no token; see below)                   | 20 per hour  | `RATE_LIMIT_REGISTER_PER_IP`      |
 
 Three things worth knowing:
@@ -1072,6 +1074,51 @@ The name chosen at sign-up is the first, not a change: it is free of both. A ref
 
 - `penName` travels in `user_details` on the print view, and the letter's [footer](#reply-reference) says it.
 
+### Photos
+
+A directory of names and paragraphs is a wall of text; a photograph is what makes a stranger look twice. Photos are **hosted here**, not linked from somewhere else, so no other host is told who is looking at which prisoner, and so a photo cannot quietly become a broken square or somebody else's picture.
+
+- **Who may add one:** a superadmin, or the **group-owner admin** of an active group (decided 26 September 2026). It is published at once, the one part of a record a group changes without going through [moderation](#moderation), so it is kept to the person each group has already made answerable for it. Anyone else gets a `403`.
+- **One photo per record**, replaced rather than added to. The file it replaces is deleted.
+- **Everything describing the picture is removed before it is stored**: EXIF (which carries where it was taken, when, and the camera's serial number), XMP, IPTC, comments, and PNG text chunks. Colour profiles, gamma and transparency are kept, and the pixels are never re-encoded. One consequence: **EXIF orientation is removed with the rest**, so a photo taken sideways is shown sideways. Rotate before uploading, which is what a crop step does anyway.
+- **JPEG, PNG or WebP**, at most `PHOTO_MAX_BYTES` (5 MiB). The type is read from the file's own bytes, so a renamed PDF is refused.
+- **Reading a photo is public**, exactly as the record is: a photo on a `draft` or `pending` record is served to staff only, and `404` for everyone else.
+
+Every prisoner row carries `photo`, which is what a client should use:
+
+```json
+{
+	"photo": {
+		"url": "/prisoner/photo?prisoner=41",
+		"hosted": true,
+		"credit": "Anarchist Black Cross Belarus",
+		"updatedAt": "2026-09-26T10:04:00.000Z"
+	}
+}
+```
+
+`url` is a path on this API for a hosted photo, and the older `photoUrl` link when there is no hosted one; `hosted` says which. `null` means there is no photo at all. A hosted `url` can go straight into an `<img>` tag: it needs no token, answers `Cache-Control: public, max-age=86400`, and carries an `ETag` that changes when the photo does.
+
+#### POST /prisoner/photo
+
+`multipart/form-data`: the image in a **`photo`** field, the record id in `prisoner`, and an optional `credit` (up to 200 characters, shown beside the picture: where it came from, or whose permission it is there by).
+
+```bash
+curl -s -X POST http://localhost:3000/prisoner/photo \
+  -H "Authorization: Bearer $TOKEN" \
+  -F prisoner=41 -F 'credit=Anarchist Black Cross Belarus' -F photo=@portrait.jpg
+```
+
+`201` with `{ id, photo, bytesStored, bytesUploaded }`: the two sizes differ by whatever metadata was stripped. `400` for a file that is not one of the three types, or is larger than `PHOTO_MAX_BYTES`; `403` for anyone but a superadmin or a group-owner admin; `404` for a record the caller cannot see.
+
+#### GET /prisoner/photo?prisoner=
+
+The picture itself, public. `404` when the record has no hosted photo, when its file is missing from storage, or when the record is not one this caller may see. Answers `304` to a request carrying the current `ETag`.
+
+#### DELETE /prisoner/photo
+
+Body `{"prisoner": 41}`. Takes the photo off the record and deletes the file. The same people as adding one.
+
 ### Managed writers
 
 A group often writes on behalf of people who have no account: someone at a letter-writing night, or someone who wants the group to handle everything. A **managed writer** is a `user` account the group creates for such a person. Until the writer claims it:
@@ -1585,31 +1632,32 @@ The values a list page builds its filter chips from, each with how many records 
 
 #### Prisoner fields
 
-| Field               | Type     | Notes                                                                                 |
-| ------------------- | -------- | ------------------------------------------------------------------------------------- |
-| `birthName`         | string   | Legal name.                                                                           |
-| `chosenName`        | string   | Name the person goes by.                                                              |
-| `prison`            | integer  | Id of an existing prison. A nonexistent id is refused.                                |
-| `inmateID`          | string   | Facility-issued identifier. Free text.                                                |
-| `releaseDate`       | datetime | ISO-8601 string.                                                                      |
-| `bio`               | string   |                                                                                       |
-| `status`            | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`.            |
-| `statusNotice`      | string   | Free text shown on the profile, e.g. "In transit, location unconfirmed".              |
-| `aliases`           | string[] | Alternate names or spellings.                                                         |
-| `country`           | string   | Country of imprisonment. Free text.                                                   |
-| `detainedSince`     | datetime | ISO-8601.                                                                             |
-| `sentence`          | string   | Free text, e.g. "10 years".                                                           |
-| `charges`           | string   | Free text.                                                                            |
-| `estimatedRelease`  | string   | Free text, e.g. "2033", "~2029", "Unknown". `releaseDate` remains for a precise date. |
-| `interests`         | string[] | Tags shown on the profile.                                                            |
-| `photoUrl`          | string   | Must be a URL. Uploads are not supported yet.                                         |
-| `supportWebsite`    | string   | Must be a URL.                                                                        |
-| `donationInfo`      | string   | Free text.                                                                            |
-| `featured`          | boolean  | Shown on the home page. Default `false`.                                              |
-| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                          |
-| `verifiedAt`        | datetime | When it was verified.                                                                 |
-| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                   |
-| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only.                             |
+| Field               | Type     | Notes                                                                                               |
+| ------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `birthName`         | string   | Legal name.                                                                                         |
+| `chosenName`        | string   | Name the person goes by.                                                                            |
+| `prison`            | integer  | Id of an existing prison. A nonexistent id is refused.                                              |
+| `inmateID`          | string   | Facility-issued identifier. Free text.                                                              |
+| `releaseDate`       | datetime | ISO-8601 string.                                                                                    |
+| `bio`               | string   |                                                                                                     |
+| `status`            | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`.                          |
+| `statusNotice`      | string   | Free text shown on the profile, e.g. "In transit, location unconfirmed".                            |
+| `aliases`           | string[] | Alternate names or spellings.                                                                       |
+| `country`           | string   | Country of imprisonment. Free text.                                                                 |
+| `detainedSince`     | datetime | ISO-8601.                                                                                           |
+| `sentence`          | string   | Free text, e.g. "10 years".                                                                         |
+| `charges`           | string   | Free text.                                                                                          |
+| `estimatedRelease`  | string   | Free text, e.g. "2033", "~2029", "Unknown". `releaseDate` remains for a precise date.               |
+| `interests`         | string[] | Tags shown on the profile.                                                                          |
+| `photoUrl`          | string   | A photo hosted somewhere else. Must be a URL. Prefer a hosted photo; see [Photos](#photos).         |
+| `photo`             | object   | Read-only: `{ url, hosted, credit, updatedAt }`, or `null`. What a client shows. [Photos](#photos). |
+| `supportWebsite`    | string   | Must be a URL.                                                                                      |
+| `donationInfo`      | string   | Free text.                                                                                          |
+| `featured`          | boolean  | Shown on the home page. Default `false`.                                                            |
+| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                        |
+| `verifiedAt`        | datetime | When it was verified.                                                                               |
+| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                 |
+| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only.                                           |
 
 All fields are optional at the database level. Array and object fields are validated for shape; `aliases` and `interests` must be arrays of non-empty strings.
 

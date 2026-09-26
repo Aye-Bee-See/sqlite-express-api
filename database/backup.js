@@ -13,7 +13,7 @@ import { storedPath } from '#services/files.js';
 
 /**
  * Backups: one encrypted file holding a consistent copy of the database and
- * the attachment files it refers to.
+ * the uploaded files it refers to: attachments and directory photos.
  *
  * - `runBackup()` is safe while the server runs: the copy is made by SQLite
  *   itself (VACUUM INTO, one read transaction), not by copying a file that a
@@ -63,15 +63,32 @@ async function describe(database) {
 	};
 }
 
+/**
+ * Every file under UPLOAD_DIR the database refers to: attachment files, and
+ * the directory photos of `Prisoners.photoFile`. A photo lives beside the
+ * attachments and is as unrecoverable if it is left out of a backup.
+ */
 async function storedNames(database) {
 	const [tables] = await database.query(
-		"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'Attachments'"
+		"SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('Attachments', 'Prisoners')"
 	);
-	if (tables.length === 0) {
-		return [];
+	const present = new Set(tables.map((row) => row.name));
+	const names = [];
+	if (present.has('Attachments')) {
+		const [rows] = await database.query('SELECT `storedName` FROM `Attachments` ORDER BY `id`');
+		names.push(...rows.map((row) => row.storedName));
 	}
-	const [rows] = await database.query('SELECT `storedName` FROM `Attachments` ORDER BY `id`');
-	return rows.map((row) => row.storedName);
+	if (present.has('Prisoners')) {
+		// The column arrived with the photos migration; an older database has none.
+		const [columns] = await database.query('PRAGMA table_info(`Prisoners`)');
+		if (columns.some((column) => column.name === 'photoFile')) {
+			const [rows] = await database.query(
+				'SELECT `photoFile` FROM `Prisoners` WHERE `photoFile` IS NOT NULL ORDER BY `id`'
+			);
+			names.push(...rows.map((row) => row.photoFile));
+		}
+	}
+	return names;
 }
 
 /** The archives in a directory, newest first. */
@@ -217,7 +234,7 @@ async function backup({
 				about.letters +
 				' letter(s), ' +
 				(files.length - 1) +
-				' attachment file(s)' +
+				' uploaded file(s)' +
 				(missing.length ? ', ' + missing.length + ' MISSING from ' + uploadDir : '') +
 				'), for key ' +
 				archive.fingerprint(recipient) +
@@ -312,7 +329,7 @@ async function examine(dir, manifest) {
 		}
 		const have = new Set(manifest.files.map((f) => f.name));
 		const without = (await storedNames(database)).filter((name) => !have.has('uploads/' + name));
-		return { ...about, danglingReferences: dangling.length, attachmentsWithoutFile: without };
+		return { ...about, danglingReferences: dangling.length, filesMissingFromArchive: without };
 	} finally {
 		await database.close();
 	}

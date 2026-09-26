@@ -71,10 +71,12 @@ const endpoints = {
 		get: {
 			many: '/prisoners',
 			one: '/prisoner',
-			filters: '/filters'
+			filters: '/filters',
+			photo: '/photo'
 		},
 		post: {
-			create: '/prisoner'
+			create: '/prisoner',
+			photo: '/photo'
 		},
 		put: {
 			update: '/prisoner',
@@ -82,7 +84,8 @@ const endpoints = {
 		},
 		delete: {
 			remove: '/prisoner',
-			removeSupport: '/support'
+			removeSupport: '/support',
+			photo: '/photo'
 		}
 	},
 	prison: {
@@ -394,12 +397,20 @@ const messages = {
 			one: {
 				success: { condition: { par: 'Success getting prisoner by ID' } },
 				error: { condition: { par: 'Error getting prisoner by ID' } }
+			},
+			photo: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error getting the photo' } }
 			}
 		},
 		post: {
 			create: {
 				success: { condition: { par: 'Successfully created prisoner' } },
 				error: { condition: { par: 'Error creating prisoner' } }
+			},
+			createPhoto: {
+				success: { condition: { par: 'Photo stored' } },
+				error: { condition: { par: 'Error storing the photo' } }
 			}
 		},
 		put: {
@@ -425,6 +436,10 @@ const messages = {
 			removeSupport: {
 				success: { condition: { par: 'Successfully removed support group from prisoner' } },
 				error: { condition: { par: 'Error removing support group from prisoner.' } }
+			},
+			removePhoto: {
+				success: { condition: { par: 'Photo removed' } },
+				error: { condition: { par: 'Error removing the photo' } }
 			}
 		}
 	},

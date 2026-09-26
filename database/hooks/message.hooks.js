@@ -20,7 +20,7 @@ export default {
 	 * changes made during validation, so Message.updateMessage resolves the
 	 * chat itself when the user or prisoner changes.
 	 */
-	beforeValidate: async (instance) => {
+	beforeValidate: async (instance, options = {}) => {
 		if (instance.isNewRecord) {
 			// Replies are always received; letters start queued unless a valid
 			// outgoing status was given explicitly (seeds, admin backfills).
@@ -33,7 +33,9 @@ export default {
 		if (user === undefined || user === null || prisoner === undefined || prisoner === null) {
 			return;
 		}
-		const [chat] = await Chat.findOrCreateChat(user, prisoner);
+		const [chat] = await Chat.findOrCreateChat(user, prisoner, {
+			transaction: options.transaction || null
+		});
 		instance.chat = chat.id;
 	},
 
@@ -61,22 +63,25 @@ export default {
 	},
 
 	afterCreate: async (instance, options = {}) => {
+		const transaction = options.transaction || null;
 		const key = pendingKeys.get(instance);
 		pendingKeys.delete(instance);
 		if (key) {
 			try {
-				await LetterKey.issueServerKey(instance.id, key);
+				await LetterKey.issueServerKey(instance.id, key, { transaction });
 			} catch (err) {
-				// The row is in; without its key nobody could ever read it. Take it back,
-				// so the failed create leaves nothing (and a retry makes the only copy).
-				await instance.destroy({ force: true, hooks: false }).catch(() => {});
+				// The row is in; without its key nobody could ever read it. In a
+				// transaction the rollback takes it back; without one (a seed, a
+				// backfill) it is taken back here, so the failed create leaves nothing.
+				if (!transaction) {
+					await instance.destroy({ force: true, hooks: false }).catch(() => {});
+				}
 				throw err;
 			}
 		}
 		if (instance.sender !== 'prisoner' && !instance.getDataValue('replyReference')) {
 			// Every outgoing letter carries a reply reference for its footer, whether it
 			// came through createLetter, a seed, or a backfill.
-			const transaction = options.transaction || null;
 			const reference = await ReplyReference.issue(instance, { transaction });
 			await instance.constructor.update(
 				{ replyReference: reference },

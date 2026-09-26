@@ -169,7 +169,32 @@ export default class Message extends Model {
 	 * @param {object} message fields for createMessage
 	 * @param {{callerChapter?: number|null, changedBy?: number|null}} context
 	 */
-	static async createLetter(message, { callerChapter = null, changedBy = null, envelopes } = {}) {
+	static async createLetter(
+		message,
+		{
+			callerChapter = null,
+			changedBy = null,
+			envelopes,
+			transaction = null,
+			alsoInTransaction
+		} = {}
+	) {
+		if (!transaction) {
+			// One transaction for the whole letter: the row, its envelopes, its reply
+			// reference, its first history row, the thread it is filed under, and
+			// whatever the caller must write with it (the Idempotency-Key result).
+			// Before this, a failure half way was compensated for by deleting what had
+			// been written, which left a window where a retry could make a second letter.
+			return await inTransaction(this.sequelize, (t) =>
+				Message.createLetter(message, {
+					callerChapter,
+					changedBy,
+					envelopes,
+					transaction: t,
+					alsoInTransaction
+				})
+			);
+		}
 		const paper = Message.#paperFlag(message);
 		const relayChapter = await this.resolveRelayChapter(
 			message.prisoner,
@@ -182,7 +207,7 @@ export default class Message extends Model {
 			);
 		}
 		const status = initialStatusFor(message.sender, { paper });
-		const resendOf = await this.#checkResend(message);
+		const resendOf = await this.#checkResend(message, { transaction });
 		let clean = null;
 		if (crypto.isE2E()) {
 			if (message.messageText !== undefined || message.relayNote !== undefined) {
@@ -191,7 +216,7 @@ export default class Message extends Model {
 				);
 			}
 			Message.requireCipherPairs(message, { bodyRequired: true });
-			const writer = await User.findByPk(message.user);
+			const writer = await User.findByPk(message.user, { transaction });
 			if (!writer) {
 				throw new ValidationError('User ' + message.user + ' does not exist.');
 			}
@@ -201,26 +226,26 @@ export default class Message extends Model {
 			);
 			clean = LetterKey.validateEnvelopes(envelopes, allowed, { writer, relayChapter });
 		}
-		const created = await this.create({
-			...message,
-			paper,
-			resendOf,
-			relayChapter,
-			status,
-			statusChangedAt: new Date(),
-			statusChangedBy: changedBy
-		});
-		try {
-			return await this.#finishLetter(created, clean, changedBy);
-		} catch (err) {
-			// A letter is all there or not there: a row left behind by a failure here
-			// would be mailed without its envelopes or history, and a retry under the
-			// same Idempotency-Key would make a second one beside it.
-			await LetterKey.destroy({ where: { message: created.id } }).catch(() => {});
-			await ReplyReference.destroy({ where: { message: created.id } }).catch(() => {});
-			await this.destroy({ where: { id: created.id }, force: true }).catch(() => {});
-			throw err;
+		const created = await this.create(
+			{
+				...message,
+				paper,
+				resendOf,
+				relayChapter,
+				status,
+				statusChangedAt: new Date(),
+				statusChangedBy: changedBy
+			},
+			{ transaction }
+		);
+		await this.#finishLetter(created, clean, changedBy, { transaction });
+		// Whatever the caller must write with the letter, written here so that it
+		// commits with it: the letter path passes the Idempotency-Key result, so a
+		// key can never be left pointing at nothing, nor a letter at no key.
+		if (alsoInTransaction) {
+			await alsoInTransaction(created, transaction);
 		}
+		return created;
 	}
 
 	/**
@@ -244,17 +269,17 @@ export default class Message extends Model {
 		return true;
 	}
 
-	static async #finishLetter(created, clean, changedBy) {
+	static async #finishLetter(created, clean, changedBy, { transaction = null } = {}) {
 		if (clean) {
-			await LetterKey.issueEnvelopes(created.id, clean);
+			await LetterKey.issueEnvelopes(created.id, clean, { transaction });
 			// A rotation that landed since validation would leave this letter sealed to a
-			// key nobody holds: createLetter takes it back, and the client re-seals.
-			const stale = await LetterKey.staleGroupEnvelopes(created.id);
+			// key nobody holds: the transaction rolls back, and the client re-seals.
+			const stale = await LetterKey.staleGroupEnvelopes(created.id, { transaction });
 			if (stale.length > 0) {
 				throw staleKeyError(stale);
 			}
 		}
-		await MessageStatus.record(created.id, null, created.status, changedBy);
+		await MessageStatus.record(created.id, null, created.status, changedBy, { transaction });
 		return created;
 	}
 
@@ -590,13 +615,14 @@ export default class Message extends Model {
 	 * end-to-end mode the server could not copy it.)
 	 * @throws {ValidationError}
 	 */
-	static async #checkResend(message) {
+	static async #checkResend(message, { transaction = null } = {}) {
 		if (message.resendOf === undefined || message.resendOf === null || message.resendOf === '') {
 			return null;
 		}
 		const original = await this.findByPk(message.resendOf, {
 			attributes: ['id', 'user', 'prisoner', 'status'],
-			hooks: false
+			hooks: false,
+			transaction
 		});
 		const same =
 			original &&

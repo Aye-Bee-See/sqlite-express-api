@@ -451,12 +451,12 @@ test('a letter that fails half way leaves nothing, and its Idempotency-Key makes
 	assert.equal(await Message.count({ where: { user: pal.id } }), 1);
 });
 
-test('recording what an Idempotency-Key made survives a database that is busy for a moment', async () => {
+test('a letter whose Idempotency-Key cannot be recorded is not sent at all', async () => {
 	const pal = await makeUser({ username: 'fern' });
 	const body = { prisoner: f.prisoner2.id, messageText: 'Recorded late', sender: 'user' };
 	const headers = { 'Idempotency-Key': 'audit-busy-database' };
 	const complete = IdempotencyKey.complete;
-	let failures = 2;
+	let failures = 1;
 	IdempotencyKey.complete = async function (...args) {
 		if (failures > 0) {
 			failures -= 1;
@@ -466,16 +466,28 @@ test('recording what an Idempotency-Key made survives a database that is busy fo
 	};
 	let first;
 	try {
+		// The key is written in the letter's own transaction, so a database that
+		// cannot record it rolls the letter back: the caller is told it failed, and
+		// nothing was sent. Before this, the letter went and the key was retried.
 		first = await post('/messaging/message', body, { ...pal, headers });
+		assert.equal(first.status, 500, JSON.stringify(first.body));
+		assert.equal(await Message.count({ where: { user: pal.id } }), 0, 'no letter was left');
+		assert.equal(
+			await IdempotencyKey.count({ where: { state: 'processing' } }),
+			0,
+			'and the key is free again'
+		);
 	} finally {
 		IdempotencyKey.complete = complete;
 	}
-	assert.equal(first.status, 201, JSON.stringify(first.body));
+	// The same key, once the database is well: one letter, recorded with it.
+	const retry = await post('/messaging/message', body, { ...pal, headers });
+	assert.equal(retry.status, 201, JSON.stringify(retry.body));
 	const again = await post('/messaging/message', body, { ...pal, headers });
 	assert.equal(again.status, 201);
 	assert.equal(again.headers.get('idempotent-replayed'), 'true');
-	assert.equal(again.body.data.id, first.body.data.id);
-	assert.equal(await Message.count({ where: { user: pal.id } }), 1);
+	assert.equal(again.body.data.id, retry.body.data.id);
+	assert.equal(await Message.count({ where: { user: pal.id } }), 1, 'exactly one letter');
 });
 
 test('a proposal revised between the read and the decision is not decided', async () => {

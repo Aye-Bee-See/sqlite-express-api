@@ -422,16 +422,20 @@ export default class Chat extends Model {
 	 * connection) a second BEGIN simply fails. The queue is what keeps two
 	 * letters sent together from making two threads.
 	 */
-	static async findOrCreateChat(user, prisoner) {
+	static async findOrCreateChat(user, prisoner, { transaction = null } = {}) {
 		return await oneChatAtATime(async () => {
 			const existing = await this.findOne({
 				where: { user: user, prisoner: prisoner },
-				order: [['id', 'ASC']]
+				order: [['id', 'ASC']],
+				transaction
 			});
 			if (existing) {
 				return [existing, false];
 			}
-			return [await this.create({ user: user, prisoner: prisoner }), true];
+			// Inside the caller's transaction when there is one: a letter and the
+			// thread it is filed under are one write, and on SQLite a query outside
+			// the open write transaction would wait for a lock it is holding.
+			return [await this.create({ user: user, prisoner: prisoner }, { transaction }), true];
 		});
 	}
 

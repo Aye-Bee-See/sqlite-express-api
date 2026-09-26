@@ -27,15 +27,24 @@ export default class MessageStatus extends Model {
 	}
 
 	/** Append one history row. */
-	static async record(messageId, fromStatus, toStatus, changedBy = null, { reason, note } = {}) {
-		return await this.create({
-			message: messageId,
-			fromStatus,
-			toStatus,
-			changedBy,
-			reason: reason ?? null,
-			note: note ?? null
-		});
+	static async record(
+		messageId,
+		fromStatus,
+		toStatus,
+		changedBy = null,
+		{ reason, note, transaction = null } = {}
+	) {
+		return await this.create(
+			{
+				message: messageId,
+				fromStatus,
+				toStatus,
+				changedBy,
+				reason: reason ?? null,
+				note: note ?? null
+			},
+			{ transaction }
+		);
 	}
 
 	/** History for one message, oldest first. */

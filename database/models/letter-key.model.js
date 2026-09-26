@@ -32,14 +32,17 @@ export default class LetterKey extends Model {
 	}
 
 	/** Store the server envelope for a freshly created letter. */
-	static async issueServerKey(messageId, contentKey) {
-		return await this.create({
-			message: messageId,
-			readerType: 'server',
-			readerId: null,
-			wrappedKey: crypto.wrapForServer(contentKey),
-			keyLabel: crypto.masterKeyLabel()
-		});
+	static async issueServerKey(messageId, contentKey, { transaction = null } = {}) {
+		return await this.create(
+			{
+				message: messageId,
+				readerType: 'server',
+				readerId: null,
+				wrappedKey: crypto.wrapForServer(contentKey),
+				keyLabel: crypto.masterKeyLabel()
+			},
+			{ transaction }
+		);
 	}
 
 	/**
@@ -184,7 +187,7 @@ export default class LetterKey extends Model {
 	 * @param {number} messageId
 	 * @param {{readerType: string, readerId: number, wrappedKey: string}[]} envelopes
 	 */
-	static async issueEnvelopes(messageId, envelopes) {
+	static async issueEnvelopes(messageId, envelopes, { transaction = null } = {}) {
 		return await this.bulkCreate(
 			envelopes.map((e) => ({
 				message: messageId,
@@ -193,7 +196,8 @@ export default class LetterKey extends Model {
 				wrappedKey: e.wrappedKey,
 				keyLabel: null,
 				keyVersion: e.readerType === 'chapter' ? e.keyVersion : null
-			}))
+			})),
+			{ transaction }
 		);
 	}
 
@@ -202,17 +206,19 @@ export default class LetterKey extends Model {
 	 * current one: a rotation landed between validating and storing them.
 	 * @returns {Promise<number[]>} chapter ids
 	 */
-	static async staleGroupEnvelopes(messageId) {
+	static async staleGroupEnvelopes(messageId, { transaction = null } = {}) {
 		const rows = await this.findAll({
 			where: { message: messageId, readerType: 'chapter' },
-			attributes: ['readerId', 'keyVersion']
+			attributes: ['readerId', 'keyVersion'],
+			transaction
 		});
 		if (rows.length === 0) {
 			return [];
 		}
 		const chapters = await this.sequelize.models.Chapter.findAll({
 			where: { id: rows.map((r) => r.readerId) },
-			attributes: ['id', 'keyVersion']
+			attributes: ['id', 'keyVersion'],
+			transaction
 		});
 		const current = new Map(chapters.map((c) => [c.id, c.keyVersion]));
 		return rows.filter((r) => current.get(r.readerId) !== r.keyVersion).map((r) => r.readerId);

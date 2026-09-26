@@ -84,7 +84,16 @@ export async function begin(req, res, scope, parts) {
 	const { row, claimed } = claim;
 	if (claimed) {
 		return {
-			complete: (resourceId) => recordResult(row.id, resourceId, scope),
+			/**
+			 * Say what the attempt made. With a transaction (the letter path) it is
+			 * written in that transaction and a failure throws, so the letter rolls
+			 * back with it; without one (the attachment path, where the file is
+			 * already on disk) it retries and never throws, as it always did.
+			 */
+			complete: (resourceId, { transaction = null } = {}) =>
+				transaction
+					? IdempotencyKey.complete(row.id, resourceId, { transaction })
+					: recordResult(row.id, resourceId, scope),
 			release: () => IdempotencyKey.release(row.id)
 		};
 	}

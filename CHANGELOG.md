@@ -8,6 +8,18 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-27 (later)
+
+### A letter is one write, with its Idempotency-Key (#132)
+
+The last of the September audit's three leftovers. A letter used to be built in steps — the row, its envelopes, its reply reference, its first history row, the thread, then the note of what its `Idempotency-Key` made — and a failure part way was patched up by deleting what had already been written. Between the letter existing and its key pointing at it there was a window: if recording the key failed (a busy database), the letter was sent and the claim went stale, and a retry with the same key could send a **second copy** to the same prisoner.
+
+All of it is now one transaction. Either the letter and the note of its key are both there, or neither is.
+
+**For clients:** a `5xx` on `POST /messaging/message` now means the letter was **not** sent, whatever failed, and the key is free again — so retrying with the same `Idempotency-Key` is right and safe. Nothing else changes: a successful send, a replay, the `409` for a double click and the `422` for a reused key are all as they were.
+
+Checked on a file database as well as in memory: sixty letters sent at once, from six writers to four prisoners, all succeeded, every retry replayed rather than creating anything, and no pair ended up with two threads.
+
 ## 2026-09-27
 
 ### The audit log no longer grows for ever, and a pair has one thread (#131)

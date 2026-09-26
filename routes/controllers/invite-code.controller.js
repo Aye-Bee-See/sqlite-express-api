@@ -111,7 +111,11 @@ export default class InviteCodeController extends RouteController {
 		try {
 			const chapter = await this.#chapterFor(req, req.body.chapter);
 			if ((typeof batch !== 'string' || batch === '') && all !== true) {
-				throw new ValidationError('Send batch (the id of one batch) or all: true.');
+				throw new ValidationError({
+					message: 'Send batch (the id of one batch) or all: true.',
+					field: 'batch',
+					code: 'required'
+				});
 			}
 			const cancelled = await InviteCode.cancel(chapter.id, { batch: all === true ? null : batch });
 			await audit(req, 'invite-code.cancel', 'chapter', chapter.id, {

@@ -36,5 +36,10 @@ the same failures in the form a client translates from, one entry per sentence a
 | `not_allowed_value` | The value is not one of the ones this field takes. | `allowed` |
 | `not_unique` | Something with this value already exists, and the field has to be unique. | `fields` |
 | `wrong_type` | The value is of the wrong kind altogether (text where a list belongs, and so on). | `expected` |
+| `reserved_value` | The value is one the API keeps for itself (a username shape the groups use, a placeholder email address). | — |
+| `not_eligible` | The record named exists, but cannot be used for this: a letter that was not returned, an account that cannot be claimed. | — |
+| `not_settable_here` | The field is real but not this endpoint's to write; the message says where it belongs. | — |
+| `already_set` | The field can be set once and already has a value. | — |
+| `wrong_encryption_mode` | The request is in the wrong shape for the mode the server runs in: plaintext to an end-to-end server, or ciphertext to one holding the keys. `GET /health` says which mode it is. A client bug, not something the person can fix. | — |
 | `not_an_auth_key` | A split account sends a derived auth key where a password would go, and this is not one. A client bug, never something the person can fix: do not show it under the password box. | — |
 | `unknown_reference` | The request names a record that does not exist. | — |

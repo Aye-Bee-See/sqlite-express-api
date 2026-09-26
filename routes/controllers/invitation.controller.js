@@ -77,13 +77,22 @@ export default class InvitationController extends RouteController {
 		const { kind, inviteeName, inviteeEmail, note } = req.body;
 		try {
 			if (!INVITATION_KINDS.includes(kind)) {
-				throw new ValidationError('kind must be one of ' + INVITATION_KINDS.join(', ') + '.');
+				throw new ValidationError({
+					message: 'kind must be one of ' + INVITATION_KINDS.join(', ') + '.',
+					field: 'kind',
+					code: 'not_allowed_value',
+					params: { allowed: INVITATION_KINDS }
+				});
 			}
 			let chapterId;
 			if (AuthzService.isAdmin(req)) {
 				chapterId = req.body.chapter ?? null;
 				if (kind === 'member' && !chapterId) {
-					throw new ValidationError('chapter is required: the group the member will join.');
+					throw new ValidationError({
+						message: 'chapter is required: the group the member will join.',
+						field: 'chapter',
+						code: 'required'
+					});
 				}
 			} else {
 				// requireRole already established that the caller's group is active.
@@ -372,7 +381,11 @@ export default class InvitationController extends RouteController {
 	/** The group profile an invitee sent, limited to what a group may say about itself. */
 	static #groupFields(group) {
 		if (!group || typeof group !== 'object' || Array.isArray(group)) {
-			throw new ValidationError("group is required: the new group's name, location, and profile.");
+			throw new ValidationError({
+				message: "group is required: the new group's name, location, and profile.",
+				field: 'group',
+				code: 'required'
+			});
 		}
 		const refused = Object.keys(group).filter((f) => !GROUP_PROFILE_FIELDS.includes(f));
 		if (refused.length > 0) {

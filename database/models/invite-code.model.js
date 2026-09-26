@@ -94,17 +94,30 @@ export default class InviteCode extends Model {
 	static async issue({ chapterId, count, label, days, createdBy = null, now = new Date() }) {
 		const n = Number(count);
 		if (!Number.isInteger(n) || n < 1 || n > settings.batchMax) {
-			throw new ValidationError(
-				'count must be a whole number from 1 to ' + settings.batchMax + '.'
-			);
+			throw new ValidationError({
+				message: 'count must be a whole number from 1 to ' + settings.batchMax + '.',
+				field: 'count',
+				code: 'out_of_range',
+				params: { min: 1, max: settings.batchMax }
+			});
 		}
 		const life = days === undefined || days === null ? settings.days : Number(days);
 		if (!Number.isInteger(life) || life < 1 || life > settings.days) {
-			throw new ValidationError('days must be a whole number from 1 to ' + settings.days + '.');
+			throw new ValidationError({
+				message: 'days must be a whole number from 1 to ' + settings.days + '.',
+				field: 'days',
+				code: 'out_of_range',
+				params: { min: 1, max: settings.days }
+			});
 		}
 		const clean = label === undefined || label === null ? null : String(label).trim() || null;
 		if (clean && clean.length > 80) {
-			throw new ValidationError('label can be at most 80 characters.');
+			throw new ValidationError({
+				message: 'label can be at most 80 characters.',
+				field: 'label',
+				code: 'length_out_of_range',
+				params: { min: 0, max: 80 }
+			});
 		}
 		return await oneBatchAtATime(async () => {
 			const outstanding = await this.outstanding(chapterId, now);

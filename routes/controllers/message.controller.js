@@ -312,18 +312,20 @@ export default class MessageController extends RouteController {
 				markReplayed(res);
 				return this.#handleSuccess(res, original);
 			}
+			const claim = idempotent;
 			const message = await Message.createLetter(fields, {
 				callerChapter: scope.chapterId || null,
 				changedBy: req.user.id,
-				envelopes: req.body.envelopes
+				envelopes: req.body.envelopes,
+				// The key's answer is written in the letter's own transaction: either
+				// both are there, or neither is and the key is free for a retry. A
+				// failure here rolls the letter back, so nothing was sent.
+				alsoInTransaction: claim
+					? (created, transaction) => claim.complete(created.id, { transaction })
+					: undefined
 			});
-			if (idempotent) {
-				// It exists now, so the key is never freed from here on. complete() does
-				// not throw: it retries, and the client is told the truth either way.
-				const claim = idempotent;
-				idempotent = null;
-				await claim.complete(message.id);
-			}
+			// Recorded with the letter; nothing left to do about the key on this path.
+			idempotent = null;
 			await this.#withEnvelopes([message], req, scope);
 			await this.#announce(req, message);
 			this.#handleSuccess(res, message);

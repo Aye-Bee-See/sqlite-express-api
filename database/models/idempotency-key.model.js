@@ -79,9 +79,13 @@ export default class IdempotencyKey extends Model {
 		);
 	}
 
-	/** The first attempt made this. */
-	static async complete(id, resourceId) {
-		await this.update({ state: 'done', resourceId }, { where: { id } });
+	/**
+	 * The first attempt made this. With a transaction (the letter path), this is
+	 * written in the same transaction as the thing it points at, so the two are
+	 * there together or not at all.
+	 */
+	static async complete(id, resourceId, { transaction = null } = {}) {
+		await this.update({ state: 'done', resourceId }, { where: { id }, transaction });
 	}
 
 	/** The first attempt made nothing: the key is free for another try. */

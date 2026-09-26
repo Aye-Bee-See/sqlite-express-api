@@ -31,6 +31,7 @@ class UserRoutes {
 		this.Router.post(
 			userEnd.post.create,
 			AuthzService.optionalAuthenticate,
+			limiters.register,
 			this.#Controller.create
 		);
 
@@ -77,7 +78,12 @@ class UserRoutes {
 			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER),
 			AuthzService.requireGroupMember
 		];
-		this.Router.post(userEnd.post.createWriter, ...staffOnly, this.#Controller.createWriter);
+		this.Router.post(
+			userEnd.post.createWriter,
+			...staffOnly,
+			limiters.createWriter,
+			this.#Controller.createWriter
+		);
 		this.Router.get(userEnd.get.writers, ...staffOnly, this.#Controller.writers);
 		this.Router.post(userEnd.post.createToken, ...staffOnly, this.#Controller.createToken);
 		this.Router.delete(userEnd.delete.revokeToken, ...staffOnly, this.#Controller.revokeToken);

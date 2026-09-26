@@ -26,7 +26,12 @@ class InviteCodeRoutes {
 			authenticate,
 			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER)
 		];
-		this.Router.post(inviteCodeEnd.post.create, ...staff, this.#Controller.create);
+		this.Router.post(
+			inviteCodeEnd.post.create,
+			...staff,
+			limiters.issueInvites,
+			this.#Controller.create
+		);
 		this.Router.get(inviteCodeEnd.get.many, ...staff, this.#Controller.getMany);
 		this.Router.delete(inviteCodeEnd.delete.remove, ...staff, this.#Controller.remove);
 		// Joining is public: the code is the credential, and tries are limited by address.

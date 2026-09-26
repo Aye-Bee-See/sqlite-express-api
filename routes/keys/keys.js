@@ -73,6 +73,8 @@ class KeysRoutes {
 			keysEnd.post.rotate,
 			authenticate,
 			activeStaff,
+			// Before the body parser below: a refusal must not cost 32 MB of parsing.
+			limiters.rotation,
 			// A rotation carries every envelope of the group: too large for the app-wide
 			// parser (which skips this path), and only read for a caller who may rotate.
 			bodyParser.json({ limit: rotationMaxBytes }),

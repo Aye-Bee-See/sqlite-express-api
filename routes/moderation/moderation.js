@@ -1,6 +1,7 @@
 import express from 'express';
 import { default as passport } from 'passport';
 import { moderationEnd } from '#routes/constants.js';
+import { limiters } from '#rtServices/ratelimit.services.js';
 import { default as moderationCtrlr } from '#rtControllers/moderation.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 
@@ -26,7 +27,13 @@ class ModerationRoutes {
 		// parties write to the listed contact address (decided 22 September 2026).
 		// A submitter sees and revises their own proposals; admins see all.
 		const staff = AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER);
-		this.Router.post(moderationEnd.post.create, authenticate, staff, this.#Controller.create);
+		this.Router.post(
+			moderationEnd.post.create,
+			authenticate,
+			staff,
+			limiters.submission,
+			this.#Controller.create
+		);
 		this.Router.get(moderationEnd.get.many, authenticate, this.#Controller.getMany);
 		this.Router.get(moderationEnd.get.one, authenticate, this.#Controller.getOne);
 		this.Router.delete(moderationEnd.delete.remove, authenticate, this.#Controller.remove);

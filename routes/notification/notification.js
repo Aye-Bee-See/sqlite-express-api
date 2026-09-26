@@ -1,6 +1,7 @@
 import express from 'express';
 import { default as passport } from 'passport';
 import { notificationEnd } from '#routes/constants.js';
+import { limiters } from '#rtServices/ratelimit.services.js';
 import { default as notificationCtrlr } from '#rtControllers/notification.controller.js';
 
 /** Devices and the notification feed, mounted under /auth. Every route is the caller's own data. */
@@ -19,7 +20,12 @@ class NotificationRoutes {
 			session: false,
 			failWithError: true
 		});
-		this.Router.post(notificationEnd.post.create, authenticate, this.#Controller.create);
+		this.Router.post(
+			notificationEnd.post.create,
+			authenticate,
+			limiters.registerDevice,
+			this.#Controller.create
+		);
 		this.Router.get(notificationEnd.get.one, authenticate, this.#Controller.getOne);
 		this.Router.put(notificationEnd.put.updateDevice, authenticate, this.#Controller.updateDevice);
 		this.Router.delete(notificationEnd.delete.remove, authenticate, this.#Controller.remove);

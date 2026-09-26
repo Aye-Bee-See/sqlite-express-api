@@ -26,7 +26,12 @@ class InvitationRoutes {
 			AuthzService.requireRole(AuthzService.ADMIN, AuthzService.CHAPTER)
 		];
 
-		this.Router.post(invitationEnd.post.create, ...staff, this.#Controller.create);
+		this.Router.post(
+			invitationEnd.post.create,
+			...staff,
+			limiters.issueInvites,
+			this.#Controller.create
+		);
 		this.Router.get(invitationEnd.get.many, ...staff, this.#Controller.getMany);
 		this.Router.put(invitationEnd.put.update, ...staff, this.#Controller.update);
 		this.Router.delete(invitationEnd.delete.remove, ...staff, this.#Controller.remove);

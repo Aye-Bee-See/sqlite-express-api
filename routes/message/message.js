@@ -32,6 +32,7 @@ class MessageRoutes {
 		this.Router.post(
 			messageEnd.post.create,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			limiters.sendLetter,
 			this.#Controller.create
 		);
 
@@ -76,6 +77,7 @@ class MessageRoutes {
 		this.Router.post(
 			messageEnd.post.createEnvelope,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			limiters.envelope,
 			this.#Controller.createEnvelope
 		);
 
@@ -112,6 +114,8 @@ class MessageRoutes {
 		this.Router.post(
 			messageEnd.attachment.create,
 			authenticate,
+			// Counted before the body is read: a refusal must not cost a 20 MiB upload.
+			limiters.attachment,
 			uploadSingle('file'),
 			this.#Controller.createAttachment
 		);

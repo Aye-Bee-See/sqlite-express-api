@@ -4,6 +4,7 @@ import * as Models from '#models/all.model.js';
 import { retentionDefaultDays, retentionMaxDays } from '#constants';
 import { removeFile } from '#services/files.js';
 import { SETTLED_STATUSES } from '#db/letter-status.js';
+import { purgeAuditLogs } from '#db/audit-retention.js';
 
 /**
  * Delete letters and replies that have outlived their writer's retention
@@ -139,6 +140,7 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 		attachments: 0,
 		chats: 0,
 		references: 0,
+		audit: { routine: 0, security: 0 },
 		dryRun
 	};
 	const perChat = new Map(); // chat id -> letters this run removes from it
@@ -181,7 +183,13 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 	if (!dryRun) {
 		report.references = await ReplyReference.purge(now);
 	}
-	if (!dryRun && report.letters + report.replies > 0) {
+	// The audit log has its own two windows; the entry written below is exempt
+	// from this run by being younger than any of them.
+	report.audit = await purgeAuditLogs({ dryRun, now });
+	if (
+		!dryRun &&
+		report.letters + report.replies + report.audit.routine + report.audit.security > 0
+	) {
 		await AuditLog.record({
 			actor: null,
 			action: 'retention.run',
@@ -191,7 +199,8 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 				letters: report.letters,
 				replies: report.replies,
 				attachments: report.attachments,
-				chats: report.chats
+				chats: report.chats,
+				auditEntries: report.audit
 			}
 		});
 		// The time-to-mail figures are medians of the history that just went: bring
@@ -218,7 +227,9 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 			report.chats +
 			' emptied chat(s) of ' +
 			report.examined +
-			' examined.'
+			' examined; ' +
+			(report.audit.routine + report.audit.security) +
+			' audit entry(ies) past their window.'
 	);
 	return report;
 }

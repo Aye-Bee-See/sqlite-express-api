@@ -8,6 +8,18 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-27
+
+### The audit log no longer grows for ever, and a pair has one thread (#131)
+
+Two pieces of housekeeping from the September audit.
+
+**The audit log is swept by the retention run.** It is append-only and nothing ever removed an entry, so it grew for the life of the deployment. Entries about accounts, keys, invitations, decisions made about somebody, and anything deleted are kept for 730 days (`AUDIT_SECURITY_KEEP_DAYS`); the routine day-to-day for 180 (`AUDIT_KEEP_DAYS`). `0` keeps that kind for ever. The run reports what it removed as `auditEntries`, in its log line and in its own `retention.run` entry.
+
+**One thread per writer and prisoner.** `POST /chat/chat` used to make a second thread for a pair, while the letter endpoint quietly filed letters under the oldest one, so the newer thread sat empty in somebody's inbox. Asking for a thread that exists now answers with that thread, and a unique index makes a second one impossible even from another process. Threads that were already doubled are merged by the migration, keeping every letter and notification. Known quirk 3 in the README is gone.
+
+**For clients:** nothing breaks. `POST /chat/chat` answers `201` with the pair's thread whether it was made now or already there, so a client that called it twice stops creating litter.
+
 ## 2026-09-26
 
 ### Photographs in the directory (#130)

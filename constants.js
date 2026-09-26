@@ -17,6 +17,8 @@ const {
 	ENCRYPTION_KEY,
 	RETENTION_DEFAULT_DAYS,
 	RETENTION_MAX_DAYS,
+	AUDIT_KEEP_DAYS,
+	AUDIT_SECURITY_KEEP_DAYS,
 	PEN_NAME_COOLDOWN_DAYS,
 	TRUST_PROXY
 } = process.env;
@@ -98,6 +100,13 @@ function envDays(value, fallback, { min = 0 } = {}) {
 	return Number.isInteger(n) && n >= min ? n : fallback;
 }
 export const retentionDefaultDays = envDays(RETENTION_DEFAULT_DAYS, 90);
+/*
+ * Audit log windows (database/audit-retention.js). Security-relevant entries
+ * (accounts, keys, invitations, decisions about people, deletions) are kept for
+ * two years; the routine day-to-day for 180 days. 0 keeps that kind for ever.
+ */
+export const auditKeepDays = envDays(AUDIT_KEEP_DAYS, 180);
+export const auditSecurityKeepDays = envDays(AUDIT_SECURITY_KEEP_DAYS, 730);
 // A cap of 0 would read as "forever" (the sentinel), so the cap starts at 1 day.
 export const retentionMaxDays = envDays(RETENTION_MAX_DAYS, null, { min: 1 });
 /**

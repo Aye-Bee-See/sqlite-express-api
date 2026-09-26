@@ -1,0 +1,67 @@
+# Changelog
+
+What changed in the letters.support API, newest first, in plain words. Each entry says what it means for the people using it, not only what moved in the code: the clients read this to know what to build, and the owner to know what is live.
+
+**Every change adds an entry here**, in the same pull request that makes the change ([docs/DEVELOPER.md](docs/DEVELOPER.md), "Changelog"). Entries are grouped by the day they reached `main`. Deployment events (a server moved, a database reset) belong here too, marked **Deployment**, because they change what the test server answers even when no code changed.
+
+The public test server follows `main` within the hour, so anything below is live at `https://abctest.letters.support` unless an entry says otherwise.
+
+---
+
+## 2026-09-26
+
+### Limits on what a signed-in account may write (#128)
+
+The endpoints that need no token have been limited since #84, but nothing limited a signed-in account: one script, or one stolen token, could post letters, attachments, proposed changes, invitations and key rotations until the disk filled. Every write is now counted per account over one hour, with the numbers set well above a busy letter night: 240 letters, 60 attachments, 600 envelopes, 60 proposed changes, 60 managed writers, 20 invitations or invite-code batches together, 5 key rotations, 30 device registrations, and 20 sign-ups per address. Staff are counted too, since a group's or an admin's token is the one worth stealing; an admin creating accounts with a token is not counted against the sign-up limit. Directory writes by an admin stay unlimited, which is what a seeding script does. Every setting is a `RATE_LIMIT_*` environment variable (README, "Limits on signed-in writes").
+
+**For clients:** handle `429` on writes, not only on sign-in. Read `Retry-After` (seconds) and say when to try again. A letter refused with `429` was not saved, so retrying is safe, with the same `Idempotency-Key` if one was used.
+
+## 2026-09-25
+
+### Pen name changes are limited (#127)
+
+A pen name once used is never given to anyone else, which is what lets a reply addressed to an old name still find its writer — and it meant an account could rename itself in a loop and empty a namespace everybody shares. A change now waits 90 days after the one before (`PEN_NAME_COOLDOWN_DAYS`), and at most two brand-new names may be taken in a rolling year (`PEN_NAME_NEW_PER_YEAR`). Going back to a name the account has used before costs nothing from the namespace, so it does not count, but still waits out the cooldown. The name chosen at sign-up is the first, not a change, and is free of both. A superadmin, and a group for the unclaimed writers it looks after, may rename past the limits, which is what a writer being harassed needs; those overrides go to the audit log as `user.penName`.
+
+**For clients:** `GET /auth/pen-name` now also answers `changeAllowedAt`, `newNamesLeft`, `newNamesWindowEnds`, `cooldownDays` and `newPerYear`. Read it when the settings screen opens and say so before anyone types. A refusal is `409` `PenNameLimitError` with `condition` `cooldown` or `new_names`.
+
+### End-to-end encryption is the default (#126)
+
+`ENCRYPTION_MODE` now defaults to `e2e`. A deployment that still wants the server to hold the keys must say `ENCRYPTION_MODE=server` in its own settings. Nothing changes for a deployment that already names its mode.
+
+### Seed accounts use the split scheme (#125)
+
+A fresh database now seeds accounts whose password never reaches the server, including a group admin of Test Chapter, so a client built for the split scheme can sign in to a newly seeded server without anything being reset by hand. `npm run auth-key -- <username> <password> [url]` derives the value to send as `password` for curl and scripts.
+
+### The front page's news feed is pulled by the server (#124)
+
+`GET /news` answers the items, fetched by the API from `NEWS_FEED_URL` under a byte cap, so a visitor's browser never talks to the feed's host. Unset, it answers an empty list.
+
+### Deployment: the test server switched to end-to-end mode
+
+`abctest.letters.support` now reports `"encryptionMode":"e2e"` on `/health`. A client that still sends `messageText` is refused from that moment; letters travel as `ciphertext`, `nonce` and `envelopes`. Test Chapter has no group key yet: the first group admin to sign in there with a client that does key set-up creates it, and until then nothing can be relayed through that group.
+
+### Deployment: the test server's database was rebuilt on the real seed data
+
+The old sample directory was replaced with the real one from #122. Every account made before the rebuild is gone, including the test accounts handed out earlier.
+
+## 2026-09-24
+
+### Answers to the web client's questions (#123)
+
+Addresses carry `lines`, ready to print. `GET /prisoner/filters` and `GET /prison/filters` give the values a filter UI should offer, so no client has to compile a list. A group's page embeds the facility of each supported prisoner. One rule now covers every typed code (upper case, letters and digits, `O`→`0`, `I`/`L`→`1`), stated in the README with an Argon2id test vector so the clients derive identical keys. Includes audit fixes found while answering.
+
+## 2026-09-23
+
+### Real prisoners and facilities in the seed data (#122)
+
+The made-up directory is gone. A fresh database now holds 58 real prisoner profiles and 45 real facilities in eleven countries, transcribed from support-site profiles with a source recorded on each record. Three things for the clients: addresses have `street`, `city` and `postalCode` (some pending records only `city`); Greek and Cyrillic appear in names and addresses; and 20 of the 58 records are `pending`, so only staff see them, with `verificationNotes` and each facility's `notes` worth showing prominently.
+
+### Deployment: the test server moved to letters.support
+
+The public test API is `https://abctest.letters.support`. The old name and its certificate were retired. It follows `main` within the hour, keeps a daily encrypted backup, and rolls itself back to the previous code and database if an update does not come back healthy.
+
+---
+
+### Before this log
+
+The API was revived from 2026-09-11 and rewritten heavily through #60–#121: encryption at rest and then end-to-end, retention, moderation, invitations, invite codes, group roles, paper letters, pen names and the reply reference, the split sign-in scheme, encrypted backups, and the audit fixes of #101–#103. The README is the reference for all of it; the pull requests hold the reasoning.

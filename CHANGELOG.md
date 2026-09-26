@@ -10,6 +10,14 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-26
 
+### Photographs in the directory (#130)
+
+A prisoner's record can carry a photo, hosted here rather than linked from another site, so nobody else is told who is looking at whom. A superadmin, or the group-owner admin of an active group, uploads it with `POST /prisoner/photo` (multipart: `photo`, `prisoner`, optional `credit`); `DELETE /prisoner/photo` takes it down. One photo per record, replaced rather than added to, JPEG, PNG or WebP up to `PHOTO_MAX_BYTES` (5 MiB), and the type is read from the file's own bytes.
+
+**Everything describing the picture is removed before it is stored**: EXIF (where it was taken, when, on which camera), XMP, IPTC, comments, PNG text chunks. Colour profiles and gamma stay, and the pixels are never re-encoded. EXIF orientation goes with the rest, so **clients should rotate a photo before uploading it**, which a crop step does anyway.
+
+**For clients:** every prisoner row now carries `photo` — `{ url, hosted, credit, updatedAt }` or `null` — and that is the field to use. A hosted `url` goes straight into an `<img>` tag: no token, cached for a day, with an `ETag` that changes when the photo does. A photo on a `draft` or `pending` record is served to staff only. Photos are included in backups.
+
 ### Limits on what a signed-in account may write (#128)
 
 The endpoints that need no token have been limited since #84, but nothing limited a signed-in account: one script, or one stolen token, could post letters, attachments, proposed changes, invitations and key rotations until the disk filled. Every write is now counted per account over one hour, with the numbers set well above a busy letter night: 240 letters, 60 attachments, 600 envelopes, 60 proposed changes, 60 managed writers, 20 invitations or invite-code batches together, 5 key rotations, 30 device registrations, and 20 sign-ups per address. Staff are counted too, since a group's or an admin's token is the one worth stealing; an admin creating accounts with a token is not counted against the sign-up limit. Directory writes by an admin stay unlimited, which is what a seeding script does. Every setting is a `RATE_LIMIT_*` environment variable (README, "Limits on signed-in writes").

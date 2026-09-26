@@ -121,7 +121,7 @@ test('a backup is one encrypted file the server cannot open, holding the databas
 			checked.users,
 			checked.letters,
 			checked.attachments,
-			checked.attachmentsWithoutFile,
+			checked.filesMissingFromArchive,
 			checked.danglingReferences
 		],
 		[1, 1, 1, [], 0]
@@ -210,7 +210,7 @@ test('a file that went missing is reported, and the backup is still made', async
 		const made = await runBackup({ ...quiet, now: new Date('2026-09-21T11:00:00Z') });
 		assert.deepEqual(made.missing, [stored]);
 		const checked = await verifyBackup(made.file, privateKey);
-		assert.deepEqual(checked.attachmentsWithoutFile, [stored]);
+		assert.deepEqual(checked.filesMissingFromArchive, [stored]);
 	} finally {
 		writeFileSync(path, bytes);
 	}

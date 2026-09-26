@@ -276,6 +276,14 @@ export const limiters = {
 		perSubject: rateLimits.writersPerUser,
 		subject: perAccount
 	}),
+	// Directory photos: each one is a file on disk, served to anybody.
+	photo: limit({
+		name: 'photos',
+		what: 'photo uploads',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.photosPerUser,
+		subject: perAccount
+	}),
 	// Issuing invitations and batches of invite codes: both hand out credentials.
 	issueInvites: limit({
 		name: 'invites-issued',

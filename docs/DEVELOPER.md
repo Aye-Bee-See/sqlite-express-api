@@ -255,7 +255,8 @@ Each alias lists several extension fallbacks. Include the `.js` extension in imp
 | `dbLogging`            | `DB_LOGGING`             | `false`                        | `sql-database.js`: Sequelize `logging`.                                                           |
 | `dbStorage`            | `DB_STORAGE`             | `database.sqlite`              | `sql-database.js`: SQLite file, or `:memory:`.                                                    |
 | `quietBoot`            | `NODE_ENV=test`          | `false`                        | Suppresses boot-time console output under the test runner.                                        |
-| `uploadDir`            | `UPLOAD_DIR`             | `uploads`                      | `services/files.js`: where attachment files are written.                                          |
+| `uploadDir`            | `UPLOAD_DIR`             | `uploads`                      | `services/files.js`: where attachment files and directory photos are written.                     |
+| `photoMaxBytes`        | `PHOTO_MAX_BYTES`        | `5242880`                      | Largest directory photo accepted (README, "Photos").                                              |
 | `uploadMaxBytes`       | `UPLOAD_MAX_BYTES`       | `10485760`                     | `upload.services.js`: multer file size limit.                                                     |
 | `retentionDefaultDays` | `RETENTION_DEFAULT_DAYS` | `90`                           | `database/retention.js`: window when the writer chose none; 0 = forever.                          |
 | `retentionMaxDays`     | `RETENTION_MAX_DAYS`     | none                           | Cap on any writer's choice, including forever.                                                    |
@@ -466,6 +467,12 @@ Missing `username` or `password` never reaches the verify function; passport-loc
 ### Changelog
 
 [CHANGELOG.md](../CHANGELOG.md) at the repository root says what changed and what it means for the people using the API, newest first, grouped by the day it reached `main`. **Every pull request that changes behaviour adds its entry in the same pull request**, written for a reader who is building a client or running the server rather than reading the diff: what is different, what a client must now do, and anything that is refused where it used to be allowed. Deployment events (a server moved, a database was rebuilt) get an entry marked **Deployment**, because they change what the test server answers although no code moved. A pull request that only changes documentation or tests does not need one.
+
+### Directory photos
+
+`services/image.js` is the whole of the privacy work: `stripMetadata(buffer, mime)` walks a JPEG's segments, a PNG's chunks, or a WebP's RIFF chunks and drops everything descriptive (EXIF, XMP, IPTC, comments, text and time chunks), keeping what an image is drawn with (JFIF density, ICC and the Adobe APP14 colour marker, gamma, transparency, palettes, APNG control chunks) and never re-encoding a pixel, so no image library is needed and no photo is made to look worse. A WebP's `VP8X` flags are rewritten so the header stops promising chunks that are gone. EXIF orientation goes with the rest: the README tells clients to rotate before uploading. `test/image-metadata.test.js` builds a file of each kind with known secrets in it and checks they are gone and the picture is not.
+
+`Prisoners.photoFile` is a stored name under `UPLOAD_DIR` (`services/files.js`, as attachments are), with `photoCredit`, `photoAddedAt` and `photoAddedBy` beside it, and a VIRTUAL `photo` that gives clients one field (hosted URL, else the older `photoUrl` link, else null). None of the four columns is in `PRISONER_FIELDS`, so no ordinary update or moderation proposal can write them: photos move only through `PrisonerController.createPhoto` / `removePhoto`, which take a superadmin or the group-owner admin of an active group (`#requirePhotoEditor`). The row is pointed at the new file **before** the old one is unlinked, so a crash leaves a spare file rather than a record pointing at nothing. Reads go through `#photoRecord`, which applies the same visibility rule as the record itself, so a `pending` record's photo is staff-only. `database/backup.js` collects photo files as well as attachments (`storedNames`, which checks for the column so an older database still backs up).
 
 ### Rate limits
 

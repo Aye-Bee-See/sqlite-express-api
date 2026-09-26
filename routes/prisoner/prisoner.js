@@ -3,6 +3,8 @@ import { default as passport } from 'passport';
 import { prisonerEnd } from '#routes/constants.js';
 import { default as prisonerCrtlr } from '#rtControllers/prisoner.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { uploadSingle } from '#rtServices/upload.services.js';
+import { limiters } from '#rtServices/ratelimit.services.js';
 
 class PrisonerRoutes {
 	static Router;
@@ -53,6 +55,27 @@ class PrisonerRoutes {
 			prisonerEnd.get.one,
 			AuthzService.optionalAuthenticate,
 			this.#Controller.getOne
+		);
+
+		// Photos. Reading one is public, like the record it belongs to; adding or
+		// replacing one is a superadmin or a group-owner admin (the controller says so).
+		this.Router.get(
+			prisonerEnd.get.photo,
+			AuthzService.optionalAuthenticate,
+			this.#Controller.photo
+		);
+		this.Router.post(
+			prisonerEnd.post.photo,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			// Counted before the file is read, so a refusal costs no upload.
+			limiters.photo,
+			uploadSingle('photo'),
+			this.#Controller.createPhoto
+		);
+		this.Router.delete(
+			prisonerEnd.delete.photo,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.removePhoto
 		);
 
 		// Update

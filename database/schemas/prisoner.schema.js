@@ -48,6 +48,43 @@ const prisonerSchema = {
 		type: DataTypes.STRING,
 		validate: { isUrl: { msg: 'Photo URL must be a valid URL.' } }
 	},
+	/** A photo hosted here: the stored file, who put it there, and the credit line. */
+	photoFile: {
+		type: DataTypes.STRING
+	},
+	photoCredit: {
+		type: DataTypes.STRING,
+		validate: {
+			len: { args: [0, 200], msg: 'Photo credit can be at most 200 characters.' }
+		}
+	},
+	photoAddedAt: {
+		type: DataTypes.DATE
+	},
+	photoAddedBy: {
+		type: DataTypes.INTEGER
+	},
+	/**
+	 * The one field a client needs to show a face: the hosted photo if there is
+	 * one, else the older `photoUrl` link, else null. `hosted` says which, since
+	 * only a hosted photo is served from here and known to carry no metadata.
+	 */
+	photo: {
+		type: DataTypes.VIRTUAL,
+		get() {
+			const file = this.getDataValue('photoFile');
+			const link = this.getDataValue('photoUrl');
+			if (!file && !link) {
+				return null;
+			}
+			return {
+				url: file ? '/prisoner/photo?prisoner=' + this.getDataValue('id') : link,
+				hosted: Boolean(file),
+				credit: this.getDataValue('photoCredit') || null,
+				updatedAt: file ? this.getDataValue('photoAddedAt') : null
+			};
+		}
+	},
 	supportWebsite: {
 		type: DataTypes.STRING,
 		validate: { isUrl: { msg: 'Support website must be a valid URL.' } }

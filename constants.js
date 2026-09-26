@@ -113,6 +113,9 @@ export const rotationMaxBytes =
 		? Number(process.env.ROTATION_MAX_BYTES)
 		: 32 * 1024 * 1024;
 
+/** Largest photo accepted for a directory record (5 MiB unless set). */
+export const photoMaxBytes = envCount('PHOTO_MAX_BYTES', 5 * 1024 * 1024);
+
 export const uploadMaxBytes =
 	UPLOAD_MAX_BYTES && Number(UPLOAD_MAX_BYTES) > 0 ? Number(UPLOAD_MAX_BYTES) : 20 * 1024 * 1024;
 
@@ -162,7 +165,8 @@ export const rateLimits = {
 	invitesPerUser: envCount('RATE_LIMIT_INVITES_PER_USER', 20),
 	rotationsPerUser: envCount('RATE_LIMIT_ROTATIONS_PER_USER', 5),
 	devicesPerUser: envCount('RATE_LIMIT_DEVICES_PER_USER', 30),
-	registerPerIp: envCount('RATE_LIMIT_REGISTER_PER_IP', 20)
+	registerPerIp: envCount('RATE_LIMIT_REGISTER_PER_IP', 20),
+	photosPerUser: envCount('RATE_LIMIT_PHOTOS_PER_USER', 60)
 };
 
 /** How long an entry stays in an account's notification feed. */

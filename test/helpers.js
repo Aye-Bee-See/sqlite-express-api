@@ -149,7 +149,10 @@ export async function upload(path, { fields = {}, file, field = 'file' } = {}, o
 
 /** Fetch raw bytes (for downloads). */
 export async function getBytes(path, o = {}) {
-	const headers = o.token ? { Authorization: 'Bearer ' + o.token } : {};
+	const headers = {
+		...(o.headers || {}),
+		...(o.token ? { Authorization: 'Bearer ' + o.token } : {})
+	};
 	const res = await fetch(baseUrl + path, { headers });
 	return { status: res.status, bytes: Buffer.from(await res.arrayBuffer()), headers: res.headers };
 }

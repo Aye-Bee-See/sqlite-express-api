@@ -18,7 +18,9 @@
  *
  * `params` carries limits and names only, never what the caller sent: a
  * password or a letter's text must not come back in an error body and land in
- * somebody's logs.
+ * somebody's logs. A limit that does not apply is left out rather than sent as
+ * null, and `allowed` holds the API's own values (`collecting`, `incarcerated`)
+ * rather than English words, because clients label those themselves.
  */
 
 /**
@@ -73,6 +75,11 @@ export const CODES = {
 	wrong_type: {
 		meaning: 'The value is of the wrong kind altogether (text where a list belongs, and so on).',
 		params: ['expected']
+	},
+	not_an_auth_key: {
+		meaning:
+			'A split account sends a derived auth key where a password would go, and this is not one. A client bug, never something the person can fix: do not show it under the password box.',
+		params: []
 	},
 	unknown_reference: {
 		meaning: 'The request names a record that does not exist.',
@@ -134,9 +141,8 @@ export function paramsForValidator(item) {
 	const flat = (Array.isArray(item?.validatorArgs) ? item.validatorArgs : []).flat();
 	const numbers = flat.filter((value) => typeof value === 'number');
 	if ((code === 'length_out_of_range' || code === 'out_of_range') && numbers.length > 0) {
-		return numbers.length > 1
-			? { min: numbers[0], max: numbers[1] }
-			: { max: numbers[0] === undefined ? undefined : numbers[0] };
+		// A limit that does not apply is left out rather than sent as null.
+		return numbers.length > 1 ? { min: numbers[0], max: numbers[1] } : { max: numbers[0] };
 	}
 	if (code === 'not_allowed_value') {
 		const allowed = flat.filter((value) => typeof value === 'string');

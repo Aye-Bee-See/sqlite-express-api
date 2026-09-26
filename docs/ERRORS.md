@@ -36,4 +36,5 @@ the same failures in the form a client translates from, one entry per sentence a
 | `not_allowed_value` | The value is not one of the ones this field takes. | `allowed` |
 | `not_unique` | Something with this value already exists, and the field has to be unique. | `fields` |
 | `wrong_type` | The value is of the wrong kind altogether (text where a list belongs, and so on). | `expected` |
+| `not_an_auth_key` | A split account sends a derived auth key where a password would go, and this is not one. A client bug, never something the person can fix: do not show it under the password box. | — |
 | `unknown_reference` | The request names a record that does not exist. | — |

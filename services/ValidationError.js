@@ -50,6 +50,26 @@ export default class ValidationError extends Error {
 	}
 
 	/**
+	 * The same failure, said to be about a nested object: `group.name` rather
+	 * than `name`, so that a request carrying both a person and a group (an
+	 * invitation acceptance) cannot be ambiguous about which one is wrong.
+	 * @param {string} prefix e.g. 'group'
+	 * @param {Error} err a validation error from building that object
+	 * @returns {ValidationError}
+	 */
+	static nested(prefix, err) {
+		const messages = ValidationError.messagesFrom(err) ?? [err.message];
+		const problems = ValidationError.problemsFrom(err) ?? messages.map(() => ({}));
+		return new ValidationError(
+			messages.map((message, i) => ({
+				message,
+				...problems[i],
+				field: problems[i].field ? prefix + '.' + problems[i].field : prefix
+			}))
+		);
+	}
+
+	/**
 	 * Messages from either this class or a SequelizeValidationError.
 	 * @param {Error} err
 	 * @returns {string[]|null} null when err is not a validation error

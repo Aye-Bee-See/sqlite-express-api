@@ -30,6 +30,8 @@ Everything a **schema rule** refuses — a missing field, a length, a URL, a val
 
 **For clients:** key your strings on `code`, fall back to the sentence in `errors`, and treat `params` as the numbers to interpolate. **The API never translates**, so no wording fix waits on a deploy here. Codes never change meaning or disappear.
 
+After the Android and iOS reviews: `problems` is always exactly as long as `errors` and **every `400` carries it**, including refusals thrown as general errors (which keep their `condition`); a field inside an object is named with its path (`group.name`); a limit that does not apply is left out rather than sent as `null`; `GET /auth/pen-name-available` answers `reasonCode` beside `reason`; the lost-race `409` on a letter status move carries `condition: "changed_meanwhile"` so nobody has to match the sentence; and a split account's `password` that is not an auth key answers the new code `not_an_auth_key` **with no field**, since it is a client bug and must never appear under a person's password box.
+
 ## 2026-09-27 (later)
 
 ### A letter is one write, with its Idempotency-Key (#132)

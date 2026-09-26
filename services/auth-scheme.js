@@ -72,9 +72,13 @@ export function schemeFrom(body) {
  */
 export function checkPassword(scheme, password) {
 	if (scheme === 'split' && !isAuthKey(password)) {
-		throw new ValidationError(
-			'With authScheme "split", password is the auth key: 32 bytes as base64 (44 characters), derived on the device. Never the password itself.'
-		);
+		throw new ValidationError({
+			message:
+				'With authScheme "split", password is the auth key: 32 bytes as base64 (44 characters), derived on the device. Never the password itself.',
+			// No field: this belongs to the client's contract, not under the person's
+			// password box, and there is nothing they could type to fix it.
+			code: 'not_an_auth_key'
+		});
 	}
 }
 

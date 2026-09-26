@@ -187,6 +187,11 @@ export default class RouteController {
 		// No error object at all is treated as a generic client fault.
 		const status = errMsg ? HttpError.statusOf(errMsg) : 400;
 		const body = { success: false, name: errMsg ? errMsg.name : 'Error', info, status };
+		if (status === 400) {
+			// A 400 always carries problems, even when it was thrown as an HttpError
+			// rather than a ValidationError: clients read one shape (README, "Errors").
+			body.problems = [{ field: null, code: 'validation_failed' }];
+		}
 		// The machine-readable half of a refusal, for clients that word their own
 		// sentences: the error's own condition, or the endpoint's when it has a
 		// specific one (`par` is the general case and says nothing).

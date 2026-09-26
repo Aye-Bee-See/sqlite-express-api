@@ -29,6 +29,7 @@ test('a pen name is chosen at sign-up, site-unique whatever the case or spacing,
 		available: true,
 		name: 'James Hollow',
 		reason: null,
+		reasonCode: null,
 		twoParts: true
 	});
 	const made = await post(

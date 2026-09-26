@@ -475,11 +475,15 @@ export default class Message extends Model {
 					}
 				);
 				if (count !== 1) {
-					throw new HttpError(
+					// Both apps read this case out of the sentence ("someone else", "meanwhile");
+					// the condition is what they should read instead. The sentence is unchanged.
+					const err = new HttpError(
 						409,
 						'Letter ' + message.id + ' was changed by someone else meanwhile; nothing was moved.',
 						'LetterStatusError'
 					);
+					err.condition = 'changed_meanwhile';
+					throw err;
 				}
 				await MessageStatus.create(
 					{

@@ -122,3 +122,43 @@ test('every code used in the source is in the catalogue', async () => {
 		'unused codes are allowed while the conversion is in progress'
 	);
 });
+
+test('a nested object says which one it is about', async () => {
+	// Accepting a `group` invitation carries the person's name and the group's.
+	const invitation = await post(
+		'/invitation/invitation',
+		{ kind: 'group', inviteeName: 'Riverside ABC', chapter: f.group.id },
+		f.admin
+	);
+	assert.equal(invitation.status, 201, JSON.stringify(invitation.body));
+	const refused = await post('/invitation/accept', {
+		token: invitation.body.data.token,
+		username: 'riverside',
+		email: 'riverside@example.com',
+		password: 'a long enough password',
+		group: { location: { city: 'Riverside' } } // no name
+	});
+	assert.equal(refused.status, 400, JSON.stringify(refused.body));
+	assert.deepEqual(refused.body.problems, [{ field: 'group.name', code: 'required' }]);
+});
+
+test('every 400 carries problems, even one thrown as a plain refusal', async () => {
+	// A reply reference that fails its checksum is an HttpError, not a validation error.
+	const res = await get('/messaging/reference?number=123456789', f.chapter);
+	assert.equal(res.status, 400, JSON.stringify(res.body));
+	assert.equal(res.body.condition, 'checksum', 'its own finer detail is unchanged');
+	assert.deepEqual(res.body.problems, [{ field: null, code: 'validation_failed' }]);
+});
+
+test('an auth key that is not one is a client bug, and says so without a field', async () => {
+	const res = await post('/auth/user', {
+		username: 'splitwrong',
+		email: 'splitwrong@example.com',
+		password: 'not-an-auth-key',
+		authScheme: 'split',
+		kdfSalt: 'MKnVRJ266hcJF6h7DwJ6fA==',
+		kdfParams: { kdf: 'argon2id', alg: 2, opslimit: 2, memlimit: 67108864 }
+	});
+	assert.equal(res.status, 400, JSON.stringify(res.body));
+	assert.deepEqual(res.body.problems, [{ field: null, code: 'not_an_auth_key' }]);
+});

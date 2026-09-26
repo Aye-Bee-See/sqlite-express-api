@@ -862,9 +862,9 @@ export default class UserController extends RouteController {
 			const { problem, ...check } = await PenName.availability(req.query.name, {
 				forUser: req.user ? req.user.id : null
 			});
-			// `problem` is for a caller re-throwing the reason, not for this answer.
-			void problem;
-			this.#handleSuccess(res, check);
+			// The code beside the sentence, so a client words the refusal itself
+			// (only the server knows a name is taken). `problem` itself stays internal.
+			this.#handleSuccess(res, { ...check, reasonCode: problem ? problem.code : null });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

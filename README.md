@@ -380,7 +380,7 @@ A token whose user has since been deleted or banned is rejected with `401`.
 
 ### Rate limits
 
-The endpoints that need no token are limited, so nobody can guess passwords, enumerate usernames through recovery, or scan claim and invitation tokens at speed. A limited request gets `429` with a `Retry-After` header (seconds) and the general error shape, `"name": "RateLimitError"`. Counts live in the API process and reset on restart.
+The endpoints that need no token are limited, so nobody can guess passwords, enumerate usernames through recovery, or scan claim and invitation tokens at speed. The writes a **signed-in** account makes are limited too, so that one account, or one stolen token, cannot fill the disk or the moderation queue ([Limits on signed-in writes](#limits-on-signed-in-writes)). A limited request gets `429` with a `Retry-After` header (seconds) and the general error shape, `"name": "RateLimitError"`. Counts live in the API process and reset on restart.
 
 | What                                           | Default            | Environment variable                                                                           |
 | ---------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
@@ -396,6 +396,28 @@ The endpoints that need no token are limited, so nobody can guess passwords, enu
 | Reply reference lookups per account            | 120 per hour       | `RATE_LIMIT_REFERENCE_PER_USER`                                                                |
 | Pen name checks per address                    | 120 per 15 minutes | `RATE_LIMIT_PEN_NAME_PER_IP`                                                                   |
 | Wrong passwords when deleting your own account | 10 per 15 minutes  | the sign-in settings (`RATE_LIMIT_LOGIN_FAILURES_PER_USER`, `RATE_LIMIT_LOGIN_WINDOW_MINUTES`) |
+
+#### Limits on signed-in writes
+
+Everything that writes a row nobody else asked for is counted **per account**, over `RATE_LIMIT_WRITE_WINDOW_MINUTES` (60). The defaults sit well above a busy letter night and well below a script, and every one of them can be raised for a deployment that needs it. The letter number is the one to watch: a group that transcribes for a whole room sends under one account, so a very large night is the case for raising `RATE_LIMIT_LETTERS_PER_USER`.
+
+| What                                                         | Default      | Environment variable              |
+| ------------------------------------------------------------ | ------------ | --------------------------------- |
+| Letters and prisoner replies                                 | 240 per hour | `RATE_LIMIT_LETTERS_PER_USER`     |
+| Attachments (each up to `UPLOAD_MAX_BYTES`)                  | 60 per hour  | `RATE_LIMIT_ATTACHMENTS_PER_USER` |
+| Envelopes added to letters (e2e catch-up, done in long runs) | 600 per hour | `RATE_LIMIT_ENVELOPES_PER_USER`   |
+| Proposed directory changes                                   | 60 per hour  | `RATE_LIMIT_SUBMISSIONS_PER_USER` |
+| Managed writers created                                      | 60 per hour  | `RATE_LIMIT_WRITERS_PER_USER`     |
+| Invitations and batches of invite codes, together            | 20 per hour  | `RATE_LIMIT_INVITES_PER_USER`     |
+| Group key rotations                                          | 5 per hour   | `RATE_LIMIT_ROTATIONS_PER_USER`   |
+| Device registrations                                         | 30 per hour  | `RATE_LIMIT_DEVICES_PER_USER`     |
+| Sign-ups per address (no token; see below)                   | 20 per hour  | `RATE_LIMIT_REGISTER_PER_IP`      |
+
+Three things worth knowing:
+
+- **Staff are counted too.** The token worth stealing is a group's or an admin's, and a limit that exempts them protects nothing. The exception is `POST /auth/user` **with** a token: an admin creating accounts is doing administration, not signing up, and is not counted against the address limit that guards open registration.
+- **A refused request still counts.** Counting happens before the body is read, so a wrong body cannot buy extra tries, and a refused attachment or key rotation costs no upload and no 32 MB of parsing.
+- **Directory writes by an admin are not limited** (facilities, prisoners, groups). That is seeding work, done rarely and deliberately; a group's directory edits are proposals, which are limited.
 
 Successful sign-ins never count against a username; once the failure limit is reached, even the right password is refused until the window ends. Usernames are compared case-insensitively. Set `RATE_LIMIT_ENABLED=false` to switch limiting off, and set `TRUST_PROXY` when the API is behind a reverse proxy, otherwise every client appears to come from the proxy's address and shares one budget.
 

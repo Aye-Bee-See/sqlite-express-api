@@ -144,7 +144,25 @@ export const rateLimits = {
 	recoverStartPerIp: envCount('RATE_LIMIT_RECOVER_START_PER_IP', 30),
 	recoverFinishPerUser: envCount('RATE_LIMIT_RECOVER_FINISH_PER_USER', 5),
 	recoverFinishPerIp: envCount('RATE_LIMIT_RECOVER_FINISH_PER_IP', 30),
-	recoverWindowMinutes: envCount('RATE_LIMIT_RECOVER_WINDOW_MINUTES', 60)
+	recoverWindowMinutes: envCount('RATE_LIMIT_RECOVER_WINDOW_MINUTES', 60),
+	/*
+	 * Writes by a signed-in account, counted per account over one window. The
+	 * public endpoints above keep strangers out; these keep one account, or one
+	 * stolen token, from filling the disk or the moderation queue. The numbers
+	 * are meant to sit well above a busy letter night (a volunteer transcribing
+	 * replies all evening, a group sending for twenty writers) and well below a
+	 * script. A refusal is the same 429 with Retry-After.
+	 */
+	writeWindowMinutes: envCount('RATE_LIMIT_WRITE_WINDOW_MINUTES', 60),
+	lettersPerUser: envCount('RATE_LIMIT_LETTERS_PER_USER', 240),
+	attachmentsPerUser: envCount('RATE_LIMIT_ATTACHMENTS_PER_USER', 60),
+	envelopesPerUser: envCount('RATE_LIMIT_ENVELOPES_PER_USER', 600),
+	submissionsPerUser: envCount('RATE_LIMIT_SUBMISSIONS_PER_USER', 60),
+	writersPerUser: envCount('RATE_LIMIT_WRITERS_PER_USER', 60),
+	invitesPerUser: envCount('RATE_LIMIT_INVITES_PER_USER', 20),
+	rotationsPerUser: envCount('RATE_LIMIT_ROTATIONS_PER_USER', 5),
+	devicesPerUser: envCount('RATE_LIMIT_DEVICES_PER_USER', 30),
+	registerPerIp: envCount('RATE_LIMIT_REGISTER_PER_IP', 20)
 };
 
 /** How long an entry stays in an account's notification feed. */

@@ -62,6 +62,9 @@ function refuse(res, next, bucket, now, what) {
 
 const clientIp = (req) => req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
 
+/** Signed-in writes are counted per account, whoever and wherever they are. */
+const perAccount = (req) => (req.user ? 'user-' + req.user.id : undefined);
+
 /**
  * Build a limiter middleware.
  * @param {object} options
@@ -72,6 +75,7 @@ const clientIp = (req) => req.ip || (req.socket && req.socket.remoteAddress) || 
  * @param {number|null} [options.perSubject] requests per window per subject (username, token, ...)
  * @param {(req: object) => string|undefined} [options.subject] extracts the subject
  * @param {boolean} [options.failuresOnly] a subject's request stops counting once it is answered with anything but a 4xx
+ * @param {(req: object) => boolean} [options.exempt] requests this says true for are not counted at all
  */
 export function limit({
 	name,
@@ -80,10 +84,11 @@ export function limit({
 	perIp = null,
 	perSubject = null,
 	subject,
-	failuresOnly = false
+	failuresOnly = false,
+	exempt = null
 }) {
 	return function rateLimiter(req, res, next) {
-		if (!rateLimits.enabled) {
+		if (!rateLimits.enabled || (exempt && exempt(req))) {
 			return next();
 		}
 		const now = Date.now();
@@ -221,5 +226,86 @@ export const limiters = {
 		perIp: rateLimits.recoverFinishPerIp,
 		perSubject: rateLimits.recoverFinishPerUser,
 		subject: (req) => req.body && req.body.username
+	}),
+
+	/*
+	 * Writes by a signed-in account (see rateLimits in constants.js). Everything
+	 * that writes a row nobody else asked for is counted per account, staff
+	 * included: the account whose token is worth stealing is the staff one, and
+	 * a limit that exempts them protects nothing. Directory writes by an admin
+	 * (facilities, prisoners) are not here: that is seeding work, done rarely
+	 * and by hand, and a group's directory edits are proposals, which are.
+	 */
+	sendLetter: limit({
+		name: 'letters',
+		what: 'letters and replies',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.lettersPerUser,
+		subject: perAccount
+	}),
+	// Each one can be 20 MiB on disk, so these are counted more tightly.
+	attachment: limit({
+		name: 'attachments',
+		what: 'attachments',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.attachmentsPerUser,
+		subject: perAccount
+	}),
+	// A group filling in the envelopes of letters written before its writers had
+	// keys works through a long list in one sitting: generous, but not endless.
+	envelope: limit({
+		name: 'envelopes',
+		what: 'envelopes',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.envelopesPerUser,
+		subject: perAccount
+	}),
+	// Proposed directory edits: a queue a person reads, so cheap to write and
+	// expensive to review.
+	submission: limit({
+		name: 'submissions',
+		what: 'proposed changes',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.submissionsPerUser,
+		subject: perAccount
+	}),
+	createWriter: limit({
+		name: 'writers',
+		what: 'writer accounts',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.writersPerUser,
+		subject: perAccount
+	}),
+	// Issuing invitations and batches of invite codes: both hand out credentials.
+	issueInvites: limit({
+		name: 'invites-issued',
+		what: 'invitations',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.invitesPerUser,
+		subject: perAccount
+	}),
+	// A rotation may carry every envelope a group holds (ROTATION_MAX_BYTES, 32 MB).
+	rotation: limit({
+		name: 'rotations',
+		what: 'group key rotations',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.rotationsPerUser,
+		subject: perAccount
+	}),
+	registerDevice: limit({
+		name: 'devices',
+		what: 'device registrations',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perSubject: rateLimits.devicesPerUser,
+		subject: perAccount
+	}),
+	// Registration is public wherever OPEN_REGISTRATION is on, so it is counted
+	// per address; an admin creating accounts with a token is not limited here.
+	register: limit({
+		name: 'register',
+		what: 'sign-ups',
+		windowMs: minutes(rateLimits.writeWindowMinutes),
+		perIp: rateLimits.registerPerIp,
+		exempt: (req) => Boolean(req.user)
 	})
 };

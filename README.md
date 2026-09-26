@@ -2662,6 +2662,7 @@ None of these break anything, but clients should know about them.
 
 ## Further reading
 
+- [Changelog](CHANGELOG.md): what changed and when, newest first, in plain words.
 - [Developer guide](docs/DEVELOPER.md): architecture, request lifecycle, data model, authorization internals, tooling, and how to add a resource.
 - [Switching to end-to-end encryption](docs/E2E-MIGRATION.md): the operator checklist for moving from `server` to `e2e` mode.
 - [GitHub repository](https://github.com/Aye-Bee-See/sqlite-express-api)

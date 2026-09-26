@@ -172,7 +172,7 @@ export default class User extends Model {
 		}
 		const check = await PenName.availability(penName, { forUser });
 		if (!check.available) {
-			throw new ValidationError(check.reason);
+			throw new ValidationError({ message: check.reason, ...(check.problem ?? {}) });
 		}
 	}
 

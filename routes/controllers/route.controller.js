@@ -166,7 +166,14 @@ export default class RouteController {
 		// Validation failures (ours or Sequelize's) share one shape.
 		const validationMessages = ValidationError.messagesFrom(errMsg);
 		if (validationMessages) {
-			return res.status(400).json({ success: false, errors: validationMessages });
+			return res.status(400).json({
+				success: false,
+				errors: validationMessages,
+				// The same failures, for a client that words them itself (README, "Error codes").
+				problems:
+					ValidationError.problemsFrom(errMsg) ??
+					validationMessages.map(() => ({ field: null, code: 'validation_failed' }))
+			});
 		}
 		const ctrlMsg = msgConstants[this.controllerName];
 		const stack = this.#findStack(res);

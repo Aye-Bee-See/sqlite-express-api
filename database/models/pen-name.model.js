@@ -56,11 +56,21 @@ export default class PenName extends Model {
 	 */
 	static check(name) {
 		if (typeof name !== 'string') {
-			throw new ValidationError('penName must be text.');
+			throw new ValidationError({
+				message: 'penName must be text.',
+				field: 'penName',
+				code: 'wrong_type',
+				params: { expected: 'text' }
+			});
 		}
 		const clean = PenName.clean(name);
 		if (clean.length < MIN || clean.length > MAX) {
-			throw new ValidationError('penName must be between ' + MIN + ' and ' + MAX + ' characters.');
+			throw new ValidationError({
+				message: 'penName must be between ' + MIN + ' and ' + MAX + ' characters.',
+				field: 'penName',
+				code: 'length_out_of_range',
+				params: { min: MIN, max: MAX }
+			});
 		}
 		if (!/^\p{L}[\p{L}\p{M}\p{N} .'’-]*$/u.test(clean)) {
 			throw new ValidationError(
@@ -80,7 +90,15 @@ export default class PenName extends Model {
 		try {
 			clean = PenName.check(name);
 		} catch (err) {
-			return { available: false, name: PenName.clean(name), reason: err.message, twoParts: false };
+			return {
+				available: false,
+				name: PenName.clean(name),
+				reason: err.message,
+				twoParts: false,
+				// Kept so that a caller re-throwing this reason keeps its code
+				// (User.checkPenName does); it is not part of the endpoint's answer.
+				problem: err.problems ? err.problems[0] : undefined
+			};
 		}
 		const holder = await this.findOne({ where: { nameKey: PenName.keyOf(clean) } });
 		const twoParts = clean.includes(' ');
@@ -89,7 +107,8 @@ export default class PenName extends Model {
 				available: false,
 				name: clean,
 				reason: 'That pen name is taken (names once used are never given out again).',
-				twoParts
+				twoParts,
+				problem: { field: 'penName', code: 'not_unique', params: { fields: ['penName'] } }
 			};
 		}
 		return { available: true, name: clean, reason: null, twoParts };

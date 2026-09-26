@@ -27,7 +27,15 @@ export default class ErrorService {
 		}
 		const validationMessages = ValidationError.messagesFrom(err);
 		if (validationMessages) {
-			return res.status(400).json({ success: false, errors: validationMessages });
+			return res.status(400).json({
+				success: false,
+				errors: validationMessages,
+				// The same failures, for a client that words them itself (README, "Error codes").
+				problems: ValidationError.problemsFrom(err) ?? validationMessages.map(() => ({
+					field: null,
+					code: 'validation_failed'
+				}))
+			});
 		}
 		const status = HttpError.statusOf(err);
 		const development = process.env.NODE_ENV === 'development';

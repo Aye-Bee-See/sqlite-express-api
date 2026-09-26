@@ -859,9 +859,11 @@ export default class UserController extends RouteController {
 	 */
 	async penNameAvailable(req, res) {
 		try {
-			const check = await PenName.availability(req.query.name, {
+			const { problem, ...check } = await PenName.availability(req.query.name, {
 				forUser: req.user ? req.user.id : null
 			});
+			// `problem` is for a caller re-throwing the reason, not for this answer.
+			void problem;
 			this.#handleSuccess(res, check);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;

@@ -73,6 +73,8 @@ cp .env.example .env
 | `DB_LOGGING`                                  | No       | `false`                                   | `true` prints every SQL statement **with its values** (password hashes, token hashes, wrapped keys). Development only.                                                                                  |
 | `DB_STORAGE`                                  | No       | `database.sqlite`                         | Path of the SQLite file. `:memory:` gives a throwaway database (the test suite uses this).                                                                                                              |
 | `UPLOAD_DIR`                                  | No       | `uploads`                                 | Directory for attachment files and directory photos, relative to the working directory or absolute. Created on first upload. Back it up with the database.                                              |
+| `AUDIT_KEEP_DAYS`                             | No       | `180`                                     | How long routine audit entries are kept. `0` keeps them for ever. See [Retention](#retention).                                                                                                          |
+| `AUDIT_SECURITY_KEEP_DAYS`                    | No       | `730`                                     | How long security-relevant audit entries are kept (accounts, keys, invitations, decisions, deletions). `0` keeps them for ever.                                                                         |
 | `PHOTO_MAX_BYTES`                             | No       | `5242880`                                 | Largest accepted directory photo (5 MiB). See [Photos](#photos).                                                                                                                                        |
 | `UPLOAD_MAX_BYTES`                            | No       | `20971520`                                | Largest accepted upload (20 MiB).                                                                                                                                                                       |
 | `RATE_LIMIT_*`                                | No       | see [Rate limits](#rate-limits)           | Limits on login, claim checks, and recovery; `RATE_LIMIT_ENABLED=false` turns them off.                                                                                                                 |
@@ -192,6 +194,15 @@ Reply references outlive their letters for `REPLY_REFERENCE_MONTHS` after mailin
 Letters do not stay forever. Once a letter has been `mailed` or `returned` (or a prisoner reply recorded) for longer than the writer's window, the API deletes it, with its attachments, envelopes, and status history, and removes a chat left empty. Queued and printed letters are never touched, and neither is a letter the writer pinned with `keep: true`. Every run that deletes something writes one `retention.run` entry to the audit log with the counts, then compacts the database file so the deleted pages do not linger.
 
 The window is per writer: `retentionDays` on the account, else `RETENTION_DEFAULT_DAYS` (90). `0` means forever. `RETENTION_MAX_DAYS`, when set, caps every choice including forever. A writer's window covers the prisoner replies in their threads, since they sit in the writer's account. A managing group sets the window for its unclaimed managed writers and for its anonymous writer through `PUT /auth/user`, the same way it edits their names. `GET /messaging/retention` tells a client the default, the cap, and the caller's effective window.
+
+**The audit log has its own two windows.** It is append-only and nothing used to remove anything, so it grew for the life of the deployment. The same run now deletes entries past their window and reports them as `auditEntries`:
+
+| Kind of entry                                                                                                                                                                                                          | Kept     | Setting                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------- |
+| **Security**: accounts and their keys (`user.*`, `writer.*`), invitations, group keys and ownership, a decision made about somebody (`submission.approve`, `submission.reject`), and anything deleted (any `*.delete`) | 730 days | `AUDIT_SECURITY_KEEP_DAYS` |
+| **Routine**: everything else, the day-to-day of a directory and the post                                                                                                                                               | 180 days | `AUDIT_KEEP_DAYS`          |
+
+`0` keeps that kind for ever. A deployment with a legal duty to keep records, or one that would rather hold as little as possible, sets its own numbers. Which actions count as security-relevant is one list in `database/audit-retention.js`, and a test fails when the code writes an action nobody has sorted into a window.
 
 The job runs when the API boots and every six hours. To preview what a run would remove:
 
@@ -1767,7 +1778,7 @@ You usually do not need to create chats by hand. Sending a message with `POST /m
 
 #### POST /chat/chat
 
-Body: `{"user": 1, "prisoner": 9}`. For a `user`-role caller the `user` field is replaced with their own id. A `chapter` account may name one of its group's managed writers, or omit `user` to use the group's anonymous writer; any other id is a `403`. Nonexistent ids are refused. Duplicates are not prevented; the message endpoint's find-or-create always uses the oldest chat for a pair, so prefer letting it create chats.
+Body: `{"user": 1, "prisoner": 9}`. For a `user`-role caller the `user` field is replaced with their own id. A `chapter` account may name one of its group's managed writers, or omit `user` to use the group's anonymous writer; any other id is a `403`. Nonexistent ids are refused. **There is one thread per pair**: asking for a thread that already exists answers with that thread rather than making a second one, and the database refuses a second one even from another process. Letters file themselves under it, so there is rarely a reason to call this at all.
 
 ```json
 {
@@ -2695,8 +2706,7 @@ None of these break anything, but clients should know about them.
 
 1. Several `info` strings contain typos ("retireved", "Succeessfully") that clients may already match on. They are left as-is for now.
 2. `PUT /prison/relay` returns the prison object under a key named `updatedRows`.
-3. Chats are not unique per user and prisoner pair when created through `POST /chat/chat`. The message endpoint always reuses the oldest chat for a pair.
-4. Seeded ids are not stable across databases. Read them from responses.
+3. Seeded ids are not stable across databases. Read them from responses.
 
 ## Postman collection
 

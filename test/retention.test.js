@@ -158,7 +158,8 @@ test('mailed letters and replies past the writer window are purged with their fi
 		letters: 2,
 		replies: 1,
 		attachments: 1,
-		chats: 1
+		chats: 1,
+		auditEntries: { routine: 0, security: 0 }
 	});
 	assert.equal(audit.body.data[0].actor, null);
 	assert.equal((await runRetention({ log: () => {} })).letters, 0, 'idempotent');

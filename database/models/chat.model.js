@@ -121,7 +121,11 @@ export default class Chat extends Model {
 
 	// Create
 	static async createChat({ user, prisoner }) {
-		return await this.create({ user, prisoner });
+		// One thread per pair (unique index since 27 September 2026): asking for a
+		// thread that exists gives that thread rather than a second one nothing
+		// would ever be filed under. The message endpoint has always done this.
+		const [chat] = await this.findOrCreateChat(user, prisoner);
+		return chat;
 	}
 
 	/**

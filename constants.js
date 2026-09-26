@@ -17,6 +17,7 @@ const {
 	ENCRYPTION_KEY,
 	RETENTION_DEFAULT_DAYS,
 	RETENTION_MAX_DAYS,
+	PEN_NAME_COOLDOWN_DAYS,
 	TRUST_PROXY
 } = process.env;
 
@@ -147,6 +148,20 @@ export const rateLimits = {
 };
 
 /** How long an entry stays in an account's notification feed. */
+/**
+ * Pen names. A name once used is never given to anyone else, so renaming
+ * without limit empties a namespace everybody shares, and a name that changes
+ * every week loses the replies addressed to the last one. A change waits
+ * `cooldownDays` after the one before it, and at most `newPerYear` brand-new
+ * names may be taken in a rolling year; going back to a name this account has
+ * used before takes nothing from the namespace and so is free of that count.
+ * Zero days switches the cooldown off; the count cannot be switched off.
+ */
+export const penNameLimits = {
+	cooldownDays: envDays(PEN_NAME_COOLDOWN_DAYS, 90),
+	newPerYear: envCount('PEN_NAME_NEW_PER_YEAR', 2)
+};
+
 export const notificationDays = envCount('NOTIFICATION_DAYS', 30);
 
 /**

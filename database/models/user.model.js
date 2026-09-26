@@ -202,11 +202,15 @@ export default class User extends Model {
 		}
 	}
 
-	/** Change an account's pen name: the old one is kept for ever, and comes back if chosen again. */
-	static async renamePen(userId, penName) {
+	/**
+	 * Change an account's pen name: the old one is kept for ever, and comes back
+	 * if chosen again. `enforce` applies the limits (README, "Pen names"); staff
+	 * renaming somebody, which is what a harassed writer needs, passes false.
+	 */
+	static async renamePen(userId, penName, { enforce = false } = {}) {
 		// The history and the column move together, one rename at a time.
 		return await inTransaction(this.sequelize, async (transaction) => {
-			const name = await PenName.claim(userId, penName, { transaction });
+			const name = await PenName.claim(userId, penName, { transaction, enforce });
 			await this.update({ penName: name }, { where: { id: userId }, hooks: false, transaction });
 			return name;
 		});

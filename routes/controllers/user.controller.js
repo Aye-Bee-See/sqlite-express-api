@@ -320,8 +320,17 @@ export default class UserController extends RouteController {
 			// The pen name is set through its own history (PenName.claim), after the row update.
 			const penName = newUser.penName;
 			delete newUser.penName;
+			// Staff rename somebody past the limits: a writer being harassed cannot
+			// wait out a cooldown, and a group looks after writers who cannot ask.
+			const penNameEnforced = !AuthzService.isAdmin(req) && !custody;
 			if (penName !== undefined) {
 				await User.checkPenName(penName, { forUser: newUser.id });
+				if (penNameEnforced && penName !== null && penName !== '') {
+					// Refuse before the row is written, so a refusal changes nothing.
+					await PenName.refuseOverLimit(newUser.id, {
+						returning: await PenName.usedBefore(newUser.id, penName)
+					});
+				}
 			}
 			if (newUser.authScheme !== undefined && newUser.password === undefined) {
 				throw new ValidationError('authScheme travels with a new password, not on its own.');
@@ -508,7 +517,10 @@ export default class UserController extends RouteController {
 			}
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
 			if (penName !== undefined && penName !== null && penName !== '') {
-				await User.renamePen(newUser.id, penName);
+				await User.renamePen(newUser.id, penName, { enforce: penNameEnforced });
+				if (!penNameEnforced) {
+					await audit(req, 'user.penName', 'user', newUser.id, { penName });
+				}
 			}
 			if (newUser.chapterId !== undefined || newUser.role !== undefined) {
 				// An account moved out of its chapter, or no longer a group admin, owns
@@ -863,7 +875,8 @@ export default class UserController extends RouteController {
 			const user = await User.findByPk(req.user.id, { attributes: ['id', 'penName'] });
 			this.#handleSuccess(res, {
 				penName: user ? user.penName : null,
-				names: await PenName.namesOf(req.user.id)
+				names: await PenName.namesOf(req.user.id),
+				...(await PenName.changeStatus(req.user.id))
 			});
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;

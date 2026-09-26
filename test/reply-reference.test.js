@@ -5,6 +5,7 @@ import {
 	stopServer,
 	makeFixtures,
 	makeUser,
+	agePenNames,
 	get,
 	post,
 	put,
@@ -309,6 +310,7 @@ test("a reference goes with its writer's account", async () => {
 test('a volunteer with a name and no number searches the writers their group mailed, by current or old pen name', async () => {
 	const writer = await makeUser({ username: 'penfriend' });
 	await put('/auth/user', { id: writer.id, penName: 'Old Handle' }, writer);
+	await agePenNames(writer.id);
 	await put('/auth/user', { id: writer.id, penName: 'New Handle' }, writer);
 	await post('/messaging/message', letter(), writer);
 	const byNew = await get('/messaging/writers?name=new%20han', f.chapter);

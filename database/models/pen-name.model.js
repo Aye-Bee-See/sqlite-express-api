@@ -1,7 +1,9 @@
 import { Model, Op } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import ValidationError from '#services/ValidationError.js';
+import { HttpError } from '#services/HttpError.js';
 import { inTransaction } from '#services/serial.js';
+import { penNameLimits } from '#constants';
 
 /**
  * Pen names (decided 22 September 2026). Every account may have one: the
@@ -12,6 +14,8 @@ import { inTransaction } from '#services/serial.js';
  */
 const MIN = 3;
 const MAX = 40;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const YEAR_MS = 365 * DAY_MS;
 
 export default class PenName extends Model {
 	static init(sequelize) {
@@ -98,12 +102,12 @@ export default class PenName extends Model {
 	 * @returns {Promise<string>} the name as stored
 	 * @throws {ValidationError} shape, or taken
 	 */
-	static async claim(userId, name, { transaction } = {}) {
+	static async claim(userId, name, { transaction, enforce = false, now = new Date() } = {}) {
 		if (!transaction) {
 			// Read, retire, insert are one step: inTransaction runs one transaction at a
 			// time, so two renames cannot both see a free name or leave two current rows.
 			return await inTransaction(this.sequelize, (t) =>
-				PenName.claim(userId, name, { transaction: t })
+				PenName.claim(userId, name, { transaction: t, enforce, now })
 			);
 		}
 		const clean = PenName.check(name);
@@ -117,17 +121,22 @@ export default class PenName extends Model {
 		if (holder && holder.retiredAt === null) {
 			return holder.name; // already the current name
 		}
+		if (enforce) {
+			// The limits are read and the rename written in one transaction, so two
+			// renames at once cannot both find the last one of the year unspent.
+			await PenName.refuseOverLimit(userId, { returning: Boolean(holder), now, transaction });
+		}
 		await this.update(
 			{ retiredAt: new Date() },
 			{ where: { userId, retiredAt: null }, transaction }
 		);
 		if (holder) {
 			// Back to an old name, in the spelling it was first given (and printed).
-			await holder.update({ retiredAt: null }, { transaction });
+			await holder.update({ retiredAt: null, claimedAt: now }, { transaction });
 			return holder.name;
 		} else {
 			try {
-				await this.create({ userId, name: clean, nameKey: key }, { transaction });
+				await this.create({ userId, name: clean, nameKey: key, claimedAt: now }, { transaction });
 			} catch (err) {
 				if (err && err.name === 'SequelizeUniqueConstraintError') {
 					throw new ValidationError(
@@ -138,6 +147,110 @@ export default class PenName extends Model {
 			}
 		}
 		return clean;
+	}
+
+	/**
+	 * Has this account used this name before? Taking such a name back takes
+	 * nothing from the shared namespace, so it does not spend a new name.
+	 * A name that cannot be a pen name at all is refused where shape is checked.
+	 */
+	static async usedBefore(userId, name) {
+		let key;
+		try {
+			key = PenName.keyOf(PenName.check(name));
+		} catch {
+			return false;
+		}
+		const holder = await this.findOne({ where: { nameKey: key } });
+		return Boolean(holder) && String(holder.userId) === String(userId);
+	}
+
+	/**
+	 * What the limits leave this account today (README, "Pen names"):
+	 * `changeAllowedAt` is when the next change of any kind may happen, and
+	 * `newNamesLeft` how many brand-new names are left in the rolling year.
+	 * Going back to one of the account's own old names spends the cooldown but
+	 * not a new name. An account that has never had a pen name may take one at
+	 * once: the first name is not a change.
+	 * @returns {Promise<{changeAllowedAt: string|null, newNamesLeft: number, newNamesWindowEnds: string|null, cooldownDays: number, newPerYear: number}>}
+	 */
+	static async changeStatus(userId, { now = new Date(), transaction } = {}) {
+		const rows = await this.findAll({
+			where: { userId },
+			order: [['id', 'ASC']],
+			transaction
+		});
+		const shape = {
+			changeAllowedAt: null,
+			newNamesLeft: penNameLimits.newPerYear,
+			newNamesWindowEnds: null,
+			cooldownDays: penNameLimits.cooldownDays,
+			newPerYear: penNameLimits.newPerYear
+		};
+		if (rows.length === 0) {
+			return shape;
+		}
+		const current = rows.find((row) => row.retiredAt === null) ?? null;
+		// claimedAt is when the name became current; createdAt covers rows written
+		// before the column existed, where the two are the same thing.
+		const since = current ? (current.claimedAt ?? current.createdAt) : null;
+		const windowStart = new Date(now.getTime() - YEAR_MS);
+		// The first name ever is the one chosen at sign-up, not a change.
+		const counted = rows.slice(1).filter((row) => row.createdAt >= windowStart);
+		return {
+			...shape,
+			changeAllowedAt: since
+				? new Date(since.getTime() + penNameLimits.cooldownDays * DAY_MS).toISOString()
+				: null,
+			newNamesLeft: Math.max(0, penNameLimits.newPerYear - counted.length),
+			newNamesWindowEnds: counted.length
+				? new Date(counted[0].createdAt.getTime() + YEAR_MS).toISOString()
+				: null
+		};
+	}
+
+	/**
+	 * A 409 a client can word itself: `condition` is `cooldown` or `new_names`.
+	 * @returns {HttpError}
+	 */
+	static limitError(condition, message) {
+		const err = new HttpError(409, message, 'PenNameLimitError');
+		err.condition = condition;
+		return err;
+	}
+
+	/**
+	 * Refuse a change the limits do not allow. `returning` says the account is
+	 * going back to a name it has used before, which takes nothing from the
+	 * shared namespace and so does not spend a new name.
+	 * The dates are in the message; a client that wants them as fields reads
+	 * `GET /auth/pen-name`, which answers the same status before anyone types.
+	 * @throws {HttpError} 409 PenNameLimitError
+	 */
+	static async refuseOverLimit(userId, { returning = false, now = new Date(), transaction } = {}) {
+		const status = await PenName.changeStatus(userId, { now, transaction });
+		if (status.changeAllowedAt && new Date(status.changeAllowedAt) > now) {
+			throw PenName.limitError(
+				'cooldown',
+				'A pen name may be changed once every ' +
+					penNameLimits.cooldownDays +
+					' days: this one may change again on ' +
+					status.changeAllowedAt.slice(0, 10) +
+					'. Letters already posted carry the old name, so it stays yours either way.'
+			);
+		}
+		if (!returning && status.newNamesLeft < 1) {
+			throw PenName.limitError(
+				'new_names',
+				'This account has taken its ' +
+					penNameLimits.newPerYear +
+					' new pen name(s) for the year' +
+					(status.newNamesWindowEnds
+						? ' and may take another on ' + status.newNamesWindowEnds.slice(0, 10)
+						: '') +
+					'. A name this account has used before may still be taken back, since nobody else can have it.'
+			);
+		}
 	}
 
 	/** Every name the account has used, current first. */

@@ -5,6 +5,7 @@ import {
 	stopServer,
 	makeFixtures,
 	makeUser,
+	agePenNames,
 	get,
 	post,
 	put,
@@ -12,6 +13,7 @@ import {
 	User
 } from './helpers.js';
 import PenName from '../database/models/pen-name.model.js';
+import AuditLog from '../database/models/audit-log.model.js';
 
 let f;
 before(async () => {
@@ -95,7 +97,10 @@ test('the shape of a pen name', async () => {
 test('a pen name can change; old names are kept for ever, come back to their owner, and never go to anyone else', async () => {
 	const who = await makeUser({ username: 'renamer' });
 	assert.equal((await put('/auth/user', { id: who.id, penName: 'First Name' }, who)).status, 200);
+	// Each change here would otherwise wait out the cooldown (its own test below).
+	await agePenNames(who.id, 400);
 	assert.equal((await put('/auth/user', { id: who.id, penName: 'Second Name' }, who)).status, 200);
+	await agePenNames(who.id, 400);
 	assert.equal((await User.findByPk(who.id)).penName, 'Second Name');
 	const history = await get('/auth/pen-name', who);
 	assert.equal(history.status, 200, JSON.stringify(history.body));
@@ -121,6 +126,7 @@ test('a pen name can change; old names are kept for ever, come back to their own
 	const grab = await put('/auth/user', { id: stranger.id, penName: 'First Name' }, stranger);
 	assert.equal(grab.status, 400, JSON.stringify(grab.body));
 	assert.equal((await put('/auth/user', { id: who.id, penName: 'first name' }, who)).status, 200);
+	await agePenNames(who.id, 400);
 	assert.equal(
 		(await User.findByPk(who.id)).penName,
 		'First Name',
@@ -206,8 +212,9 @@ test("a deleted account's names stay taken for ever, and two renames at once lea
 		)
 	);
 	assert.deepEqual(
-		results.map((r) => r.status),
-		[200, 200, 200]
+		results.map((r) => r.status).sort(),
+		[200, 409, 409],
+		'the first name lands; the other two wait out the cooldown'
 	);
 	const current = await PenName.findAll({ where: { userId: racer.id, retiredAt: null } });
 	assert.equal(current.length, 1, 'one current name');
@@ -216,7 +223,11 @@ test("a deleted account's names stay taken for ever, and two renames at once lea
 		current[0].name,
 		'the column names the current row'
 	);
-	assert.equal(await PenName.count({ where: { userId: racer.id } }), 3);
+	assert.equal(
+		await PenName.count({ where: { userId: racer.id } }),
+		1,
+		'a refused rename takes no name'
+	);
 	// Two accounts racing for one name: one gets it.
 	const a = await makeUser({ username: 'racer-a' });
 	const b = await makeUser({ username: 'racer-b' });
@@ -226,4 +237,77 @@ test("a deleted account's names stay taken for ever, and two renames at once lea
 	]);
 	assert.deepEqual(race.map((r) => r.status).sort(), [200, 400]);
 	assert.equal(await PenName.count({ where: { nameKey: 'contested name' } }), 1);
+});
+
+test('a pen name changes at most once every 90 days, and takes at most two new names a year', async () => {
+	const who = await makeUser({ username: 'restless' });
+	// The name chosen first is not a change: it may be taken at once.
+	assert.equal((await put('/auth/user', { id: who.id, penName: 'Ada Vale' }, who)).status, 200);
+	const soon = await put('/auth/user', { id: who.id, penName: 'Ada Ridge' }, who);
+	assert.equal(soon.status, 409, JSON.stringify(soon.body));
+	assert.equal(soon.body.name, 'PenNameLimitError');
+	assert.equal(soon.body.condition, 'cooldown');
+	assert.match(soon.body.error, /once every 90 days/);
+	assert.equal((await User.findByPk(who.id)).penName, 'Ada Vale', 'nothing changed');
+	assert.equal(await PenName.count({ where: { userId: who.id } }), 1);
+
+	// What the client shows before anyone types.
+	const status = await get('/auth/pen-name', who);
+	assert.equal(status.body.data.cooldownDays, 90);
+	assert.equal(status.body.data.newPerYear, 2);
+	assert.equal(status.body.data.newNamesLeft, 2, 'the name chosen at sign-up is not a change');
+	assert.ok(new Date(status.body.data.changeAllowedAt) > new Date());
+
+	// Past the cooldown, two new names are allowed, and the third is not.
+	await agePenNames(who.id, 91);
+	assert.equal((await put('/auth/user', { id: who.id, penName: 'Ada Ridge' }, who)).status, 200);
+	await agePenNames(who.id, 91);
+	assert.equal((await put('/auth/user', { id: who.id, penName: 'Ada Marsh' }, who)).status, 200);
+	const spent = await get('/auth/pen-name', who);
+	assert.equal(spent.body.data.newNamesLeft, 0);
+	assert.ok(spent.body.data.newNamesWindowEnds, 'when a new name comes back');
+	await agePenNames(who.id, 91);
+	const fourth = await put('/auth/user', { id: who.id, penName: 'Ada Fell' }, who);
+	assert.equal(fourth.status, 409, JSON.stringify(fourth.body));
+	assert.equal(fourth.body.condition, 'new_names');
+	assert.match(fourth.body.error, /2 new pen name\(s\) for the year/);
+	assert.equal((await User.findByPk(who.id)).penName, 'Ada Marsh');
+	assert.equal(
+		(await get('/auth/pen-name-available?name=Ada%20Fell')).body.data.available,
+		true,
+		'a name that was refused was never taken'
+	);
+
+	// A name this account has used before takes nothing from anyone: allowed.
+	assert.equal((await put('/auth/user', { id: who.id, penName: 'Ada Vale' }, who)).status, 200);
+	assert.equal((await User.findByPk(who.id)).penName, 'Ada Vale');
+	// Still one change at a time, even going back.
+	const hurried = await put('/auth/user', { id: who.id, penName: 'Ada Ridge' }, who);
+	assert.equal(hurried.status, 409);
+	assert.match(hurried.body.error, /once every 90 days/);
+});
+
+test('staff rename past the limits: an admin for anyone, a group for the writers it looks after', async () => {
+	const who = await makeUser({ username: 'harassed' });
+	assert.equal((await put('/auth/user', { id: who.id, penName: 'Kit Marlow' }, who)).status, 200);
+	assert.equal(
+		(await put('/auth/user', { id: who.id, penName: 'Kit Sparrow' }, who)).status,
+		409,
+		'the writer waits'
+	);
+	const byAdmin = await put('/auth/user', { id: who.id, penName: 'Kit Sparrow' }, f.admin);
+	assert.equal(byAdmin.status, 200, JSON.stringify(byAdmin.body));
+	assert.equal((await User.findByPk(who.id)).penName, 'Kit Sparrow');
+	assert.equal(
+		(await AuditLog.count({ where: { action: 'user.penName', targetId: who.id } })) > 0,
+		true,
+		'an override is written down'
+	);
+
+	// A group renames one of its own unclaimed writers, twice over.
+	const writer = await post('/auth/writer', { name: 'Robin', penName: 'Robin Ash' }, f.chapter);
+	const id = writer.body.data.id;
+	assert.equal((await put('/auth/user', { id, penName: 'Robin Birch' }, f.chapter)).status, 200);
+	assert.equal((await put('/auth/user', { id, penName: 'Robin Cedar' }, f.chapter)).status, 200);
+	assert.equal((await User.findByPk(id)).penName, 'Robin Cedar');
 });

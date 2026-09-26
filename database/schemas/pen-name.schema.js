@@ -6,7 +6,9 @@ const penNameSchema = {
 	userId: { type: DataTypes.INTEGER },
 	name: { type: DataTypes.STRING, allowNull: false },
 	nameKey: { type: DataTypes.STRING, allowNull: false, unique: true },
-	retiredAt: { type: DataTypes.DATE }
+	retiredAt: { type: DataTypes.DATE },
+	/** When this name last became the current one; `createdAt` is when it was first taken. */
+	claimedAt: { type: DataTypes.DATE }
 };
 
 export default penNameSchema;

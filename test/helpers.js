@@ -44,6 +44,7 @@ export const {
 	Chat,
 	Message,
 	ClaimToken,
+	PenName,
 	Attachment,
 	LetterKey,
 	RevokedToken,
@@ -193,6 +194,17 @@ export async function makeUser(overrides = {}) {
  * independent users; one prison with two prisoners. Chats and
  * messages are left to each test.
  */
+/**
+ * Pretend every pen name an account holds was taken `days` ago. Pen names are
+ * limited (README, "Pen names"): a change waits out a cooldown, and new names
+ * are capped per year. A test that only needs a second name says so here
+ * rather than waiting three months for it.
+ */
+export async function agePenNames(userId, days = 400) {
+	const when = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+	await PenName.update({ claimedAt: when, createdAt: when }, { where: { userId }, silent: true });
+}
+
 export async function makeFixtures() {
 	const admin = await makeUser({ role: 'admin', username: 'admin' });
 	const group = await Chapter.createChapter({

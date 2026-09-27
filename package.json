@@ -16,6 +16,7 @@
 		"migrate:status": "node database/migrate.js pending && node database/migrate.js executed",
 		"migrate:create": "node database/migrate.js create",
 		"keygen": "node services/keygen.js",
+		"errors:docs": "node scripts/error-catalogue.js",
 		"encryption:rewrap": "node database/rewrap-e2e.js",
 		"encryption:rekey": "node database/rekey-cli.js",
 		"push:check": "node services/push-check.js",

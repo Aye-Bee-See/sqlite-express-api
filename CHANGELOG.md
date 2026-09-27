@@ -8,6 +8,30 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-27 (evening)
+
+### Validation failures carry a field and a code (#133)
+
+A refused request used to answer with English sentences and nothing else, so a client wanting to highlight the right input, or say it in Spanish, had to match on the text. Alongside `errors`, a `400` now carries `problems`: one entry per sentence, in the same order, each with the `field`, a stable `code`, and the `params` to interpolate.
+
+```json
+{
+	"success": false,
+	"errors": ["penName must be between 3 and 40 characters."],
+	"problems": [
+		{ "field": "penName", "code": "length_out_of_range", "params": { "min": 3, "max": 40 } }
+	]
+}
+```
+
+Everything a **schema rule** refuses — a missing field, a length, a URL, a value outside a fixed set — has a real field and code from today, because Sequelize already says which field and which rule failed. Sentences thrown **by hand** are being converted flow by flow; until one is, its entry is `{ field: null, code: "validation_failed" }` and the sentence in `errors` is the thing to show. Three are converted already (pen name length and type, credentials that are not text, a missing `prisoner` on a photo).
+
+`errors` is unchanged, so nothing that reads it notices. The catalogue is [docs/ERRORS.md](docs/ERRORS.md), generated from one source file by `npm run errors:docs -- --write`; a test fails when the file drifts, when the code answers with a code the catalogue has never heard of, and when a code is misspelled at a throw site.
+
+**For clients:** key your strings on `code`, fall back to the sentence in `errors`, and treat `params` as the numbers to interpolate. **The API never translates**, so no wording fix waits on a deploy here. Codes never change meaning or disappear.
+
+After the Android and iOS reviews: `problems` is always exactly as long as `errors` and **every `400` carries it**, including refusals thrown as general errors (which keep their `condition`); a field inside an object is named with its path (`group.name`); a limit that does not apply is left out rather than sent as `null`; `GET /auth/pen-name-available` answers `reasonCode` beside `reason`; the lost-race `409` on a letter status move carries `condition: "changed_meanwhile"` so nobody has to match the sentence; and a split account's `password` that is not an auth key answers the new code `not_an_auth_key` **with no field**, since it is a client bug and must never appear under a person's password box.
+
 ## 2026-09-27 (later)
 
 ### A letter is one write, with its Idempotency-Key (#132)

@@ -239,7 +239,11 @@ test('sign-in refuses credentials in the URL and credentials that are not text',
 	for (const username of ['alice', 'nobody-by-this-name']) {
 		const res = await post('/auth/login', { username, password: 1234567 });
 		assert.equal(res.status, 400);
-		assert.deepEqual(res.body, { success: false, errors: ['username and password must be text.'] });
+		assert.deepEqual(res.body, {
+			success: false,
+			errors: ['username and password must be text.'],
+			problems: [{ field: null, code: 'wrong_type', params: { expected: 'text' } }]
+		});
 	}
 });
 

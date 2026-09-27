@@ -224,7 +224,11 @@ export default class PrisonerController extends RouteController {
 	/** The record, refusing one the caller may not even see. */
 	async #photoRecord(req, id) {
 		if (id === undefined || id === null || id === '') {
-			throw new ValidationError('prisoner is required.');
+			throw new ValidationError({
+				message: 'prisoner is required.',
+				field: 'prisoner',
+				code: 'required'
+			});
 		}
 		const prisoner = this.requireFound(await Prisoner.findByPk(id), 'Prisoner ' + id);
 		if (AuthzService.publishedOnly(req) && prisoner.recordStatus !== 'published') {

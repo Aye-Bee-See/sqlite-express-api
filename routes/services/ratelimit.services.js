@@ -137,7 +137,13 @@ export function bodyCredentialsOnly(req, res, next) {
 	// or an object would reach bcrypt and come back as a 500 for real accounts only.
 	const given = [req.body?.username, req.body?.password].filter((v) => v !== undefined);
 	if (given.some((v) => typeof v !== 'string')) {
-		return next(new ValidationError('username and password must be text.'));
+		return next(
+			new ValidationError({
+				message: 'username and password must be text.',
+				code: 'wrong_type',
+				params: { expected: 'text' }
+			})
+		);
 	}
 	return next();
 }

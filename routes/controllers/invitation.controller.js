@@ -291,7 +291,12 @@ export default class InvitationController extends RouteController {
 			// Say what is wrong with the account or the group before anything is
 			// written; a taken username can only be found by trying, below.
 			if (groupFields) {
-				await Chapter.build(groupFields).validate();
+				// Said as `group.name`: this request carries the person's name too.
+				await Chapter.build(groupFields)
+					.validate()
+					.catch((err) => {
+						throw ValidationError.nested('group', err);
+					});
 			}
 			await User.build({ username, password, email, name, role: AuthzService.CHAPTER }).validate();
 			if (!(await Invitation.consume(record.id))) {

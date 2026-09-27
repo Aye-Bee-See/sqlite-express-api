@@ -70,7 +70,11 @@ test('ErrorService renders validation errors in the shared shape', () => {
 		() => {}
 	);
 	assert.equal(res.code, 400);
-	assert.deepEqual(res.body, { success: false, errors: ['page must be a positive integer.'] });
+	assert.deepEqual(res.body, {
+		success: false,
+		errors: ['page must be a positive integer.'],
+		problems: [{ field: null, code: 'validation_failed' }]
+	});
 });
 
 test('ErrorService renders status-carrying errors with their message', () => {

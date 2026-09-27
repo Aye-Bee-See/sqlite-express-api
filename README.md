@@ -609,7 +609,7 @@ There are two error shapes.
 
 #### Validation errors
 
-Status `400`, whenever input fails a rule: a missing required field, a bad email, a bad `status` value, a bad `page` value, and so on. Several problems are reported together.
+Status `400`, whenever input fails a rule: a missing required field, a bad email, a bad `status` value, a bad `page` value, and so on. Several problems are reported together. `errors` holds the sentences; `problems` holds the same failures in a form a client can word itself, one entry per sentence and in the same order.
 
 ```json
 {
@@ -617,13 +617,26 @@ Status `400`, whenever input fails a rule: a missing required field, a bad email
 	"errors": [
 		"Username must be between 3 and 16 characters.",
 		"Password must be a minimum of 7 characters."
+	],
+	"problems": [
+		{ "field": "username", "code": "length_out_of_range", "params": { "min": 3, "max": 16 } },
+		{ "field": "password", "code": "length_out_of_range", "params": { "min": 7, "max": 128 } }
 	]
 }
 ```
 
+- **`field`** is the field in the request, or `null` when the refusal is about the request as a whole.
+- **`code`** is one of the codes in [docs/ERRORS.md](docs/ERRORS.md), and never changes meaning. Show the sentence from `errors` for a code your build does not know yet.
+- **`params`** carries limits and names to interpolate. It never carries the value that was sent: a password or a letter's text must not come back in an error body. A limit that does not apply is left out rather than sent as `null`, and `allowed` holds the API's own values (`incarcerated`, `collecting`), not English words.
+- **`problems` is always exactly as long as `errors`**, and in the same order, so `errors[i]` and `problems[i]` are the same problem. **Every `400` carries it**, including a refusal thrown as a general error (which keeps its `condition` as well).
+- **A field inside an object is named with its path**: accepting a `group` invitation carries the person's `name` and the group's, so the group's comes back as `group.name`.
+- **`validation_failed`** means there is no finer code for that refusal yet. Codes are added over time and never removed, so it appears less as the API grows. Anything a schema rule refuses (a length, a URL, a missing field, a value outside a fixed set) already has a real code and a field; the sentences thrown by hand are being converted flow by flow.
+
+The API answers in English and always will: clients hold the translations, keyed on `code`. Nothing is translated on the server, so a wording fix in Spanish or Russian never waits for a deploy here.
+
 #### General errors
 
-Everything else. `info` is the fixed message for that endpoint; `error`, when present, is the specific reason. `condition`, when present, is the machine-readable half of the refusal: a short code such as `expired`, `used`, or `only_admin` that clients can word in the reader's language. The pair `name` + `condition` is stable across releases; the sentences in `info` and `error` are not, so never match on them. A general error without a `condition` has no finer code than its `name` and `status`.
+Everything else. `info` is the fixed message for that endpoint; `error`, when present, is the specific reason. `condition`, when present, is the machine-readable half of the refusal: a short code such as `expired`, `used`, or `only_admin` that clients can word in the reader's language. The pair `name` + `condition` is stable across releases; the sentences in `info` and `error` are not, so never match on them. A general error without a `condition` has no finer code than its `name` and `status`. A general error with status `400` also carries `problems`, so every `400` has one shape.
 
 ```json
 {
@@ -2722,6 +2735,7 @@ None of these break anything, but clients should know about them.
 
 ## Further reading
 
+- [Error codes](docs/ERRORS.md): every `code` in `problems`, what it means, and the `params` it carries.
 - [Changelog](CHANGELOG.md): what changed and when, newest first, in plain words.
 - [Developer guide](docs/DEVELOPER.md): architecture, request lifecycle, data model, authorization internals, tooling, and how to add a resource.
 - [Switching to end-to-end encryption](docs/E2E-MIGRATION.md): the operator checklist for moving from `server` to `e2e` mode.

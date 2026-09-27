@@ -64,7 +64,13 @@ test('path-style ids and unknown routes are JSON 404s', async () => {
 test('validation failures return the errors array', async () => {
 	const res = await post('/prison/prison', { address: {} }, t);
 	assert.equal(res.status, 400);
-	assert.deepEqual(res.body, { success: false, errors: ['Prison.prisonName cannot be null'] });
+	assert.deepEqual(res.body, {
+		success: false,
+		errors: ['Prison.prisonName cannot be null'],
+		// The same failure, for a client that words it itself: Sequelize's own items
+		// say which field and which rule, so schema rules need no list of their own.
+		problems: [{ field: 'prisonName', code: 'required' }]
+	});
 });
 
 test('pagination is validated and applied', async () => {

@@ -249,7 +249,11 @@ test('every ValidationError in the code says which field and why', async () => {
 			const nested =
 				file.endsWith('services/ValidationError.js') &&
 				text.startsWith('messages.map', call.index + call[0].length - 1);
-			if (nested) {
+			// A list mapped straight to `{ message, field, code }` objects.
+			const mapped = /^\w+\.map\(\(?\w*\)?\s*=>\s*\(\{/.test(
+				text.slice(call.index + call[0].length - 1)
+			);
+			if (nested || mapped) {
 				continue;
 			}
 			if (list) {

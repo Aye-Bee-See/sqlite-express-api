@@ -5,7 +5,7 @@ import { default as keysCtrlr } from '#rtControllers/keys.controller.js';
 import { limiters } from '#rtServices/ratelimit.services.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { default as bodyParser } from 'body-parser';
-import { singleIds } from '#rtServices/request-shape.services.js';
+import { singleIds, textFields } from '#rtServices/request-shape.services.js';
 import { rotationMaxBytes } from '#constants';
 
 /** Where a rotation is posted, as the app sees it: app.js leaves its body for this router to parse. */
@@ -35,10 +35,16 @@ class KeysRoutes {
 		// Recovery is public: the recovery code is the credential.
 		this.Router.get(
 			keysEnd.get.recoverChallenge,
+			textFields('query', 'username'),
 			limiters.recoverStart,
 			this.#Controller.recoverChallenge
 		);
-		this.Router.post(keysEnd.post.create, limiters.recoverFinish, this.#Controller.create);
+		this.Router.post(
+			keysEnd.post.create,
+			textFields('body', 'username'),
+			limiters.recoverFinish,
+			this.#Controller.create
+		);
 
 		// Group keys: for admins and the accounts of groups that are active members of the
 		// network. A pending or suspended group sets up and changes nothing.

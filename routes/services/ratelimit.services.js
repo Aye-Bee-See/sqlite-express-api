@@ -139,14 +139,19 @@ export function bodyCredentialsOnly(req, res, next) {
 	}
 	// A missing field is passport's to refuse (400 AuthenticationError); a number
 	// or an object would reach bcrypt and come back as a 500 for real accounts only.
-	const given = [req.body?.username, req.body?.password].filter((v) => v !== undefined);
-	if (given.some((v) => typeof v !== 'string')) {
+	const wrong = ['username', 'password'].filter(
+		(field) => req.body?.[field] !== undefined && typeof req.body[field] !== 'string'
+	);
+	if (wrong.length > 0) {
 		return next(
-			new ValidationError({
-				message: 'username and password must be text.',
-				code: 'wrong_type',
-				params: { expected: 'text' }
-			})
+			new ValidationError(
+				wrong.map((field) => ({
+					message: field + ' must be text.',
+					field,
+					code: 'wrong_type',
+					params: { expected: 'text' }
+				}))
+			)
 		);
 	}
 	return next();

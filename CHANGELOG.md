@@ -10,6 +10,19 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### Recovery cannot be guessed at by sending the username as a list (#158)
+
+Account recovery is limited per username, but only a username sent as text was
+counted. Sent as a list (`?username=alice&username=alice`, or `["alice"]` in
+the body), it was not counted at all, and the lookup still found the account,
+so recovery codes could be guessed without limit. Sent as an object, it
+answered `500`. `GET /auth/recover`, `POST /auth/recover` and
+`GET /auth/login-params` now refuse a username that is not text: `400`,
+`wrong_type` on `username`. Sign-in already refused one; its refusal now names
+the field.
+
+**For clients:** nothing to change; a client sends a username as text.
+
 ### Error codes: the rule holds, and no sentence goes without a field (#153)
 
 Four gaps in the error-code work (#133–#142).

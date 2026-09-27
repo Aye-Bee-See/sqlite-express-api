@@ -49,3 +49,34 @@ export function singleIds(req, res, next) {
 	}
 	return errors.length > 0 ? next(new ValidationError(errors)) : next();
 }
+
+/**
+ * Middleware: these fields, where given, are text. A per-username limit counts
+ * a username that is text; one sent as a list (`?username=a&username=a`, or
+ * `["a"]`) was not counted, and the lookup still found the account with
+ * `IN ('a')`, so recovery could be guessed without limit. An object reached the
+ * database as an operator and answered 500. Put this before the limiter.
+ * @param {'query'|'body'} source
+ * @param {...string} fields
+ */
+export function textFields(source, ...fields) {
+	return function requireText(req, res, next) {
+		const values = req[source] || {};
+		const wrong = fields.filter(
+			(field) => Object.hasOwn(values, field) && typeof values[field] !== 'string'
+		);
+		if (wrong.length === 0) {
+			return next();
+		}
+		return next(
+			new ValidationError(
+				wrong.map((field) => ({
+					message: field + ' must be text.',
+					field,
+					code: 'wrong_type',
+					params: { expected: 'text' }
+				}))
+			)
+		);
+	};
+}

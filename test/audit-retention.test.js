@@ -8,6 +8,7 @@ const { purgeAuditLogs, isSecurityAction, auditWindows } = await import(
 	'../database/audit-retention.js'
 );
 const AuditLog = (await import('../database/models/audit-log.model.js')).default;
+const { RESOURCES } = await import('../database/models/submission.model.js');
 const { readdir } = await import('node:fs/promises');
 const { readFile } = await import('node:fs/promises');
 
@@ -110,76 +111,92 @@ test('every audit action the code writes has been sorted into a window on purpos
 	for (const file of sources) {
 		const text = await readFile(file, 'utf8');
 		// A dotted verb, which is what an audit action is; `action: 'rotated'` in a
-		// notification is something else and stays out of this.
+		// notification is something else and stays out of this. Hyphens and capitals
+		// count (`chapter.member-key`, `user.penName`): a pattern without them once hid
+		// a key hand-over in the short window. `\s*` because Prettier moves a long
+		// call's arguments onto lines of their own.
 		for (const match of text.matchAll(
-			/action: '([a-z]+\.[a-z.]+)'|audit\([^,]+, '([a-z]+\.[a-z.]+)'/g
+			/action: '([a-zA-Z-]+\.[a-zA-Z.-]+)'|audit\(\s*[^,]+,\s*'([a-zA-Z-]+\.[a-zA-Z.-]+)'/g
 		)) {
 			actions.add(match[1] ?? match[2]);
 		}
 	}
-	assert.ok(actions.size > 20, 'found the actions in the source: ' + actions.size);
-	// Named here so that adding an action means deciding which window it belongs in.
-	const known = new Set([
-		'chapter.create',
-		'chapter.member-key',
-		'chapter.member-key.remove',
-		'invite-code.cancel',
-		'invite-code.issue',
-		'invite-code.join',
-		'mail-rule.create',
-		'mail-rule.delete',
-		'mail-rule.update',
-		'user.penName',
-		'chapter.delete',
-		'chapter.keys',
-		'chapter.keys.rotate',
-		'chapter.owner',
-		'chapter.update',
-		'invitation.accept',
-		'invitation.create',
-		'invitation.renew',
-		'invitation.revoke',
-		'letter.envelope',
-		'letter.rerouted',
-		'letter.status',
-		'letter.status.batch',
-		'mail-rule.create',
-		'mail-rule.delete',
-		'mail-rule.update',
-		'prison.create',
-		'prison.delete',
-		'prison.relay.add',
-		'prison.relay.remove',
-		'prison.update',
-		'prisoner.create',
-		'prisoner.delete',
-		'prisoner.photo',
-		'prisoner.photo.remove',
-		'prisoner.support.add',
-		'prisoner.support.remove',
-		'prisoner.update',
-		'retention.run',
-		'submission.approve',
-		'submission.create',
-		'submission.reject',
-		'submission.update',
-		'submission.withdraw',
-		'user.delete',
-		'user.keys',
-		'user.logout',
-		'user.penName',
-		'user.recover',
-		'user.revoke',
-		'user.update',
-		'writer.claim',
-		'writer.create'
-	]);
-	const unknown = [...actions].filter((action) => !known.has(action));
+	// The one action built at run time: an approved submission is recorded as
+	// `<resource>.create` or `<resource>.update` (ModerationController.approve).
+	for (const resource of Object.keys(RESOURCES)) {
+		actions.add(resource + '.create');
+		actions.add(resource + '.update');
+	}
+	assert.ok(actions.size > 40, 'found the actions in the source: ' + actions.size);
+
+	// Named here with the window each belongs in, so that adding an action means
+	// deciding where it goes, and so that moving one is a change someone sees.
+	const S = 'security';
+	const R = 'routine';
+	const decided = {
+		'chapter.create': R,
+		'chapter.delete': S,
+		'chapter.keys': S,
+		'chapter.keys.rotate': S,
+		'chapter.member-key': S,
+		'chapter.member-key.remove': S,
+		'chapter.owner': S,
+		'chapter.update': R,
+		'invitation.accept': S,
+		'invitation.create': S,
+		'invitation.renew': S,
+		'invitation.revoke': S,
+		'invite-code.cancel': R,
+		'invite-code.issue': R,
+		'invite-code.join': R,
+		'letter.envelope': R,
+		'letter.rerouted': R,
+		'letter.status': R,
+		'letter.status.batch': R,
+		'mail-rule.create': R,
+		'mail-rule.delete': S,
+		'mail-rule.update': R,
+		'prison.create': R,
+		'prison.delete': S,
+		'prison.relay.add': R,
+		'prison.relay.remove': R,
+		'prison.update': R,
+		'prisoner.create': R,
+		'prisoner.delete': S,
+		'prisoner.photo': R,
+		'prisoner.photo.remove': R,
+		'prisoner.support.add': R,
+		'prisoner.support.remove': R,
+		'prisoner.update': R,
+		'retention.run': S,
+		'submission.approve': S,
+		'submission.create': R,
+		'submission.reject': S,
+		'submission.update': R,
+		'submission.withdraw': R,
+		'user.delete': S,
+		'user.keys': S,
+		'user.logout': S,
+		'user.penName': S,
+		'user.recover': S,
+		'user.revoke': S,
+		'user.update': S,
+		'writer.claim': S,
+		'writer.create': S
+	};
+	const unknown = [...actions].filter((action) => !Object.hasOwn(decided, action));
 	assert.deepEqual(
 		unknown,
 		[],
 		'new audit action(s): decide in database/audit-retention.js whether they are security-relevant, then add them here'
 	);
+	// And the other way: a name listed here that the pattern cannot find means the
+	// pattern has gone blind to it, or the action is gone and should leave the list.
+	const unseen = Object.keys(decided).filter((action) => !actions.has(action));
+	assert.deepEqual(unseen, [], 'listed but not found in the source');
+	for (const [action, window] of Object.entries(decided)) {
+		assert.equal(isSecurityAction(action) ? S : R, window, action);
+	}
 });
 
 test('0 keeps a kind for ever, and the retention run reports what it removed', async () => {

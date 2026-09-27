@@ -10,6 +10,19 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27
 
+### Every group admin may add a photo (#166)
+
+Photo upload (`POST /prisoner/photo`, `DELETE /prisoner/photo`) was a
+superadmin or the group-owner admin. It is now a superadmin or **any group
+admin of an active group** (decided 27 September). A member of a group that is
+not active is refused and told why; writers are refused as before.
+
+**For clients:** show photo upload to every group admin, and ask before sending.
+A group admin confirms the person has agreed to the photo going up. A superadmin
+confirms it comes from a public support page the person's supporters published,
+and puts that source in `credit`. The API does not check the confirmation; the
+clients are where it happens.
+
 ### An update cannot switch a server-mode deployment to end-to-end unasked (#162)
 
 `ENCRYPTION_MODE` has defaulted to `e2e` since #126. A deployment that never

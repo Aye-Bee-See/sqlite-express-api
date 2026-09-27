@@ -10,7 +10,7 @@ import User from '#models/user.model.js';
 import Prison from '#models/prison.model.js';
 import { publishedWhere } from '#db/record-status.js';
 import modelsService from '#models/models.service.js';
-import { inTransaction, createSerialQueue } from '#services/serial.js';
+import { inTransaction } from '#services/serial.js';
 import { OPEN_STATUSES } from '#db/letter-status.js';
 
 /** Correlated subquery: when the newest message in the chat was created. */
@@ -32,8 +32,6 @@ function listOptions() {
 		]
 	};
 }
-
-const oneChatAtATime = createSerialQueue();
 
 /**
  * What a thread says about its writer. Everyone who can read the thread sees
@@ -415,28 +413,35 @@ export default class Chat extends Model {
 	 * The thread of a writer and a prisoner, made if there is none.
 	 * @returns {Promise<[Chat, boolean]>} the chat, and whether it was made now
 	 *
-	 * One at a time in this process, and without a database transaction.
-	 * Sequelize's findOrCreate opens one of its own, and this runs in a hook on
-	 * every letter: forty letters saved together were forty transactions
-	 * competing for SQLite's one write lock, and on an in-memory database (one
-	 * connection) a second BEGIN simply fails. The queue is what keeps two
-	 * letters sent together from making two threads.
+	 * Takes no lock of its own. A letter calls this holding SQLite's write lock
+	 * (its transaction is IMMEDIATE), so nothing else can write between its look
+	 * and its insert. A thread asked for on its own has no transaction, so two
+	 * requests for a new pair can both look, find nothing and both insert: the
+	 * unique index on the pair refuses the second, which then reads the first.
+	 *
+	 * This once took an in-process queue instead, and that was a deadlock: a
+	 * letter held the write lock and waited for the queue, while a thread asked
+	 * for on its own held the queue and waited for the write lock.
 	 */
 	static async findOrCreateChat(user, prisoner, { transaction = null } = {}) {
-		return await oneChatAtATime(async () => {
-			const existing = await this.findOne({
-				where: { user: user, prisoner: prisoner },
-				order: [['id', 'ASC']],
-				transaction
-			});
-			if (existing) {
-				return [existing, false];
-			}
+		const pair = { user: user, prisoner: prisoner };
+		const existing = await this.findOne({ where: pair, order: [['id', 'ASC']], transaction });
+		if (existing) {
+			return [existing, false];
+		}
+		try {
 			// Inside the caller's transaction when there is one: a letter and the
 			// thread it is filed under are one write, and on SQLite a query outside
 			// the open write transaction would wait for a lock it is holding.
-			return [await this.create({ user: user, prisoner: prisoner }, { transaction }), true];
-		});
+			return [await this.create(pair, { transaction }), true];
+		} catch (err) {
+			// In a transaction nobody else could have written, so a clash there is
+			// something else, and the transaction is the caller's to roll back.
+			if (err?.name !== 'SequelizeUniqueConstraintError' || transaction) {
+				throw err;
+			}
+			return [await this.findOne({ where: pair, order: [['id', 'ASC']] }), false];
+		}
 	}
 
 	// Update

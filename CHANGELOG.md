@@ -8,6 +8,25 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-27 (evening)
+
+### Starting a thread no longer stalls letters (#145)
+
+A fix for a deadlock that only a database on disk could show. Sending a letter
+holds the database's write lock while it files the letter under a thread; asking
+for a new thread on its own (`POST /chat/chat` for a pair with no thread yet)
+took an in-process queue and then waited for that lock, while the letter waited
+for the queue. Each such thread request answered **500 after about ten seconds**,
+and letters sent at the same moment waited behind it. The in-memory test
+database has one connection, so the test suite could never see it.
+
+The queue is gone. The unique index on the pair (added in #131) is
+what now stops two requests from making two threads: the second insert is
+refused, and that request reads the thread the first one made.
+
+**For clients:** nothing to change. A `POST /chat/chat` that used to fail with a
+500 under load now answers 201 with the thread, as documented.
+
 ## 2026-09-28 (late)
 
 ### Every refusal now says which field and why (#140)

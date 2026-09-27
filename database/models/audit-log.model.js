@@ -45,9 +45,9 @@ export default class AuditLog extends Model {
 	 * @param {number|string} targetId
 	 * @param {{limit?: number, offset?: number}} [options]
 	 */
-	static async forRecord(resource, targetId, { limit, offset = 0 } = {}) {
+	static async forRecord(resource, targetId, { limit, offset = 0, actions = null } = {}) {
 		return await this.findAndCountAll({
-			where: { resource, targetId: Number(targetId) },
+			where: { resource, targetId: Number(targetId), ...(actions ? { action: actions } : {}) },
 			limit,
 			offset,
 			order: [['id', 'DESC']],

@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
 import Prisoner, { PRISONER_FIELDS } from '#models/prisoner.model.js';
+import { photoVersion } from '#schemas/prisoner.schema.js';
 import RouteController from '#rtControllers/route.controller.js';
 import { publishedWhere } from '#db/record-status.js';
 import { watchPrisoner, afterPrisonerChange } from '#rtServices/prisoner-change.services.js';
@@ -54,6 +55,7 @@ export default class PrisonerController extends RouteController {
 		this.photo = this.photo.bind(this);
 		this.createPhoto = this.createPhoto.bind(this);
 		this.removePhoto = this.removePhoto.bind(this);
+		this.photoEditor = this.photoEditor.bind(this);
 
 		this.#handleErr = super.handleErr;
 		this.#handleSuccess = super.handleSuccess;
@@ -249,6 +251,16 @@ export default class PrisonerController extends RouteController {
 		);
 	}
 
+	/** Middleware: refuse an uploader before their file is read. */
+	async photoEditor(req, res, next) {
+		try {
+			await this.#requirePhotoEditor(req);
+			next();
+		} catch (err) {
+			next(err);
+		}
+	}
+
 	/** The record, refusing one the caller may not even see. */
 	async #photoRecord(req, id) {
 		if (id === undefined || id === null || id === '') {
@@ -267,33 +279,41 @@ export default class PrisonerController extends RouteController {
 	}
 
 	/**
-	 * GET /prisoner/photo?prisoner=: the picture itself, for an <img> tag.
-	 * Public, like the record it belongs to. Cached for a day, and by its own
-	 * name, so a replaced photo is fetched again rather than remembered.
+	 * GET /prisoner/photo?prisoner=&v=: the picture itself, for an <img> tag.
+	 * Public, like the record it belongs to.
+	 *
+	 * Checked with the server every time it is shown (`no-cache`, answered with
+	 * a bodiless 304 while it is unchanged), so a photo taken down or replaced
+	 * is gone at once rather than a day later. A photo on a record only staff
+	 * may see is marked `private`, so no shared cache keeps a copy to hand out.
 	 */
 	async photo(req, res) {
 		try {
 			const prisoner = await this.#photoRecord(req, req.query.prisoner);
-			if (!prisoner.photoFile) {
+			const file = prisoner.getDataValue('photoFile');
+			if (!file) {
 				throw new NotFoundError('Prisoner ' + prisoner.id + ' has no photo here');
 			}
 			let bytes;
 			try {
-				bytes = await readFile(storedPath(prisoner.photoFile));
+				bytes = await readFile(storedPath(file));
 			} catch {
 				throw new NotFoundError('The photo file for prisoner ' + prisoner.id + ' is missing');
 			}
 			const mime =
-				Object.entries(ALLOWED_TYPES).find(([, t]) =>
-					prisoner.photoFile.endsWith('.' + t.ext)
-				)?.[0] ?? 'application/octet-stream';
-			res.setHeader('Content-Type', mime);
-			res.setHeader('Content-Length', bytes.length);
-			res.setHeader('Cache-Control', 'public, max-age=86400');
-			res.setHeader('ETag', '"' + prisoner.photoFile + '"');
-			if (req.headers['if-none-match'] === '"' + prisoner.photoFile + '"') {
+				Object.entries(ALLOWED_TYPES).find(([, t]) => file.endsWith('.' + t.ext))?.[0] ??
+				'application/octet-stream';
+			const etag = '"' + photoVersion(prisoner.photoAddedAt) + '"';
+			res.setHeader(
+				'Cache-Control',
+				prisoner.recordStatus === 'published' ? 'public, no-cache' : 'private, no-cache'
+			);
+			res.setHeader('ETag', etag);
+			if (req.headers['if-none-match'] === etag) {
 				return res.status(304).end();
 			}
+			res.setHeader('Content-Type', mime);
+			res.setHeader('Content-Length', bytes.length);
 			res.send(bytes);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -320,14 +340,25 @@ export default class PrisonerController extends RouteController {
 			}
 			const mime = sniffType(req.file.buffer);
 			if (!mime || !PrisonerController.#PHOTO_TYPES.includes(mime)) {
-				throw new ValidationError(
-					'A photo must be a JPEG, PNG, or WebP image; this file is not one.'
-				);
+				throw new ValidationError({
+					message: 'A photo must be a JPEG, PNG, or WebP image; this file is not one.',
+					field: 'photo',
+					code: 'not_allowed_value',
+					params: { allowed: PrisonerController.#PHOTO_TYPES }
+				});
 			}
 			if (req.file.size > photoMaxBytes) {
-				throw new ValidationError(
-					'A photo can be at most ' + photoMaxBytes + ' bytes; this one is ' + req.file.size + '.'
-				);
+				throw new ValidationError({
+					message:
+						'A photo can be at most ' +
+						photoMaxBytes +
+						' bytes; this one is ' +
+						req.file.size +
+						'.',
+					field: 'photo',
+					code: 'out_of_range',
+					params: { max: photoMaxBytes }
+				});
 			}
 			const credit = req.body.credit === undefined ? null : String(req.body.credit).trim() || null;
 			if (credit && credit.length > 200) {
@@ -340,7 +371,7 @@ export default class PrisonerController extends RouteController {
 			}
 			const clean = stripMetadata(req.file.buffer, mime);
 			const stored = await storeFile(clean, mime);
-			const previous = prisoner.photoFile;
+			const previous = prisoner.getDataValue('photoFile');
 			await prisoner.update({
 				photoFile: stored,
 				photoCredit: credit,
@@ -370,7 +401,7 @@ export default class PrisonerController extends RouteController {
 		try {
 			await this.#requirePhotoEditor(req);
 			const prisoner = await this.#photoRecord(req, req.body.prisoner);
-			const previous = prisoner.photoFile;
+			const previous = prisoner.getDataValue('photoFile');
 			if (!previous) {
 				throw new NotFoundError('Prisoner ' + prisoner.id + ' has no photo here');
 			}

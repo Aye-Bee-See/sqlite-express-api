@@ -17,6 +17,8 @@
  * cropping step does anyway.
  */
 
+import ValidationError from '#services/ValidationError.js';
+
 /** JPEG markers that carry description rather than picture. */
 const JPEG_DROP = new Set([
 	0xe1, // APP1: EXIF, XMP
@@ -59,34 +61,90 @@ const PNG_KEEP = new Set([
 ]);
 
 /**
- * Remove the descriptive segments of a JPEG.
+ * An image this file cannot walk from end to end. Stored as it is, anything it
+ * failed to recognise would go with it, so it is refused instead.
+ */
+export class UnreadableImageError extends ValidationError {
+	constructor(kind) {
+		super({
+			message:
+				'This ' +
+				kind +
+				' could not be read far enough to remove what it says about where it was taken. Save it again (a screenshot or an export will do) and upload that.',
+			field: 'photo',
+			code: 'wrong_type',
+			params: { expected: 'a JPEG, PNG or WebP that can be read to the end' }
+		});
+	}
+}
+
+/**
+ * Remove the descriptive segments of a JPEG, and everything after its end.
+ *
+ * A phone's JPEG often carries more after the end-of-image marker: a second,
+ * smaller picture with its own EXIF (MPF), or a whole video (a motion photo).
+ * No viewer draws any of it, and all of it can say where the picture was
+ * taken, so nothing after the first end-of-image survives.
  * @param {Buffer} buffer
  * @returns {Buffer}
+ * @throws {UnreadableImageError} a segment that runs past the end of the file
  */
 function stripJpeg(buffer) {
+	if (buffer.length < 4) {
+		throw new UnreadableImageError('JPEG');
+	}
 	const parts = [buffer.subarray(0, 2)]; // SOI
 	let at = 2;
-	while (at + 4 <= buffer.length) {
+	while (at + 2 <= buffer.length) {
 		if (buffer[at] !== 0xff) {
-			break; // not where a marker should be: keep the rest as it is
+			// Stray bytes between segments, which decoders skip: dropped, not kept.
+			const next = buffer.indexOf(0xff, at);
+			if (next === -1) {
+				break;
+			}
+			at = next;
+			continue;
 		}
 		const marker = buffer[at + 1];
-		if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9)) {
+		if (marker === 0xff) {
+			at += 1; // fill byte before a marker
+			continue;
+		}
+		if (marker === 0xd9) {
 			parts.push(buffer.subarray(at, at + 2));
+			return Buffer.concat(parts); // end of image: nothing after it is kept
+		}
+		if ((marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
+			parts.push(buffer.subarray(at, at + 2)); // markers with no length
 			at += 2;
 			continue;
 		}
-		if (marker === 0xda) {
-			// Start of scan: the compressed picture runs to the end.
-			parts.push(buffer.subarray(at));
-			at = buffer.length;
-			break;
+		if (marker === 0xd8 || at + 4 > buffer.length) {
+			throw new UnreadableImageError('JPEG');
 		}
 		const length = buffer.readUInt16BE(at + 2);
 		if (length < 2 || at + 2 + length > buffer.length) {
-			break; // malformed: leave the remainder alone rather than cut a file in half
+			throw new UnreadableImageError('JPEG');
 		}
 		const segment = buffer.subarray(at, at + 2 + length);
+		if (marker === 0xda) {
+			// Start of scan: its header, then compressed picture up to the next real
+			// marker. 0xFF 0x00 is a stuffed byte and 0xFF 0xD0-D7 a restart, both
+			// part of the picture. A progressive JPEG has several scans.
+			let end = at + 2 + length;
+			while (end < buffer.length) {
+				if (buffer[end] === 0xff && end + 1 < buffer.length) {
+					const next = buffer[end + 1];
+					if (next !== 0x00 && !(next >= 0xd0 && next <= 0xd7)) {
+						break;
+					}
+				}
+				end += 1;
+			}
+			parts.push(buffer.subarray(at, end));
+			at = end;
+			continue;
+		}
 		// APP2 holding an ICC profile is colour, not description, and is kept;
 		// APP14 'Adobe' says how the colours are encoded and must stay, or a
 		// CMYK-ish JPEG is drawn with inverted colours.
@@ -97,9 +155,8 @@ function stripJpeg(buffer) {
 		}
 		at += 2 + length;
 	}
-	if (at < buffer.length) {
-		parts.push(buffer.subarray(at));
-	}
+	// A file cut short after its picture: what was read is kept, and nothing was
+	// left unread that could carry a description.
 	return Buffer.concat(parts);
 }
 
@@ -137,18 +194,21 @@ function stripPng(buffer) {
  */
 function stripWebp(buffer) {
 	if (buffer.length < 12) {
-		return buffer;
+		throw new UnreadableImageError('WebP');
 	}
 	const parts = [];
+	// Only what the RIFF header says is the file: anything appended after it is
+	// not part of the picture and is not kept.
+	const fileEnd = Math.min(buffer.length, 8 + buffer.readUInt32LE(4));
 	let at = 12; // 'RIFF' + size + 'WEBP'
-	while (at + 8 <= buffer.length) {
+	while (at + 8 <= fileEnd) {
 		const type = buffer.toString('ascii', at, at + 4);
 		const size = buffer.readUInt32LE(at + 4);
-		const end = at + 8 + size + (size % 2); // chunks are padded to an even length
-		if (size > buffer.length || end > buffer.length) {
-			parts.push(buffer.subarray(at));
-			at = buffer.length;
-			break;
+		// Chunks are padded to an even length; the last one's pad may be missing.
+		const end = Math.min(at + 8 + size + (size % 2), fileEnd);
+		if (at + 8 + size > fileEnd) {
+			// A chunk that claims more than is there could be hiding anything.
+			throw new UnreadableImageError('WebP');
 		}
 		if (type !== 'EXIF' && type !== 'XMP ') {
 			const chunk = Buffer.from(buffer.subarray(at, end));

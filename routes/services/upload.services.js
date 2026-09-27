@@ -3,37 +3,42 @@ import ValidationError from '#services/ValidationError.js';
 import { uploadMaxBytes } from '#constants';
 import { ALLOWED_MIME_TYPES } from '#services/files.js';
 
-const parser = multer({
-	storage: multer.memoryStorage(),
-	limits: { fileSize: uploadMaxBytes, files: 1 },
-	fileFilter(req, file, done) {
-		if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-			return done(
-				new ValidationError({
-					message:
-						'File type ' +
-						file.mimetype +
-						' is not accepted; use ' +
-						ALLOWED_MIME_TYPES.join(', ') +
-						'.',
-					field: file.fieldname || null,
-					code: 'not_allowed_value',
-					params: { allowed: ALLOWED_MIME_TYPES }
-				})
-			);
-		}
-		done(null, true);
+/** A parser that stops reading at `maxBytes`, so a file too big is never held whole. */
+const parserFor = (maxBytes) =>
+	multer({
+		storage: multer.memoryStorage(),
+		limits: { fileSize: maxBytes, files: 1 },
+		fileFilter
+	});
+
+function fileFilter(req, file, done) {
+	if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+		return done(
+			new ValidationError({
+				message:
+					'File type ' +
+					file.mimetype +
+					' is not accepted; use ' +
+					ALLOWED_MIME_TYPES.join(', ') +
+					'.',
+				field: file.fieldname || null,
+				code: 'not_allowed_value',
+				params: { allowed: ALLOWED_MIME_TYPES }
+			})
+		);
 	}
-});
+	done(null, true);
+}
 
 /**
  * Middleware: parse one multipart file field into req.file (in memory) and
  * the other fields into req.body. Multer's own errors are rendered as
  * validation errors so clients get the usual { errors: [...] } shape.
  * @param {string} field form field name
+ * @param {{maxBytes?: number}} [options] the most this field may carry (UPLOAD_MAX_BYTES by default)
  */
-export function uploadSingle(field) {
-	const handler = parser.single(field);
+export function uploadSingle(field, { maxBytes = uploadMaxBytes } = {}) {
+	const handler = parserFor(maxBytes).single(field);
 	return (req, res, next) => {
 		handler(req, res, (err) => {
 			if (!err) {
@@ -43,10 +48,10 @@ export function uploadSingle(field) {
 				if (err.code === 'LIMIT_FILE_SIZE') {
 					return next(
 						new ValidationError({
-							message: 'File is larger than ' + uploadMaxBytes + ' bytes.',
+							message: 'File is larger than ' + maxBytes + ' bytes.',
 							field,
 							code: 'out_of_range',
-							params: { max: uploadMaxBytes }
+							params: { max: maxBytes }
 						})
 					);
 				}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stripMetadata } from '../services/image.js';
+import { stripMetadata, UnreadableImageError } from '../services/image.js';
 
 /** A JPEG segment: marker, two-byte length, payload. */
 function segment(marker, payload = Buffer.alloc(0)) {
@@ -114,6 +114,98 @@ test('a WebP loses EXIF and XMP, and its header stops claiming them', () => {
 test('a file that is not an image of a known kind is left alone', () => {
 	const pdf = Buffer.from('%PDF-1.4 not an image');
 	assert.deepEqual(stripMetadata(pdf, 'application/pdf'), pdf);
-	const truncated = Buffer.from([0xff, 0xd8, 0xff]);
-	assert.deepEqual(stripMetadata(truncated, 'image/jpeg'), truncated, 'a short file is not cut up');
+});
+
+test('nothing after the end of a JPEG is kept: not a second picture, not a video', () => {
+	// What phones append: a smaller picture with its own EXIF (MPF), or a motion
+	// photo's video. Neither is drawn, and both can say where the photo was taken.
+	const second = Buffer.concat([
+		SOI,
+		segment(0xe1, Buffer.from('Exif\0\0GPS 48.8566,2.3522')),
+		scan,
+		EOI
+	]);
+	const jpeg = Buffer.concat([
+		SOI,
+		segment(0xdb, Buffer.alloc(8, 7)),
+		scan,
+		EOI,
+		second,
+		Buffer.from('....ftypmp42 MotionPhoto_Data')
+	]);
+	const out = stripMetadata(jpeg, 'image/jpeg');
+	const text = out.toString('latin1');
+	assert.ok(!text.includes('GPS 48.8566'), "the second picture's EXIF is gone");
+	assert.ok(!text.includes('MotionPhoto'), 'the video is gone');
+	assert.deepEqual(out, Buffer.concat([SOI, segment(0xdb, Buffer.alloc(8, 7)), scan, EOI]));
+});
+
+test('a progressive JPEG keeps every scan, with its restarts and stuffed bytes', () => {
+	// 0xFF 0x00 and 0xFF 0xD0-D7 inside a scan are picture, not the end of it; a
+	// progressive JPEG has several scans with tables between them.
+	const scanWith = (bytes) =>
+		Buffer.concat([Buffer.from([0xff, 0xda, 0x00, 0x02]), Buffer.from(bytes)]);
+	const jpeg = Buffer.concat([
+		SOI,
+		segment(0xc2, Buffer.alloc(6, 1)), // progressive frame header
+		scanWith([0x11, 0xff, 0x00, 0x22, 0xff, 0xd0, 0x33]),
+		segment(0xc4, Buffer.alloc(5, 2)), // a table between scans
+		segment(0xfe, Buffer.from('between the scans')),
+		scanWith([0x44, 0xff, 0xd7, 0x55]),
+		EOI
+	]);
+	const out = stripMetadata(jpeg, 'image/jpeg');
+	assert.ok(!out.toString('latin1').includes('between the scans'), 'a comment between scans goes');
+	const expected = Buffer.concat([
+		SOI,
+		segment(0xc2, Buffer.alloc(6, 1)),
+		scanWith([0x11, 0xff, 0x00, 0x22, 0xff, 0xd0, 0x33]),
+		segment(0xc4, Buffer.alloc(5, 2)),
+		scanWith([0x44, 0xff, 0xd7, 0x55]),
+		EOI
+	]);
+	assert.deepEqual(out, expected, 'every picture byte, in order');
+});
+
+test('an image that cannot be read to the end is refused, not stored as it is', () => {
+	// A segment claiming more bytes than the file has could be hiding anything.
+	const overlong = Buffer.concat([
+		SOI,
+		Buffer.from([0xff, 0xe1, 0x40, 0x00]),
+		Buffer.from('Exif GPS')
+	]);
+	assert.throws(() => stripMetadata(overlong, 'image/jpeg'), UnreadableImageError);
+	assert.throws(
+		() => stripMetadata(Buffer.from([0xff, 0xd8, 0xff]), 'image/jpeg'),
+		UnreadableImageError
+	);
+
+	const bogus = Buffer.alloc(8);
+	bogus.write('EXIF', 0, 'ascii');
+	bogus.writeUInt32LE(1000, 4);
+	const body = Buffer.concat([riff('VP8 ', Buffer.from('PICTURE')), bogus, Buffer.from('GPS 1,2')]);
+	const size = Buffer.alloc(4);
+	size.writeUInt32LE(body.length + 4, 0);
+	const webp = Buffer.concat([Buffer.from('RIFF'), size, Buffer.from('WEBP'), body]);
+	assert.throws(() => stripMetadata(webp, 'image/webp'), UnreadableImageError);
+	const err = (() => {
+		try {
+			stripMetadata(webp, 'image/webp');
+		} catch (e) {
+			return e;
+		}
+	})();
+	assert.equal(err.name, 'ValidationError');
+});
+
+test('a WebP ends where its header says it does', () => {
+	const body = riff('VP8 ', Buffer.from('PICTURE-BYTES'));
+	const size = Buffer.alloc(4);
+	size.writeUInt32LE(body.length + 4, 0);
+	const webp = Buffer.concat([Buffer.from('RIFF'), size, Buffer.from('WEBP'), body]);
+	const out = stripMetadata(
+		Buffer.concat([webp, riff('EXIF', Buffer.from('GPS 1,2'))]),
+		'image/webp'
+	);
+	assert.deepEqual(out, webp, 'what was appended after the file is gone');
 });

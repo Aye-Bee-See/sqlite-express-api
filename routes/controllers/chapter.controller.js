@@ -8,6 +8,9 @@ import { audit } from '#rtServices/audit.services.js';
 import AuditLog from '#models/audit-log.model.js';
 import { changesBetween } from '#services/record-changes.js';
 
+/** What another group may read of a group's history: edits to its directory record. */
+const DIRECTORY_ACTIONS = ['chapter.create', 'chapter.update', 'chapter.delete'];
+
 const READ_CONFIG = {
 	searchFields: ['name'],
 	sorts: { name: [['name', 'ASC']], ...SORT_BY_CREATED },
@@ -94,15 +97,24 @@ export default class chapterController extends RouteController {
 	 * GET /chapter/history?id=: what has happened to one record, newest first.
 	 * Staff only: it names the people who made each change and can carry
 	 * staff-only field values. Paginated like any list.
+	 *
+	 * A group is a directory record and also an organisation. Another group
+	 * sees its directory edits, as it sees a prison's; who holds the group's
+	 * key, who owns it, and its invite codes are the group's own business, and
+	 * only its members and a superadmin see those.
 	 */
 	async history(req, res) {
 		try {
 			const { id, page, page_size } = req.query;
 			const record = this.requireFound(await Chapter.findByPk(id), 'Chapter ' + id);
 			const limits = this.handleLimits(page, page_size);
+			const own =
+				AuthzService.isAdmin(req) ||
+				String(await AuthzService.activeChapterOf(req)) === String(record.id);
 			const rows = await AuditLog.forRecord('chapter', record.id, {
 				limit: limits.limit,
-				offset: limits.offset
+				offset: limits.offset,
+				actions: own ? null : DIRECTORY_ACTIONS
 			});
 			this.handlePage(
 				res,

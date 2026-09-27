@@ -10,6 +10,7 @@ import {
 	post,
 	put,
 	del,
+	login,
 	User
 } from './helpers.js';
 import PenName from '../database/models/pen-name.model.js';
@@ -286,6 +287,49 @@ test('a pen name changes at most once every 90 days, and takes at most two new n
 	const hurried = await put('/auth/user', { id: who.id, penName: 'Ada Ridge' }, who);
 	assert.equal(hurried.status, 409);
 	assert.match(hurried.body.error, /once every 90 days/);
+});
+
+test('sending the current pen name again is not a change', async () => {
+	const who = await makeUser({ username: 'roundtrip' });
+	assert.equal((await put('/auth/user', { id: who.id, penName: 'Lee Harbour' }, who)).status, 200);
+	// A profile form saves every field it shows, the pen name among them. Inside the
+	// cooldown that must still save the rest, in any spelling that folds to the name.
+	for (const same of ['Lee Harbour', 'lee  HARBOUR']) {
+		const res = await put('/auth/user', { id: who.id, penName: same, bio: 'Hi from ' + same }, who);
+		assert.equal(res.status, 200, JSON.stringify(res.body));
+	}
+	const saved = await User.findByPk(who.id);
+	assert.equal(saved.bio, 'Hi from lee  HARBOUR', 'the rest of the form was saved');
+	assert.equal(saved.penName, 'Lee Harbour', 'in the spelling it was first given');
+	assert.equal(await PenName.count({ where: { userId: who.id } }), 1);
+	assert.equal((await get('/auth/pen-name', who)).body.data.newNamesLeft, 2);
+});
+
+test('a writer who claims their account starts with a full year of new names', async () => {
+	// The group named the writer, then renamed them; the writer chose a third at claim.
+	// None of those is the writer changing their name.
+	const made = await post('/auth/writer', { name: 'Sam', penName: 'Sam Rowan' }, f.chapter);
+	const id = made.body.data.id;
+	assert.equal((await put('/auth/user', { id, penName: 'Sam Alder' }, f.chapter)).status, 200);
+	const { token } = (await post('/auth/writer/token', { writer: id }, f.chapter)).body.data;
+	const claimed = await post('/auth/claim', {
+		token,
+		username: 'samclaims',
+		password: 'a long enough password',
+		penName: 'Sam Willow'
+	});
+	assert.equal(claimed.status, 201, JSON.stringify(claimed.body));
+	const who = { id, token: await login('samclaims', 'a long enough password') };
+	const status = (await get('/auth/pen-name', who)).body.data;
+	assert.equal(status.newNamesLeft, 2, 'the names from before the claim, and at it, are not spent');
+	assert.equal(status.newNamesWindowEnds, null);
+	// The cooldown starts at the claim, as it does at sign-up.
+	assert.ok(new Date(status.changeAllowedAt) > new Date());
+
+	// Past it, the writer's own changes count as anyone's do.
+	await agePenNames(id, 91);
+	assert.equal((await put('/auth/user', { id, penName: 'Sam Hazel' }, who)).status, 200);
+	assert.equal((await get('/auth/pen-name', who)).body.data.newNamesLeft, 1);
 });
 
 test('staff rename past the limits: an admin for anyone, a group for the writers it looks after', async () => {

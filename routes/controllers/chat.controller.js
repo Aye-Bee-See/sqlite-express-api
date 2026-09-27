@@ -1,6 +1,7 @@
 import Chat from '#models/chat.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
+import Prisoner from '#models/prisoner.model.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import ValidationError from '#services/ValidationError.js';
 import LetterKey from '#models/letter-key.model.js';
@@ -207,6 +208,9 @@ export default class ChatController extends RouteController {
 		try {
 			const scope = await threadScope(req);
 			const user = await resolveWriter(req, scope, req.body.user);
+			if (prisoner !== undefined && prisoner !== null && prisoner !== '') {
+				await Prisoner.requireVisible(prisoner, AuthzService.publishedOnly(req));
+			}
 			const chat = await Chat.createChat({ user, prisoner });
 			this.#handleSuccess(res, chat);
 		} catch (err) {

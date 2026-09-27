@@ -326,6 +326,23 @@ export default class Prisoner extends Model {
 		return await updateById(this, prisoner.id, pick(prisoner, PRISONER_FIELDS));
 	}
 
+	/**
+	 * The prisoner a thread or letter is for, refused with the same 404 whether it
+	 * does not exist or is one the caller may not see. Answering a pending record
+	 * differently from a missing one (it used to make the thread) told any writer
+	 * which hidden ids exist.
+	 * @param {number|string} id
+	 * @param {boolean} publishedOnly the caller sees published records only
+	 * @throws {NotFoundError}
+	 */
+	static async requireVisible(id, publishedOnly) {
+		const row = await this.findByPk(id, { attributes: ['id', 'recordStatus'] });
+		if (!row || (publishedOnly && row.recordStatus !== PUBLISHED)) {
+			throw new NotFoundError('Prisoner ' + id + ' not found');
+		}
+		return row;
+	}
+
 	// Delete
 
 	/**

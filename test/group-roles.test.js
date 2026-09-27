@@ -171,6 +171,29 @@ test('ownership passes to one other group admin, by the owner or by a superadmin
 		403
 	);
 
+	// Not to a group admin who does not hold the chapter key: they could neither hand
+	// it on, nor take it back, nor rotate it, and the chapter would be stranded.
+	const keyless = await put('/auth/chapter-owner', { chapter: f.group.id, user: second.id }, owner);
+	assert.equal(keyless.status, 409, JSON.stringify(keyless.body));
+	assert.equal(keyless.body.code, 'owner.no_key');
+	assert.match(keyless.body.error, /does not hold the chapter key/);
+	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, owner.id, 'nothing moved');
+	const byAdmin = await put(
+		'/auth/chapter-owner',
+		{ chapter: f.group.id, user: second.id },
+		f.admin
+	);
+	assert.equal(byAdmin.status, 409, 'a superadmin cannot either: ' + JSON.stringify(byAdmin.body));
+
+	// Handed the key first, they can be made owner.
+	for (const who of [second, third]) {
+		const handed = await put(
+			'/auth/member-key',
+			{ chapter: f.group.id, user: who.id, keyVersion: 1, wrappedOrgPrivateKey: wrappedFor(who) },
+			owner
+		);
+		assert.equal(handed.status, 200, JSON.stringify(handed.body));
+	}
 	const byOwner = await put('/auth/chapter-owner', { chapter: f.group.id, user: second.id }, owner);
 	assert.equal(byOwner.status, 200, JSON.stringify(byOwner.body));
 	assert.deepEqual([byOwner.body.data.owner, byOwner.body.data.previous], [second.id, owner.id]);
@@ -185,7 +208,7 @@ test('ownership passes to one other group admin, by the owner or by a superadmin
 		second.id,
 		'the old owner is told too'
 	);
-	// The old owner manages nothing now; the new one does, and holds no key until handed it.
+	// The old owner manages nothing now; the new one does, and holds the key.
 	assert.equal(
 		(
 			await put(
@@ -204,7 +227,7 @@ test('ownership passes to one other group admin, by the owner or by a superadmin
 	assert.equal((await get('/auth/keys', second)).body.data.orgKey.isOwner, true);
 	assert.equal(
 		await OrgMemberKey.count({ where: { chapterId: f.group.id, userId: second.id } }),
-		0
+		1
 	);
 
 	// A superadmin moves it back, whatever the owner thinks: the remedy for a rogue or vanished owner.
@@ -305,6 +328,11 @@ test('an owner who passed the check a moment ago cannot act once ownership moved
 			(await put('/auth/chapter-owner', { chapter: f.group.id, user: owner.id }, f.admin)).status,
 			200
 		);
+	}
+	// Third holds no key to start with, so the refused hand-over below shows as none.
+	if (await OrgMemberKey.count({ where: { chapterId: f.group.id, userId: third.id } })) {
+		const taken = await del('/auth/member-key', { chapter: f.group.id, user: third.id }, owner);
+		assert.equal(taken.status, 200, JSON.stringify(taken.body));
 	}
 	// Hold the lock every change of holders and owners takes. The requests below pass
 	// their first look (owner is owner) and then queue behind it, the transfer first.

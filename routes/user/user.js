@@ -4,6 +4,7 @@ import { userEnd } from '#routes/constants.js';
 import { default as userCrtlr } from '#rtControllers/user.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { limiters, bodyCredentialsOnly } from '#rtServices/ratelimit.services.js';
+import { textFields } from '#rtServices/request-shape.services.js';
 
 class UserRoutes {
 	static Router;
@@ -36,7 +37,12 @@ class UserRoutes {
 		);
 
 		// The salt and scheme a client needs before it can sign in (public).
-		this.Router.get(userEnd.get.loginParams, limiters.loginParams, this.#Controller.loginParams);
+		this.Router.get(
+			userEnd.get.loginParams,
+			textFields('query', 'username'),
+			limiters.loginParams,
+			this.#Controller.loginParams
+		);
 		// Pen names: the sign-up form asks whether a name is free (public); an account reads its own history.
 		this.Router.get(
 			userEnd.get.penNameAvailable,

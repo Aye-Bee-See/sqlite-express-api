@@ -241,8 +241,8 @@ test('sign-in refuses credentials in the URL and credentials that are not text',
 		assert.equal(res.status, 400);
 		assert.deepEqual(res.body, {
 			success: false,
-			errors: ['username and password must be text.'],
-			problems: [{ field: null, code: 'wrong_type', params: { expected: 'text' } }]
+			errors: ['password must be text.'],
+			problems: [{ field: 'password', code: 'wrong_type', params: { expected: 'text' } }]
 		});
 	}
 });

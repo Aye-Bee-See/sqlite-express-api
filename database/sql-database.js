@@ -1,6 +1,6 @@
 import { sequelize, Sequelize, enableWriteAheadLog } from './connection.js';
 import * as Models from '#models/all.model.js';
-import { dbReset, dbSeed, quietBoot } from '#constants';
+import { dbReset, dbSeed, quietBoot, encryptionModeChosen } from '#constants';
 
 import { runMigrations } from './migrate.js';
 import { createSeeds } from './seeds/all.seeds.js';
@@ -82,6 +82,31 @@ const log = quietBoot ? () => {} : console.log;
 const warn = quietBoot ? () => {} : console.warn;
 
 /**
+ * The default mode became end-to-end on 25 September 2026 (#126). A deployment
+ * that never set ENCRYPTION_MODE, and has been running in server mode, would
+ * change mode on its next update without anyone deciding it: clients that send
+ * `messageText` refused from that moment, letters left waiting for readers to
+ * set up keys. So a database with letters under the server's key does not
+ * boot on the default; it asks for the mode to be named.
+ */
+async function refuseUnchosenModeSwitch() {
+	if (encryptionModeChosen || !crypto.isE2E()) {
+		return;
+	}
+	const serverLetters = await LetterKey.count({ where: { readerType: 'server' } });
+	if (serverLetters > 0) {
+		throw new Error(
+			'This database has ' +
+				serverLetters +
+				' letter(s) written in server mode, and ENCRYPTION_MODE is not set, so the default ' +
+				'(e2e since 25 September 2026) would switch it to end-to-end without anyone choosing to. ' +
+				'Set ENCRYPTION_MODE=server to carry on as before, or ENCRYPTION_MODE=e2e to switch ' +
+				'(docs/E2E-MIGRATION.md).'
+		);
+	}
+}
+
+/**
  * Migrate (dropping everything first when DB_RESET is set), load seed data
  * unless DB_SEED is false, then make sure an admin account exists.
  * Resolves once the database is ready to serve requests.
@@ -94,6 +119,7 @@ export const ready = (async () => {
 	}
 	await enableWriteAheadLog();
 	await runMigrations(sequelize, { reset: dbReset, log });
+	await refuseUnchosenModeSwitch();
 	if (dbSeed) {
 		await createSeeds();
 	} else {

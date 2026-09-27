@@ -79,6 +79,8 @@ export const uploadDir = UPLOAD_DIR || 'uploads';
  */
 export const ENCRYPTION_MODES = ['server', 'e2e'];
 export const encryptionMode = ENCRYPTION_MODE || 'e2e';
+/** Whether the deployment chose its mode, rather than taking the default. */
+export const encryptionModeChosen = Boolean(ENCRYPTION_MODE);
 /** Base64 of 32 random bytes; required in `server` mode. `npm run keygen` makes one. */
 export const encryptionKey = ENCRYPTION_KEY || '';
 /**

@@ -53,7 +53,8 @@ test('a 403 uses the general error shape', async () => {
 		success: false,
 		name: 'AuthorizationError',
 		info: 'Forbidden',
-		status: 403
+		status: 403,
+		code: 'authorization'
 	});
 });
 

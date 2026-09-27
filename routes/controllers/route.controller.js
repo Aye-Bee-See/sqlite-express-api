@@ -1,5 +1,6 @@
 import LoudError from '#services/LoudError.js';
 import ValidationError from '#services/ValidationError.js';
+import { codeForRefusal } from '#services/error-codes.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 
 import { messages as msgConstants } from '#routes/constants.js';
@@ -186,7 +187,18 @@ export default class RouteController {
 		const info = conditions[msgType] ?? conditions.par;
 		// No error object at all is treated as a generic client fault.
 		const status = errMsg ? HttpError.statusOf(errMsg) : 400;
-		const body = { success: false, name: errMsg ? errMsg.name : 'Error', info, status };
+		const body = {
+			success: false,
+			name: errMsg ? errMsg.name : 'Error',
+			info,
+			status
+		};
+		if (status < 500) {
+			// One key for a refusal, composed from the name and the condition that are
+			// still sent beside it (README, "Error codes"). A 5xx is a fault rather
+			// than a refusal and gets no code: there is nothing for a client to key on.
+			body.code = codeForRefusal(errMsg);
+		}
 		if (status === 400) {
 			// A 400 always carries problems, even when it was thrown as an HttpError
 			// rather than a ValidationError: clients read one shape (README, "Errors").

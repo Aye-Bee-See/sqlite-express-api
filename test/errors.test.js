@@ -85,7 +85,8 @@ test('ErrorService renders status-carrying errors with their message', () => {
 		success: false,
 		name: 'NotFoundError',
 		info: 'Cannot GET /nope',
-		status: 404
+		status: 404,
+		code: 'not_found'
 	});
 });
 

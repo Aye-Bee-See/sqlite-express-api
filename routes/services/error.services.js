@@ -1,5 +1,6 @@
 import { messages as msgConstants } from '#routes/constants.js';
 import ValidationError from '#services/ValidationError.js';
+import { codeForRefusal } from '#services/error-codes.js';
 import { HttpError } from '#services/HttpError.js';
 
 /**
@@ -43,7 +44,18 @@ export default class ErrorService {
 		const development = process.env.NODE_ENV === 'development';
 		const fallback = msgConstants.defaults.literal.http[status] || 'Error';
 		const info = status >= 500 && !development ? fallback : (err && err.message) || fallback;
-		const body = { success: false, name: (err && err.name) || 'Error', info, status };
+		const body = {
+			success: false,
+			name: (err && err.name) || 'Error',
+			info,
+			status
+		};
+		if (status < 500) {
+			// One key for a refusal, composed from the name and the condition that are
+			// still sent beside it (README, "Error codes"). A 5xx is a fault rather
+			// than a refusal and gets no code: there is nothing for a client to key on.
+			body.code = codeForRefusal(err);
+		}
 		if (status === 400) {
 			// A 400 always carries problems, even when it was thrown as an HttpError
 			// rather than a ValidationError: clients read one shape (README, "Errors").

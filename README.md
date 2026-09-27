@@ -636,7 +636,17 @@ The API answers in English and always will: clients hold the translations, keyed
 
 #### General errors
 
-Everything else. `info` is the fixed message for that endpoint; `error`, when present, is the specific reason. `condition`, when present, is the machine-readable half of the refusal: a short code such as `expired`, `used`, or `only_admin` that clients can word in the reader's language. The pair `name` + `condition` is stable across releases; the sentences in `info` and `error` are not, so never match on them. A general error without a `condition` has no finer code than its `name` and `status`. A general error with status `400` also carries `problems`, so every `400` has one shape.
+Everything else. `info` is the fixed message for that endpoint; `error`, when present, is the specific reason. `condition`, when present, is the machine-readable half of the refusal: a short code such as `expired`, `used`, or `only_admin`. The sentences in `info` and `error` are not stable, so never match on them.
+
+**`code` is the one key to word a refusal from**, composed from the two fields beside it:
+
+```text
+code = family + ("." + condition, when the refusal has one)
+```
+
+`family` is the error's `name` in snake_case with `Error` dropped, so `InviteCodeError` with `condition: "used"` is `code: "invite_code.used"`, and a plain `NotFoundError` is `code: "not_found"`. Every family is listed in [docs/ERRORS.md](docs/ERRORS.md). **Match the whole code, or just the family before the dot**: a refusal may grow a finer `condition` in a later release, and a build that matched the family keeps working.
+
+`name` and `condition` are still sent, and are not going away; `code` is an addition. A `5xx` is a fault rather than a refusal and carries no `code`. A `400` about a field answers with `problems` instead (above), so every refusal has exactly one thing to key on.
 
 ```json
 {
@@ -644,6 +654,7 @@ Everything else. `info` is the fixed message for that endpoint; `error`, when pr
 	"name": "NotFoundError",
 	"info": "Error getting prison by ID",
 	"status": 404,
+	"code": "not_found",
 	"error": "Prison 9999 not found"
 }
 ```

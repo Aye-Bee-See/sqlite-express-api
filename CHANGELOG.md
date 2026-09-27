@@ -38,6 +38,7 @@ Four gaps in the error-code work (#133–#142).
 dot instead, as the README has always said. For the three missing-parameter
 `400`s, read `errors[0]` rather than `error`. Anything that showed
 `validation_failed` with no field should now have one.
+
 ### A hostile news feed can no longer stall the server (#152)
 
 The news reader (#124) parsed the feed with regular expressions that, given a
@@ -52,6 +53,7 @@ A numeric entity naming no character (`&#99999999;`) used to throw and fail
 the whole pull; it now reads as `�` and the rest of the feed is kept.
 
 **For clients:** nothing to change; `GET /news` answers the same items as before.
+
 ### Photos: gone when taken down, and nothing hidden in the file (#151)
 
 Five fixes to directory photos (#130).
@@ -76,6 +78,7 @@ Five fixes to directory photos (#130).
 **For clients:** use `photo.url` exactly as given; do not build it from the id,
 or a replaced photo will look unchanged. A photo that is refused with
 `wrong_type` on `photo` should be re-saved (or screenshotted) and sent again.
+
 ### The changelog's dates, and some stale documentation (#150)
 
 Documentation only. Entries were dated inconsistently, five of them a day that
@@ -87,6 +90,7 @@ optional field no seeded facility has yet, while its "audit fixes" were
 `npm audit fix`. In the README, the boot output matches what a new database
 prints, the example account no longer collides with the seeded `chapter1`, and
 the settings table says that `0` for a rate limit means the default.
+
 ### A group's key and invite history is its own (#149)
 
 `GET /chapter/history` (#143) let any group admin read another group's whole
@@ -99,6 +103,7 @@ see everything.
 
 **For clients:** nothing to change. A history screen shown for somebody else's
 group will be shorter.
+
 ### Saving a profile no longer trips the pen-name limit (#148)
 
 Two ways the pen-name limits (#127) refused people they were not meant for.
@@ -118,6 +123,7 @@ Two ways the pen-name limits (#127) refused people they were not meant for.
 **For clients:** nothing to change; a form that sends the pen name on every save
 now works. `GET /auth/pen-name` answers `newNamesLeft: 2` for a writer who has
 just claimed.
+
 ### A signed-in account can no longer sign people up without limit (#147)
 
 Sign-ups (`POST /auth/user`) are limited per address wherever open registration

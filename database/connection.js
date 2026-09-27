@@ -48,7 +48,8 @@ export const sequelize = new Sequelize({
 });
 
 /**
- * The driver's own wait is switched off on every connection. node-sqlite3 sets
+ * The driver's own wait is switched off on every connection, and deleted
+ * content is zeroed (secure_delete). node-sqlite3 sets
  * a busy timeout of one second by default, and that second is spent blocking a
  * database thread (see LOCK_RETRY). Sequelize's SQLite driver runs no connection
  * hooks, so it is done where connections are handed out.
@@ -60,6 +61,12 @@ sequelize.connectionManager.getConnection = async (options) => {
 	if (!configured.has(connection)) {
 		configured.add(connection);
 		connection.configure('busyTimeout', 0);
+		// Deleted content is overwritten with zeros as it is deleted, rather than
+		// left in free pages until the next VACUUM: a letter the retention run
+		// removed cannot be read back out of a copy of the file.
+		await new Promise((resolve, reject) =>
+			connection.run('PRAGMA secure_delete = ON', (err) => (err ? reject(err) : resolve()))
+		);
 	}
 	return connection;
 };

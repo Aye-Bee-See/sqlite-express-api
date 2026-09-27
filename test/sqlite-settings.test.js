@@ -116,3 +116,31 @@ test('many writers at once all get through, and quickly', async () => {
 	);
 	assert.ok(Date.now() - started < 5000, 'took ' + (Date.now() - started) + ' ms');
 });
+
+test('deleted content is zeroed on every connection, and VACUUM waits for real slack', async () => {
+	// secure_delete overwrites what is deleted as it goes: a letter the retention
+	// run removed cannot be read back out of a copy of the file.
+	const [[plain]] = await db.sequelize.query('PRAGMA secure_delete');
+	assert.equal(plain.secure_delete, 1);
+	await db.sequelize.transaction(async (transaction) => {
+		const [[inside]] = await db.sequelize.query('PRAGMA secure_delete', { transaction });
+		assert.equal(inside.secure_delete, 1, 'a transaction has its own connection on disk');
+	});
+
+	const { Prison } = db;
+	const { worthCompacting } = await import('../database/retention.js');
+	const marker = 'SECRET-' + 'X'.repeat(4000);
+	const rows = await Prison.bulkCreate(
+		Array.from({ length: 200 }, (_, i) => ({ prisonName: 'Gone ' + i, notes: marker, address: {} }))
+	);
+	await db.sequelize.query('PRAGMA wal_checkpoint(TRUNCATE)');
+	assert.equal(await worthCompacting(), false, 'nothing freed yet');
+	await Prison.destroy({ where: { id: rows.map((r) => r.id) } });
+	await db.sequelize.query('PRAGMA wal_checkpoint(TRUNCATE)');
+	assert.equal(await worthCompacting(), true, 'most of the file is free pages now');
+	const { readFileSync } = await import('node:fs');
+	assert.ok(
+		!readFileSync(process.env.DB_STORAGE).includes('SECRET-XXXX'),
+		'the deleted text is not in the file, before any VACUUM'
+	);
+});

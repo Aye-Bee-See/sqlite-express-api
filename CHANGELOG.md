@@ -22,6 +22,24 @@ database, or one whose mode is set, boots as before.
 
 **Deployment:** abctest sets `ENCRYPTION_MODE=e2e`, so nothing changes there.
 
+### The audit log is indexed, purged in batches, and not compacted every run (#163)
+
+Three costs the retention run and the audit endpoint paid on a large log.
+
+- **No index on `action` or time.** `GET /moderation/audit?action=`, the
+  retention run's list of actions, and its purge each read the whole table.
+  One index on the pair serves all three (migration
+  `2026.09.28T01.00.00.audit-log-action-index.js`).
+- **The purge was one `DELETE`.** The first run on a large log held the write
+  lock until every old entry was gone, and letters waited. It now deletes a
+  thousand at a time, letting go of the lock between them.
+- **Every run that deleted anything ran `VACUUM`**, which rewrites the whole
+  file with every other write held out. It was there so deleted letters could
+  not be read back out of a copy of the file. `secure_delete` now does that at
+  the moment of deletion, on every connection (checked: 199 copies of a
+  deleted text left in the file without it, none with it), and `VACUUM` runs
+  only when a quarter or more of the file is free.
+
 **For clients:** nothing to change.
 
 ### A replay or a server fault does not use up a write limit (#164)

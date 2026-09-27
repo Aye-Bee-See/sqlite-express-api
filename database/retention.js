@@ -72,6 +72,13 @@ async function shortestWindow(User) {
 	return windows.length === 0 ? null : Math.min(...windows);
 }
 
+/** A quarter or more of the file is free pages: enough to be worth a VACUUM. */
+export async function worthCompacting() {
+	const [[{ freelist_count: free }]] = await sequelize.query('PRAGMA freelist_count');
+	const [[{ page_count: pages }]] = await sequelize.query('PRAGMA page_count');
+	return pages > 0 && free / pages >= 0.25;
+}
+
 /**
  * Writers who chose "for ever" (0), when no site maximum overrides them: their
  * letters are never due, so they are not read at all.
@@ -208,9 +215,14 @@ async function run({ dryRun = false, now = new Date(), log = console.log } = {})
 		await Chapter.refreshMailingTimes(now).catch((err) =>
 			console.error('[statistics] mailing times were not refreshed', err)
 		);
-		// Deleted pages are reused but not returned; a seized file would still hold the bytes.
+		// What was deleted is already zeroed (secure_delete, database/connection.js).
+		// VACUUM only gives the space back to the disk, and holds every other
+		// write out while it rewrites the whole file, so it runs only when there
+		// is a good deal to give back.
 		try {
-			await sequelize.query('VACUUM');
+			if (await worthCompacting()) {
+				await sequelize.query('VACUUM');
+			}
 		} catch (err) {
 			// Another process (a manual run) may hold the file; the next run compacts.
 			log('Retention: VACUUM skipped (' + err.message + ').');

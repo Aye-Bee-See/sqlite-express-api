@@ -55,9 +55,16 @@ test('the two windows, and which actions belong to the longer one', () => {
 		'letter.status.batch',
 		'prisoner.photo',
 		'submission.create',
-		'retention.run'
+		'invite-code.issue',
+		'mail-rule.update'
 	]) {
 		assert.equal(isSecurityAction(action), false, action + ' is routine');
+	}
+	// Three that were routine until 27 September, each for a reason worth keeping:
+	// handing out or withdrawing a group key is access control, and a retention run
+	// is the only record that a deletion happened at all.
+	for (const action of ['chapter.member-key', 'chapter.member-key.remove', 'retention.run']) {
+		assert.equal(isSecurityAction(action), true, action + ' is security-relevant');
 	}
 });
 
@@ -114,6 +121,15 @@ test('every audit action the code writes has been sorted into a window on purpos
 	// Named here so that adding an action means deciding which window it belongs in.
 	const known = new Set([
 		'chapter.create',
+		'chapter.member-key',
+		'chapter.member-key.remove',
+		'invite-code.cancel',
+		'invite-code.issue',
+		'invite-code.join',
+		'mail-rule.create',
+		'mail-rule.delete',
+		'mail-rule.update',
+		'user.penName',
 		'chapter.delete',
 		'chapter.keys',
 		'chapter.keys.rotate',

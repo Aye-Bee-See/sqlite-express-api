@@ -31,9 +31,18 @@ const SECURITY_PREFIXES = [
 	'writer.', // a managed writer made, and the hand-over when it is claimed
 	'invitation.',
 	'chapter.keys',
+	// Handing a group's key to a member, and taking it back: the most
+	// access-shaped events there are. `chapter.keys` does not cover them, because
+	// the action is written `chapter.member-key` (found 27 September, while
+	// listing the classification for the owner).
+	'chapter.member-key',
 	'chapter.owner',
 	'submission.approve',
-	'submission.reject'
+	'submission.reject',
+	// The only record that a deletion happened at all. Letters, attachments and
+	// their files go with it, so a run that removed three hundred letters should
+	// not age out sooner than deleting one record does.
+	'retention.run'
 ];
 
 /** Actions kept for the longer window, whatever else they are. */

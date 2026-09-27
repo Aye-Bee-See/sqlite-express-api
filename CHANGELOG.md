@@ -22,6 +22,23 @@ optional field no seeded facility has yet, while its "audit fixes" were
 prints, the example account no longer collides with the seeded `chapter1`, and
 the settings table says that `0` for a rate limit means the default.
 
+### The audit-window test can see every action (#146)
+
+Tests only. #144 moved three audit actions into the two-year window and said the
+test guarding that classification had been widened to see hyphenated and
+camelCase actions. It had not: the pattern was unchanged, so nine actions,
+including the key hand-over that prompted #144, were still never checked. The
+three moves themselves did land, and were asserted by name.
+
+The test now uses the wider pattern, and it records **which window each action
+belongs in**, not only its name. It fails if an action is added without a
+window, if a listed action can no longer be found in the source (the pattern
+going blind again), or if a change to the classification moves an action
+without the table saying so. Checked both ways: put back the old pattern, or
+move `chapter.member-key` back to the short window, and it fails.
+
+**For clients:** nothing to change.
+
 ### Starting a thread no longer stalls letters (#145)
 
 A fix for a deadlock that only a database on disk could show. Sending a letter

@@ -29,6 +29,15 @@ Two ways the pen-name limits (#127) refused people they were not meant for.
 **For clients:** nothing to change; a form that sends the pen name on every save
 now works. `GET /auth/pen-name` answers `newNamesLeft: 2` for a writer who has
 just claimed.
+### A signed-in account can no longer sign people up without limit (#147)
+
+Sign-ups (`POST /auth/user`) are limited per address wherever open registration
+is on. The limit meant to let an admin through, but it let through **any**
+request with a token: one ordinary account could create accounts as fast as it
+liked. Now only an admin's token skips the count; a writer's or a group's is
+counted like a sign-up without one.
+
+**For clients:** nothing to change. A client never signs up while signed in.
 
 ### The audit-window test can see every action (#146)
 

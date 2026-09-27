@@ -171,7 +171,7 @@ test('a refused request is counted, so a bad body cannot buy extra tries', async
 	);
 });
 
-test('sign-ups are counted per address, and an admin making accounts is not', async () => {
+test('sign-ups are counted per address, with a token or without; an admin making accounts is not', async () => {
 	for (let i = 0; i < 3; i++) {
 		const res = await post('/auth/user', {
 			username: 'signup' + i,
@@ -188,6 +188,22 @@ test('sign-ups are counted per address, and an admin making accounts is not', as
 		}),
 		'fourth sign-up'
 	);
+	// A token is not a way round it: a signed-in writer or group account at the
+	// same address is signing someone up, and is counted like anyone else.
+	for (const who of [f.alice, f.chapter]) {
+		assertRefused(
+			await post(
+				'/auth/user',
+				{
+					username: 'viatoken' + who.id,
+					email: 'viatoken' + who.id + '@example.com',
+					password: 'a long enough password'
+				},
+				who
+			),
+			'sign-up with a non-admin token'
+		);
+	}
 	// Same address, but a signed-in admin: this is account administration, not sign-up.
 	assert.equal(
 		(

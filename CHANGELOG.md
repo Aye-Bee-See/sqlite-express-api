@@ -2,13 +2,27 @@
 
 What changed in the letters.support API, newest first, in plain words. Each entry says what it means for the people using it, not only what moved in the code: the clients read this to know what to build, and the owner to know what is live.
 
-**Every change adds an entry here**, in the same pull request that makes the change ([docs/DEVELOPER.md](docs/DEVELOPER.md), "Changelog"). Entries are grouped by the day they reached `main`, in Pacific time, newest first within a day. Deployment events (a server moved, a database reset) belong here too, marked **Deployment**, because they change what the test server answers even when no code changed.
+**Every change adds an entry here**, in the same pull request that makes the change ([docs/DEVELOPER.md](docs/DEVELOPER.md), "Changelog"). Entries are grouped by the day they reached `main`, in UTC (a merge after 17:00 in California is the next day here), newest first within a day. Deployment events (a server moved, a database reset) belong here too, marked **Deployment**, because they change what the test server answers even when no code changed.
 
 The public test server follows `main` within the hour, so anything below is live at `https://abctest.letters.support` unless an entry says otherwise.
 
 ---
 
-## 2026-09-27 (evening)
+## 2026-09-27
+
+### A relay group reads only the letters it relays (#155)
+
+A group sees a writer's thread because it relays a letter in it. Reading the
+thread (`GET /chat/chat?full=true`, `GET /chat/chats?full=true`) returned
+**every** letter in it, including those the writer sent the same prisoner
+through another group or directly; on a server-mode deployment that was their
+text. The inbox line's `last_message` was the thread's newest letter, whoever
+it went through, and `heldCount` counted all of them. All three now cover only
+the letters the group relays (or, end to end, holds an envelope for), which is
+what `GET /messaging/messages` already did.
+
+**For clients:** nothing to change. A group's inbox line now shows the newest
+letter it can read, rather than a blanked-out newer one it cannot.
 
 ### Error codes: the rule holds, and no sentence goes without a field (#153)
 
@@ -83,7 +97,7 @@ or a replaced photo will look unchanged. A photo that is refused with
 
 Documentation only. Entries were dated inconsistently, five of them a day that
 had not yet come; they are now grouped by the day each reached `main`, in
-Pacific time. #142, #143 and #144 had no entries and now do. Two older entries
+UTC. (This entry first said Pacific time; the dates were always UTC.) #142, #143 and #144 had no entries and now do. Two older entries
 said more than was true: #122's seed data has Greek in five facilities'
 addresses but no Cyrillic in any name or address, and #123's `lines` is an
 optional field no seeded facility has yet, while its "audit fixes" were
@@ -167,8 +181,6 @@ refused, and that request reads the thread the first one made.
 
 **For clients:** nothing to change. A `POST /chat/chat` that used to fail with a
 500 under load now answers 201 with the thread, as documented.
-
-## 2026-09-27
 
 ### Three audit actions are kept two years instead of 180 days (#144)
 

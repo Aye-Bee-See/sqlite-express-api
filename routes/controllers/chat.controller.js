@@ -124,7 +124,15 @@ export default class ChatController extends RouteController {
 			let chats;
 			if (writer !== undefined) {
 				const extra = { ...(prisoner !== undefined ? { prisoner } : {}), ...scope.where };
-				chats = await Chat.readChatsByUser(writer, fullBool, limit, offset, extra, publishedOnly);
+				chats = await Chat.readChatsByUser(
+					writer,
+					fullBool,
+					limit,
+					offset,
+					extra,
+					publishedOnly,
+					scope.messageWhere
+				);
 			} else if (prisoner !== undefined) {
 				chats = await Chat.readChatsByPrisoner(
 					prisoner,
@@ -132,13 +140,21 @@ export default class ChatController extends RouteController {
 					limit,
 					offset,
 					scope.where,
-					publishedOnly
+					publishedOnly,
+					scope.messageWhere
 				);
 			} else {
-				chats = await Chat.readAllChats(fullBool, limit, offset, scope.where, publishedOnly);
+				chats = await Chat.readAllChats(
+					fullBool,
+					limit,
+					offset,
+					scope.where,
+					publishedOnly,
+					scope.messageWhere
+				);
 			}
-			await Chat.attachLastMessages(chats.rows);
-			await Chat.attachHeldCounts(chats.rows);
+			await Chat.attachLastMessages(chats.rows, scope.messageWhere);
+			await Chat.attachHeldCounts(chats.rows, scope.messageWhere);
 			await this.#e2eEnvelopes(chats.rows, req, scope);
 			this.handlePage(res, chats, limits);
 		} catch (err) {
@@ -167,12 +183,18 @@ export default class ChatController extends RouteController {
 			let chat;
 			if (id !== undefined) {
 				await this.#loadAllowed(scope, id);
-				chat = await Chat.readChatById(id, full, publishedOnly);
+				chat = await Chat.readChatById(id, full, publishedOnly, scope.messageWhere);
 			} else if (user !== undefined && prisoner !== undefined) {
 				if (!scope.allowsUser(user)) {
 					throw scope.deny();
 				}
-				chat = await Chat.readChatByUserAndPrisoner(user, prisoner, full, publishedOnly);
+				chat = await Chat.readChatByUserAndPrisoner(
+					user,
+					prisoner,
+					full,
+					publishedOnly,
+					scope.messageWhere
+				);
 			} else if (user !== undefined || prisoner !== undefined) {
 				condition = 'param';
 				throw new ValidationError({
@@ -189,7 +211,7 @@ export default class ChatController extends RouteController {
 				});
 			}
 			this.requireFound(chat, 'Chat');
-			await Chat.attachHeldCounts([chat]);
+			await Chat.attachHeldCounts([chat], scope.messageWhere);
 			await this.#e2eEnvelopes([chat], req, scope);
 			this.#handleSuccess(res, chat);
 		} catch (err) {

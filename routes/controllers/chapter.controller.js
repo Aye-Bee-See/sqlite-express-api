@@ -1,10 +1,12 @@
 import RouteController from '#rtControllers/route.controller.js';
-import Chapter from '#models/chapter.model.js';
+import Chapter, { CHAPTER_FIELDS } from '#models/chapter.model.js';
 import { Op, literal } from 'sequelize';
 import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
 import { ACCOUNT_STATUSES, CHAPTER_SERVICES } from '#db/validators.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { audit } from '#rtServices/audit.services.js';
+import AuditLog from '#models/audit-log.model.js';
+import { changesBetween } from '#services/record-changes.js';
 
 const READ_CONFIG = {
 	searchFields: ['name'],
@@ -44,6 +46,7 @@ export default class chapterController extends RouteController {
 		super('chapter');
 		this.create = this.create.bind(this);
 		this.getMany = this.getMany.bind(this);
+		this.history = this.history.bind(this);
 		this.getOne = this.getOne.bind(this);
 		this.update = this.update.bind(this);
 		this.remove = this.remove.bind(this);
@@ -87,6 +90,31 @@ export default class chapterController extends RouteController {
 	}
 
 	/** List chapters: page, page_size, full, q, sort, country, service, and (staff only) recordStatus. */
+	/**
+	 * GET /chapter/history?id=: what has happened to one record, newest first.
+	 * Staff only: it names the people who made each change and can carry
+	 * staff-only field values. Paginated like any list.
+	 */
+	async history(req, res) {
+		try {
+			const { id, page, page_size } = req.query;
+			const record = this.requireFound(await Chapter.findByPk(id), 'Chapter ' + id);
+			const limits = this.handleLimits(page, page_size);
+			const rows = await AuditLog.forRecord('chapter', record.id, {
+				limit: limits.limit,
+				offset: limits.offset
+			});
+			this.handlePage(
+				res,
+				{ rows: rows.rows.map((row) => AuditLog.asHistory(row)), count: rows.count },
+				limits
+			);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.handleErr(res, errorVar);
+		}
+	}
+
 	async getMany(req, res) {
 		const { page, page_size, full } = req.query;
 		const limits = this.#handleLimits(page, page_size);
@@ -128,9 +156,12 @@ export default class chapterController extends RouteController {
 			return next(refusal);
 		}
 		try {
+			const was = await Chapter.findByPk(newChapter.id);
 			const updatedRows = await Chapter.updateChapter(newChapter);
 			this.requireAffected(updatedRows, 'Chapter ' + newChapter.id);
-			await audit(req, 'chapter.update', 'chapter', newChapter.id, { fields: newChapter });
+			await audit(req, 'chapter.update', 'chapter', newChapter.id, {
+				changes: changesBetween(was, newChapter, CHAPTER_FIELDS)
+			});
 			this.#handleSuccess(res, { updatedRows, newChapter });
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;

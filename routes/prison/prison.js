@@ -67,6 +67,15 @@ class PrisonRoutes {
 		this.Router.put(prisonEnd.put.updateMailRule, ...admin, this.#Controller.updateMailRule);
 		this.Router.delete(prisonEnd.delete.removeMailRule, ...admin, this.#Controller.removeMailRule);
 
+		// History: who changed this record and when. Staff only — it names people
+		// and can carry staff-only field values.
+		this.Router.get(
+			prisonEnd.get.history,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireGroupMember,
+			this.#Controller.history
+		);
+
 		// Update
 
 		this.Router.put(

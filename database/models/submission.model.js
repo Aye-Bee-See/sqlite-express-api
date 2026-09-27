@@ -7,6 +7,7 @@ import Prison, { PRISON_FIELDS } from '#models/prison.model.js';
 import Chapter, { CHAPTER_FIELDS } from '#models/chapter.model.js';
 import MailRule from '#models/mail-rule.model.js';
 import ValidationError from '#services/ValidationError.js';
+import { changesBetween } from '#services/record-changes.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { publishedWhere } from '#db/record-status.js';
 
@@ -317,8 +318,12 @@ export default class Submission extends Model {
 			await Submission.#lost(submission);
 		}
 		let targetId = submission.targetId;
+		// The row as it was, so the record's own history says what changed rather
+		// than what was proposed (services/record-changes.js).
+		let before = null;
 		try {
 			if (submission.kind === 'update') {
+				before = await spec.model.findByPk(targetId);
 				const [count] = await spec.update({ ...changes, id: targetId });
 				if (count === 0) {
 					throw new NotFoundError(spec.label + ' ' + targetId + ' no longer exists');
@@ -341,7 +346,10 @@ export default class Submission extends Model {
 			throw err;
 		}
 		await this.update({ targetId }, { where: { id: submission.id } });
-		return await this.read(submission.id);
+		const decided = await this.read(submission.id);
+		// Not a column: the caller writes it to the audit log and it is not stored twice.
+		decided.changesApplied = changesBetween(before, changes, Object.keys(changes));
+		return decided;
 	}
 
 	/**

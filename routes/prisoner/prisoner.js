@@ -78,6 +78,15 @@ class PrisonerRoutes {
 			this.#Controller.removePhoto
 		);
 
+		// History: who changed this record and when. Staff only — it names people
+		// and can carry staff-only field values.
+		this.Router.get(
+			prisonerEnd.get.history,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			AuthzService.requireGroupMember,
+			this.#Controller.history
+		);
+
 		// Update
 
 		this.Router.put(

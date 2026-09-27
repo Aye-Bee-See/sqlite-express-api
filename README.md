@@ -2471,6 +2471,41 @@ Body `{"id": 7, "fields": {...}, "decisionNote": "..."}`. `fields` are reviewer 
 
 Body `{"id": 7, "decisionNote": "..."}`. The note is required.
 
+#### The history of one record
+
+`GET /prisoner/history?id=`, `GET /prison/history?id=`, `GET /chapter/history?id=` — what has happened to one record, newest first, paginated like any list. **Staff only** (a superadmin, or a group admin of an active group): it names the people who made each change and can carry staff-only field values. A record nobody may see, or none at all, is a `404`.
+
+```json
+{
+	"data": [
+		{
+			"id": 812,
+			"at": "2026-09-27T09:14:02.318Z",
+			"action": "prison.update",
+			"actor": { "id": 3, "username": "admin", "name": "Administrator", "role": "admin" },
+			"changes": { "prisonName": { "from": "History Prison", "to": "History Facility" } }
+		},
+		{
+			"id": 806,
+			"at": "2026-09-27T09:12:55.001Z",
+			"action": "prisoner.update",
+			"actor": { "id": 8, "username": "admin", "name": null, "role": "admin" },
+			"changes": { "bio": { "from": null, "to": "Proposed by a group" } },
+			"details": { "viaSubmission": 14 }
+		}
+	],
+	"total": 2,
+	"page": 1,
+	"page_size": 20
+}
+```
+
+- **`changes` says what changed, not what was sent.** A client that re-sends a whole form writes one entry with only the fields that actually differ, and an edit that changes nothing has no `changes` at all — the write is still recorded, because "somebody saved this and nothing moved" is worth knowing too.
+- **A change applied from a proposal appears here as well as in the submission's own entries**, with `details.viaSubmission` naming the proposal and the reviewer as the actor. So a record's history is complete without reading the moderation log.
+- **`actor` is `null`** for something the server did itself (a retention run) or for an account since deleted: the log keeps what was done, never the name of a deleted account.
+- Values longer than 1000 characters are cut with an ellipsis, so an audit entry cannot become a copy of a `bio`.
+- `photo`, `support` and `relay` changes appear as their own actions (`prisoner.photo`, `prisoner.support.add`, `prison.relay.add`, and so on) rather than as field changes.
+
 #### GET /moderation/audit
 
 Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest first. Each entry is `{ id, actor, action, resource, targetId, details, createdAt, actor_details }`. Actions recorded:

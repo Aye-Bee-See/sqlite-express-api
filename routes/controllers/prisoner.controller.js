@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import Prisoner from '#models/prisoner.model.js';
+import Prisoner, { PRISONER_FIELDS } from '#models/prisoner.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import { publishedWhere } from '#db/record-status.js';
 import { watchPrisoner, afterPrisonerChange } from '#rtServices/prisoner-change.services.js';
@@ -7,6 +7,8 @@ import { readOptions, SORT_BY_CREATED, filterValues } from '#rtControllers/direc
 import AuthzService from '#rtServices/authz.services.js';
 import { staleVerificationWhere } from '#db/record-status.js';
 import { audit } from '#rtServices/audit.services.js';
+import AuditLog from '#models/audit-log.model.js';
+import { changesBetween } from '#services/record-changes.js';
 import Chapter from '#models/chapter.model.js';
 import { NotFoundError } from '#services/HttpError.js';
 import ValidationError from '#services/ValidationError.js';
@@ -41,6 +43,7 @@ export default class PrisonerController extends RouteController {
 		 */
 		super('prisoner');
 		this.getMany = this.getMany.bind(this);
+		this.history = this.history.bind(this);
 		this.filters = this.filters.bind(this);
 		this.getOne = this.getOne.bind(this);
 		this.update = this.update.bind(this);
@@ -76,6 +79,31 @@ export default class PrisonerController extends RouteController {
 			const { publishedOnly } = readOptions(req);
 			const where = publishedOnly ? publishedWhere(true) : {};
 			this.handleSuccess(res, await filterValues(Prisoner, ['country', 'status'], where));
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.handleErr(res, errorVar);
+		}
+	}
+
+	/**
+	 * GET /prisoner/history?id=: what has happened to one record, newest first.
+	 * Staff only: it names the people who made each change and can carry
+	 * staff-only field values. Paginated like any list.
+	 */
+	async history(req, res) {
+		try {
+			const { id, page, page_size } = req.query;
+			const record = this.requireFound(await Prisoner.findByPk(id), 'Prisoner ' + id);
+			const limits = this.handleLimits(page, page_size);
+			const rows = await AuditLog.forRecord('prisoner', record.id, {
+				limit: limits.limit,
+				offset: limits.offset
+			});
+			this.handlePage(
+				res,
+				{ rows: rows.rows.map((row) => AuditLog.asHistory(row)), count: rows.count },
+				limits
+			);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.handleErr(res, errorVar);
@@ -367,9 +395,13 @@ export default class PrisonerController extends RouteController {
 		const newPrisoner = req.body;
 		try {
 			const before = await watchPrisoner(newPrisoner.id);
+			// The row as it was, for the history: what a request sent is not what changed.
+			const was = await Prisoner.findByPk(newPrisoner.id);
 			const updatedRows = await Prisoner.updatePrisoner(newPrisoner);
 			this.requireAffected(updatedRows, 'Prisoner ' + newPrisoner.id);
-			await audit(req, 'prisoner.update', 'prisoner', newPrisoner.id, { fields: newPrisoner });
+			await audit(req, 'prisoner.update', 'prisoner', newPrisoner.id, {
+				changes: changesBetween(was, newPrisoner, PRISONER_FIELDS)
+			});
 			// Moved or freed: their writers are told, and queued letters re-routed or held.
 			const mail = await afterPrisonerChange(req, before);
 			const changed = mail && (mail.moved || mail.freed || mail.released > 0);

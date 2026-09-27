@@ -17,7 +17,7 @@ process.env.RATE_LIMIT_LOGIN_FAILURES_PER_USER = '10000';
 
 const { test, before, after, beforeEach } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
-const { startServer, stopServer, makeFixtures, makeUser, post, upload } = await import(
+const { startServer, stopServer, makeFixtures, makeUser, post, upload, Message } = await import(
 	'./helpers.js'
 );
 const { reset } = await import('../routes/services/ratelimit.services.js');
@@ -219,4 +219,40 @@ test('sign-ups are counted per address, with a token or without; an admin making
 		).status,
 		201
 	);
+});
+
+test('a replay with the same Idempotency-Key is not another letter, and is not counted', async () => {
+	const writer = await makeUser({ username: 'replayer' });
+	const withKey = { ...writer, headers: { 'Idempotency-Key': 'replay-counting-0001' } };
+	assert.equal((await post('/messaging/message', letter('Once'), withKey)).status, 201);
+	for (let i = 0; i < 4; i++) {
+		const again = await post('/messaging/message', letter('Once'), withKey);
+		assert.equal(again.headers.get('idempotent-replayed'), 'true', 'a replay');
+	}
+	// One letter written: two more fit under the three, and the next does not.
+	assert.equal((await post('/messaging/message', letter('Two'), writer)).status, 201);
+	assert.equal((await post('/messaging/message', letter('Three'), writer)).status, 201);
+	assertRefused(await post('/messaging/message', letter('Four'), writer), 'fourth letter');
+});
+
+test("a server fault is the server's, and does not use up the writer's letters", async () => {
+	const writer = await makeUser({ username: 'unlucky' });
+	const original = Message.createLetter;
+	const quiet = console.error;
+	Message.createLetter = async () => {
+		throw new Error('the disk is full');
+	};
+	console.error = () => {};
+	try {
+		for (let i = 0; i < 3; i++) {
+			assert.equal((await post('/messaging/message', letter(), writer)).status, 500);
+		}
+	} finally {
+		Message.createLetter = original;
+		console.error = quiet;
+	}
+	for (let i = 0; i < 3; i++) {
+		assert.equal((await post('/messaging/message', letter(), writer)).status, 201, 'letter ' + i);
+	}
+	assertRefused(await post('/messaging/message', letter(), writer), 'fourth letter');
 });

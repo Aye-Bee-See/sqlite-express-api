@@ -10,6 +10,18 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27
 
+### A replay or a server fault does not use up a write limit (#164)
+
+The hourly limits on signed-in writes (#128) counted every request, including
+a retry with the same `Idempotency-Key` that was answered with the letter
+already made, and a request the server failed with a `5xx`. A client doing
+exactly what it was told (retry a `5xx` with the same key) spent its allowance
+twice over for one letter. Both are now given back once they are answered. A
+refusal (`4xx`) still counts, so a wrong body buys no extra tries.
+
+**For clients:** nothing to change; retrying with the same key is as safe for
+the limit as it is for the letter.
+
 ### Backups made before #138 become readable by the copier too (#165)
 
 The change in #138 made finished backups group-readable so an off-site copier

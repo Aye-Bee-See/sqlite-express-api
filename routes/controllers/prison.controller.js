@@ -15,6 +15,7 @@ import AuditLog from '#models/audit-log.model.js';
 import { changesBetween } from '#services/record-changes.js';
 
 const READ_CONFIG = {
+	table: 'Prison',
 	searchFields: ['prisonName'],
 	sorts: { name: [['prisonName', 'ASC']], ...SORT_BY_CREATED },
 	filters: {

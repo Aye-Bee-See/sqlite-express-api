@@ -1,3 +1,4 @@
+import { containsText } from '#db/text-search.js';
 import { Model, Op } from 'sequelize';
 import { randomBytes } from 'node:crypto';
 import Schemas from '#schemas/all.schema.js';
@@ -15,11 +16,7 @@ function searchWhere(q) {
 	if (!term) {
 		return {};
 	}
-	return {
-		[Op.or]: ['username', 'email', 'name'].map((field) => ({
-			[field]: { [Op.like]: '%' + term + '%' }
-		}))
-	};
+	return containsText('User', ['username', 'email', 'name'], term);
 }
 
 /** Key columns hidden from every read except GET /auth/keys and the recovery flow. */

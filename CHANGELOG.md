@@ -10,6 +10,15 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### A search for `%` finds a percent sign (#159)
+
+`q` on the prisoner, facility, group and (admin) user lists was used as a SQL
+`LIKE` pattern, so `%` and `_` were wildcards: `?q=%` or `?q=_` listed every
+record. `q` is now plain text to find. Case is folded for ASCII letters only,
+as before, so searches in Greek or Cyrillic match exactly as they did.
+
+**For clients:** nothing to change.
+
 ### Error codes: the rule holds, and no sentence goes without a field (#153)
 
 Four gaps in the error-code work (#133–#142).

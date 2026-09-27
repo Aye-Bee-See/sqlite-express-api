@@ -19,6 +19,7 @@ import { photoMaxBytes } from '#constants';
 import { readFile } from 'node:fs/promises';
 
 const READ_CONFIG = {
+	table: 'Prisoner',
 	searchFields: ['birthName', 'chosenName'],
 	sorts: {
 		name: [

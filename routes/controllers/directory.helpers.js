@@ -1,3 +1,4 @@
+import { containsText } from '#db/text-search.js';
 import { Op, fn, col } from 'sequelize';
 import AuthzService from '#rtServices/authz.services.js';
 import ValidationError from '#services/ValidationError.js';
@@ -61,7 +62,10 @@ export async function filterValues(model, fields, where) {
 	return out;
 }
 
-export function readOptions(req, { searchFields = [], sorts = {}, filters = {} } = {}) {
+export function readOptions(
+	req,
+	{ table = null, searchFields = [], sorts = {}, filters = {} } = {}
+) {
 	const publishedOnly = AuthzService.publishedOnly(req);
 	const { recordStatus, q, sort } = req.query;
 	const where = {};
@@ -82,7 +86,7 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 
 	const term = typeof q === 'string' ? q.trim() : '';
 	if (term && searchFields.length > 0) {
-		where[Op.or] = searchFields.map((field) => ({ [field]: { [Op.like]: '%' + term + '%' } }));
+		Object.assign(where, containsText(table, searchFields, term));
 	}
 
 	const fragments = [];

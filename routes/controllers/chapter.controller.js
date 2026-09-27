@@ -12,6 +12,7 @@ import { changesBetween } from '#services/record-changes.js';
 const DIRECTORY_ACTIONS = ['chapter.create', 'chapter.update', 'chapter.delete'];
 
 const READ_CONFIG = {
+	table: 'Chapter',
 	searchFields: ['name'],
 	sorts: { name: [['name', 'ASC']], ...SORT_BY_CREATED },
 	filters: {

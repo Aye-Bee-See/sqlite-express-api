@@ -10,7 +10,6 @@ import { staleVerificationWhere } from '#db/record-status.js';
 import { audit } from '#rtServices/audit.services.js';
 import AuditLog from '#models/audit-log.model.js';
 import { changesBetween } from '#services/record-changes.js';
-import Chapter from '#models/chapter.model.js';
 import { NotFoundError } from '#services/HttpError.js';
 import ValidationError from '#services/ValidationError.js';
 import { stripMetadata } from '#services/image.js';
@@ -230,25 +229,24 @@ export default class PrisonerController extends RouteController {
 	static #PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 	/**
-	 * Who may put a photo on a record: a superadmin, or the group-owner admin
-	 * of an active group (decided 26 September 2026). A photo is published at
-	 * once and is the one part of a record a group changes without a proposal,
-	 * so it is kept to the person each group has already made answerable for it.
+	 * Who may put a photo on a record: a superadmin, or any group admin of an
+	 * active group (decided 27 September 2026, widening the group-owner-only rule
+	 * of the 26th). A photo is published at once, the one part of a record a group
+	 * changes without a proposal, so each client asks the uploader first: a group
+	 * admin confirms the person agreed, a superadmin confirms the photo comes from
+	 * a support page the person's supporters published, and credits it.
 	 * @throws {Error} 403
 	 */
 	async #requirePhotoEditor(req) {
-		if (AuthzService.isAdmin(req)) {
+		if (AuthzService.isAdmin(req) || (await AuthzService.activeChapterOf(req))) {
 			return;
 		}
-		const chapterId = await AuthzService.activeChapterOf(req);
-		if (chapterId) {
-			const chapter = await Chapter.findByPk(chapterId, { attributes: ['id', 'ownerId'] });
-			if (chapter && String(chapter.ownerId) === String(req.user.id)) {
-				return;
-			}
+		if (AuthzService.hasRole(req, AuthzService.CHAPTER)) {
+			// A group that is not active is told why.
+			throw await AuthzService.groupRefusal(req);
 		}
 		throw AuthzService.forbidden(
-			'Only a superadmin, or the group-owner admin of an active group, may change a photo.'
+			'Only a superadmin, or a group admin of an active group, may change a photo.'
 		);
 	}
 

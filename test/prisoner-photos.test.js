@@ -96,23 +96,36 @@ test('a superadmin adds a photo; it is public, and what the camera wrote is gone
 	assert.equal(again.status, 304);
 });
 
-test('a group-owner admin may add one; another account in the same group may not', async () => {
-	const ok = await send(f.prisoner2.id, owner);
-	assert.equal(ok.status, 201, JSON.stringify(ok.body));
+test('any group admin of an active group may add one; a writer, a visitor, or a paused group may not', async () => {
+	// The owner-admin, and a group admin who is not the owner (decided 27 September).
+	const byOwner = await send(f.prisoner2.id, owner);
+	assert.equal(byOwner.status, 201, JSON.stringify(byOwner.body));
+	const byAdmin = await send(f.prisoner2.id, f.chapter);
+	assert.equal(
+		byAdmin.status,
+		201,
+		'a group admin who is not the owner: ' + JSON.stringify(byAdmin.body)
+	);
 
-	for (const [who, what] of [
-		[f.chapter, 'a group admin who is not the owner'],
-		[f.alice, 'a writer']
-	]) {
-		const refused = await send(f.prisoner2.id, who);
-		assert.equal(refused.status, 403, what + ': ' + JSON.stringify(refused.body));
-	}
+	const writer = await send(f.prisoner2.id, f.alice);
+	assert.equal(writer.status, 403, 'a writer: ' + JSON.stringify(writer.body));
 	const anonymous = await upload(
 		'/prisoner/photo',
 		{ fields: { prisoner: f.prisoner2.id }, file: photo(), field: 'photo' },
 		{}
 	);
 	assert.equal(anonymous.status, 401);
+
+	const paused = await Chapter.createChapter({
+		name: 'Paused Group',
+		location: {},
+		accountStatus: 'suspended'
+	});
+	const member = await makeUser({ role: 'chapter', username: 'pausedphotos' });
+	await User.update({ chapterId: paused.id }, { where: { id: member.id } });
+	const refused = await send(f.prisoner2.id, member);
+	assert.equal(refused.status, 403, 'a group that is not active: ' + JSON.stringify(refused.body));
+	assert.match(refused.body.info, /not active|suspended/i, 'and it is told why');
 });
 
 test('replacing a photo deletes the file it replaces, and removing it takes both away', async () => {

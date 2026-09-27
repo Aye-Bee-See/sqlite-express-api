@@ -1,9 +1,15 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
-import { startServer, stopServer, makeFixtures, makeUser, post, put, get } from './helpers.js';
+import { startServer, stopServer, makeFixtures, makeUser, post, put, get, del } from './helpers.js';
 import ValidationError from '../services/ValidationError.js';
-import { CODES, isKnownCode, familyOf, isKnownFamily } from '../services/error-codes.js';
+import {
+	CODES,
+	isKnownCode,
+	familyOf,
+	isKnownFamily,
+	codeForRefusal
+} from '../services/error-codes.js';
 import { catalogue } from '../scripts/error-catalogue.js';
 
 let f;
@@ -225,6 +231,23 @@ test('every refusal name in the source has a family in the catalogue', async () 
 		}
 	}
 	assert.ok(names.size > 20, 'found the error names in the source: ' + names.size);
+	// Sequelize's own names are answered as validation failures, not as refusals
+	// with a family: each is checked below rather than exempted, because exempting
+	// them is how a unique clash came to answer a nameless `validation_failed`
+	// (found by ios-client#14).
+	const sequelize = [...names].filter((name) => name.startsWith('Sequelize'));
+	for (const name of sequelize) {
+		const err = Object.assign(new Error('x'), {
+			name,
+			errors: [{ path: 'username', message: 'x', type: 'unique violation' }]
+		});
+		const asValidation = ValidationError.messagesFrom(err) && ValidationError.problemsFrom(err);
+		const asRefusal = isKnownFamily(codeForRefusal(err).split('.')[0]);
+		assert.ok(
+			asValidation || asRefusal,
+			name + ' must be answered as a validation failure, or given a family'
+		);
+	}
 	const unknown = [...names]
 		.filter((name) => !name.startsWith('Sequelize'))
 		.map(familyOf)
@@ -234,4 +257,51 @@ test('every refusal name in the source has a family in the catalogue', async () 
 		[],
 		'add these families to REFUSAL_FAMILIES in services/error-codes.js'
 	);
+});
+
+test('a unique clash names its field; a foreign key says both directions', async () => {
+	// ios-client#14: joining with a taken username answered `{ field: null, code:
+	// "validation_failed" }` and hid its sentence under `error`.
+	const { codes } = (await post('/auth/invite-codes', { count: 2 }, f.chapter)).body.data;
+	const join = (username, email, code) =>
+		post('/auth/join', { code, username, email, password: 'a long enough password' });
+	assert.equal((await join('firstcomer', 'first@example.com', codes[0])).status, 201);
+
+	const taken = await join('firstcomer', 'second@example.com', codes[1]);
+	assert.equal(taken.status, 400, JSON.stringify(taken.body));
+	assert.deepEqual(taken.body.errors, ['Username already in use.']);
+	assert.deepEqual(taken.body.problems, [
+		{ field: 'username', code: 'not_unique', params: { fields: ['username'] } }
+	]);
+
+	// A taken email is the same case, on the other field.
+	const takenMail = await join('secondcomer', 'first@example.com', codes[1]);
+	assert.equal(takenMail.status, 400, JSON.stringify(takenMail.body));
+	assert.deepEqual(takenMail.body.problems, [
+		{ field: 'email', code: 'not_unique', params: { fields: ['email'] } }
+	]);
+
+	// A foreign key that names nothing is NOT a validation failure: the same
+	// violation also means "still in use" (deleting a facility that has prisoners),
+	// and SQLite says neither the column nor the direction. So it stays a refusal,
+	// with a family of its own and a message that covers both — and without the
+	// database's own words, which said only SQLITE_CONSTRAINT.
+	const badId = await post(
+		'/prisoner/prisoner',
+		{ birthName: 'Nobody', chosenName: 'Nobody', prison: 999999 },
+		f.admin
+	);
+	assert.equal(badId.status, 400, JSON.stringify(badId.body));
+	assert.equal(badId.body.code, 'reference');
+	assert.equal(badId.body.name, 'SequelizeForeignKeyConstraintError', 'the name is still there');
+	assert.match(badId.body.error, /does not exist, or one it would remove is still in use/);
+	assert.ok(
+		!JSON.stringify(badId.body).includes('SQLITE_CONSTRAINT'),
+		'the database\u2019s own message stays out of the answer'
+	);
+
+	// The other direction of the same violation, answered the same way.
+	const inUse = await del('/prison/prison', { id: f.prison.id }, f.admin);
+	assert.equal(inUse.status, 400, JSON.stringify(inUse.body));
+	assert.equal(inUse.body.code, 'reference');
 });

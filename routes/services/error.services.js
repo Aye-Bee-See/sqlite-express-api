@@ -1,6 +1,6 @@
 import { messages as msgConstants } from '#routes/constants.js';
 import ValidationError from '#services/ValidationError.js';
-import { codeForRefusal } from '#services/error-codes.js';
+import { clientMessageFor, codeForRefusal } from '#services/error-codes.js';
 import { HttpError } from '#services/HttpError.js';
 
 /**
@@ -43,7 +43,7 @@ export default class ErrorService {
 		const status = HttpError.statusOf(err);
 		const development = process.env.NODE_ENV === 'development';
 		const fallback = msgConstants.defaults.literal.http[status] || 'Error';
-		const info = status >= 500 && !development ? fallback : (err && err.message) || fallback;
+		const info = status >= 500 && !development ? fallback : clientMessageFor(err) || fallback;
 		const body = {
 			success: false,
 			name: (err && err.name) || 'Error',

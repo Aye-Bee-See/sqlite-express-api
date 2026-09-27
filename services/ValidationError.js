@@ -84,7 +84,15 @@ export default class ValidationError extends Error {
 		if (!err || !Array.isArray(err.errors)) {
 			return null;
 		}
-		if (err.name === 'ValidationError' || err.name === 'SequelizeValidationError') {
+		if (
+			err.name === 'ValidationError' ||
+			err.name === 'SequelizeValidationError' ||
+			// A unique clash is a schema rule refusing input, and the schema gives it a
+			// sentence ("Username already in use."). Answering it in the general shape
+			// hid that sentence under `error` and left `problems` with no field, which
+			// is what a client needs to put it under the right box (ios-client#14).
+			err.name === 'SequelizeUniqueConstraintError'
+		) {
 			return err.errors.map((e) => (typeof e === 'string' ? e : e.message));
 		}
 		return null;

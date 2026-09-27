@@ -8,7 +8,8 @@ import {
 	existsSync,
 	readdirSync,
 	statSync,
-	mkdirSync
+	mkdirSync,
+	chmodSync
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -326,4 +327,24 @@ test('the server makes one by itself when the newest is older than BACKUP_EVERY_
 	await new Promise((resolve) => setTimeout(resolve, 150));
 	clearInterval(again);
 	assert.equal((await listBackups()).length, before + 1);
+});
+
+test('a directory and archives made before they were shared are shared on the next run', async () => {
+	// Before #138 the directory was made 0700 and each archive 0600; mkdir's mode
+	// does not change a directory that exists, so the copier could read nothing.
+	const old = join(dir, 'old-backups');
+	mkdirSync(old, { mode: 0o700 });
+	chmodSync(old, 0o700);
+	const earlier = join(old, 'abc-backup-20260101T000000Z.abcbak');
+	writeFileSync(earlier, 'an older archive', { mode: 0o600 });
+	chmodSync(earlier, 0o600);
+	const stray = join(old, 'notes.txt');
+	writeFileSync(stray, 'not an archive', { mode: 0o600 });
+	chmodSync(stray, 0o600);
+
+	const made = await runBackup({ ...quiet, dir: old, now: new Date('2026-09-22T10:00:00Z') });
+	assert.equal(statSync(old).mode & 0o777, 0o750, 'the directory');
+	assert.equal(statSync(earlier).mode & 0o777, 0o640, 'the archive from before');
+	assert.equal(statSync(made.file).mode & 0o777, 0o640, 'the new one');
+	assert.equal(statSync(stray).mode & 0o777, 0o600, 'anything else is left alone');
 });

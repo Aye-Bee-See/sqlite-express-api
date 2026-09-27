@@ -148,6 +148,30 @@ export async function runBackup(options = {}) {
 	return await running;
 }
 
+/**
+ * The directory and every finished archive in it readable by the group, as the
+ * copier needs. mkdir's mode applies only to a directory it makes, and is cut by
+ * the umask: a directory made before this was 0700, and the archives in it
+ * 0600, so the copier could list nothing until somebody ran chmod by hand.
+ * Group read (and search, for the directory) is added where it is missing;
+ * nothing is ever given to other users, and the working directory is not
+ * touched (it is made fresh, 0700, for each run).
+ */
+async function shareWithGroup(dir) {
+	const addGroup = async (path, bits) => {
+		const mode = (await stat(path)).mode & 0o7777;
+		if ((mode & bits) !== bits) {
+			await chmod(path, mode | bits);
+		}
+	};
+	await addGroup(dir, 0o050);
+	for (const name of await readdir(dir)) {
+		if (NAME.test(name)) {
+			await addGroup(join(dir, name), 0o040);
+		}
+	}
+}
+
 async function backup({
 	dir = backups.dir,
 	keep = backups.keep,
@@ -171,6 +195,7 @@ async function backup({
 	// and unreadable without the private half, which is not on this machine; the
 	// working directory below (the database in the clear, briefly) stays 0700.
 	await mkdir(dir, { recursive: true, mode: 0o750 });
+	await shareWithGroup(dir);
 	const work = await mkdtemp(join(dir, '.work-'));
 	try {
 		// SQLite's own consistent copy: one read transaction, safe beside a running

@@ -24,6 +24,32 @@ database, or one whose mode is set, boots as before.
 
 **For clients:** nothing to change.
 
+### A replay or a server fault does not use up a write limit (#164)
+
+The hourly limits on signed-in writes (#128) counted every request, including
+a retry with the same `Idempotency-Key` that was answered with the letter
+already made, and a request the server failed with a `5xx`. A client doing
+exactly what it was told (retry a `5xx` with the same key) spent its allowance
+twice over for one letter. Both are now given back once they are answered. A
+refusal (`4xx`) still counts, so a wrong body buys no extra tries.
+
+**For clients:** nothing to change; retrying with the same key is as safe for
+the limit as it is for the letter.
+
+### Backups made before #138 become readable by the copier too (#165)
+
+The change in #138 made finished backups group-readable so an off-site copier
+could fetch them without sudo, but only in a backup directory it created: an
+existing one stayed `0700`, and the archives already in it `0600`, so on abctest
+the copier could read nothing until somebody ran `chmod` by hand. Each backup
+run now adds group read (and, for the directory, group search) where it is
+missing, to the directory and to every archive in it. Nothing is ever made
+readable to other users, and anything in the directory that is not an archive
+is left alone.
+
+**Deployment:** abctest's next nightly backup fixes its directory. Off-site
+copying itself is still deferred until there is production data.
+
 ### A NUL character is refused, not a server error (#160)
 
 `?id=%00` answered `500` on every endpoint that looks a record up: Sequelize

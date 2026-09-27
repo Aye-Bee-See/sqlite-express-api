@@ -438,10 +438,11 @@ Everything that writes a row nobody else asked for is counted **per account**, o
 | Directory photos uploaded                                    | 60 per hour  | `RATE_LIMIT_PHOTOS_PER_USER`      |
 | Sign-ups per address (any caller but an admin; see below)    | 20 per hour  | `RATE_LIMIT_REGISTER_PER_IP`      |
 
-Three things worth knowing:
+Four things worth knowing:
 
 - **Staff are counted too.** The token worth stealing is a group's or an admin's, and a limit that exempts them protects nothing. The exception is `POST /auth/user` with an **admin's** token: an admin creating accounts is doing administration, not signing up, and is not counted against the address limit that guards open registration. Any other token is counted like a sign-up without one.
 - **A refused request still counts.** Counting happens before the body is read, so a wrong body cannot buy extra tries, and a refused attachment or key rotation costs no upload and no 32 MB of parsing.
+- **A replay and a server fault do not.** Sending the same `Idempotency-Key` again answers with the letter already made and writes nothing, and a `5xx` is the server's failure, not the caller's use: both are given back once they are answered.
 - **Directory writes by an admin are not limited** (facilities, prisoners, groups). That is seeding work, done rarely and deliberately; a group's directory edits are proposals, which are limited.
 
 Successful sign-ins never count against a username; once the failure limit is reached, even the right password is refused until the window ends. Usernames are compared case-insensitively. Set `RATE_LIMIT_ENABLED=false` to switch limiting off, and set `TRUST_PROXY` when the API is behind a reverse proxy, otherwise every client appears to come from the proxy's address and shares one budget.

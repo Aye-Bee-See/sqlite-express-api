@@ -1,5 +1,6 @@
 import multer from 'multer';
 import ValidationError from '#services/ValidationError.js';
+import { noNulCharacters } from '#rtServices/nul-characters.services.js';
 import { uploadMaxBytes } from '#constants';
 import { ALLOWED_MIME_TYPES } from '#services/files.js';
 
@@ -42,7 +43,8 @@ export function uploadSingle(field, { maxBytes = uploadMaxBytes } = {}) {
 	return (req, res, next) => {
 		handler(req, res, (err) => {
 			if (!err) {
-				return next();
+				// The multipart fields arrive only now; they are checked as a JSON body is.
+				return noNulCharacters(req, res, next);
 			}
 			if (err instanceof multer.MulterError) {
 				if (err.code === 'LIMIT_FILE_SIZE') {

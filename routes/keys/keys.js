@@ -1,5 +1,6 @@
 import express from 'express';
 import { default as passport } from 'passport';
+import { noNulCharacters } from '#rtServices/nul-characters.services.js';
 import { keysEnd } from '#routes/constants.js';
 import { default as keysCtrlr } from '#rtControllers/keys.controller.js';
 import { limiters } from '#rtServices/ratelimit.services.js';
@@ -84,6 +85,7 @@ class KeysRoutes {
 			// A rotation carries every envelope of the group: too large for the app-wide
 			// parser (which skips this path), and only read for a caller who may rotate.
 			bodyParser.json({ limit: rotationMaxBytes }),
+			noNulCharacters,
 			singleIds,
 			this.#Controller.rotate
 		);

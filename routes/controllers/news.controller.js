@@ -21,9 +21,12 @@ export default class NewsController extends RouteController {
 			if (req.query.limit !== undefined) {
 				limit = Number(req.query.limit);
 				if (!Number.isInteger(limit) || limit < 1 || limit > newsFeed.keep) {
-					throw new ValidationError(
-						'limit must be a whole number from 1 to ' + newsFeed.keep + '.'
-					);
+					throw new ValidationError({
+						message: 'limit must be a whole number from 1 to ' + newsFeed.keep + '.',
+						field: 'limit',
+						code: 'out_of_range',
+						params: { min: 1, max: newsFeed.keep }
+					});
 				}
 			}
 			this.handleSuccess(res, NewsItem.enabled() ? await NewsItem.latest(limit) : []);

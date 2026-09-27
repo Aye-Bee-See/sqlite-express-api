@@ -229,6 +229,8 @@ export const REFUSAL_FAMILIES = {
 	owner: "Only a group's owner-admin may do this.",
 	pen_name_limit: 'A pen name change refused by the cooldown or the yearly count.',
 	rate_limit: 'Too many requests; Retry-After says when to come back.',
+	request_body:
+		'The body could not be read at all: not JSON, too large, or in an encoding the server does not take.',
 	recovery: 'A recovery code or challenge that does not fit.',
 	reply_reference: 'A reply reference that fails its checksum or is unknown.',
 	rotation_incomplete: 'A group key rotation that did not carry everything it must.',
@@ -269,6 +271,37 @@ const SEQUELIZE_FAMILIES = {
 	SequelizeForeignKeyConstraintError: 'reference'
 };
 
+/**
+ * What Express's body parser says went wrong (`err.type`), as a condition of
+ * `request_body`. Before these had a family they answered `code: "http"` and
+ * logged an unknown family on every malformed request.
+ */
+const BODY_PARSER_CONDITIONS = {
+	'entity.parse.failed': 'not_json',
+	'entity.too.large': 'too_large',
+	'encoding.unsupported': 'unsupported_encoding',
+	'charset.unsupported': 'unsupported_charset',
+	'entity.verify.failed': 'unreadable',
+	'request.aborted': 'unreadable',
+	'request.size.invalid': 'unreadable',
+	'stream.encoding.set': 'unreadable',
+	'stream.not.readable': 'unreadable',
+	'parameters.too.many': 'too_many_parameters'
+};
+
+/**
+ * The condition a refusal is sent with, for a body the parser could not read,
+ * or null when it is not one.
+ */
+export function bodyParserCondition(err) {
+	return (
+		(err &&
+			Object.hasOwn(BODY_PARSER_CONDITIONS, String(err.type)) &&
+			BODY_PARSER_CONDITIONS[err.type]) ||
+		null
+	);
+}
+
 /** Is this a family the catalogue knows? */
 export function isKnownFamily(family) {
 	return Object.hasOwn(REFUSAL_FAMILIES, family);
@@ -276,17 +309,20 @@ export function isKnownFamily(family) {
 
 /**
  * The `code` for a refusal that is not about a field.
- * @param {{name?: string, condition?: string}} err
+ * @param {{name?: string, condition?: string, type?: string}} err
  * @returns {string}
  */
 export function codeForRefusal(err) {
-	const family = SEQUELIZE_FAMILIES[err && err.name] ?? familyOf(err && err.name);
+	const family = bodyParserCondition(err)
+		? 'request_body'
+		: (SEQUELIZE_FAMILIES[err && err.name] ?? familyOf(err && err.name));
 	const known = isKnownFamily(family) ? family : 'http';
 	if (!isKnownFamily(family)) {
 		// A new error name would ship a code nobody can look up; the test that reads
 		// the source catches it, and this keeps the answer honest in the meantime.
 		console.error('[errors] unknown refusal family "' + family + '"; add it to error-codes.js');
 	}
-	const condition = err && typeof err.condition === 'string' ? err.condition : null;
+	const condition =
+		bodyParserCondition(err) ?? (err && typeof err.condition === 'string' ? err.condition : null);
 	return condition && condition !== 'par' ? known + '.' + condition : known;
 }

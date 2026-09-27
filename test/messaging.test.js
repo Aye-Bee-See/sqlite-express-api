@@ -133,10 +133,12 @@ test("a user may not narrow to another user's pair but may omit user in a pair l
 test('chat lookups with incomplete parameters are 400s', async () => {
 	const onlyUser = await get('/chat/chat?user=' + f.alice.id, admin);
 	assert.equal(onlyUser.status, 400);
-	assert.equal(onlyUser.body.error, 'Both user and prisoner are required.');
+	assert.deepEqual(onlyUser.body.errors, ['Both user and prisoner are required.']);
+	assert.deepEqual(onlyUser.body.problems, [{ field: 'prisoner', code: 'required' }]);
 	const none = await get('/chat/chat', admin);
 	assert.equal(none.status, 400);
-	assert.equal(none.body.error, 'Provide either id, or both user and prisoner.');
+	assert.deepEqual(none.body.errors, ['Provide either id, or both user and prisoner.']);
+	assert.deepEqual(none.body.problems, [{ field: 'id', code: 'required' }]);
 	assert.equal(
 		(await get('/chat/chat?user=' + f.alice.id + '&prisoner=999999', admin)).status,
 		404

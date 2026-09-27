@@ -139,9 +139,12 @@ export default class ModerationController extends RouteController {
 			const given = (v) => v !== undefined && v !== '';
 			if (given(status) && status !== 'all') {
 				if (!SUBMISSION_STATUSES.includes(status)) {
-					throw new ValidationError(
-						'status must be one of ' + SUBMISSION_STATUSES.join(', ') + ', or all.'
-					);
+					throw new ValidationError({
+						message: 'status must be one of ' + SUBMISSION_STATUSES.join(', ') + ', or all.',
+						field: 'status',
+						code: 'not_allowed_value',
+						params: { allowed: [...SUBMISSION_STATUSES, 'all'] }
+					});
 				}
 				where.status = status;
 			} else if (!given(status) && AuthzService.isAdmin(req)) {
@@ -149,9 +152,12 @@ export default class ModerationController extends RouteController {
 			}
 			if (given(resource)) {
 				if (!SUBMISSION_RESOURCES.includes(resource)) {
-					throw new ValidationError(
-						'resource must be one of ' + SUBMISSION_RESOURCES.join(', ') + '.'
-					);
+					throw new ValidationError({
+						message: 'resource must be one of ' + SUBMISSION_RESOURCES.join(', ') + '.',
+						field: 'resource',
+						code: 'not_allowed_value',
+						params: { allowed: SUBMISSION_RESOURCES }
+					});
 				}
 				where.resource = resource;
 			}

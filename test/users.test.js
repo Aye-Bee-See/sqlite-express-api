@@ -161,7 +161,8 @@ test('lookups for missing users are 404 and no-parameter lookups are 400', async
 	assert.equal((await get('/auth/user?username=nobody', admin)).status, 404);
 	const none = await get('/auth/user', admin);
 	assert.equal(none.status, 400);
-	assert.equal(none.body.error, 'No ID, username, or email provided.');
+	assert.deepEqual(none.body.errors, ['No ID, username, or email provided.']);
+	assert.deepEqual(none.body.problems, [{ field: 'id', code: 'required' }]);
 	assert.equal((await put('/auth/user', { id: 999999, name: 'Valid Name' }, admin)).status, 404);
 	assert.equal((await del('/auth/user', { id: 999999 }, admin)).status, 404);
 });

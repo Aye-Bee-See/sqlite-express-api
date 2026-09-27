@@ -62,9 +62,13 @@ export function schemeFrom(body) {
 		});
 	}
 	if (scheme === 'plain' && requireSplitAuth) {
-		throw new ValidationError(
-			'This server only makes accounts whose password never reaches it: send authScheme "split" (see the README, Signing in).'
-		);
+		throw new ValidationError({
+			message:
+				'This server only makes accounts whose password never reaches it: send authScheme "split" (see the README, Signing in).',
+			field: 'authScheme',
+			code: 'not_allowed_value',
+			params: { allowed: ['split'] }
+		});
 	}
 	return scheme;
 }
@@ -98,9 +102,12 @@ export function requireKeysForSplit(scheme, fields) {
 		return;
 	}
 	if (!fields || fields.kdfSalt === undefined || fields.kdfParams === undefined) {
-		throw new ValidationError(
-			'authScheme "split" needs kdfSalt and kdfParams (the auth key is derived from them, as the wrap key is).'
-		);
+		throw new ValidationError({
+			message:
+				'authScheme "split" needs kdfSalt and kdfParams (the auth key is derived from them, as the wrap key is).',
+			field: fields && fields.kdfSalt !== undefined ? 'kdfParams' : 'kdfSalt',
+			code: 'required'
+		});
 	}
 }
 

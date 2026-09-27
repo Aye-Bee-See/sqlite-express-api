@@ -235,14 +235,19 @@ export default class LetterKey extends Model {
 	static #checkKeyVersion(envelope, chapterId, versions) {
 		const current = versions ? versions.get(chapterId) || 0 : 0;
 		if (current === 0) {
-			throw new ValidationError(
-				'Chapter ' + chapterId + ' has no group key yet, so nothing can be sealed to it.'
-			);
+			throw new ValidationError({
+				message: 'Chapter ' + chapterId + ' has no group key yet, so nothing can be sealed to it.',
+				field: 'envelopes',
+				code: 'not_eligible'
+			});
 		}
 		if (!Number.isInteger(envelope.keyVersion)) {
-			throw new ValidationError(
-				'An envelope for a group needs keyVersion: the version GET /auth/public-key returned with the key it was sealed to.'
-			);
+			throw new ValidationError({
+				message:
+					'An envelope for a group needs keyVersion: the version GET /auth/public-key returned with the key it was sealed to.',
+				field: 'envelopes',
+				code: 'required'
+			});
 		}
 		if (envelope.keyVersion !== current) {
 			throw new HttpError(
@@ -269,9 +274,12 @@ export default class LetterKey extends Model {
 	 */
 	static validateEnvelopes(envelopes, allowed, { writer, relayChapter }) {
 		if (!Array.isArray(envelopes) || envelopes.length === 0) {
-			throw new ValidationError(
-				'envelopes must be a non-empty array of { readerType, readerId, wrappedKey }.'
-			);
+			throw new ValidationError({
+				message: 'envelopes must be a non-empty array of { readerType, readerId, wrappedKey }.',
+				field: 'envelopes',
+				code: 'wrong_type',
+				params: { expected: 'a non-empty array of { readerType, readerId, wrappedKey }' }
+			});
 		}
 		const seen = new Set();
 		const clean = envelopes.map((e) => {
@@ -300,13 +308,16 @@ export default class LetterKey extends Model {
 			}
 			const pool = e.readerType === 'user' ? allowed.users : allowed.chapters;
 			if (!pool.has(readerId)) {
-				throw new ValidationError(
-					'Envelope reader ' +
+				throw new ValidationError({
+					message:
+						'Envelope reader ' +
 						e.readerType +
 						' ' +
 						readerId +
-						' is not a permitted reader of this letter.'
-				);
+						' is not a permitted reader of this letter.',
+					field: 'envelopes',
+					code: 'not_eligible'
+				});
 			}
 			const key = e.readerType + ':' + readerId;
 			if (seen.has(key)) {
@@ -335,14 +346,18 @@ export default class LetterKey extends Model {
 			});
 		}
 		if (!writer.publicKey && seen.has('user:' + writer.id)) {
-			throw new ValidationError(
-				'User ' + writer.id + ' has no public key yet, so nothing can be sealed to them.'
-			);
+			throw new ValidationError({
+				message: 'User ' + writer.id + ' has no public key yet, so nothing can be sealed to them.',
+				field: 'envelopes',
+				code: 'not_eligible'
+			});
 		}
 		if (relayChapter && !seen.has('chapter:' + relayChapter)) {
-			throw new ValidationError(
-				'The relay group (chapter ' + relayChapter + ') needs an envelope.'
-			);
+			throw new ValidationError({
+				message: 'The relay group (chapter ' + relayChapter + ') needs an envelope.',
+				field: 'envelopes',
+				code: 'required'
+			});
 		}
 		return clean;
 	}

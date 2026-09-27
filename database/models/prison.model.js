@@ -265,7 +265,11 @@ export default class Prison extends Model {
 				photoLimit: columns.photoLimit !== undefined ? columns.photoLimit : stored.photoLimit
 			});
 			if (clash) {
-				throw new ValidationError(PHOTO_RULES_CLASH);
+				throw new ValidationError({
+					message: PHOTO_RULES_CLASH,
+					field: 'photoLimit',
+					code: 'not_allowed_value'
+				});
 			}
 			await inTransaction(this.sequelize, async (transaction) => {
 				if (Object.keys(columns).length > 0) {

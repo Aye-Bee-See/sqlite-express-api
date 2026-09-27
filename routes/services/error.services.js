@@ -1,6 +1,6 @@
 import { messages as msgConstants } from '#routes/constants.js';
 import ValidationError from '#services/ValidationError.js';
-import { clientMessageFor, codeForRefusal } from '#services/error-codes.js';
+import { bodyParserCondition, clientMessageFor, codeForRefusal } from '#services/error-codes.js';
 import { HttpError } from '#services/HttpError.js';
 
 /**
@@ -55,6 +55,10 @@ export default class ErrorService {
 			// still sent beside it (README, "Error codes"). A 5xx is a fault rather
 			// than a refusal and gets no code: there is nothing for a client to key on.
 			body.code = codeForRefusal(err);
+			const condition = bodyParserCondition(err) ?? (err && err.condition);
+			if (typeof condition === 'string' && condition !== 'par') {
+				body.condition = condition;
+			}
 		}
 		if (status === 400) {
 			// A 400 always carries problems, even when it was thrown as an HttpError

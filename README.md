@@ -657,7 +657,7 @@ Everything else. `info` is the fixed message for that endpoint; `error`, when pr
 code = family + ("." + condition, when the refusal has one)
 ```
 
-`family` is the error's `name` in snake_case with `Error` dropped, so `InviteCodeError` with `condition: "used"` is `code: "invite_code.used"`, and a plain `NotFoundError` is `code: "not_found"`. Every family is listed in [docs/ERRORS.md](docs/ERRORS.md). **Match the whole code, or just the family before the dot**: a refusal may grow a finer `condition` in a later release, and a build that matched the family keeps working.
+`family` is the error's `name` in snake_case with `Error` dropped, so `InviteCodeError` with `condition: "used"` is `code: "invite_code.used"`, and a plain `NotFoundError` is `code: "not_found"`. The condition is whichever `condition` the answer carries, the error's own or the endpoint's (`GET /auth/user?id=` that finds nobody is `not_found.id`), so `code` never disagrees with `condition`. A body the server cannot read at all is `request_body` with `not_json`, `too_large`, `unsupported_encoding`, `unsupported_charset`, `too_many_parameters` or `unreadable`. Every family is listed in [docs/ERRORS.md](docs/ERRORS.md). **Match the whole code, or just the family before the dot**: a refusal may grow a finer `condition` in a later release, and a build that matched the family keeps working.
 
 `name` and `condition` are still sent, and are not going away; `code` is an addition. A `5xx` is a fault rather than a refusal and carries no `code`. A `400` about a field answers with `problems` instead (above), so every refusal has exactly one thing to key on.
 

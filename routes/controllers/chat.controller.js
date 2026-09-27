@@ -2,7 +2,7 @@ import Chat from '#models/chat.model.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
-import { HttpError } from '#services/HttpError.js';
+import ValidationError from '#services/ValidationError.js';
 import LetterKey from '#models/letter-key.model.js';
 import * as crypto from '#services/crypto.js';
 import Message from '#models/message.model.js';
@@ -175,10 +175,18 @@ export default class ChatController extends RouteController {
 				chat = await Chat.readChatByUserAndPrisoner(user, prisoner, full, publishedOnly);
 			} else if (user !== undefined || prisoner !== undefined) {
 				condition = 'param';
-				throw new HttpError(400, 'Both user and prisoner are required.');
+				throw new ValidationError({
+					message: 'Both user and prisoner are required.',
+					field: user === undefined ? 'user' : 'prisoner',
+					code: 'required'
+				});
 			} else {
 				condition = 'empty';
-				throw new HttpError(400, 'Provide either id, or both user and prisoner.');
+				throw new ValidationError({
+					message: 'Provide either id, or both user and prisoner.',
+					field: 'id',
+					code: 'required'
+				});
 			}
 			this.requireFound(chat, 'Chat');
 			await Chat.attachHeldCounts([chat]);

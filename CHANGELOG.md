@@ -8,6 +8,30 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-28 (night)
+
+### A test vector for a typed code (#139)
+
+Documentation and tests only. The README pinned a vector for the password path
+(`password → master → wrapKey, authKey`) but none for the **typed code** path,
+which starts one step earlier: at a person reading a claim or recovery code off a
+slip of paper and typing it in. Both phone clients turned out to normalise such a
+code without folding the look-alike characters (`O` for `0`, `I`/`L` for `1`), so
+a code typed with a capital O derived a different key and the person was told
+their correct code was invalid — worst for a recovery code, where they have
+already lost their password. The derivation vector could not catch that, because
+it begins after normalisation.
+
+So there is now a vector for the whole path: printed `0123-4567-89AB-CDEF-GHJK-MNPQ`,
+typed `" o123-4567-89ab-cdef-ghjk-mnpq "`, normalising to `0123456789ABCDEFGHJKMNPQ`
+and deriving `XZ7IeQJcWF00Cy2UxN9UfA2624gzWabkGTldGLHXKyU=` with the documented
+salt and parameters.
+
+**For clients:** check your normaliser against it. If your codes are 24
+characters of the Crockford alphabet, the missing `I`, `L`, `O` and `U` are
+precisely the characters a person will type wrongly, and folding them is the
+point. Filed as `Aye-Bee-See/android-client#15` and `Aye-Bee-See/ios-client#12`.
+
 ## 2026-09-28 (evening)
 
 ### A finished backup is group-readable (#138)

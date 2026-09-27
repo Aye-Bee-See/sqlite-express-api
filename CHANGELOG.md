@@ -10,6 +10,18 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27
 
+### An update cannot switch a server-mode deployment to end-to-end unasked (#162)
+
+`ENCRYPTION_MODE` has defaulted to `e2e` since #126. A deployment that never
+set it, and has been running in server mode, would have switched on its next
+update without anyone choosing to: clients sending `messageText` refused from
+that moment. Now a database that holds letters written in server mode does not
+boot on the default. It stops, says how many such letters there are, and asks
+for `ENCRYPTION_MODE=server` (carry on) or `ENCRYPTION_MODE=e2e` (switch). A new
+database, or one whose mode is set, boots as before.
+
+**Deployment:** abctest sets `ENCRYPTION_MODE=e2e`, so nothing changes there.
+
 ### The audit log is indexed, purged in batches, and not compacted every run (#163)
 
 Three costs the retention run and the audit endpoint paid on a large log.

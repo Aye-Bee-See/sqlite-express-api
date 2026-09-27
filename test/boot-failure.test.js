@@ -168,3 +168,45 @@ test('with no ENCRYPTION_MODE and no ENCRYPTION_KEY the server starts end-to-end
 		rmSync(dir, { recursive: true, force: true });
 	}
 });
+
+test('a database with server-mode letters does not switch to end-to-end on the default', async () => {
+	// ENCRYPTION_MODE defaults to e2e since #126. A deployment that never set it,
+	// and has been writing letters in server mode, must choose rather than drift.
+	const dir = mkdtempSync(join(tmpdir(), 'abc-mode-'));
+	const storage = join(dir, 'database.sqlite');
+	const common = { DB_STORAGE: storage, UPLOAD_DIR: join(dir, 'uploads'), PORT: '0' };
+	try {
+		const first = await boot(
+			{ ...common, ENCRYPTION_MODE: 'server', DB_SEED: 'true' },
+			{ stopAfter: 'Ready to serve requests.' }
+		);
+
+		assert.match(first.output, /Ready to serve requests\./, 'server mode, seeded');
+
+		const unchosen = await boot({ ...common }, { patience: 30_000 });
+		assert.equal(unchosen.code, 1, unchosen.output);
+		assert.match(unchosen.output, /written in server mode, and ENCRYPTION_MODE is not set/);
+		assert.match(unchosen.output, /ENCRYPTION_MODE=server/);
+
+		const chosen = await boot(
+			{ ...common, ENCRYPTION_MODE: 'e2e' },
+			{ stopAfter: 'Ready to serve requests.', patience: 30_000 }
+		);
+		assert.match(chosen.output, /Ready to serve requests\./, 'a deliberate switch boots');
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('a new database boots on the default without being asked', async () => {
+	const dir = mkdtempSync(join(tmpdir(), 'abc-mode-'));
+	try {
+		const fresh = await boot(
+			{ DB_STORAGE: join(dir, 'database.sqlite'), UPLOAD_DIR: join(dir, 'uploads'), PORT: '0' },
+			{ stopAfter: 'Ready to serve requests.', patience: 30_000 }
+		);
+		assert.match(fresh.output, /Ready to serve requests\./, fresh.output);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});

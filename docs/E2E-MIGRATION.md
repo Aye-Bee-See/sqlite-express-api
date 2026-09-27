@@ -65,6 +65,8 @@ It seals each letter's content key to its writer, its relay group, and the group
 
 ## Step 3: switch
 
+Set `ENCRYPTION_MODE=e2e` explicitly, even though it is the default. A database with letters under the server's key will not boot on the default alone (it stops and says so), because a deployment that never named its mode would otherwise switch on its next update without anyone choosing to.
+
 When `ready` is `true` and both clients are on the e2e contract. You do not need the waiting list to be empty.
 
 1. Announce a short maintenance window and stop the API. (A letter written in server mode in the last seconds before the switch would be handled like any other waiting letter, so this is tidiness, not safety.)

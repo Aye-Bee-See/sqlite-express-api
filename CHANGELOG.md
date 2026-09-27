@@ -10,6 +10,22 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### Codes on the flows people actually meet (#134)
+
+Step 2 of the error codes, in the order the Android and iOS reviews asked for: **pen names** (including `reasonCode` on the availability check), **joining, claiming and accepting an invitation**, **attachments**, **sending a letter**, and **a group's own forms**. Forty-seven refusals now carry a field and a code where they carried only an English sentence, and five codes join the catalogue:
+
+| Code                    | Where you will meet it                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reserved_value`        | a username shaped like the ones groups manage (`writer-…`), a placeholder email address                                                           |
+| `not_eligible`          | a record that exists but cannot be used here: a letter that was not returned, `paper` on a reply, a relay group that does not serve that facility |
+| `not_settable_here`     | a real field that belongs to another endpoint (keys go through `PUT /auth/keys`)                                                                  |
+| `already_set`           | a field that can be written once and has been                                                                                                     |
+| `wrong_encryption_mode` | plaintext sent to an end-to-end server, or ciphertext to one holding the keys. A client bug; `GET /health` says which mode it is                  |
+
+A moderation proposal now reports the path too (`fields.prisonName`, not `prisonName`), so **`field` is always the path in the request body** with no exceptions. Asked for by the Android review; a form bound to `fields` strips the prefix in one line.
+
+**For clients:** the sentences are unchanged, so nothing breaks. What is new is that these refusals can be worded by the client and pointed at the right input. What still answers `validation_failed` is mostly deep in the key endpoints, where the refusal means the client sent the wrong shape rather than something a person can fix.
+
 ### Validation failures carry a field and a code (#133)
 
 A refused request used to answer with English sentences and nothing else, so a client wanting to highlight the right input, or say it in Spanish, had to match on the text. Alongside `errors`, a `400` now carries `problems`: one entry per sentence, in the same order, each with the `field`, a stable `code`, and the `params` to interpolate.

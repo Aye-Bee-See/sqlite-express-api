@@ -2,7 +2,7 @@
 
 What changed in the letters.support API, newest first, in plain words. Each entry says what it means for the people using it, not only what moved in the code: the clients read this to know what to build, and the owner to know what is live.
 
-**Every change adds an entry here**, in the same pull request that makes the change ([docs/DEVELOPER.md](docs/DEVELOPER.md), "Changelog"). Entries are grouped by the day they reached `main`. Deployment events (a server moved, a database reset) belong here too, marked **Deployment**, because they change what the test server answers even when no code changed.
+**Every change adds an entry here**, in the same pull request that makes the change ([docs/DEVELOPER.md](docs/DEVELOPER.md), "Changelog"). Entries are grouped by the day they reached `main`, in Pacific time, newest first within a day. Deployment events (a server moved, a database reset) belong here too, marked **Deployment**, because they change what the test server answers even when no code changed.
 
 The public test server follows `main` within the hour, so anything below is live at `https://abctest.letters.support` unless an entry says otherwise.
 
@@ -34,6 +34,57 @@ Five fixes to directory photos (#130).
 **For clients:** use `photo.url` exactly as given; do not build it from the id,
 or a replaced photo will look unchanged. A photo that is refused with
 `wrong_type` on `photo` should be re-saved (or screenshotted) and sent again.
+### The changelog's dates, and some stale documentation (#150)
+
+Documentation only. Entries were dated inconsistently, five of them a day that
+had not yet come; they are now grouped by the day each reached `main`, in
+Pacific time. #142, #143 and #144 had no entries and now do. Two older entries
+said more than was true: #122's seed data has Greek in five facilities'
+addresses but no Cyrillic in any name or address, and #123's `lines` is an
+optional field no seeded facility has yet, while its "audit fixes" were
+`npm audit fix`. In the README, the boot output matches what a new database
+prints, the example account no longer collides with the seeded `chapter1`, and
+the settings table says that `0` for a rate limit means the default.
+### A group's key and invite history is its own (#149)
+
+`GET /chapter/history` (#143) let any group admin read another group's whole
+history: who was handed the group's key and who had it taken back, ownership
+transfers, key rotations, and invite codes issued, cancelled and used. Another
+group now sees only what it would see of a prison or a prisoner, the edits to
+the directory record (`chapter.create`, `chapter.update`, `chapter.delete`),
+and `total` counts only those. The group's own members and a superadmin still
+see everything.
+
+**For clients:** nothing to change. A history screen shown for somebody else's
+group will be shorter.
+### Saving a profile no longer trips the pen-name limit (#148)
+
+Two ways the pen-name limits (#127) refused people they were not meant for.
+
+- **Sending the current name again was refused as a change.** A profile form
+  that saves every field it shows, the pen name among them, got a `409`
+  `pen_name_limit.cooldown` for the 90 days after any change, and **nothing on
+  the form was saved**. The current name, in any spelling that folds to it, is
+  now not a change: the rest of the form saves, and the name keeps the spelling
+  it was first given.
+- **A writer who claimed their account started with no new names left.** Every
+  name after the first counted, so the group's names for the writer and the one
+  the writer chose at the claim used up the year's two. Now nothing up to and
+  including the claim counts; the writer's own changes afterwards count as
+  anyone's do. The cooldown still starts at the claim, as it does at sign-up.
+
+**For clients:** nothing to change; a form that sends the pen name on every save
+now works. `GET /auth/pen-name` answers `newNamesLeft: 2` for a writer who has
+just claimed.
+### A signed-in account can no longer sign people up without limit (#147)
+
+Sign-ups (`POST /auth/user`) are limited per address wherever open registration
+is on. The limit meant to let an admin through, but it let through **any**
+request with a token: one ordinary account could create accounts as fast as it
+liked. Now only an admin's token skips the count; a writer's or a group's is
+counted like a sign-up without one.
+
+**For clients:** nothing to change. A client never signs up while signed in.
 
 ### The audit-window test can see every action (#146)
 
@@ -69,7 +120,57 @@ refused, and that request reads the thread the first one made.
 **For clients:** nothing to change. A `POST /chat/chat` that used to fail with a
 500 under load now answers 201 with the thread, as documented.
 
-## 2026-09-28 (late)
+## 2026-09-27
+
+### Three audit actions are kept two years instead of 180 days (#144)
+
+Handing a group's key to a member (`chapter.member-key`), taking it back
+(`chapter.member-key.remove`), and the retention run's own record of what it
+deleted (`retention.run`) move from the 180-day window to the 730-day one. The
+first two are the access-control events that matter most, and slipped through
+because the prefix list said `chapter.keys`; the third is the only record that
+a deletion happened at all. The README prints the full classification of every
+action. (This PR also said the test guarding the classification had been
+widened; it had not, and #146 does it.)
+
+**For clients:** nothing to change.
+
+### The history of one record (#143)
+
+`GET /prisoner/history?id=`, `GET /prison/history?id=` and
+`GET /chapter/history?id=` answer what has happened to one directory record,
+newest first and paginated, each entry `{ id, at, action, actor, changes?, details? }`,
+with `changes` as `{ field: { from, to } }`. Staff only: a superadmin, or a
+group admin of an active group.
+
+Underneath, audit entries now record **what changed** rather than what a
+request sent: a form re-sent whole records the one field that moved, and an
+edit that changes nothing records the write with no changes. An approved
+proposal writes the record's own entry with the old values, so a history is
+complete without the moderation log. Values are cut at 1000 characters, dates
+compare as instants, and `actor` is `null` for the server itself or an account
+since deleted.
+
+**For clients:** these entries are kept 180 days (`AUDIT_KEEP_DAYS`), so a
+history screen should not present itself as the whole life of a record.
+
+### A taken username says which field (#142)
+
+Reported from the iOS client (#141). A unique clash — a taken username, email,
+pen name or mail-rule tag — fell through to the general error path and was
+answered with no field and no code. It is now a validation failure like any
+other: `errors: ["Username already in use."]` and
+`problems: [{ field: "username", code: "not_unique", params: { fields: ["username"] } }]`.
+
+A foreign-key violation used to answer the storage engine's own words
+(`SQLITE_CONSTRAINT: FOREIGN KEY constraint failed`). It now answers
+`code: "reference"` and a sentence that is true whichever way it happened: a
+record the request points at does not exist, or one it would remove is still
+in use.
+
+**For clients:** for a taken username, read `errors[0]` and `problems[0]`, not
+`error`. Android's `400` path already prefers `errors`; iOS gets the field it
+asked for.
 
 ### Every refusal now says which field and why (#140)
 
@@ -88,8 +189,6 @@ answering it is a custom validator nobody has classified, so the sentence in
 `errors` remains the thing to show — and it is worth reporting, because it can
 be given a code in an afternoon. Nothing about the shape changed, and no
 sentence was reworded.
-
-## 2026-09-28 (night)
 
 ### A test vector for a typed code (#139)
 
@@ -113,23 +212,17 @@ characters of the Crockford alphabet, the missing `I`, `L`, `O` and `U` are
 precisely the characters a person will type wrongly, and folding them is the
 point. Filed as `Aye-Bee-See/android-client#15` and `Aye-Bee-See/ios-client#12`.
 
-## 2026-09-28 (evening)
-
 ### A finished backup is group-readable (#138)
 
 So that a copy can be fetched off the machine by something that is not root. A backup and the directory it sits in are now `0640` in a `0750` directory, owned as before; the working directory that briefly holds the database in the clear stays `0700`. What is inside an archive is encrypted to `BACKUP_PUBLIC_KEY`, whose private half is not on the server, so group-read gives away nothing — and it means a scheduled copier can run as an ordinary member of the service's group instead of needing `sudo` in a cron job.
 
 Nothing changes for a deployment that keeps backups on the server only.
 
-## 2026-09-28 (later)
-
 ### A photo is hosted here, or there is no photo (#137)
 
 `photoUrl` is gone from prisoner records. It held a link to a picture on another site, from before photos were hosted here; **no client was ever built to load one**, nothing in the seed data set it, and no record on the test server carried one. A third-party image would also have told that host who was looking at which prisoner, which is the thing hosting them here avoids.
 
 **For clients:** `photo` is unchanged and is still the only field to read — `{ url, hosted, credit, updatedAt }` or `null`. `hosted` is now always `true`; it stays in the object so that a client written against the first shape of the field keeps working. `photoUrl` no longer appears in a prisoner row and can no longer be written, by an update or by a moderation proposal.
-
-## 2026-09-28
 
 ### One key for every refusal (#136)
 
@@ -150,8 +243,6 @@ The code is composed by one rule: the error's name in snake_case with `Error` dr
 **`name` and `condition` are still sent and are not being removed** — both clients asked for that, since installed builds word these refusals from the pair today.
 
 **For clients:** match the whole code, or just the family before the dot. The family is the stable half: a refusal may grow a finer `condition` later, and a build that matched the family keeps working. A `5xx` is a fault, not a refusal, and carries no code; a `400` about a field answers with `problems` instead. So there is exactly one thing to key on, whichever kind of refusal it is.
-
-## 2026-09-27 (evening)
 
 ### Codes on the flows people actually meet (#134)
 
@@ -191,7 +282,7 @@ Everything a **schema rule** refuses — a missing field, a length, a URL, a val
 
 After the Android and iOS reviews: `problems` is always exactly as long as `errors` and **every `400` carries it**, including refusals thrown as general errors (which keep their `condition`); a field inside an object is named with its path (`group.name`); a limit that does not apply is left out rather than sent as `null`; `GET /auth/pen-name-available` answers `reasonCode` beside `reason`; the lost-race `409` on a letter status move carries `condition: "changed_meanwhile"` so nobody has to match the sentence; and a split account's `password` that is not an auth key answers the new code `not_an_auth_key` **with no field**, since it is a client bug and must never appear under a person's password box.
 
-## 2026-09-27 (later)
+## 2026-09-26
 
 ### A letter is one write, with its Idempotency-Key (#132)
 
@@ -203,8 +294,6 @@ All of it is now one transaction. Either the letter and the note of its key are 
 
 Checked on a file database as well as in memory: sixty letters sent at once, from six writers to four prisoners, all succeeded, every retry replayed rather than creating anything, and no pair ended up with two threads.
 
-## 2026-09-27
-
 ### The audit log no longer grows for ever, and a pair has one thread (#131)
 
 Two pieces of housekeeping from the September audit.
@@ -214,8 +303,6 @@ Two pieces of housekeeping from the September audit.
 **One thread per writer and prisoner.** `POST /chat/chat` used to make a second thread for a pair, while the letter endpoint quietly filed letters under the oldest one, so the newer thread sat empty in somebody's inbox. Asking for a thread that exists now answers with that thread, and a unique index makes a second one impossible even from another process. Threads that were already doubled are merged by the migration, keeping every letter and notification. Known quirk 3 in the README is gone.
 
 **For clients:** nothing breaks. `POST /chat/chat` answers `201` with the pair's thread whether it was made now or already there, so a client that called it twice stops creating litter.
-
-## 2026-09-26
 
 ### Photographs in the directory (#130)
 
@@ -231,13 +318,13 @@ The endpoints that need no token have been limited since #84, but nothing limite
 
 **For clients:** handle `429` on writes, not only on sign-in. Read `Retry-After` (seconds) and say when to try again. A letter refused with `429` was not saved, so retrying is safe, with the same `Idempotency-Key` if one was used.
 
-## 2026-09-25
-
 ### Pen name changes are limited (#127)
 
 A pen name once used is never given to anyone else, which is what lets a reply addressed to an old name still find its writer — and it meant an account could rename itself in a loop and empty a namespace everybody shares. A change now waits 90 days after the one before (`PEN_NAME_COOLDOWN_DAYS`), and at most two brand-new names may be taken in a rolling year (`PEN_NAME_NEW_PER_YEAR`). Going back to a name the account has used before costs nothing from the namespace, so it does not count, but still waits out the cooldown. The name chosen at sign-up is the first, not a change, and is free of both. A superadmin, and a group for the unclaimed writers it looks after, may rename past the limits, which is what a writer being harassed needs; those overrides go to the audit log as `user.penName`.
 
 **For clients:** `GET /auth/pen-name` now also answers `changeAllowedAt`, `newNamesLeft`, `newNamesWindowEnds`, `cooldownDays` and `newPerYear`. Read it when the settings screen opens and say so before anyone types. A refusal is `409` `PenNameLimitError` with `condition` `cooldown` or `new_names`.
+
+## 2026-09-25
 
 ### End-to-end encryption is the default (#126)
 
@@ -259,17 +346,15 @@ A fresh database now seeds accounts whose password never reaches the server, inc
 
 The old sample directory was replaced with the real one from #122. Every account made before the rebuild is gone, including the test accounts handed out earlier.
 
-## 2026-09-24
-
 ### Answers to the web client's questions (#123)
 
-Addresses carry `lines`, ready to print. `GET /prisoner/filters` and `GET /prison/filters` give the values a filter UI should offer, so no client has to compile a list. A group's page embeds the facility of each supported prisoner. One rule now covers every typed code (upper case, letters and digits, `O`→`0`, `I`/`L`→`1`), stated in the README with an Argon2id test vector so the clients derive identical keys. Includes audit fixes found while answering.
+An address may carry `lines`, the exact lines to print in the order the facility asks for (optional; no seeded facility has them yet). `GET /prisoner/filters` and `GET /prison/filters` give the values a filter UI should offer, so no client has to compile a list. A group's page embeds the facility of each supported prisoner. One rule now covers every typed code (upper case, letters and digits, `O`→`0`, `I`/`L`→`1`), stated in the README with an Argon2id test vector so the clients derive identical keys. Also `npm audit fix` (lockfile only) and sqlite3 6.0.1, which needs Node 20.17 or later.
 
 ## 2026-09-23
 
 ### Real prisoners and facilities in the seed data (#122)
 
-The made-up directory is gone. A fresh database now holds 58 real prisoner profiles and 45 real facilities in eleven countries, transcribed from support-site profiles with a source recorded on each record. Three things for the clients: addresses have `street`, `city` and `postalCode` (some pending records only `city`); Greek and Cyrillic appear in names and addresses; and 20 of the 58 records are `pending`, so only staff see them, with `verificationNotes` and each facility's `notes` worth showing prominently.
+The made-up directory is gone. A fresh database now holds 58 real prisoner profiles and 45 real facilities in eleven countries, transcribed from support-site profiles with a source recorded on each record. Three things for the clients: addresses have `street`, `city` and `postalCode` (some pending records only `city`); the five Greek facilities' addresses are written in Greek (no name or address is in Cyrillic); and 20 of the 58 records are `pending`, so only staff see them, with `verificationNotes` and each facility's `notes` worth showing prominently.
 
 ### Deployment: the test server moved to letters.support
 

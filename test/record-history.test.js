@@ -125,3 +125,42 @@ test('every kind of record has one, and it is paginated', async () => {
 	assert.ok(page1.body.total >= 6);
 	assert.equal(page1.body.data[0].changes.about.to, 'Version 5', 'newest first');
 });
+
+test("another group sees a group's directory edits, not its keys, owner or invite codes", async () => {
+	const AuditLog = (await import('../database/models/audit-log.model.js')).default;
+	const group = await Chapter.createChapter({
+		name: 'Keys Kept Here',
+		location: {},
+		accountStatus: 'active'
+	});
+	const member = await makeUser({ role: 'chapter', username: 'keyskeeper' });
+	await User.update({ chapterId: group.id }, { where: { id: member.id } });
+	const everything = [
+		'chapter.update',
+		'chapter.keys',
+		'chapter.member-key',
+		'chapter.member-key.remove',
+		'chapter.owner',
+		'chapter.keys.rotate',
+		'invite-code.issue',
+		'invite-code.cancel',
+		'invite-code.join'
+	];
+	for (const action of everything) {
+		await AuditLog.record({ actor: member.id, action, resource: 'chapter', targetId: group.id });
+	}
+	const read = async (who) => {
+		const res = await get('/chapter/history?id=' + group.id + '&page_size=50', who);
+		assert.equal(res.status, 200, JSON.stringify(res.body));
+		return res.body;
+	};
+	const actions = (body) => body.data.map((row) => row.action).sort();
+
+	// Its own members and a superadmin see all of it.
+	assert.deepEqual(actions(await read(member)), [...everything].sort());
+	assert.deepEqual(actions(await read(f.admin)), [...everything].sort());
+	// Another group sees what anyone editing the directory would: the record's edits.
+	const outsider = await read(f.chapter);
+	assert.deepEqual(actions(outsider), ['chapter.update']);
+	assert.equal(outsider.total, 1, 'and the count agrees');
+});

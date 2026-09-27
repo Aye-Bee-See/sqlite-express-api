@@ -240,7 +240,13 @@ export default class ModerationController extends RouteController {
 				result.resource + '.' + (result.kind === 'create' ? 'create' : 'update'),
 				result.resource,
 				result.targetId,
-				{ viaSubmission: result.id, fields: result.appliedChanges }
+				{
+					viaSubmission: result.id,
+					// On a create there is nothing to compare against, so the values are it.
+					...(result.changesApplied
+						? { changes: result.changesApplied }
+						: { fields: result.appliedChanges })
+				}
 			);
 			await afterPrisonerChange(req, watched);
 			await ModerationController.#announceDecision(req, result);

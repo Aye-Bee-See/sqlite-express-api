@@ -350,7 +350,8 @@ test('the audit log records moderation decisions and staff writes', async () => 
 	const direct = log.body.data.find((e) => e.action === 'prison.update' && e.actor === f.admin.id);
 	assert.ok(direct);
 	assert.equal(direct.targetId, f.prison.id);
-	assert.deepEqual(direct.details.fields, { id: f.prison.id, notes: 'Edited directly' });
+	// The entry says what changed, not what was sent: one field, with its old value.
+	assert.deepEqual(direct.details.changes, { notes: { from: null, to: 'Edited directly' } });
 
 	const viaSubmission = log.body.data.find((e) => e.action === 'prisoner.update');
 	assert.ok(viaSubmission.details.viaSubmission);

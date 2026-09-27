@@ -72,7 +72,8 @@ const endpoints = {
 			many: '/prisoners',
 			one: '/prisoner',
 			filters: '/filters',
-			photo: '/photo'
+			photo: '/photo',
+			history: '/history'
 		},
 		post: {
 			create: '/prisoner',
@@ -93,7 +94,8 @@ const endpoints = {
 			many: '/prisons',
 			one: '/prison',
 			mailRules: '/mail-rules',
-			filters: '/filters'
+			filters: '/filters',
+			history: '/history'
 		},
 		post: {
 			create: '/prison',
@@ -113,7 +115,8 @@ const endpoints = {
 	chapter: {
 		get: {
 			many: '/chapters',
-			one: '/chapter'
+			one: '/chapter',
+			history: '/history'
 		},
 		post: {
 			create: '/chapter'
@@ -381,6 +384,10 @@ const messages = {
 	},
 	prisoner: {
 		get: {
+			history: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the history.' } }
+			},
 			filters: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading the filter values.' } }
@@ -445,6 +452,10 @@ const messages = {
 	},
 	prison: {
 		get: {
+			history: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the history.' } }
+			},
 			filters: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading the filter values.' } }
@@ -880,6 +891,10 @@ const messages = {
 	},
 	chapter: {
 		get: {
+			history: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the history.' } }
+			},
 			many: {
 				success: { condition: { par: 'Successfully retireved chapter list' } },
 				error: {

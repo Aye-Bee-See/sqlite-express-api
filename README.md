@@ -430,11 +430,11 @@ Everything that writes a row nobody else asked for is counted **per account**, o
 | Group key rotations                                          | 5 per hour   | `RATE_LIMIT_ROTATIONS_PER_USER`   |
 | Device registrations                                         | 30 per hour  | `RATE_LIMIT_DEVICES_PER_USER`     |
 | Directory photos uploaded                                    | 60 per hour  | `RATE_LIMIT_PHOTOS_PER_USER`      |
-| Sign-ups per address (no token; see below)                   | 20 per hour  | `RATE_LIMIT_REGISTER_PER_IP`      |
+| Sign-ups per address (any caller but an admin; see below)    | 20 per hour  | `RATE_LIMIT_REGISTER_PER_IP`      |
 
 Three things worth knowing:
 
-- **Staff are counted too.** The token worth stealing is a group's or an admin's, and a limit that exempts them protects nothing. The exception is `POST /auth/user` **with** a token: an admin creating accounts is doing administration, not signing up, and is not counted against the address limit that guards open registration.
+- **Staff are counted too.** The token worth stealing is a group's or an admin's, and a limit that exempts them protects nothing. The exception is `POST /auth/user` with an **admin's** token: an admin creating accounts is doing administration, not signing up, and is not counted against the address limit that guards open registration. Any other token is counted like a sign-up without one.
 - **A refused request still counts.** Counting happens before the body is read, so a wrong body cannot buy extra tries, and a refused attachment or key rotation costs no upload and no 32 MB of parsing.
 - **Directory writes by an admin are not limited** (facilities, prisoners, groups). That is seeding work, done rarely and deliberately; a group's directory edits are proposals, which are limited.
 
@@ -1110,7 +1110,7 @@ A **pen name** is the name a writer's letters are signed with and the name a pri
 - **A cooldown**, `PEN_NAME_COOLDOWN_DAYS` (90): one change every 90 days, whatever the name.
 - **New names per year**, `PEN_NAME_NEW_PER_YEAR` (2): at most two brand-new names in a rolling 365 days. Returning to a name this account has used before takes nothing from the shared namespace, so it does not count against this; it still waits out the cooldown.
 
-The name chosen at sign-up is the first, not a change: it is free of both. A refusal is a `409` `PenNameLimitError` whose `condition` is `cooldown` or `new_names`, and whose `error` says the date it may be done. Nothing is written when a change is refused, and the name that was asked for stays free for anybody.
+The name chosen at sign-up is the first, not a change: it is free of both. So is the name a managed writer chooses when they **claim** their account, and any name the group gave them before it: none of those were the writer changing their name, and after a claim the writer has the full two new names for the year (the cooldown starts at the claim, as it does at sign-up). **Sending the current name again is not a change either**, in any spelling that folds to it: a profile form that saves every field, the pen name among them, is saved as usual. A refusal is a `409` `PenNameLimitError` whose `condition` is `cooldown` or `new_names`, and whose `error` says the date it may be done. Nothing is written when a change is refused, and the name that was asked for stays free for anybody.
 
 **Staff are not limited.** A superadmin may rename any account, and a group may rename the unclaimed managed writers it looks after. A writer being harassed under a name their harasser knows cannot wait out a cooldown, and a managed writer often has no account of their own to ask with. Every such override is written to the audit log as `user.penName`.
 

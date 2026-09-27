@@ -22,6 +22,34 @@ see everything.
 
 **For clients:** nothing to change. A history screen shown for somebody else's
 group will be shorter.
+### Saving a profile no longer trips the pen-name limit (#148)
+
+Two ways the pen-name limits (#127) refused people they were not meant for.
+
+- **Sending the current name again was refused as a change.** A profile form
+  that saves every field it shows, the pen name among them, got a `409`
+  `pen_name_limit.cooldown` for the 90 days after any change, and **nothing on
+  the form was saved**. The current name, in any spelling that folds to it, is
+  now not a change: the rest of the form saves, and the name keeps the spelling
+  it was first given.
+- **A writer who claimed their account started with no new names left.** Every
+  name after the first counted, so the group's names for the writer and the one
+  the writer chose at the claim used up the year's two. Now nothing up to and
+  including the claim counts; the writer's own changes afterwards count as
+  anyone's do. The cooldown still starts at the claim, as it does at sign-up.
+
+**For clients:** nothing to change; a form that sends the pen name on every save
+now works. `GET /auth/pen-name` answers `newNamesLeft: 2` for a writer who has
+just claimed.
+### A signed-in account can no longer sign people up without limit (#147)
+
+Sign-ups (`POST /auth/user`) are limited per address wherever open registration
+is on. The limit meant to let an admin through, but it let through **any**
+request with a token: one ordinary account could create accounts as fast as it
+liked. Now only an admin's token skips the count; a writer's or a group's is
+counted like a sign-up without one.
+
+**For clients:** nothing to change. A client never signs up while signed in.
 
 ### The audit-window test can see every action (#146)
 

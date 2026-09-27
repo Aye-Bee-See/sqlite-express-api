@@ -617,12 +617,14 @@ export default class User extends Model {
 	 * Turn a managed writer into an independent account.
 	 * @param {User} user the writer
 	 * @param {{username: string, password: string, email?: string}} credentials
+	 * @param {{transaction?: object, now?: Date}} [options] now: the moment of the claim,
+	 *   shared with a pen name chosen at it, so that name is not counted as a change
 	 * @returns {Promise<[number]>} affected row count
 	 */
 	static async claim(
 		user,
 		{ username, password, email, keys = {}, authScheme = 'plain' },
-		{ transaction } = {}
+		{ transaction, now = new Date() } = {}
 	) {
 		if (!User.isClaimable(user)) {
 			throw new HttpError(409, 'This account cannot be claimed.', 'ClaimError');
@@ -632,7 +634,7 @@ export default class User extends Model {
 			username,
 			password,
 			authScheme,
-			claimedAt: new Date(),
+			claimedAt: now,
 			claimedFrom: user.managedBy,
 			managedBy: null,
 			// The group's copy of the private key goes with custody.

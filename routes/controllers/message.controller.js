@@ -276,6 +276,9 @@ export default class MessageController extends RouteController {
 			} else {
 				user = await resolveWriter(req, scope, req.body.user, { sender, prisoner });
 			}
+			if (prisoner !== undefined && prisoner !== null && prisoner !== '') {
+				await Prisoner.requireVisible(prisoner, AuthzService.publishedOnly(req));
+			}
 			const fields = {
 				sender,
 				prisoner,
@@ -561,6 +564,9 @@ export default class MessageController extends RouteController {
 				current &&
 				newMessage.prisoner !== undefined &&
 				String(newMessage.prisoner) !== String(current.prisoner);
+			if (moved) {
+				await Prisoner.requireVisible(newMessage.prisoner, AuthzService.publishedOnly(req));
+			}
 			if (newMessage.relayChapter !== undefined || moved) {
 				// A letter moved to another prisoner is routed again, as a new letter
 				// would be: the group that mailed to the old facility may not serve the new one.

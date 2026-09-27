@@ -24,6 +24,24 @@ what `GET /messaging/messages` already did.
 **For clients:** nothing to change. A group's inbox line now shows the newest
 letter it can read, rather than a blanked-out newer one it cannot.
 
+### A hidden prisoner cannot be found by writing to it (#156)
+
+A writer sees only published prisoners, but `POST /chat/chat`,
+`POST /messaging/message` and moving a letter with `PUT /messaging/message`
+accepted a pending or draft one, and made the thread or letter. A prisoner
+that did not exist was refused instead, so a script could walk the ids and
+learn which hidden records exist. Both are now the same `404`
+(`not_found`, "Prisoner N not found"), and nothing is made. Staff, who can see
+pending records, are unchanged, except that a prisoner that does not exist is
+now `404 not_found` for them too, where it was `400 reference`.
+
+The seed data had 17 of its 40 threads, and the letters in them, addressed to
+pending prisoners; they now go to published ones. This changes new databases
+only.
+
+**For clients:** a letter or thread for a prisoner that is gone answers `404`
+with code `not_found`, rather than `400` with code `reference`.
+
 ### Error codes: the rule holds, and no sentence goes without a field (#153)
 
 Four gaps in the error-code work (#133–#142).

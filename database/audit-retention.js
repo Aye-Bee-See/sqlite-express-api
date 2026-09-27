@@ -80,10 +80,42 @@ async function actionsInLog() {
 
 /**
  * Delete audit entries older than their window.
- * @param {{dryRun?: boolean, now?: Date}} options
+ * @param {{dryRun?: boolean, now?: Date, batchSize?: number}} options
  * @returns {Promise<{routine: number, security: number}>} how many went, or would
  */
-export async function purgeAuditLogs({ dryRun = false, now = new Date() } = {}) {
+/**
+ * How many entries one statement deletes. Each batch is its own write, so the
+ * lock is let go between them and a letter sent during a large first purge
+ * waits for one batch, not for all of them.
+ */
+const PURGE_BATCH = 1000;
+
+/** Delete the matching entries a batch at a time; the total deleted. */
+async function destroyInBatches(where, batchSize) {
+	let total = 0;
+	for (;;) {
+		const rows = await AuditLog.findAll({
+			attributes: ['id'],
+			where,
+			order: [['id', 'ASC']],
+			limit: batchSize,
+			raw: true
+		});
+		if (rows.length === 0) {
+			return total;
+		}
+		total += await AuditLog.destroy({ where: { id: rows.map((row) => row.id) } });
+		if (rows.length < batchSize) {
+			return total;
+		}
+	}
+}
+
+export async function purgeAuditLogs({
+	dryRun = false,
+	now = new Date(),
+	batchSize = PURGE_BATCH
+} = {}) {
 	const windows = auditWindows();
 	const report = { routine: 0, security: 0 };
 	if (windows.routine === null && windows.security === null) {
@@ -102,7 +134,9 @@ export async function purgeAuditLogs({ dryRun = false, now = new Date() } = {}) 
 			action: actions,
 			createdAt: { [Op.lt]: new Date(now.getTime() - days * DAY_MS) }
 		};
-		report[kind] = dryRun ? await AuditLog.count({ where }) : await AuditLog.destroy({ where });
+		report[kind] = dryRun
+			? await AuditLog.count({ where })
+			: await destroyInBatches(where, batchSize);
 	}
 	return report;
 }

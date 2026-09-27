@@ -212,3 +212,32 @@ test('0 keeps a kind for ever, and the retention run reports what it removed', a
 	assert.ok(await AuditLog.findOne({ where: { action: 'retention.run' } }));
 	void sequelize;
 });
+
+test('a large purge goes a batch at a time and removes exactly what it should', async () => {
+	const old = [];
+	for (let i = 0; i < 10; i++) {
+		old.push(await entry('letter.status', 400));
+	}
+	const young = await entry('letter.status', 10);
+	const kept = await entry('user.update', 400);
+	// Batches of three: four statements for ten entries, the last one short.
+	const report = await purgeAuditLogs({ batchSize: 3 });
+	assert.deepEqual(report, { routine: 10, security: 0 });
+	const left = (await AuditLog.findAll({ attributes: ['id'], raw: true })).map((r) => r.id);
+	assert.deepEqual(
+		left.sort((a, b) => a - b),
+		[young, kept].sort((a, b) => a - b)
+	);
+	void old;
+});
+
+test('reading or purging the log by action uses an index, not the whole table', async () => {
+	const [indexes] = await sequelize.query("PRAGMA index_list('AuditLogs')");
+	assert.ok(indexes.some((i) => i.name === 'audit_logs_action_created_at'));
+	const [plan] = await sequelize.query(
+		"EXPLAIN QUERY PLAN SELECT id FROM AuditLogs WHERE action IN ('letter.status') AND createdAt < '2026-01-01'"
+	);
+	const said = plan.map((row) => row.detail).join(' | ');
+	assert.match(said, /USING (COVERING )?INDEX audit_logs_action_created_at/, said);
+	assert.doesNotMatch(said, /^SCAN AuditLogs$/);
+});

@@ -1111,7 +1111,7 @@ The name chosen at sign-up is the first, not a change: it is free of both. A ref
 
 ### Photos
 
-A directory of names and paragraphs is a wall of text; a photograph is what makes a stranger look twice. Photos are **hosted here**, not linked from somewhere else, so no other host is told who is looking at which prisoner, and so a photo cannot quietly become a broken square or somebody else's picture.
+A directory of names and paragraphs is a wall of text; a photograph is what makes a stranger look twice. Photos are **hosted here**, and only here: no other host is told who is looking at which prisoner, and a photo cannot quietly become a broken square or somebody else's picture. (Until 28 September 2026 a record could carry `photoUrl`, a link to a picture on another site. No client was ever built to load one, and the column is gone.)
 
 - **Who may add one:** a superadmin, or the **group-owner admin** of an active group (decided 26 September 2026). It is published at once, the one part of a record a group changes without going through [moderation](#moderation), so it is kept to the person each group has already made answerable for it. Anyone else gets a `403`.
 - **One photo per record**, replaced rather than added to. The file it replaces is deleted.
@@ -1132,7 +1132,7 @@ Every prisoner row carries `photo`, which is what a client should use:
 }
 ```
 
-`url` is a path on this API for a hosted photo, and the older `photoUrl` link when there is no hosted one; `hosted` says which. `null` means there is no photo at all. A hosted `url` can go straight into an `<img>` tag: it needs no token, answers `Cache-Control: public, max-age=86400`, and carries an `ETag` that changes when the photo does.
+`url` is a path on this API; `null` in place of the whole object means the record has no photo. `hosted` is always `true` and is kept only so that a client written against the first shape of this field keeps working: **there is no longer any way to point a record at a photo hosted somewhere else** (the `photoUrl` column is gone as of 28 September 2026). A photo `url` can go straight into an `<img>` tag: it needs no token, answers `Cache-Control: public, max-age=86400`, and carries an `ETag` that changes when the photo does.
 
 #### POST /prisoner/photo
 
@@ -1667,32 +1667,31 @@ The values a list page builds its filter chips from, each with how many records 
 
 #### Prisoner fields
 
-| Field               | Type     | Notes                                                                                               |
-| ------------------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `birthName`         | string   | Legal name.                                                                                         |
-| `chosenName`        | string   | Name the person goes by.                                                                            |
-| `prison`            | integer  | Id of an existing prison. A nonexistent id is refused.                                              |
-| `inmateID`          | string   | Facility-issued identifier. Free text.                                                              |
-| `releaseDate`       | datetime | ISO-8601 string.                                                                                    |
-| `bio`               | string   |                                                                                                     |
-| `status`            | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`.                          |
-| `statusNotice`      | string   | Free text shown on the profile, e.g. "In transit, location unconfirmed".                            |
-| `aliases`           | string[] | Alternate names or spellings.                                                                       |
-| `country`           | string   | Country of imprisonment. Free text.                                                                 |
-| `detainedSince`     | datetime | ISO-8601.                                                                                           |
-| `sentence`          | string   | Free text, e.g. "10 years".                                                                         |
-| `charges`           | string   | Free text.                                                                                          |
-| `estimatedRelease`  | string   | Free text, e.g. "2033", "~2029", "Unknown". `releaseDate` remains for a precise date.               |
-| `interests`         | string[] | Tags shown on the profile.                                                                          |
-| `photoUrl`          | string   | A photo hosted somewhere else. Must be a URL. Prefer a hosted photo; see [Photos](#photos).         |
-| `photo`             | object   | Read-only: `{ url, hosted, credit, updatedAt }`, or `null`. What a client shows. [Photos](#photos). |
-| `supportWebsite`    | string   | Must be a URL.                                                                                      |
-| `donationInfo`      | string   | Free text.                                                                                          |
-| `featured`          | boolean  | Shown on the home page. Default `false`.                                                            |
-| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                        |
-| `verifiedAt`        | datetime | When it was verified.                                                                               |
-| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                 |
-| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only.                                           |
+| Field               | Type     | Notes                                                                                                |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `birthName`         | string   | Legal name.                                                                                          |
+| `chosenName`        | string   | Name the person goes by.                                                                             |
+| `prison`            | integer  | Id of an existing prison. A nonexistent id is refused.                                               |
+| `inmateID`          | string   | Facility-issued identifier. Free text.                                                               |
+| `releaseDate`       | datetime | ISO-8601 string.                                                                                     |
+| `bio`               | string   |                                                                                                      |
+| `status`            | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`.                           |
+| `statusNotice`      | string   | Free text shown on the profile, e.g. "In transit, location unconfirmed".                             |
+| `aliases`           | string[] | Alternate names or spellings.                                                                        |
+| `country`           | string   | Country of imprisonment. Free text.                                                                  |
+| `detainedSince`     | datetime | ISO-8601.                                                                                            |
+| `sentence`          | string   | Free text, e.g. "10 years".                                                                          |
+| `charges`           | string   | Free text.                                                                                           |
+| `estimatedRelease`  | string   | Free text, e.g. "2033", "~2029", "Unknown". `releaseDate` remains for a precise date.                |
+| `interests`         | string[] | Tags shown on the profile.                                                                           |
+| `photo`             | object   | Read-only: `{ url, hosted, credit, updatedAt }`, or `null`. The only photo field. [Photos](#photos). |
+| `supportWebsite`    | string   | Must be a URL.                                                                                       |
+| `donationInfo`      | string   | Free text.                                                                                           |
+| `featured`          | boolean  | Shown on the home page. Default `false`.                                                             |
+| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                         |
+| `verifiedAt`        | datetime | When it was verified.                                                                                |
+| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                  |
+| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only.                                            |
 
 All fields are optional at the database level. Array and object fields are validated for shape; `aliases` and `interests` must be arrays of non-empty strings.
 

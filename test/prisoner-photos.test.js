@@ -8,6 +8,7 @@ const {
 	makeFixtures,
 	makeUser,
 	get,
+	put,
 	del,
 	upload,
 	getBytes,
@@ -163,4 +164,26 @@ test('a record only staff may see keeps its photo to staff', async () => {
 	);
 	const staff = await getBytes('/prisoner/photo?prisoner=' + hidden.id, { token: f.admin.token });
 	assert.equal(staff.status, 200);
+});
+
+test('there is no way to point a record at a photo on another site', async () => {
+	// The column is gone (migration 2026.09.28T00.00.00.drop-photo-url.js): a
+	// record either has a photo hosted here or has none.
+	const row = await get('/prisoner/prisoner?id=' + f.prisoner2.id);
+	assert.equal(row.status, 200);
+	assert.equal('photoUrl' in row.body.data, false, 'not in a prisoner row any more');
+
+	// Writing it is ignored rather than stored: it is not a field of the model.
+	const update = await put(
+		'/prisoner/prisoner',
+		{ id: f.prisoner2.id, photoUrl: 'https://example.com/x.jpg' },
+		f.admin
+	);
+	assert.equal(update.status, 200, JSON.stringify(update.body));
+	const after = await Prisoner.findByPk(f.prisoner2.id);
+	assert.equal(after.get('photoUrl'), undefined);
+
+	// And `photo` still answers for the photo this record does have.
+	assert.equal(after.photo.hosted, true);
+	assert.equal(after.photo.url, '/prisoner/photo?prisoner=' + f.prisoner2.id);
 });

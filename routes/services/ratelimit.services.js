@@ -67,6 +67,20 @@ const clientIp = (req) => req.ip || (req.socket && req.socket.remoteAddress) || 
 const perAccount = (req) => (req.user ? 'user-' + req.user.id : undefined);
 
 /**
+ * Is this answered request given back its count? A 5xx is the server's fault,
+ * and a replay (the same Idempotency-Key again) wrote nothing new: neither is
+ * the caller using up what they may do. A refusal (4xx) still counts, so a
+ * wrong body cannot buy more tries. A limit on failures only (sign-in) gives
+ * back everything but a 4xx.
+ */
+function spare(res, failuresOnly) {
+	if (res.statusCode >= 500 || res.get('Idempotent-Replayed') === 'true') {
+		return true;
+	}
+	return failuresOnly && res.statusCode < 400;
+}
+
+/**
  * Build a limiter middleware.
  * @param {object} options
  * @param {string} options.name bucket namespace, e.g. 'login'
@@ -76,6 +90,7 @@ const perAccount = (req) => (req.user ? 'user-' + req.user.id : undefined);
  * @param {number|null} [options.perSubject] requests per window per subject (username, token, ...)
  * @param {(req: object) => string|undefined} [options.subject] extracts the subject
  * @param {boolean} [options.failuresOnly] a subject's request stops counting once it is answered with anything but a 4xx
+ *   (every limit gives back a 5xx and an idempotent replay; see spare)
  * @param {(req: object) => boolean} [options.exempt] requests this says true for are not counted at all
  */
 export function limit({
@@ -93,12 +108,17 @@ export function limit({
 			return next();
 		}
 		const now = Date.now();
+		// Each count is taken now, so a burst of parallel requests cannot all slip
+		// under the limit before the first is answered, and some are given back
+		// once the answer is known (spare, below).
+		const counted = [];
 		if (perIp) {
 			const bucket = take(name + ':ip:' + clientIp(req), windowMs, now);
 			if (bucket.count >= perIp) {
 				return refuse(res, next, bucket, now, what);
 			}
 			bucket.count += 1;
+			counted.push({ bucket, failuresOnly: false });
 		}
 		const who = subject ? subject(req) : undefined;
 		if (perSubject && typeof who === 'string' && who !== '') {
@@ -107,16 +127,17 @@ export function limit({
 			if (bucket.count >= perSubject) {
 				return refuse(res, next, bucket, now, what);
 			}
-			// Counted now, so a burst of parallel guesses cannot all slip under
-			// the limit before the first one is answered; given back on success.
 			bucket.count += 1;
-			if (failuresOnly) {
-				res.on('finish', () => {
-					if (res.statusCode < 400 || res.statusCode >= 500) {
+			counted.push({ bucket, failuresOnly });
+		}
+		if (counted.length > 0) {
+			res.on('finish', () => {
+				for (const { bucket, failuresOnly: onlyFailures } of counted) {
+					if (spare(res, onlyFailures)) {
 						bucket.count = Math.max(0, bucket.count - 1);
 					}
-				});
-			}
+				}
+			});
 		}
 		return next();
 	};

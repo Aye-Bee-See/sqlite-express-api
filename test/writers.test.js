@@ -111,8 +111,9 @@ test('writer lists are scoped to the group; admins see all or one group', async 
 });
 
 test('the manager note is hidden from everyone but the managing group and admins', async () => {
+	// Another group's writer is answered as nobody at all (see account-lookup.test.js).
 	const res = await get('/auth/user?id=' + f.writer.id, otherChapter);
-	assert.equal(res.status, 403);
+	assert.equal(res.status, 404);
 	const asAdmin = await get('/auth/user?id=' + f.writer.id, admin);
 	assert.equal(asAdmin.status, 200);
 	assert.equal('managerNote' in asAdmin.body.data, true);

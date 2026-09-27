@@ -85,15 +85,22 @@ export default class UserController extends RouteController {
 	}
 
 	async #handlePass(res, user, type, req) {
-		if (user && !(await AuthzService.mayManageUser(req, user))) {
-			throw await AuthzService.refusalFor(req);
+		if (user && (await AuthzService.mayManageUser(req, user))) {
+			this.#handleSuccess(res, this.#stripPassword(user, req));
+			return;
 		}
-		if (user) {
-			const strippedPassword = this.#stripPassword(user, req);
-			this.#handleSuccess(res, strippedPassword);
-		} else {
-			this.#handleErr(res, new NotFoundError('User not found'), type);
+		if (
+			AuthzService.hasRole(req, AuthzService.CHAPTER) &&
+			!(await AuthzService.activeChapterOf(req))
+		) {
+			// A member of a group that is not active is told why, whoever they asked
+			// about: the same answer for an account that exists and one that does not.
+			throw await AuthzService.groupRefusal(req);
 		}
+		// An account this caller may not see is answered as no account at all. A 403
+		// here, beside a 404 for nobody, told any group account which emails,
+		// usernames and ids have accounts.
+		this.#handleErr(res, new NotFoundError('User not found'), type);
 	}
 
 	/**

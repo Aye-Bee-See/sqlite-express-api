@@ -2477,7 +2477,7 @@ Body `{"id": 7, "decisionNote": "..."}`. The note is required.
 
 #### The history of one record
 
-`GET /prisoner/history?id=`, `GET /prison/history?id=`, `GET /chapter/history?id=` — what has happened to one record, newest first, paginated like any list. **Staff only** (a superadmin, or a group admin of an active group): it names the people who made each change and can carry staff-only field values. A record nobody may see, or none at all, is a `404`.
+`GET /prisoner/history?id=`, `GET /prison/history?id=`, `GET /chapter/history?id=` — what has happened to one record, newest first, paginated like any list. **Staff only** (a superadmin, or a group admin of an active group): it names the people who made each change and can carry staff-only field values. A group's own history holds more than its directory edits (who holds its key, who owns it, its invite codes): those are shown only to its own members and a superadmin, and **another group sees only `chapter.create`, `chapter.update` and `chapter.delete`**, with `total` counting what it sees. A record nobody may see, or none at all, is a `404`.
 
 ```json
 {

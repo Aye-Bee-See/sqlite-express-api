@@ -10,6 +10,18 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### A group's key and invite history is its own (#149)
+
+`GET /chapter/history` (#143) let any group admin read another group's whole
+history: who was handed the group's key and who had it taken back, ownership
+transfers, key rotations, and invite codes issued, cancelled and used. Another
+group now sees only what it would see of a prison or a prisoner, the edits to
+the directory record (`chapter.create`, `chapter.update`, `chapter.delete`),
+and `total` counts only those. The group's own members and a superadmin still
+see everything.
+
+**For clients:** nothing to change. A history screen shown for somebody else's
+group will be shorter.
 ### Saving a profile no longer trips the pen-name limit (#148)
 
 Two ways the pen-name limits (#127) refused people they were not meant for.

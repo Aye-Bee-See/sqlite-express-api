@@ -10,6 +10,30 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### Photos: gone when taken down, and nothing hidden in the file (#151)
+
+Five fixes to directory photos (#130).
+
+- **A photo taken down or replaced stayed visible for a day.** Its URL never
+  changed and was cached for 24 hours. The URL now carries `&v=`, which changes
+  with every upload, and the picture is served `no-cache` with an `ETag`: kept,
+  but checked each time it is shown (a `304` with no body while unchanged).
+- **A staff-only photo was marked `public`**, so a shared cache could have kept
+  a pending record's photo and handed it to anyone. It is now `private`.
+- **Nothing after the end of a JPEG is kept.** Phones append a second picture
+  with its own EXIF, or a motion photo's video; the stripper kept both. A JPEG
+  or WebP that cannot be read to the end is now refused rather than stored with
+  whatever it failed to recognise. Checked on 77 real JPEGs: every one decodes
+  to the same pixels after stripping.
+- **Deleting a prisoner deletes its photo file**, which it used to leave behind.
+- **Rows no longer carry `photoFile` or `photoAddedBy`**, the file's name on disk
+  and the uploader's account id. Also: an upload is read only up to the photo
+  limit (it was 20 MiB) and only once the uploader is known to be allowed, and
+  the two plain-sentence refusals have codes (`not_allowed_value`, `out_of_range`).
+
+**For clients:** use `photo.url` exactly as given; do not build it from the id,
+or a replaced photo will look unchanged. A photo that is refused with
+`wrong_type` on `photo` should be re-saved (or screenshotted) and sent again.
 ### The changelog's dates, and some stale documentation (#150)
 
 Documentation only. Entries were dated inconsistently, five of them a day that

@@ -3,6 +3,7 @@ import { default as passport } from 'passport';
 import { prisonerEnd } from '#routes/constants.js';
 import { default as prisonerCrtlr } from '#rtControllers/prisoner.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
+import { photoMaxBytes } from '#constants';
 import { uploadSingle } from '#rtServices/upload.services.js';
 import { limiters } from '#rtServices/ratelimit.services.js';
 
@@ -67,9 +68,11 @@ class PrisonerRoutes {
 		this.Router.post(
 			prisonerEnd.post.photo,
 			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
-			// Counted before the file is read, so a refusal costs no upload.
+			// Counted, and the uploader checked, before the file is read, so a refusal
+			// costs no upload; and read only up to the photo limit, not the attachment one.
 			limiters.photo,
-			uploadSingle('photo'),
+			this.#Controller.photoEditor,
+			uploadSingle('photo', { maxBytes: photoMaxBytes }),
 			this.#Controller.createPhoto
 		);
 		this.Router.delete(

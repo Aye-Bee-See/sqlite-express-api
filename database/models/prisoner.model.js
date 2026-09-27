@@ -9,6 +9,7 @@ import Chapter from '#models/chapter.model.js';
 import PrisonerSupport from '#models/prisoner-support.model.js';
 import modelsService from '#models/models.service.js';
 import { NotFoundError } from '#services/HttpError.js';
+import { removeFile } from '#services/files.js';
 import { publishedWhere, PUBLISHED } from '#db/record-status.js';
 import { ADDRESS_RETURN_REASONS } from '#db/letter-status.js';
 
@@ -327,9 +328,19 @@ export default class Prisoner extends Model {
 
 	// Delete
 
+	/**
+	 * Delete a prisoner, and its photo file once the row is gone (a crash between
+	 * the two leaves a spare file, never a record pointing at nothing).
+	 */
 	static async deletePrisoner(id) {
-		return await this.destroy({
+		const row = await this.findByPk(id, { attributes: ['id', 'photoFile'] });
+		const file = row ? row.getDataValue('photoFile') : null;
+		const deleted = await this.destroy({
 			where: { id: id }
 		});
+		if (deleted && file) {
+			await removeFile(file);
+		}
+		return deleted;
 	}
 }

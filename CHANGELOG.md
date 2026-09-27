@@ -10,6 +10,17 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### A group account cannot test which emails have accounts (#157)
+
+`GET /auth/user?email=` (or `?username=`, `?id=`) is open to a group account
+for the writers its group looks after. For anyone else's account it answered
+`403`, and for an address with no account `404`, so any group login could
+check whether a given email or username is signed up. Both are now the same
+`404`. A member of a group that is not active is told why, as before, and now
+gets that same answer whether or not the account exists.
+
+**For clients:** nothing to change.
+
 ### Error codes: the rule holds, and no sentence goes without a field (#153)
 
 Four gaps in the error-code work (#133–#142).

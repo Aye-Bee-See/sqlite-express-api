@@ -257,14 +257,18 @@ export default class MessageController extends RouteController {
 				}
 				const found = await this.#referenceFor(req, scope, reference);
 				if (prisoner !== undefined && String(prisoner) !== String(found.row.prisoner)) {
-					throw new ValidationError(
-						'That reply reference belongs to a letter to a different prisoner.'
-					);
+					throw new ValidationError({
+						message: 'That reply reference belongs to a letter to a different prisoner.',
+						field: 'reference',
+						code: 'not_eligible'
+					});
 				}
 				if (req.body.user !== undefined && String(req.body.user) !== String(found.row.user)) {
-					throw new ValidationError(
-						'That reply reference belongs to a letter by a different writer.'
-					);
+					throw new ValidationError({
+						message: 'That reply reference belongs to a letter by a different writer.',
+						field: 'reference',
+						code: 'not_eligible'
+					});
 				}
 				prisoner = found.row.prisoner;
 				user = found.row.user;
@@ -767,9 +771,12 @@ export default class MessageController extends RouteController {
 			} else {
 				mimeType = sniffType(req.file.buffer);
 				if (!mimeType || mimeType !== req.file.mimetype) {
-					throw new ValidationError(
-						'The file content does not match its type ' + req.file.mimetype + '.'
-					);
+					throw new ValidationError({
+						message: 'The file content does not match its type ' + req.file.mimetype + '.',
+						field: 'file',
+						code: 'wrong_type',
+						params: { expected: req.file.mimetype }
+					});
 				}
 			}
 			// The same key on a retried upload returns the file already stored. The
@@ -936,9 +943,12 @@ export default class MessageController extends RouteController {
 			(typeof value === 'string' && /^[1-9]\d{0,15}$/.test(value));
 		const clean = Array.isArray(ids) && ids.every(isId) ? ids.map(Number) : [];
 		if (clean.length === 0 || clean.length > BATCH_LIMIT || new Set(clean).size !== clean.length) {
-			throw new ValidationError(
-				'ids must be a list of 1 to ' + BATCH_LIMIT + ' different letter ids.'
-			);
+			throw new ValidationError({
+				message: 'ids must be a list of 1 to ' + BATCH_LIMIT + ' different letter ids.',
+				field: 'ids',
+				code: 'wrong_type',
+				params: { expected: 'a list of 1 to ' + BATCH_LIMIT + ' different letter ids' }
+			});
 		}
 		return clean;
 	}

@@ -84,12 +84,22 @@ export default class KeysController extends RouteController {
 			'recoverySalt'
 		]) {
 			if (out[field] !== undefined && (typeof out[field] !== 'string' || out[field] === '')) {
-				throw new ValidationError(field + ' must be a non-empty string.');
+				throw new ValidationError({
+					message: field + ' must be a non-empty string.',
+					field: field,
+					code: 'wrong_type',
+					params: { expected: 'a non-empty string' }
+				});
 			}
 		}
 		for (const field of ['kdfParams', 'recoveryKdfParams']) {
 			if (out[field] !== undefined && !crypto.isKdfParams(out[field])) {
-				throw new ValidationError(field + ' ' + crypto.KDF_PARAMS_HINT);
+				throw new ValidationError({
+					message: field + ' ' + crypto.KDF_PARAMS_HINT,
+					field: field,
+					code: 'wrong_type',
+					params: { expected: 'an object naming the KDF, as in the README' }
+				});
 			}
 		}
 		const wrapped = ['wrappedPrivateKey', 'kdfSalt', 'kdfParams'];
@@ -113,9 +123,11 @@ export default class KeysController extends RouteController {
 		const recovery = ['recoveryWrappedPrivateKey', 'recoverySalt', 'recoveryKdfParams'];
 		const recoveryPresent = recovery.filter((f) => out[f] !== undefined);
 		if (recoveryPresent.length > 0 && recoveryPresent.length < recovery.length) {
-			throw new ValidationError(
-				'recoveryWrappedPrivateKey, recoverySalt, and recoveryKdfParams go together.'
-			);
+			throw new ValidationError({
+				message: 'recoveryWrappedPrivateKey, recoverySalt, and recoveryKdfParams go together.',
+				field: recovery.find((f) => out[f] === undefined),
+				code: 'required'
+			});
 		}
 		// A new account has all of its first keys or none. A public key alone is one
 		// nobody can use the private half of, and letters sealed to it are lost. In
@@ -128,14 +140,17 @@ export default class KeysController extends RouteController {
 		if (newAccount && startsKeys) {
 			const missing = [...wrapped, 'publicKey'].filter((f) => out[f] === undefined);
 			if (missing.length > 0) {
-				throw new ValidationError(
-					'Send publicKey, wrappedPrivateKey, kdfSalt, and kdfParams together (missing: ' +
+				throw new ValidationError({
+					message:
+						'Send publicKey, wrappedPrivateKey, kdfSalt, and kdfParams together (missing: ' +
 						missing.join(', ') +
 						')' +
 						(crypto.isE2E() && out.wrappedPrivateKey === undefined
 							? '. In end-to-end mode an account is made with its keys.'
-							: '.')
-				);
+							: '.'),
+					field: missing[0],
+					code: 'required'
+				});
 			}
 		}
 		if (requireAll) {
@@ -257,9 +272,12 @@ export default class KeysController extends RouteController {
 			) {
 				// A public key nobody could ever use the private half of: letters sealed to
 				// it (old ones, at once, by the catch-up below) would be lost to everyone.
-				throw new ValidationError(
-					'Send wrappedPrivateKey, kdfSalt, and kdfParams together with the first publicKey.'
-				);
+				throw new ValidationError({
+					message:
+						'Send wrappedPrivateKey, kdfSalt, and kdfParams together with the first publicKey.',
+					field: 'wrappedPrivateKey',
+					code: 'required'
+				});
 			}
 			const where = { id: req.user.id };
 			if (fields.publicKey !== undefined && !user.publicKey) {
@@ -549,9 +567,11 @@ export default class KeysController extends RouteController {
 			}
 			const member = this.requireFound(await User.findByPk(memberId), 'User ' + memberId);
 			if (String(member.chapterId) !== String(chapter.id)) {
-				throw new ValidationError(
-					'User ' + memberId + ' is not a member of chapter ' + chapter.id + '.'
-				);
+				throw new ValidationError({
+					message: 'User ' + memberId + ' is not a member of chapter ' + chapter.id + '.',
+					field: 'chapter',
+					code: 'not_eligible'
+				});
 			}
 			if (!member.publicKey) {
 				throw new HttpError(
@@ -640,9 +660,11 @@ export default class KeysController extends RouteController {
 			}
 			const member = this.requireFound(await User.findByPk(userId), 'User ' + userId);
 			if (String(member.chapterId) !== String(chapter.id)) {
-				throw new ValidationError(
-					'User ' + userId + ' is not a member of chapter ' + chapter.id + '.'
-				);
+				throw new ValidationError({
+					message: 'User ' + userId + ' is not a member of chapter ' + chapter.id + '.',
+					field: 'user',
+					code: 'not_eligible'
+				});
 			}
 			if (!member.publicKey) {
 				throw new HttpError(409, 'User ' + userId + ' has no public key yet.', 'KeyChangeError');
@@ -734,9 +756,11 @@ export default class KeysController extends RouteController {
 					: await this.#ownerNow(req, chapterId);
 				const who = this.requireFound(await User.findByPk(userId), 'User ' + userId);
 				if (who.role !== 'chapter' || String(who.chapterId) !== String(fresh.id)) {
-					throw new ValidationError(
-						'User ' + userId + ' is not a group admin of chapter ' + fresh.id + '.'
-					);
+					throw new ValidationError({
+						message: 'User ' + userId + ' is not a group admin of chapter ' + fresh.id + '.',
+						field: 'user',
+						code: 'not_eligible'
+					});
 				}
 				if (String(fresh.ownerId) === String(who.id)) {
 					throw new HttpError(
@@ -838,9 +862,11 @@ export default class KeysController extends RouteController {
 			);
 		}
 		if (!Number.isInteger(version)) {
-			throw new ValidationError(
-				field + ' is required: the keyVersion of the group key this was sealed to.'
-			);
+			throw new ValidationError({
+				message: field + ' is required: the keyVersion of the group key this was sealed to.',
+				field: field,
+				code: 'required'
+			});
 		}
 		if (version !== chapter.keyVersion) {
 			throw new HttpError(
@@ -942,18 +968,25 @@ export default class KeysController extends RouteController {
 	/** A list of { id|user, <field> } pairs from a rotation body, as a Map keyed by number. */
 	static #sealedList(list, idField, valueField, label, { allowEmpty = true } = {}) {
 		if (!Array.isArray(list) || (!allowEmpty && list.length === 0)) {
-			throw new ValidationError(
-				label + ' must be an array of { ' + idField + ', ' + valueField + ' }.'
-			);
+			throw new ValidationError({
+				message: label + ' must be an array of { ' + idField + ', ' + valueField + ' }.',
+				field: label,
+				code: 'wrong_type',
+				params: { expected: 'an array of { ' + idField + ', ' + valueField + ' }' }
+			});
 		}
 		const map = new Map();
 		for (const item of list) {
 			const id = Number(item && item[idField]);
 			const value = item && item[valueField];
 			if (!Number.isInteger(id) || id <= 0 || typeof value !== 'string' || value === '') {
-				throw new ValidationError(
-					'Each of ' + label + ' needs a numeric ' + idField + ' and a ' + valueField + '.'
-				);
+				throw new ValidationError({
+					message:
+						'Each of ' + label + ' needs a numeric ' + idField + ' and a ' + valueField + '.',
+					field: label,
+					code: 'wrong_type',
+					params: { expected: 'an array of { ' + idField + ', ' + valueField + ' }' }
+				});
 			}
 			if (map.has(id)) {
 				throw new ValidationError({
@@ -1028,9 +1061,11 @@ export default class KeysController extends RouteController {
 			for (const id of members.keys()) {
 				const member = eligible.find((m) => m.id === id);
 				if (!member) {
-					throw new ValidationError(
-						'User ' + id + ' is not a member of chapter ' + chapter.id + '.'
-					);
+					throw new ValidationError({
+						message: 'User ' + id + ' is not a member of chapter ' + chapter.id + '.',
+						field: 'members',
+						code: 'not_eligible'
+					});
 				}
 				if (!member.publicKey) {
 					throw new HttpError(409, 'User ' + id + ' has no public key yet.', 'KeyChangeError');

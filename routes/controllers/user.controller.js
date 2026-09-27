@@ -193,7 +193,15 @@ export default class UserController extends RouteController {
 				}
 				break;
 			default:
-				this.#handleErr(res, new HttpError(400, 'No ID, username, or email provided.'), type);
+				this.#handleErr(
+					res,
+					new ValidationError({
+						message: 'No ID, username, or email provided.',
+						field: 'id',
+						code: 'required'
+					}),
+					type
+				);
 				break;
 		}
 	}
@@ -361,9 +369,12 @@ export default class UserController extends RouteController {
 				authScheme.checkPassword(scheme, newUser.password);
 				if (scheme === 'split') {
 					if (!AuthzService.targetsSelf(req)) {
-						throw new ValidationError(
-							"Only the account holder can change a split account's password: the auth key is derived on their device. Use recovery."
-						);
+						throw new ValidationError({
+							message:
+								"Only the account holder can change a split account's password: the auth key is derived on their device. Use recovery.",
+							field: 'password',
+							code: 'not_settable_here'
+						});
 					}
 					authScheme.requireKeysForSplit(scheme, newUser);
 				}
@@ -377,9 +388,11 @@ export default class UserController extends RouteController {
 				const rewrap = ['wrappedPrivateKey', 'kdfSalt', 'kdfParams'];
 				const stray = keyFields.filter((f) => !rewrap.includes(f));
 				if (stray.length > 0) {
-					throw new ValidationError(
-						'Set keys through PUT /auth/keys, not here (' + stray.join(', ') + ').'
-					);
+					throw new ValidationError({
+						message: 'Set keys through PUT /auth/keys, not here (' + stray.join(', ') + ').',
+						field: stray[0],
+						code: 'not_settable_here'
+					});
 				}
 				// A new password means a new wrapping of the private key: in end-to-end mode
 				// for any keyed account, and for a split account in any mode (the auth key
@@ -388,14 +401,20 @@ export default class UserController extends RouteController {
 					const target = await User.findByPk(newUser.id, { attributes: ['id', 'publicKey'] });
 					if (target && (target.publicKey || newUser.authScheme === 'split')) {
 						if (!AuthzService.targetsSelf(req)) {
-							throw new ValidationError(
-								'End-to-end mode: only the account holder can change this password (the private key is wrapped under it); use recovery.'
-							);
+							throw new ValidationError({
+								message:
+									'End-to-end mode: only the account holder can change this password (the private key is wrapped under it); use recovery.',
+								field: 'password',
+								code: 'not_settable_here'
+							});
 						}
 						if (rewrap.some((f) => newUser[f] === undefined)) {
-							throw new ValidationError(
-								'End-to-end mode: send wrappedPrivateKey, kdfSalt, and kdfParams re-wrapped under the new password.'
-							);
+							throw new ValidationError({
+								message:
+									'End-to-end mode: send wrappedPrivateKey, kdfSalt, and kdfParams re-wrapped under the new password.',
+								field: rewrap.find((f) => newUser[f] === undefined),
+								code: 'required'
+							});
 						}
 						// Same shape rules as PUT /auth/keys, so a re-wrap cannot store unusable metadata.
 						KeysController.keyFields({
@@ -461,9 +480,12 @@ export default class UserController extends RouteController {
 						// An unclaimed writer cannot sign in: without the group's sealed copy
 						// nobody holds the private half, and letters sealed to the key are lost.
 						return next(
-							new ValidationError(
-								"Send orgWrappedPrivateKey (and orgKeyVersion) with the writer's first publicKey."
-							)
+							new ValidationError({
+								message:
+									"Send orgWrappedPrivateKey (and orgKeyVersion) with the writer's first publicKey.",
+								field: 'orgWrappedPrivateKey',
+								code: 'required'
+							})
 						);
 					}
 					custodyKeyed = !target.publicKey;
@@ -837,9 +859,12 @@ export default class UserController extends RouteController {
 				// The browser made the token; the server only ever holds its hash.
 				const { tokenHash, claimWrappedPrivateKey, claimSalt, claimKdfParams } = req.body;
 				if (typeof tokenHash !== 'string' || !/^[0-9a-f]{64}$/.test(tokenHash)) {
-					throw new ValidationError(
-						'End-to-end mode: tokenHash (SHA-256 hex of the upper-cased token) is required.'
-					);
+					throw new ValidationError({
+						message:
+							'End-to-end mode: tokenHash (SHA-256 hex of the upper-cased token) is required.',
+						field: 'tokenHash',
+						code: 'required'
+					});
 				}
 				for (const [field, value] of [
 					['claimWrappedPrivateKey', claimWrappedPrivateKey],
@@ -1032,9 +1057,15 @@ export default class UserController extends RouteController {
 				// under the new password and a recovery code; the keypair stays.
 				keys = KeysController.keyFields(req.body);
 				if (keys.wrappedPrivateKey === undefined || keys.recoveryWrappedPrivateKey === undefined) {
-					throw new ValidationError(
-						'End-to-end mode: send wrappedPrivateKey, kdfSalt, kdfParams, recoveryWrappedPrivateKey, recoverySalt, and recoveryKdfParams.'
-					);
+					throw new ValidationError({
+						message:
+							'End-to-end mode: send wrappedPrivateKey, kdfSalt, kdfParams, recoveryWrappedPrivateKey, recoverySalt, and recoveryKdfParams.',
+						field:
+							keys.wrappedPrivateKey === undefined
+								? 'wrappedPrivateKey'
+								: 'recoveryWrappedPrivateKey',
+						code: 'required'
+					});
 				}
 				if (keys.publicKey !== undefined && keys.publicKey !== writer.publicKey) {
 					throw new HttpError(409, 'The public key cannot change on claim.', 'KeyChangeError');

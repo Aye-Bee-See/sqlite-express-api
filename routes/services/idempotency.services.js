@@ -66,9 +66,13 @@ export async function begin(req, res, scope, parts) {
 		return null;
 	}
 	if (!IDEMPOTENCY_KEY.test(key)) {
-		throw new ValidationError(
-			'Idempotency-Key must be 8 to 128 printable characters without spaces; a UUID is ideal.'
-		);
+		throw new ValidationError({
+			message:
+				'Idempotency-Key must be 8 to 128 printable characters without spaces; a UUID is ideal.',
+			field: 'Idempotency-Key',
+			code: 'wrong_type',
+			params: { expected: '8 to 128 printable characters without spaces' }
+		});
 	}
 	const fingerprint = fingerprintOf(parts);
 	let claim;

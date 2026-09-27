@@ -70,6 +70,33 @@ export default class ValidationError extends Error {
 	}
 
 	/**
+	 * A constraint SQLite enforced that Sequelize did not name. Its SQLite driver
+	 * reports every constraint that is not a foreign key as a unique clash, and
+	 * for a NOT NULL or CHECK failure that clash has no items: answered as it
+	 * was, the client got a 400 with empty `errors` and `problems`. A NOT NULL
+	 * failure names its column, so it is `required` on that field; anything else
+	 * is said plainly, without a field.
+	 * @returns {{message: string, field: string|null, code: string}[]|null}
+	 */
+	static #constraintItems(err) {
+		if (err?.name !== 'SequelizeUniqueConstraintError' || err.errors?.length > 0) {
+			return null;
+		}
+		const said = String(err.parent?.message ?? err.original?.message ?? err.message ?? '');
+		const notNull = /NOT NULL constraint failed: [^.\s]+\.(\w+)/.exec(said);
+		if (notNull) {
+			return [{ message: notNull[1] + ' is required.', field: notNull[1], code: 'required' }];
+		}
+		return [
+			{
+				message: 'The database refused a value in this request.',
+				field: null,
+				code: 'validation_failed'
+			}
+		];
+	}
+
+	/**
 	 * Messages from either this class or a SequelizeValidationError.
 	 * @param {Error} err
 	 * @returns {string[]|null} null when err is not a validation error
@@ -83,6 +110,10 @@ export default class ValidationError extends Error {
 		}
 		if (!err || !Array.isArray(err.errors)) {
 			return null;
+		}
+		const constraint = ValidationError.#constraintItems(err);
+		if (constraint) {
+			return constraint.map((item) => item.message);
 		}
 		if (
 			err.name === 'ValidationError' ||
@@ -114,6 +145,10 @@ export default class ValidationError extends Error {
 		}
 		if (!err || !Array.isArray(err.errors)) {
 			return null;
+		}
+		const constraint = ValidationError.#constraintItems(err);
+		if (constraint) {
+			return constraint.map(({ field, code }) => ({ field, code }));
 		}
 		if (Array.isArray(err.problems) && err.problems.length === err.errors.length) {
 			return err.problems;

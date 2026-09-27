@@ -71,7 +71,12 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 		if (RECORD_STATUSES.includes(recordStatus)) {
 			where.recordStatus = recordStatus;
 		} else {
-			errors.push('recordStatus must be one of ' + RECORD_STATUSES.join(', ') + '.');
+			errors.push({
+				message: 'recordStatus must be one of ' + RECORD_STATUSES.join(', ') + '.',
+				field: 'recordStatus',
+				code: 'not_allowed_value',
+				params: { allowed: RECORD_STATUSES }
+			});
 		}
 	}
 
@@ -87,7 +92,12 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 			continue;
 		}
 		if (spec.allowed && !spec.allowed.includes(value)) {
-			errors.push(param + ' must be one of ' + spec.allowed.join(', ') + '.');
+			errors.push({
+				message: param + ' must be one of ' + spec.allowed.join(', ') + '.',
+				field: param,
+				code: 'not_allowed_value',
+				params: { allowed: spec.allowed }
+			});
 		} else if (spec.build) {
 			// Built fragments may use Op.or themselves; keep them apart from the
 			// q search (which owns the top-level Op.or) by AND-ing them.
@@ -98,7 +108,11 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 				if (!(err instanceof ValidationError)) {
 					throw err;
 				}
-				errors.push(err.message);
+				// Its own field and code, or this parameter's when it named none.
+				const problems = ValidationError.problemsFrom(err) ?? [];
+				ValidationError.messagesFrom(err).forEach((message, i) =>
+					errors.push({ ...problems[i], message, field: problems[i]?.field ?? param })
+				);
 			}
 		} else {
 			where[spec.column || param] = spec.transform ? spec.transform(value) : value;
@@ -114,7 +128,12 @@ export function readOptions(req, { searchFields = [], sorts = {}, filters = {} }
 		if (typeof sort === 'string' && Object.hasOwn(sorts, sort)) {
 			order = sorts[sort];
 		} else {
-			errors.push('sort must be one of ' + Object.keys(sorts).join(', ') + '.');
+			errors.push({
+				message: 'sort must be one of ' + Object.keys(sorts).join(', ') + '.',
+				field: 'sort',
+				code: 'not_allowed_value',
+				params: { allowed: Object.keys(sorts) }
+			});
 		}
 	}
 

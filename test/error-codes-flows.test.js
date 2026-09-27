@@ -11,8 +11,11 @@ import {
 	get,
 	post,
 	put,
-	upload
+	upload,
+	baseUrlOf,
+	sequelize
 } from './helpers.js';
+import ValidationError from '../services/ValidationError.js';
 
 let f;
 before(async () => {
@@ -161,4 +164,110 @@ test('a proposal says which field inside `fields` was refused', async () => {
 	);
 	assert.equal(incomplete.status, 400, JSON.stringify(incomplete.body));
 	assert.deepEqual(incomplete.body.problems, [{ field: 'fields.prisonName', code: 'required' }]);
+});
+
+test('an endpoint condition is part of the code, as the composition rule says', async () => {
+	// GET /auth/user answers `condition` from how the account was asked for; the
+	// code carries it too, so `code` is always family + '.' + condition.
+	const res = await get('/auth/user?id=987654', f.admin);
+	assert.equal(res.status, 404, JSON.stringify(res.body));
+	assert.equal(res.body.condition, 'id');
+	assert.equal(res.body.code, 'not_found.id');
+	assert.equal(res.body.code.split('.')[0], 'not_found', 'the family a client matches on');
+});
+
+test('a body that is not JSON is a request_body refusal, and logs nothing', async () => {
+	const logged = [];
+	const original = console.error;
+	console.error = (...args) => logged.push(args.join(' '));
+	let res;
+	try {
+		res = await fetch(baseUrlOf() + '/auth/login', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: '{"username": "x", '
+		});
+	} finally {
+		console.error = original;
+	}
+	const body = await res.json();
+	assert.equal(res.status, 400);
+	assert.equal(body.code, 'request_body.not_json');
+	assert.equal(body.condition, 'not_json');
+	assert.deepEqual(body.problems, [{ field: null, code: 'validation_failed' }]);
+	assert.deepEqual(
+		logged.filter((line) => line.includes('[errors]')),
+		[],
+		'no "unknown refusal family" line per malformed request'
+	);
+});
+
+test('a NOT NULL the database enforces names its field, never an empty list', async () => {
+	let err;
+	try {
+		await sequelize.query(
+			"INSERT INTO `PenNames` (`userId`, `name`, `nameKey`, `createdAt`, `updatedAt`) VALUES (1, NULL, 'k', '2026-01-01', '2026-01-01')"
+		);
+	} catch (e) {
+		err = e;
+	}
+	assert.ok(err, 'the database refused it');
+	assert.deepEqual(ValidationError.messagesFrom(err), ['name is required.']);
+	assert.deepEqual(ValidationError.problemsFrom(err), [{ field: 'name', code: 'required' }]);
+});
+
+test('every ValidationError in the code says which field and why', async () => {
+	// A bare sentence answers `validation_failed` with no field, which a client
+	// can only show as it is. #140 said none were left; a search that did not
+	// allow for Prettier putting the sentence on the next line had missed 46.
+	const { readdir, readFile } = await import('node:fs/promises');
+	const sources = [];
+	const walk = async (dir) => {
+		for (const item of await readdir(dir, { withFileTypes: true })) {
+			const full = dir + '/' + item.name;
+			if (item.isDirectory()) {
+				await walk(full);
+			} else if (item.name.endsWith('.js')) {
+				sources.push(full);
+			}
+		}
+	};
+	for (const dir of ['routes', 'services', 'database']) {
+		await walk(dir);
+	}
+	const plain = [];
+	for (const file of sources) {
+		const text = await readFile(file, 'utf8');
+		const lineOf = (index) => text.slice(0, index).split('\n').length;
+		for (const call of text.matchAll(/new ValidationError\(\s*(\S)/g)) {
+			const start = call[1];
+			if (start === '{') {
+				continue;
+			}
+			// A list built up first: every item pushed onto it must be an object.
+			const list = /^(\w+)\)/.exec(text.slice(call.index + call[0].length - 1));
+			const nested =
+				file.endsWith('services/ValidationError.js') &&
+				text.startsWith('messages.map', call.index + call[0].length - 1);
+			if (nested) {
+				continue;
+			}
+			if (list) {
+				const pushes = [...text.matchAll(new RegExp('\\b' + list[1] + '\\.push\\(\\s*(\\S)', 'g'))];
+				const bad = pushes.filter((push) => push[1] !== '{');
+				if (pushes.length > 0 && bad.length === 0) {
+					continue;
+				}
+				for (const push of bad) {
+					plain.push(file + ':' + lineOf(push.index));
+				}
+				if (pushes.length === 0) {
+					plain.push(file + ':' + lineOf(call.index));
+				}
+				continue;
+			}
+			plain.push(file + ':' + lineOf(call.index));
+		}
+	}
+	assert.deepEqual(plain, [], 'give each a field and a code (services/error-codes.js)');
 });

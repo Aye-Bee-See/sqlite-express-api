@@ -320,14 +320,25 @@ export default class PrisonerController extends RouteController {
 			}
 			const mime = sniffType(req.file.buffer);
 			if (!mime || !PrisonerController.#PHOTO_TYPES.includes(mime)) {
-				throw new ValidationError(
-					'A photo must be a JPEG, PNG, or WebP image; this file is not one.'
-				);
+				throw new ValidationError({
+					message: 'A photo must be a JPEG, PNG, or WebP image; this file is not one.',
+					field: 'photo',
+					code: 'not_allowed_value',
+					params: { allowed: PrisonerController.#PHOTO_TYPES }
+				});
 			}
 			if (req.file.size > photoMaxBytes) {
-				throw new ValidationError(
-					'A photo can be at most ' + photoMaxBytes + ' bytes; this one is ' + req.file.size + '.'
-				);
+				throw new ValidationError({
+					message:
+						'A photo can be at most ' +
+						photoMaxBytes +
+						' bytes; this one is ' +
+						req.file.size +
+						'.',
+					field: 'photo',
+					code: 'out_of_range',
+					params: { max: photoMaxBytes }
+				});
 			}
 			const credit = req.body.credit === undefined ? null : String(req.body.credit).trim() || null;
 			if (credit && credit.length > 200) {

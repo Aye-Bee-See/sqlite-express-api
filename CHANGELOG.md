@@ -10,6 +10,35 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### Error codes: the rule holds, and no sentence goes without a field (#153)
+
+Four gaps in the error-code work (#133–#142).
+
+- **`code` and `condition` could disagree.** A condition that came from the
+  endpoint rather than the error was sent as `condition` but left out of
+  `code`, so the documented rule (`code = family + "." + condition`) was false.
+  It holds now: `GET /auth/user?id=` that finds nobody is `not_found.id`
+  (`.mail`, `.name` for the other lookups), where it was `not_found`.
+- **55 hand-written refusals still had no field or code.** #140 said none were
+  left; its search did not allow for Prettier putting the sentence on the next
+  line. Every one now says which field and why, with the codes already in
+  `docs/ERRORS.md`, and a test reads the source so a new one cannot slip in.
+  Three missing-parameter refusals that were thrown as bare `400`s
+  (`GET /auth/user` with no id, `GET /chat/chat` without both user and
+  prisoner) are now validation failures like the rest, with the sentence in
+  `errors` and `required` in `problems`.
+- **A body that is not JSON answered `code: "http"`** and logged a line on the
+  server for every such request. It is now `request_body.not_json` (and
+  `.too_large` and so on), with nothing logged.
+- **A NOT NULL the database enforces answered empty `errors` and `problems`.**
+  It now names the column, `required`. SQLite reports these as unique clashes
+  with nothing in them, which #142 had started treating as validation failures.
+
+**For clients:** if you match `not_found` exactly, match the family before the
+dot instead, as the README has always said. For the three missing-parameter
+`400`s, read `errors[0]` rather than `error`. Anything that showed
+`validation_failed` with no field should now have one.
+
 ### Starting a thread no longer stalls letters (#145)
 
 A fix for a deadlock that only a database on disk could show. Sending a letter

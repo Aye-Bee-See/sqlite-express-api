@@ -153,15 +153,18 @@ export default class Submission extends Model {
 		}
 		const disallowed = Object.keys(fields).filter((f) => !spec.submittable.includes(f));
 		if (disallowed.length > 0) {
-			throw new ValidationError(
-				'These fields cannot be proposed for a ' +
+			throw new ValidationError({
+				message:
+					'These fields cannot be proposed for a ' +
 					resource +
 					': ' +
 					disallowed.join(', ') +
 					'. Allowed: ' +
 					spec.submittable.join(', ') +
-					'.'
-			);
+					'.',
+				field: 'fields.' + disallowed[0],
+				code: 'not_settable_here'
+			});
 		}
 		const payload = pick(fields, spec.submittable);
 		if (Object.keys(payload).length === 0) {
@@ -372,13 +375,16 @@ export default class Submission extends Model {
 			}
 			const disallowed = Object.keys(fields).filter((f) => !spec.submittable.includes(f));
 			if (disallowed.length > 0) {
-				throw new ValidationError(
-					'These fields cannot be proposed for a ' +
+				throw new ValidationError({
+					message:
+						'These fields cannot be proposed for a ' +
 						submission.resource +
 						': ' +
 						disallowed.join(', ') +
-						'.'
-				);
+						'.',
+					field: 'fields.' + disallowed[0],
+					code: 'not_settable_here'
+				});
 			}
 			const payload = pick(fields, spec.submittable);
 			if (Object.keys(payload).length === 0) {

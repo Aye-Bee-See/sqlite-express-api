@@ -202,23 +202,27 @@ export default class RouteController {
 			info,
 			status
 		};
-		if (status < 500) {
-			// One key for a refusal, composed from the name and the condition that are
-			// still sent beside it (README, "Error codes"). A 5xx is a fault rather
-			// than a refusal and gets no code: there is nothing for a client to key on.
-			body.code = codeForRefusal(errMsg);
-		}
-		if (status === 400) {
-			// A 400 always carries problems, even when it was thrown as an HttpError
-			// rather than a ValidationError: clients read one shape (README, "Errors").
-			body.problems = [{ field: null, code: 'validation_failed' }];
-		}
 		// The machine-readable half of a refusal, for clients that word their own
 		// sentences: the error's own condition, or the endpoint's when it has a
 		// specific one (`par` is the general case and says nothing).
 		const condition = (errMsg && errMsg.condition) || (msgType !== 'par' ? msgType : null);
 		if (condition) {
 			body.condition = condition;
+		}
+		if (status < 500) {
+			// One key for a refusal: the family, and the condition sent beside it,
+			// whichever of the two it came from (README, "Error codes"). A 5xx is a
+			// fault rather than a refusal and gets no code: nothing to key on.
+			body.code = codeForRefusal({
+				name: errMsg ? errMsg.name : 'Error',
+				type: errMsg ? errMsg.type : undefined,
+				condition
+			});
+		}
+		if (status === 400) {
+			// A 400 always carries problems, even when it was thrown as an HttpError
+			// rather than a ValidationError: clients read one shape (README, "Errors").
+			body.problems = [{ field: null, code: 'validation_failed' }];
 		}
 		if (errMsg && errMsg.message) {
 			if (status < 500) {

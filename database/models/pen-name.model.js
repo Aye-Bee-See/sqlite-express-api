@@ -73,9 +73,15 @@ export default class PenName extends Model {
 			});
 		}
 		if (!/^\p{L}[\p{L}\p{M}\p{N} .'’-]*$/u.test(clean)) {
-			throw new ValidationError(
-				'penName may hold letters, digits, spaces, hyphens, apostrophes, and dots, and starts with a letter.'
-			);
+			throw new ValidationError({
+				message:
+					'penName may hold letters, digits, spaces, hyphens, apostrophes, and dots, and starts with a letter.',
+				field: 'penName',
+				code: 'wrong_type',
+				params: {
+					expected: 'letters, digits, spaces, hyphens, apostrophes and dots, starting with a letter'
+				}
+			});
 		}
 		return clean;
 	}
@@ -133,9 +139,12 @@ export default class PenName extends Model {
 		const key = PenName.keyOf(clean);
 		const holder = await this.findOne({ where: { nameKey: key }, transaction });
 		if (holder && String(holder.userId) !== String(userId)) {
-			throw new ValidationError(
-				'That pen name is taken (names once used are never given out again).'
-			);
+			throw new ValidationError({
+				message: 'That pen name is taken (names once used are never given out again).',
+				field: 'penName',
+				code: 'not_unique',
+				params: { fields: ['penName'] }
+			});
 		}
 		if (holder && holder.retiredAt === null) {
 			return holder.name; // already the current name
@@ -158,9 +167,12 @@ export default class PenName extends Model {
 				await this.create({ userId, name: clean, nameKey: key, claimedAt: now }, { transaction });
 			} catch (err) {
 				if (err && err.name === 'SequelizeUniqueConstraintError') {
-					throw new ValidationError(
-						'That pen name is taken (names once used are never given out again).'
-					);
+					throw new ValidationError({
+						message: 'That pen name is taken (names once used are never given out again).',
+						field: 'penName',
+						code: 'not_unique',
+						params: { fields: ['penName'] }
+					});
 				}
 				throw err;
 			}

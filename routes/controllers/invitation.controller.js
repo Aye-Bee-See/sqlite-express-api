@@ -155,9 +155,12 @@ export default class InvitationController extends RouteController {
 			}
 			if (status !== undefined && status !== '') {
 				if (!INVITATION_STATUSES.includes(status)) {
-					throw new ValidationError(
-						'status must be one of ' + INVITATION_STATUSES.join(', ') + '.'
-					);
+					throw new ValidationError({
+						message: 'status must be one of ' + INVITATION_STATUSES.join(', ') + '.',
+						field: 'status',
+						code: 'not_allowed_value',
+						params: { allowed: INVITATION_STATUSES }
+					});
 				}
 				where.status = status;
 			}
@@ -298,9 +301,11 @@ export default class InvitationController extends RouteController {
 			if (record.kind === 'group') {
 				groupFields = InvitationController.#groupFields(req.body.group);
 			} else if (req.body.group !== undefined) {
-				throw new ValidationError(
-					'This invitation is to join an existing group; do not send group.'
-				);
+				throw new ValidationError({
+					message: 'This invitation is to join an existing group; do not send group.',
+					field: 'group',
+					code: 'not_settable_here'
+				});
 			}
 			// Say what is wrong with the account or the group before anything is
 			// written; a taken username can only be found by trying, below.
@@ -394,13 +399,16 @@ export default class InvitationController extends RouteController {
 		}
 		const refused = Object.keys(group).filter((f) => !GROUP_PROFILE_FIELDS.includes(f));
 		if (refused.length > 0) {
-			throw new ValidationError(
-				'These group fields cannot be set when accepting an invitation: ' +
+			throw new ValidationError({
+				message:
+					'These group fields cannot be set when accepting an invitation: ' +
 					refused.join(', ') +
 					'. Allowed: ' +
 					GROUP_PROFILE_FIELDS.join(', ') +
-					'.'
-			);
+					'.',
+				field: 'group.' + refused[0],
+				code: 'not_settable_here'
+			});
 		}
 		return { ...group };
 	}

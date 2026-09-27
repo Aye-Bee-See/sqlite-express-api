@@ -226,9 +226,13 @@ export default class MailRule extends Model {
 	 */
 	static async resolve(tags, alreadyHeld = []) {
 		if (!Array.isArray(tags) || tags.some((tag) => typeof tag !== 'string')) {
-			throw new ValidationError(
-				'mailRules must be an array of rule tags from the master list (GET /prison/mail-rules).'
-			);
+			throw new ValidationError({
+				message:
+					'mailRules must be an array of rule tags from the master list (GET /prison/mail-rules).',
+				field: 'mailRules',
+				code: 'wrong_type',
+				params: { expected: 'an array of rule tags' }
+			});
 		}
 		if (new Set(tags).size !== tags.length) {
 			throw new ValidationError({
@@ -241,19 +245,25 @@ export default class MailRule extends Model {
 		const known = new Set(rules.map((rule) => rule.tag));
 		const unknown = tags.filter((tag) => !known.has(tag));
 		if (unknown.length > 0) {
-			throw new ValidationError(
-				'Not on the master list of mail rules: ' +
+			throw new ValidationError({
+				message:
+					'Not on the master list of mail rules: ' +
 					unknown.map((tag) => JSON.stringify(tag)).join(', ') +
-					'. GET /prison/mail-rules lists them; an admin can add one.'
-			);
+					'. GET /prison/mail-rules lists them; an admin can add one.',
+				field: 'mailRules',
+				code: 'unknown_reference'
+			});
 		}
 		const retired = rules.filter((rule) => rule.retiredAt && !alreadyHeld.includes(rule.id));
 		if (retired.length > 0) {
-			throw new ValidationError(
-				'Retired rules cannot be added to a facility: ' +
+			throw new ValidationError({
+				message:
+					'Retired rules cannot be added to a facility: ' +
 					retired.map((rule) => rule.tag).join(', ') +
-					'.'
-			);
+					'.',
+				field: 'mailRules',
+				code: 'not_eligible'
+			});
 		}
 		for (const [a, b] of MAIL_RULE_CONFLICTS) {
 			if (known.has(a) && known.has(b)) {

@@ -36,9 +36,16 @@ export function singleIds(req, res, next) {
 		}
 		for (const field of ID_FIELDS) {
 			if (Object.hasOwn(source, field) && isList(source[field])) {
-				errors.push(field + ' must be a single value.');
+				if (!errors.some((e) => e.field === field)) {
+					errors.push({
+						message: field + ' must be a single value.',
+						field,
+						code: 'wrong_type',
+						params: { expected: 'a single value' }
+					});
+				}
 			}
 		}
 	}
-	return errors.length > 0 ? next(new ValidationError([...new Set(errors)])) : next();
+	return errors.length > 0 ? next(new ValidationError(errors)) : next();
 }

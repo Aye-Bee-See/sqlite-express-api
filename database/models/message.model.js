@@ -850,9 +850,11 @@ export default class Message extends Model {
 		const values = pick(message, crypto.isE2E() ? [...EDITABLE, ...CIPHER_COLUMNS] : EDITABLE);
 		if (crypto.isE2E()) {
 			if (values.messageText !== undefined || values.relayNote !== undefined) {
-				throw new ValidationError(
-					'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.'
-				);
+				throw new ValidationError({
+					message: 'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.',
+					field: values.messageText !== undefined ? 'messageText' : 'relayNote',
+					code: 'wrong_encryption_mode'
+				});
 			}
 			// The reader set is fixed by the envelopes; moving a letter would strand them.
 			const current = await this.findByPk(message.id);
@@ -861,11 +863,14 @@ export default class Message extends Model {
 					continue;
 				}
 				if (current && String(values[field]) !== String(current[field])) {
-					throw new ValidationError(
-						'End-to-end mode: ' +
+					throw new ValidationError({
+						message:
+							'End-to-end mode: ' +
 							field +
-							' cannot change; add a reader with POST /messaging/envelope.'
-					);
+							' cannot change; add a reader with POST /messaging/envelope.',
+						field: field,
+						code: 'not_settable_here'
+					});
 				}
 				delete values[field];
 			}

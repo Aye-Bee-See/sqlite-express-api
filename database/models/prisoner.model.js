@@ -30,7 +30,6 @@ export const PRISONER_FIELDS = [
 	'estimatedRelease',
 	'bio',
 	'interests',
-	'photoUrl',
 	'supportWebsite',
 	'donationInfo',
 	'status',

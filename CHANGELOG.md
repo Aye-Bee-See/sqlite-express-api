@@ -8,6 +8,14 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-28 (later)
+
+### A photo is hosted here, or there is no photo (#137)
+
+`photoUrl` is gone from prisoner records. It held a link to a picture on another site, from before photos were hosted here; **no client was ever built to load one**, nothing in the seed data set it, and no record on the test server carried one. A third-party image would also have told that host who was looking at which prisoner, which is the thing hosting them here avoids.
+
+**For clients:** `photo` is unchanged and is still the only field to read — `{ url, hosted, credit, updatedAt }` or `null`. `hosted` is now always `true`; it stays in the object so that a client written against the first shape of the field keeps working. `photoUrl` no longer appears in a prisoner row and can no longer be written, by an update or by a moderation proposal.
+
 ## 2026-09-28
 
 ### One key for every refusal (#136)

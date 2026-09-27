@@ -44,10 +44,6 @@ const prisonerSchema = {
 		type: DataTypes.JSON,
 		validate: arrayOfStrings('Interests')
 	},
-	photoUrl: {
-		type: DataTypes.STRING,
-		validate: { isUrl: { msg: 'Photo URL must be a valid URL.' } }
-	},
 	/** A photo hosted here: the stored file, who put it there, and the credit line. */
 	photoFile: {
 		type: DataTypes.STRING
@@ -65,23 +61,23 @@ const prisonerSchema = {
 		type: DataTypes.INTEGER
 	},
 	/**
-	 * The one field a client needs to show a face: the hosted photo if there is
-	 * one, else the older `photoUrl` link, else null. `hosted` says which, since
-	 * only a hosted photo is served from here and known to carry no metadata.
+	 * The one field a client needs to show a face, or null when there is none.
+	 * Every photo is hosted here (there is no longer a link to one hosted
+	 * elsewhere), so `hosted` is always true; it is kept so that a client written
+	 * against the older shape does not have to change to keep working.
 	 */
 	photo: {
 		type: DataTypes.VIRTUAL,
 		get() {
 			const file = this.getDataValue('photoFile');
-			const link = this.getDataValue('photoUrl');
-			if (!file && !link) {
+			if (!file) {
 				return null;
 			}
 			return {
-				url: file ? '/prisoner/photo?prisoner=' + this.getDataValue('id') : link,
-				hosted: Boolean(file),
+				url: '/prisoner/photo?prisoner=' + this.getDataValue('id'),
+				hosted: true,
 				credit: this.getDataValue('photoCredit') || null,
-				updatedAt: file ? this.getDataValue('photoAddedAt') : null
+				updatedAt: this.getDataValue('photoAddedAt')
 			};
 		}
 	},

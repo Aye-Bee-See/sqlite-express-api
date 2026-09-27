@@ -10,6 +10,20 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### A hostile news feed can no longer stall the server (#152)
+
+The news reader (#124) parsed the feed with regular expressions that, given a
+tag with no end (`<item>`, `<title>`, `<script`, or a bare `<`), searched the
+rest of the document again from every one. The feed comes from another site,
+and parsing runs on the thread that answers every request: a 1.4 MB body built
+that way held the whole API for minutes. The reader now makes one pass,
+finding each closing tag with a plain search and stopping the moment one is
+missing; the same bodies take a few milliseconds. It reads at most 200 items.
+
+A numeric entity naming no character (`&#99999999;`) used to throw and fail
+the whole pull; it now reads as `�` and the rest of the feed is kept.
+
+**For clients:** nothing to change; `GET /news` answers the same items as before.
 ### Photos: gone when taken down, and nothing hidden in the file (#151)
 
 Five fixes to directory photos (#130).

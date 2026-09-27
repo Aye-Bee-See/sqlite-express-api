@@ -640,7 +640,7 @@ Everything else. `info` is the fixed message for that endpoint; `error`, when pr
 
 **`code` is the one key to word a refusal from**, composed from the two fields beside it:
 
-```
+```text
 code = family + ("." + condition, when the refusal has one)
 ```
 

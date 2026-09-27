@@ -83,7 +83,7 @@ test('docs/ERRORS.md is what the code list says it is', async () => {
 	const written = await readFile(new URL('../docs/ERRORS.md', import.meta.url), 'utf8');
 	assert.equal(
 		written,
-		catalogue(),
+		await catalogue(),
 		'run `npm run errors:docs -- --write` after changing services/error-codes.js'
 	);
 });

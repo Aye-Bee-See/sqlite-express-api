@@ -11,9 +11,22 @@
  */
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import prettier from 'prettier';
 import { CODES, REFUSAL_FAMILIES } from '#services/error-codes.js';
 
-export function catalogue() {
+/**
+ * The catalogue as Markdown, formatted the way the repository formats Markdown,
+ * so the commit hook (prettier over every .md) cannot rewrite the file and put
+ * it out of step with this script.
+ */
+export async function catalogue() {
+	return await prettier.format(render(), {
+		...(await prettier.resolveConfig(fileURLToPath(new URL('../docs/ERRORS.md', import.meta.url)))),
+		parser: 'markdown'
+	});
+}
+
+function render() {
 	const rows = Object.entries(CODES).map(
 		([code, entry]) =>
 			'| `' +
@@ -60,7 +73,7 @@ export function catalogue() {
 		'A `403`, `404`, `409`, `410` or `422` where the request was well formed and the answer is still no\n' +
 		'carries `name`, often `condition`, and a `code` composed from the two:\n' +
 		'\n' +
-		'```\n' +
+		'```text\n' +
 		'code = family + ("." + condition, when the refusal has one)\n' +
 		'```\n' +
 		'\n' +
@@ -81,7 +94,7 @@ export function catalogue() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-	const text = catalogue();
+	const text = await catalogue();
 	if (process.argv.includes('--write')) {
 		const path = fileURLToPath(new URL('../docs/ERRORS.md', import.meta.url));
 		writeFileSync(path, text);

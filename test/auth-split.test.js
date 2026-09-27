@@ -4,6 +4,7 @@ import sodium from 'libsodium-wrappers';
 import { startServer, stopServer, makeFixtures, get, post, put, User, Prison } from './helpers.js';
 import * as client from './e2e-client.js';
 import * as authScheme from '../services/auth-scheme.js';
+import { normalizeToken } from '../database/models/claim-token.model.js';
 
 let f;
 before(async () => {
@@ -378,4 +379,50 @@ test('the Argon2id step matches the vector every client checks against', async (
 	const composed = Buffer.from(master('caf\u00e9')).toString('base64');
 	assert.equal(composed, 'lEpmh4tmC0xaD5DhMboQo/3Hw7JqT3VThdqq0n1pImc=');
 	assert.equal(Buffer.from(master('cafe\u0301')).toString('base64'), composed);
+});
+
+test('a typed code reaches the same key however it was typed: the vector for that path', async () => {
+	// The path that broke in two clients (android-client#15, ios-client#12): both
+	// normalised a typed code without folding the look-alikes, so a code typed with
+	// a capital O for a zero derived a different key and the person was told their
+	// code was invalid. The derivation vector above would not have caught it,
+	// because it starts after normalisation. This one starts where a person types.
+	const { createRequire } = await import('node:module');
+	const sumo = createRequire(import.meta.url)('libsodium-wrappers-sumo');
+	await sumo.ready;
+	const salt = new Uint8Array(16).map((_, i) => i);
+	const keyFrom = (code) =>
+		Buffer.from(
+			sumo.crypto_pwhash(
+				32,
+				sumo.from_string(normalizeToken(code)),
+				salt,
+				2,
+				67108864,
+				sumo.crypto_pwhash_ALG_ARGON2ID13
+			)
+		).toString('base64');
+
+	// Printed on the slip: 0123-4567-89AB-CDEF-GHJK-MNPQ.
+	assert.equal(normalizeToken('0123-4567-89AB-CDEF-GHJK-MNPQ'), '0123456789ABCDEFGHJKMNPQ');
+	assert.equal(
+		keyFrom('0123-4567-89AB-CDEF-GHJK-MNPQ'),
+		'XZ7IeQJcWF00Cy2UxN9UfA2624gzWabkGTldGLHXKyU='
+	);
+
+	// The same code as a person actually types it: lower case, spaces at the ends,
+	// a capital O for the zero. Every one of these must reach that same key.
+	for (const typed of [
+		' o123-4567-89ab-cdef-ghjk-mnpq ',
+		'O123 4567 89AB CDEF GHJK MNPQ',
+		'o123456789abcdefghjkmnpq',
+		'0123.4567.89AB.CDEF.GHJK.MNPQ'
+	]) {
+		assert.equal(normalizeToken(typed), '0123456789ABCDEFGHJKMNPQ', typed);
+		assert.equal(keyFrom(typed), 'XZ7IeQJcWF00Cy2UxN9UfA2624gzWabkGTldGLHXKyU=', typed);
+	}
+
+	// I and L are the other pair, and a code that reads as its look-alike is the
+	// same code: the alphabet has no I, L, O or U for exactly this reason.
+	assert.equal(normalizeToken('IL-il'), '1111');
 });

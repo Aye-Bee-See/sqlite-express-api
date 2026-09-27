@@ -9,13 +9,17 @@ const parser = multer({
 	fileFilter(req, file, done) {
 		if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
 			return done(
-				new ValidationError(
-					'File type ' +
+				new ValidationError({
+					message:
+						'File type ' +
 						file.mimetype +
 						' is not accepted; use ' +
 						ALLOWED_MIME_TYPES.join(', ') +
-						'.'
-				)
+						'.',
+					field: file.fieldname || null,
+					code: 'not_allowed_value',
+					params: { allowed: ALLOWED_MIME_TYPES }
+				})
 			);
 		}
 		done(null, true);
@@ -36,13 +40,26 @@ export function uploadSingle(field) {
 				return next();
 			}
 			if (err instanceof multer.MulterError) {
-				const message =
-					err.code === 'LIMIT_FILE_SIZE'
-						? 'File is larger than ' + uploadMaxBytes + ' bytes.'
-						: err.code === 'LIMIT_UNEXPECTED_FILE'
-							? 'Send exactly one file in the "' + field + '" field.'
-							: err.message;
-				return next(new ValidationError(message));
+				if (err.code === 'LIMIT_FILE_SIZE') {
+					return next(
+						new ValidationError({
+							message: 'File is larger than ' + uploadMaxBytes + ' bytes.',
+							field,
+							code: 'out_of_range',
+							params: { max: uploadMaxBytes }
+						})
+					);
+				}
+				if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+					return next(
+						new ValidationError({
+							message: 'Send exactly one file in the "' + field + '" field.',
+							field,
+							code: 'required'
+						})
+					);
+				}
+				return next(new ValidationError({ message: err.message, field }));
 			}
 			next(err);
 		});

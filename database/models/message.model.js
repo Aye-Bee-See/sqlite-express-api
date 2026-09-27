@@ -141,9 +141,11 @@ export default class Message extends Model {
 		const { prison, relayIds } = await Prisoner.relayGroupsFor(prisoner);
 		if (requested !== undefined && requested !== null && requested !== '') {
 			if (!relayIds.includes(Number(requested))) {
-				throw new ValidationError(
-					'Relay group ' + requested + ' does not relay mail for this facility.'
-				);
+				throw new ValidationError({
+					message: 'Relay group ' + requested + ' does not relay mail for this facility.',
+					field: 'relayChapter',
+					code: 'not_eligible'
+				});
 			}
 			return Number(requested);
 		}
@@ -154,11 +156,14 @@ export default class Message extends Model {
 			return relayIds[0];
 		}
 		if (prison && prison.routing === 'relay_only') {
-			throw new ValidationError(
-				relayIds.length === 0
-					? 'This facility only accepts relayed mail and has no relay group yet.'
-					: 'This facility only accepts relayed mail; choose a relay group (relayChapter).'
-			);
+			throw new ValidationError({
+				message:
+					relayIds.length === 0
+						? 'This facility only accepts relayed mail and has no relay group yet.'
+						: 'This facility only accepts relayed mail; choose a relay group (relayChapter).',
+				field: 'relayChapter',
+				code: 'required'
+			});
 		}
 		return null;
 	}
@@ -202,23 +207,31 @@ export default class Message extends Model {
 			callerChapter
 		);
 		if (paper && !relayChapter) {
-			throw new ValidationError(
-				'A paper letter is one a group mails: name the group that has it (relayChapter), or choose a facility with a relay group.'
-			);
+			throw new ValidationError({
+				message:
+					'A paper letter is one a group mails: name the group that has it (relayChapter), or choose a facility with a relay group.',
+				field: 'relayChapter',
+				code: 'required'
+			});
 		}
 		const status = initialStatusFor(message.sender, { paper });
 		const resendOf = await this.#checkResend(message, { transaction });
 		let clean = null;
 		if (crypto.isE2E()) {
 			if (message.messageText !== undefined || message.relayNote !== undefined) {
-				throw new ValidationError(
-					'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.'
-				);
+				throw new ValidationError({
+					message: 'End-to-end mode: send ciphertext and nonce, not messageText or relayNote.',
+					code: 'wrong_encryption_mode'
+				});
 			}
 			Message.requireCipherPairs(message, { bodyRequired: true });
 			const writer = await User.findByPk(message.user, { transaction });
 			if (!writer) {
-				throw new ValidationError('User ' + message.user + ' does not exist.');
+				throw new ValidationError({
+					message: 'User ' + message.user + ' does not exist.',
+					field: 'user',
+					code: 'unknown_reference'
+				});
 			}
 			const allowed = await this.allowedReaders(
 				{ prisoner: message.prisoner, relayChapter },
@@ -261,10 +274,19 @@ export default class Message extends Model {
 			return false;
 		}
 		if (paper !== true) {
-			throw new ValidationError('paper must be true, false, or null (the same as leaving it out).');
+			throw new ValidationError({
+				message: 'paper must be true, false, or null (the same as leaving it out).',
+				field: 'paper',
+				code: 'wrong_type',
+				params: { expected: 'true, false, or null' }
+			});
 		}
 		if (message.sender === 'prisoner') {
-			throw new ValidationError('paper is for outgoing letters; a reply is recorded as received.');
+			throw new ValidationError({
+				message: 'paper is for outgoing letters; a reply is recorded as received.',
+				field: 'paper',
+				code: 'not_eligible'
+			});
 		}
 		return true;
 	}
@@ -293,7 +315,10 @@ export default class Message extends Model {
 			const given = [fields[a], fields[b]].filter((v) => v !== undefined);
 			if (given.length === 0) {
 				if (required) {
-					throw new ValidationError('End-to-end mode: ' + a + ' and ' + b + ' are required.');
+					throw new ValidationError({
+						message: 'End-to-end mode: ' + a + ' and ' + b + ' are required.',
+						code: 'required'
+					});
 				}
 				return;
 			}
@@ -301,15 +326,17 @@ export default class Message extends Model {
 				given.length === 2 && given.every((v) => (typeof v === 'string' && v !== '') || v === null);
 			const bothNull = fields[a] === null && fields[b] === null;
 			if (!ok || (bothNull && required) || (fields[a] === null) !== (fields[b] === null)) {
-				throw new ValidationError(
-					'End-to-end mode: send ' +
+				throw new ValidationError({
+					message:
+						'End-to-end mode: send ' +
 						a +
 						' and ' +
 						b +
 						' together' +
 						(label ? ' for the ' + label : '') +
-						'.'
-				);
+						'.',
+					code: 'wrong_encryption_mode'
+				});
 			}
 		};
 		pair('ciphertext', 'nonce', 'body', bodyRequired);
@@ -394,7 +421,12 @@ export default class Message extends Model {
 	 */
 	static #checkMove(message, status, { reason, note, release, named = false } = {}) {
 		if (!LETTER_STATUSES.includes(status)) {
-			throw new ValidationError('Status must be one of ' + LETTER_STATUSES.join(', ') + '.');
+			throw new ValidationError({
+				message: 'Status must be one of ' + LETTER_STATUSES.join(', ') + '.',
+				field: 'status',
+				code: 'not_allowed_value',
+				params: { allowed: LETTER_STATUSES }
+			});
 		}
 		const why = Message.#returnDetails(status, reason, note);
 		// In a batch the sentence says which letter; alone, it reads as it always has.
@@ -594,21 +626,38 @@ export default class Message extends Model {
 	static #returnDetails(status, reason, note) {
 		if (status !== RETURNED) {
 			if (reason !== undefined || note !== undefined) {
-				throw new ValidationError('reason and note only go with the status returned.');
+				throw new ValidationError({
+					message: 'reason and note only go with the status returned.',
+					field: 'reason',
+					code: 'not_settable_here'
+				});
 			}
 			return {};
 		}
 		if (!RETURN_REASONS.includes(reason)) {
-			throw new ValidationError(
-				'A returned letter needs a reason: one of ' + RETURN_REASONS.join(', ') + '.'
-			);
+			throw new ValidationError({
+				message: 'A returned letter needs a reason: one of ' + RETURN_REASONS.join(', ') + '.',
+				field: 'reason',
+				code: 'not_allowed_value',
+				params: { allowed: RETURN_REASONS }
+			});
 		}
 		if (note !== undefined && note !== null && typeof note !== 'string') {
-			throw new ValidationError('note must be text.');
+			throw new ValidationError({
+				message: 'note must be text.',
+				field: 'note',
+				code: 'wrong_type',
+				params: { expected: 'text' }
+			});
 		}
 		const words = typeof note === 'string' ? note.trim() : '';
 		if (words.length > 200) {
-			throw new ValidationError('note can be at most 200 characters.');
+			throw new ValidationError({
+				message: 'note can be at most 200 characters.',
+				field: 'note',
+				code: 'length_out_of_range',
+				params: { min: 0, max: 200 }
+			});
 		}
 		return { reason, note: words === '' ? null : words };
 	}
@@ -633,9 +682,11 @@ export default class Message extends Model {
 			String(original.user) === String(message.user) &&
 			String(original.prisoner) === String(message.prisoner);
 		if (!same || original.status !== RETURNED) {
-			throw new ValidationError(
-				"resendOf must be one of this writer's returned letters to the same prisoner."
-			);
+			throw new ValidationError({
+				message: "resendOf must be one of this writer's returned letters to the same prisoner.",
+				field: 'resendOf',
+				code: 'not_eligible'
+			});
 		}
 		return original.id;
 	}

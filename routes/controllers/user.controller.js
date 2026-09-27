@@ -298,14 +298,22 @@ export default class UserController extends RouteController {
 			const days = Number(newUser.retentionDays);
 			if (!Number.isInteger(days) || days < 0) {
 				return next(
-					new ValidationError('retentionDays must be a whole number of days (0 keeps forever).')
+					new ValidationError({
+						message: 'retentionDays must be a whole number of days (0 keeps forever).',
+						field: 'retentionDays',
+						code: 'not_a_number'
+					})
 				);
 			}
 			if (retentionMaxDays !== null && (days === 0 || days > retentionMaxDays)) {
 				return next(
-					new ValidationError(
-						'retentionDays cannot exceed the site maximum of ' + retentionMaxDays + ' days.'
-					)
+					new ValidationError({
+						message:
+							'retentionDays cannot exceed the site maximum of ' + retentionMaxDays + ' days.',
+						field: 'retentionDays',
+						code: 'out_of_range',
+						params: { min: 0, max: retentionMaxDays }
+					})
 				);
 			}
 		}
@@ -333,7 +341,11 @@ export default class UserController extends RouteController {
 				}
 			}
 			if (newUser.authScheme !== undefined && newUser.password === undefined) {
-				throw new ValidationError('authScheme travels with a new password, not on its own.');
+				throw new ValidationError({
+					message: 'authScheme travels with a new password, not on its own.',
+					field: 'password',
+					code: 'required'
+				});
 			}
 			let expect = {};
 			if (newUser.password !== undefined) {
@@ -393,7 +405,10 @@ export default class UserController extends RouteController {
 						});
 					}
 				} else if (keyFields.length > 0) {
-					throw new ValidationError('Set keys through PUT /auth/keys, not here.');
+					throw new ValidationError({
+						message: 'Set keys through PUT /auth/keys, not here.',
+						code: 'not_settable_here'
+					});
 				}
 			}
 			if (custody) {
@@ -407,7 +422,12 @@ export default class UserController extends RouteController {
 					(newUser.publicKey !== undefined || newUser.orgWrappedPrivateKey !== undefined)
 				) {
 					// The shared anonymous account never has keys: its letters are sealed to the group alone.
-					return next(new ValidationError("A group's anonymous account does not have keys."));
+					return next(
+						new ValidationError({
+							message: "A group's anonymous account does not have keys.",
+							code: 'not_eligible'
+						})
+					);
 				}
 				// A managing group may also prepare an unclaimed writer for end-to-end
 				// mode: set the keypair it generated (public key once, its sealed copy).
@@ -425,7 +445,12 @@ export default class UserController extends RouteController {
 				if (newUser.publicKey !== undefined) {
 					if (!crypto.isPublicKey(newUser.publicKey)) {
 						return next(
-							new ValidationError('publicKey must be a base64 X25519 public key (32 bytes).')
+							new ValidationError({
+								message: 'publicKey must be a base64 X25519 public key (32 bytes).',
+								field: 'publicKey',
+								code: 'wrong_type',
+								params: { expected: 'base64 X25519 public key (32 bytes)' }
+							})
 						);
 					}
 					if (
@@ -467,7 +492,13 @@ export default class UserController extends RouteController {
 					(typeof newUser.orgWrappedPrivateKey !== 'string' || newUser.orgWrappedPrivateKey === '')
 				) {
 					// Empty would erase the only copy of the writer's private key anyone holds.
-					return next(new ValidationError('orgWrappedPrivateKey must be a non-empty string.'));
+					return next(
+						new ValidationError({
+							message: 'orgWrappedPrivateKey must be a non-empty string.',
+							field: 'orgWrappedPrivateKey',
+							code: 'required'
+						})
+					);
 				}
 				if (newUser.orgWrappedPrivateKey !== undefined) {
 					// Sealed to the group key: checked against the current version at the write, below.
@@ -595,7 +626,11 @@ export default class UserController extends RouteController {
 		const { id, password } = req.body;
 		try {
 			if (id === undefined || id === null || id === '') {
-				throw new ValidationError('id is required.');
+				throw new ValidationError({
+					message: 'id is required.',
+					field: 'id',
+					code: 'required'
+				});
 			}
 			const target = this.requireFound(await User.findByPk(id), 'User ' + id);
 			if (!(await AuthzService.mayManageUser(req, target))) {
@@ -604,7 +639,11 @@ export default class UserController extends RouteController {
 			const self = String(target.id) === String(req.user.id);
 			if (self) {
 				if (typeof password !== 'string' || password === '') {
-					throw new ValidationError('Send your password to delete your own account.');
+					throw new ValidationError({
+						message: 'Send your password to delete your own account.',
+						field: 'password',
+						code: 'required'
+					});
 				}
 				const stored = await User.getUserWithPassword({ id: target.id });
 				if (!stored || !(await bcrypt.compare(password, stored.password))) {
@@ -668,7 +707,13 @@ export default class UserController extends RouteController {
 			return next(AuthzService.forbidden('Specify the chapter this writer belongs to.'));
 		}
 		if (typeof name !== 'string' || name.trim().length < 1) {
-			return next(new ValidationError('name is required.'));
+			return next(
+				new ValidationError({
+					message: 'name is required.',
+					field: 'name',
+					code: 'required'
+				})
+			);
 		}
 		try {
 			const chapter = await Chapter.findByPk(chapterId);
@@ -680,13 +725,21 @@ export default class UserController extends RouteController {
 				// The group's browser generated the writer's keypair and sealed the
 				// private key to the group, so the group can read and print for them.
 				if (!crypto.isPublicKey(req.body.publicKey)) {
-					throw new ValidationError('End-to-end mode: publicKey (base64 X25519) is required.');
+					throw new ValidationError({
+						message: 'End-to-end mode: publicKey (base64 X25519) is required.',
+						field: 'publicKey',
+						code: 'required'
+					});
 				}
 				if (
 					typeof req.body.orgWrappedPrivateKey !== 'string' ||
 					req.body.orgWrappedPrivateKey === ''
 				) {
-					throw new ValidationError('End-to-end mode: orgWrappedPrivateKey is required.');
+					throw new ValidationError({
+						message: 'End-to-end mode: orgWrappedPrivateKey is required.',
+						field: 'orgWrappedPrivateKey',
+						code: 'required'
+					});
 				}
 				keys.publicKey = req.body.publicKey;
 				keys.orgWrappedPrivateKey = req.body.orgWrappedPrivateKey;

@@ -302,9 +302,12 @@ export default class User extends Model {
 		const allowedRoles = Schemas.user.role.validate.isIn.args[0];
 		const normalizedRole = typeof role === 'string' ? role.toLowerCase() : role;
 		if (!allowedRoles.includes(normalizedRole)) {
-			throw new ValidationError(
-				'Unknown role "' + role + '". Expected one of: ' + allowedRoles.join(', ') + '.'
-			);
+			throw new ValidationError({
+				message: 'Unknown role "' + role + '". Expected one of: ' + allowedRoles.join(', ') + '.',
+				field: 'role',
+				code: 'not_allowed_value',
+				params: { allowed: allowedRoles }
+			});
 		}
 		let filters = { limit, offset, where: { role: normalizedRole, ...searchWhere(q) } };
 		if (full) {
@@ -432,12 +435,19 @@ export default class User extends Model {
 	 */
 	static refuseReserved({ username, email } = {}) {
 		if (typeof username === 'string' && /^(anon|writer)-/i.test(username.trim())) {
-			throw new ValidationError(
-				'Usernames that start with "anon-" or "writer-" are kept for accounts the groups manage.'
-			);
+			throw new ValidationError({
+				message:
+					'Usernames that start with "anon-" or "writer-" are kept for accounts the groups manage.',
+				field: 'username',
+				code: 'reserved_value'
+			});
 		}
 		if (User.isPlaceholderEmail(typeof email === 'string' ? email.trim().toLowerCase() : email)) {
-			throw new ValidationError('That email address is not a real one; use your own.');
+			throw new ValidationError({
+				message: 'That email address is not a real one; use your own.',
+				field: 'email',
+				code: 'reserved_value'
+			});
 		}
 	}
 

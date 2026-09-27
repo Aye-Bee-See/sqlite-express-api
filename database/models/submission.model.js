@@ -96,12 +96,22 @@ export default class Submission extends Model {
 	 * @throws {import('sequelize').ValidationError}
 	 */
 	static async #validatePayload(spec, payload, existing) {
+		// Said as `fields.prisonName`: one rule, "field is the path in the request
+		// body", rather than a bare name here and a path everywhere else (asked for
+		// by the Android review of the error codes, 27 September 2026). A form bound
+		// to `fields` strips the prefix; nothing else has to know where it sat.
+		const underFields = (err) => {
+			throw ValidationError.nested('fields', err);
+		};
 		if (!existing) {
-			await spec.model.build({ recordStatus: 'published', ...payload }).validate();
+			await spec.model
+				.build({ recordStatus: 'published', ...payload })
+				.validate()
+				.catch(underFields);
 			return;
 		}
 		existing.set(payload);
-		await existing.validate({ fields: Object.keys(payload) });
+		await existing.validate({ fields: Object.keys(payload) }).catch(underFields);
 	}
 
 	/**

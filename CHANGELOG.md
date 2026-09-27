@@ -22,6 +22,8 @@ Step 2 of the error codes, in the order the Android and iOS reviews asked for: *
 | `already_set`           | a field that can be written once and has been                                                                                                     |
 | `wrong_encryption_mode` | plaintext sent to an end-to-end server, or ciphertext to one holding the keys. A client bug; `GET /health` says which mode it is                  |
 
+A moderation proposal now reports the path too (`fields.prisonName`, not `prisonName`), so **`field` is always the path in the request body** with no exceptions. Asked for by the Android review; a form bound to `fields` strips the prefix in one line.
+
 **For clients:** the sentences are unchanged, so nothing breaks. What is new is that these refusals can be worded by the client and pointed at the right input. What still answers `validation_failed` is mostly deep in the key endpoints, where the refusal means the client sent the wrong shape rather than something a person can fix.
 
 ### Validation failures carry a field and a code (#133)

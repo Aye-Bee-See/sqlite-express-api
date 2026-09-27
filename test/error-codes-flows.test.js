@@ -142,3 +142,23 @@ test('group forms: a batch of invite codes says the range it takes', async () =>
 		{ field: 'label', code: 'length_out_of_range', params: { min: 0, max: 80 } }
 	]);
 });
+
+test('a proposal says which field inside `fields` was refused', async () => {
+	const bad = await post(
+		'/moderation/submission',
+		{ resource: 'prisoner', target: f.prisoner1.id, fields: { status: 'flying' } },
+		f.chapter
+	);
+	assert.equal(bad.status, 400, JSON.stringify(bad.body));
+	assert.equal(bad.body.problems[0].field, 'fields.status', 'the path, as everywhere else');
+	assert.equal(bad.body.problems[0].code, 'not_allowed_value');
+
+	// A new record, validated whole: the missing name is named the same way.
+	const incomplete = await post(
+		'/moderation/submission',
+		{ resource: 'prison', fields: { address: { city: 'Nowhere' } } },
+		f.chapter
+	);
+	assert.equal(incomplete.status, 400, JSON.stringify(incomplete.body));
+	assert.deepEqual(incomplete.body.problems, [{ field: 'fields.prisonName', code: 'required' }]);
+});

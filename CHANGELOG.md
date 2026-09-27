@@ -10,19 +10,49 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27
 
-### A relay group reads only the letters it relays (#155)
+### A NUL character is refused, not a server error (#160)
 
-A group sees a writer's thread because it relays a letter in it. Reading the
-thread (`GET /chat/chat?full=true`, `GET /chat/chats?full=true`) returned
-**every** letter in it, including those the writer sent the same prisoner
-through another group or directly; on a server-mode deployment that was their
-text. The inbox line's `last_message` was the thread's newest letter, whoever
-it went through, and `heldCount` counted all of them. All three now cover only
-the letters the group relays (or, end to end, holds an envelope for), which is
-what `GET /messaging/messages` already did.
+`?id=%00` answered `500` on every endpoint that looks a record up: Sequelize
+writes a lookup's value into the SQL, and SQLite stops reading at a NUL, which
+leaves the quoted value open. Nothing the API takes can contain a NUL
+(ciphertext travels as base64), so one anywhere in the query or the body,
+including multipart fields and a key rotation, is now refused before any route
+runs: `400`, `wrong_type` on the field that holds it.
 
-**For clients:** nothing to change. A group's inbox line now shows the newest
-letter it can read, rather than a blanked-out newer one it cannot.
+**For clients:** nothing to change.
+
+### A search for `%` finds a percent sign (#159)
+
+`q` on the prisoner, facility, group and (admin) user lists was used as a SQL
+`LIKE` pattern, so `%` and `_` were wildcards: `?q=%` or `?q=_` listed every
+record. `q` is now plain text to find. Case is folded for ASCII letters only,
+as before, so searches in Greek or Cyrillic match exactly as they did.
+
+**For clients:** nothing to change.
+
+### Recovery cannot be guessed at by sending the username as a list (#158)
+
+Account recovery is limited per username, but only a username sent as text was
+counted. Sent as a list (`?username=alice&username=alice`, or `["alice"]` in
+the body), it was not counted at all, and the lookup still found the account,
+so recovery codes could be guessed without limit. Sent as an object, it
+answered `500`. `GET /auth/recover`, `POST /auth/recover` and
+`GET /auth/login-params` now refuse a username that is not text: `400`,
+`wrong_type` on `username`. Sign-in already refused one; its refusal now names
+the field.
+
+**For clients:** nothing to change; a client sends a username as text.
+
+### A group account cannot test which emails have accounts (#157)
+
+`GET /auth/user?email=` (or `?username=`, `?id=`) is open to a group account
+for the writers its group looks after. For anyone else's account it answered
+`403`, and for an address with no account `404`, so any group login could
+check whether a given email or username is signed up. Both are now the same
+`404`. A member of a group that is not active is told why, as before, and now
+gets that same answer whether or not the account exists.
+
+**For clients:** nothing to change.
 
 ### A hidden prisoner cannot be found by writing to it (#156)
 
@@ -42,49 +72,19 @@ only.
 **For clients:** a letter or thread for a prisoner that is gone answers `404`
 with code `not_found`, rather than `400` with code `reference`.
 
-### A group account cannot test which emails have accounts (#157)
+### A relay group reads only the letters it relays (#155)
 
-`GET /auth/user?email=` (or `?username=`, `?id=`) is open to a group account
-for the writers its group looks after. For anyone else's account it answered
-`403`, and for an address with no account `404`, so any group login could
-check whether a given email or username is signed up. Both are now the same
-`404`. A member of a group that is not active is told why, as before, and now
-gets that same answer whether or not the account exists.
+A group sees a writer's thread because it relays a letter in it. Reading the
+thread (`GET /chat/chat?full=true`, `GET /chat/chats?full=true`) returned
+**every** letter in it, including those the writer sent the same prisoner
+through another group or directly; on a server-mode deployment that was their
+text. The inbox line's `last_message` was the thread's newest letter, whoever
+it went through, and `heldCount` counted all of them. All three now cover only
+the letters the group relays (or, end to end, holds an envelope for), which is
+what `GET /messaging/messages` already did.
 
-**For clients:** nothing to change.
-
-### Recovery cannot be guessed at by sending the username as a list (#158)
-
-Account recovery is limited per username, but only a username sent as text was
-counted. Sent as a list (`?username=alice&username=alice`, or `["alice"]` in
-the body), it was not counted at all, and the lookup still found the account,
-so recovery codes could be guessed without limit. Sent as an object, it
-answered `500`. `GET /auth/recover`, `POST /auth/recover` and
-`GET /auth/login-params` now refuse a username that is not text: `400`,
-`wrong_type` on `username`. Sign-in already refused one; its refusal now names
-the field.
-
-**For clients:** nothing to change; a client sends a username as text.
-
-### A search for `%` finds a percent sign (#159)
-
-`q` on the prisoner, facility, group and (admin) user lists was used as a SQL
-`LIKE` pattern, so `%` and `_` were wildcards: `?q=%` or `?q=_` listed every
-record. `q` is now plain text to find. Case is folded for ASCII letters only,
-as before, so searches in Greek or Cyrillic match exactly as they did.
-
-**For clients:** nothing to change.
-
-### A NUL character is refused, not a server error (#160)
-
-`?id=%00` answered `500` on every endpoint that looks a record up: Sequelize
-writes a lookup's value into the SQL, and SQLite stops reading at a NUL, which
-leaves the quoted value open. Nothing the API takes can contain a NUL
-(ciphertext travels as base64), so one anywhere in the query or the body,
-including multipart fields and a key rotation, is now refused before any route
-runs: `400`, `wrong_type` on the field that holds it.
-
-**For clients:** nothing to change.
+**For clients:** nothing to change. A group's inbox line now shows the newest
+letter it can read, rather than a blanked-out newer one it cannot.
 
 ### Error codes: the rule holds, and no sentence goes without a field (#153)
 

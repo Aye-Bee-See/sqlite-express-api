@@ -430,7 +430,7 @@ Everything that writes a row nobody else asked for is counted **per account**, o
 | Group key rotations                                          | 5 per hour   | `RATE_LIMIT_ROTATIONS_PER_USER`   |
 | Device registrations                                         | 30 per hour  | `RATE_LIMIT_DEVICES_PER_USER`     |
 | Directory photos uploaded                                    | 60 per hour  | `RATE_LIMIT_PHOTOS_PER_USER`      |
-| Sign-ups per address (no token; see below)                   | 20 per hour  | `RATE_LIMIT_REGISTER_PER_IP`      |
+| Sign-ups per address (any caller but an admin; see below)    | 20 per hour  | `RATE_LIMIT_REGISTER_PER_IP`      |
 
 Three things worth knowing:
 

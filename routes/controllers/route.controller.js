@@ -1,6 +1,6 @@
 import LoudError from '#services/LoudError.js';
 import ValidationError from '#services/ValidationError.js';
-import { codeForRefusal } from '#services/error-codes.js';
+import { clientMessageFor, codeForRefusal } from '#services/error-codes.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 
 import { messages as msgConstants } from '#routes/constants.js';
@@ -222,7 +222,7 @@ export default class RouteController {
 		}
 		if (errMsg && errMsg.message) {
 			if (status < 500) {
-				body.error = errMsg.message;
+				body.error = clientMessageFor(errMsg);
 			} else if (RouteController.isDevelopment()) {
 				body.error = errMsg.message;
 				body.stack = errMsg.stack;

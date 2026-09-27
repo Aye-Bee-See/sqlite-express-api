@@ -177,20 +177,28 @@ test('registration validates input and reports every problem', async () => {
 	assert.ok(res.body.errors.some((m) => m.includes('Bio')));
 });
 
-test('duplicate usernames and emails are refused with 400', async () => {
+test('duplicate usernames and emails are refused with 400, naming the field', async () => {
 	const dupeName = await post('/auth/user', {
 		username: 'alice',
 		password: 'longenough',
 		email: 'fresh@example.com'
 	});
 	assert.equal(dupeName.status, 400);
-	assert.equal(dupeName.body.name, 'SequelizeUniqueConstraintError');
-	assert.equal(dupeName.body.error, 'Username already in use.');
+	// A unique clash is a schema rule refusing input, so it answers the validation
+	// shape: the sentence in `errors`, and the field in `problems` so a form can
+	// point at the box the person has to change (ios-client#14).
+	assert.deepEqual(dupeName.body.errors, ['Username already in use.']);
+	assert.deepEqual(dupeName.body.problems, [
+		{ field: 'username', code: 'not_unique', params: { fields: ['username'] } }
+	]);
 	const dupeMail = await post('/auth/user', {
 		username: 'freshname',
 		password: 'longenough',
 		email: 'alice@example.com'
 	});
 	assert.equal(dupeMail.status, 400);
-	assert.equal(dupeMail.body.error, 'Email address already in use.');
+	assert.deepEqual(dupeMail.body.errors, ['Email address already in use.']);
+	assert.deepEqual(dupeMail.body.problems, [
+		{ field: 'email', code: 'not_unique', params: { fields: ['email'] } }
+	]);
 });

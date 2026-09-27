@@ -168,6 +168,11 @@ export function paramsForValidator(item) {
 		// A limit that does not apply is left out rather than sent as null.
 		return numbers.length > 1 ? { min: numbers[0], max: numbers[1] } : { max: numbers[0] };
 	}
+	if (code === 'not_unique' && item?.path) {
+		// Which field clashed, as the catalogue promises. A composite unique index
+		// would give several items, one per column, and each says its own.
+		return { fields: [item.path] };
+	}
 	if (code === 'not_allowed_value') {
 		const allowed = flat.filter((value) => typeof value === 'string');
 		return allowed.length > 0 ? { allowed } : undefined;
@@ -219,6 +224,8 @@ export const REFUSAL_FAMILIES = {
 	letter_held: 'A letter held because the person was moved or freed.',
 	letter_status: 'A status move that is not allowed, or that somebody else made first.',
 	not_found: 'No such record, or none this caller may see.',
+	reference:
+		'A record this request points at does not exist, or one it would remove is still pointed at by something else. SQLite does not say which column or which direction, so the message says both.',
 	owner: "Only a group's owner-admin may do this.",
 	pen_name_limit: 'A pen name change refused by the cooldown or the yearly count.',
 	rate_limit: 'Too many requests; Retry-After says when to come back.',
@@ -232,6 +239,18 @@ export const REFUSAL_FAMILIES = {
 	validation: 'Input that fails a rule; these also carry `problems` (above).'
 };
 
+/**
+ * A message safe and useful to send to a client. SQLite's own words for a
+ * foreign-key violation ("SQLITE_CONSTRAINT: FOREIGN KEY constraint failed")
+ * tell a client nothing and leak the storage engine, so they are replaced.
+ */
+export function clientMessageFor(err) {
+	if (err && err.name === 'SequelizeForeignKeyConstraintError') {
+		return 'A record this request points at does not exist, or one it would remove is still in use.';
+	}
+	return err && err.message;
+}
+
 /** The family of an error name: `InviteCodeError` is `invite_code`. */
 export function familyOf(name) {
 	return String(name ?? 'Error')
@@ -239,6 +258,16 @@ export function familyOf(name) {
 		.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
 		.toLowerCase();
 }
+
+/**
+ * Sequelize's own error names, mapped to families, for the ones that reach a
+ * client as a refusal rather than as a validation failure. A foreign-key
+ * violation is the case: it means either an id that names nothing or a record
+ * something else still points at, and on SQLite there is no way to tell which.
+ */
+const SEQUELIZE_FAMILIES = {
+	SequelizeForeignKeyConstraintError: 'reference'
+};
 
 /** Is this a family the catalogue knows? */
 export function isKnownFamily(family) {
@@ -251,7 +280,7 @@ export function isKnownFamily(family) {
  * @returns {string}
  */
 export function codeForRefusal(err) {
-	const family = familyOf(err && err.name);
+	const family = SEQUELIZE_FAMILIES[err && err.name] ?? familyOf(err && err.name);
 	const known = isKnownFamily(family) ? family : 'http';
 	if (!isKnownFamily(family)) {
 		// A new error name would ship a code nobody can look up; the test that reads

@@ -135,10 +135,20 @@ export default class Submission extends Model {
 				? RESOURCES[resource]
 				: null;
 		if (!spec) {
-			throw new ValidationError('resource must be one of ' + SUBMISSION_RESOURCES.join(', ') + '.');
+			throw new ValidationError({
+				message: 'resource must be one of ' + SUBMISSION_RESOURCES.join(', ') + '.',
+				field: 'resource',
+				code: 'not_allowed_value',
+				params: { allowed: SUBMISSION_RESOURCES }
+			});
 		}
 		if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
-			throw new ValidationError('fields must be an object of proposed values.');
+			throw new ValidationError({
+				message: 'fields must be an object of proposed values.',
+				field: 'fields',
+				code: 'wrong_type',
+				params: { expected: 'object' }
+			});
 		}
 		const disallowed = Object.keys(fields).filter((f) => !spec.submittable.includes(f));
 		if (disallowed.length > 0) {
@@ -154,7 +164,11 @@ export default class Submission extends Model {
 		}
 		const payload = pick(fields, spec.submittable);
 		if (Object.keys(payload).length === 0) {
-			throw new ValidationError('Propose at least one field.');
+			throw new ValidationError({
+				message: 'Propose at least one field.',
+				field: 'fields',
+				code: 'required'
+			});
 		}
 		const kind = target === undefined || target === null || target === '' ? 'create' : 'update';
 		let existing = null;
@@ -276,7 +290,11 @@ export default class Submission extends Model {
 			// they read is not made to approve something else.
 			const seen = new Date(ifUnchangedSince);
 			if (Number.isNaN(seen.getTime())) {
-				throw new ValidationError('ifUnchangedSince must be a date (the updatedAt you reviewed).');
+				throw new ValidationError({
+					message: 'ifUnchangedSince must be a date (the updatedAt you reviewed).',
+					field: 'ifUnchangedSince',
+					code: 'not_a_date'
+				});
 			}
 			if (submission.updatedAt.getTime() > seen.getTime()) {
 				throw Submission.#revised(submission);
@@ -337,7 +355,12 @@ export default class Submission extends Model {
 		const values = {};
 		if (fields !== undefined) {
 			if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
-				throw new ValidationError('fields must be an object of proposed values.');
+				throw new ValidationError({
+					message: 'fields must be an object of proposed values.',
+					field: 'fields',
+					code: 'wrong_type',
+					params: { expected: 'object' }
+				});
 			}
 			const disallowed = Object.keys(fields).filter((f) => !spec.submittable.includes(f));
 			if (disallowed.length > 0) {
@@ -351,7 +374,11 @@ export default class Submission extends Model {
 			}
 			const payload = pick(fields, spec.submittable);
 			if (Object.keys(payload).length === 0) {
-				throw new ValidationError('Propose at least one field.');
+				throw new ValidationError({
+					message: 'Propose at least one field.',
+					field: 'fields',
+					code: 'required'
+				});
 			}
 			let existing = null;
 			if (submission.kind === 'update') {

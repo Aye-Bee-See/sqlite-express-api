@@ -45,11 +45,25 @@ test('a hand-thrown refusal carries its own field and code, and every sentence h
 	]);
 	assert.equal(short.body.errors.length, short.body.problems.length, 'one entry per sentence');
 
-	// Not yet converted: still answered, with the sentence to show and no false detail.
+	// Pagination, which every list shares: the field and the range it takes.
 	const page = await get('/prison/prisons?page=0', f.admin);
 	assert.equal(page.status, 400);
-	assert.deepEqual(page.body.problems, [{ field: null, code: 'validation_failed' }]);
+	assert.deepEqual(page.body.problems, [
+		{ field: 'page', code: 'out_of_range', params: { min: 1, max: 10_000_000 } }
+	]);
 	assert.match(page.body.errors[0], /page/);
+
+	// Two failures at once stay in step with their sentences.
+	const both = await get('/prison/prisons?page=0&page_size=500', f.admin);
+	assert.equal(both.status, 400);
+	assert.deepEqual(
+		both.body.problems.map((p) => [p.field, p.code]),
+		[
+			['page', 'out_of_range'],
+			['page_size', 'out_of_range']
+		]
+	);
+	assert.equal(both.body.errors.length, 2);
 });
 
 test('`errors` and `problems` always line up, however many failed', () => {

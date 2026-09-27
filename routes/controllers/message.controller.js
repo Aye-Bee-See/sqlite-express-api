@@ -138,7 +138,12 @@ export default class MessageController extends RouteController {
 		const filters = {};
 		if (query.status !== undefined) {
 			if (!LETTER_STATUSES.includes(query.status)) {
-				throw new ValidationError('Status must be one of ' + LETTER_STATUSES.join(', ') + '.');
+				throw new ValidationError({
+					message: 'Status must be one of ' + LETTER_STATUSES.join(', ') + '.',
+					field: 'status',
+					code: 'not_allowed_value',
+					params: { allowed: LETTER_STATUSES }
+				});
 			}
 			filters.status = query.status;
 		}
@@ -147,7 +152,12 @@ export default class MessageController extends RouteController {
 		}
 		if (query.held !== undefined) {
 			if (!['true', 'false'].includes(query.held)) {
-				throw new ValidationError('held must be true or false.');
+				throw new ValidationError({
+					message: 'held must be true or false.',
+					field: 'held',
+					code: 'wrong_type',
+					params: { expected: 'true or false' }
+				});
 			}
 			filters.heldReason = query.held === 'true' ? { [Op.ne]: null } : null;
 		}
@@ -239,7 +249,11 @@ export default class MessageController extends RouteController {
 				// A reply filed by the number the prisoner copied from the letter: the
 				// reference names the writer, the prisoner, and the letter answered.
 				if (sender !== 'prisoner') {
-					throw new ValidationError('reference goes with a reply (sender prisoner).');
+					throw new ValidationError({
+						message: 'reference goes with a reply (sender prisoner).',
+						field: 'reference',
+						code: 'not_settable_here'
+					});
 				}
 				const found = await this.#referenceFor(req, scope, reference);
 				if (prisoner !== undefined && String(prisoner) !== String(found.row.prisoner)) {
@@ -450,7 +464,12 @@ export default class MessageController extends RouteController {
 				);
 			}
 			if (q.length < 2) {
-				throw new ValidationError('name must be at least 2 characters.');
+				throw new ValidationError({
+					message: 'name must be at least 2 characters.',
+					field: 'name',
+					code: 'length_out_of_range',
+					params: { min: 2 }
+				});
 			}
 			const ids =
 				scope.kind === 'all'
@@ -718,10 +737,18 @@ export default class MessageController extends RouteController {
 		let idempotent = null;
 		try {
 			if (!req.file) {
-				throw new ValidationError('Send the file in a multipart field named "file".');
+				throw new ValidationError({
+					message: 'Send the file in a multipart field named "file".',
+					field: 'file',
+					code: 'required'
+				});
 			}
 			if (messageId === undefined || messageId === '') {
-				throw new ValidationError('message (the id of the letter) is required.');
+				throw new ValidationError({
+					message: 'message (the id of the letter) is required.',
+					field: 'message',
+					code: 'required'
+				});
 			}
 			const scope = await threadScope(req);
 			const message = await this.#attachableMessage(req, scope, messageId, { forWrite: true });
@@ -731,7 +758,11 @@ export default class MessageController extends RouteController {
 				// The bytes are ciphertext; the declared type describes the plaintext.
 				nonce = req.body.nonce;
 				if (typeof nonce !== 'string' || nonce === '') {
-					throw new ValidationError('End-to-end mode: send the file nonce in a "nonce" field.');
+					throw new ValidationError({
+						message: 'End-to-end mode: send the file nonce in a "nonce" field.',
+						field: 'nonce',
+						code: 'required'
+					});
 				}
 			} else {
 				mimeType = sniffType(req.file.buffer);
@@ -791,7 +822,11 @@ export default class MessageController extends RouteController {
 		const { message: messageId } = req.query;
 		try {
 			if (messageId === undefined) {
-				throw new ValidationError('message (the id of the letter) is required.');
+				throw new ValidationError({
+					message: 'message (the id of the letter) is required.',
+					field: 'message',
+					code: 'required'
+				});
 			}
 			const scope = await threadScope(req);
 			const message = await this.#attachableMessage(req, scope, messageId, { forWrite: false });

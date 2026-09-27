@@ -276,14 +276,27 @@ export default class LetterKey extends Model {
 		const seen = new Set();
 		const clean = envelopes.map((e) => {
 			if (!e || typeof e !== 'object' || !['user', 'chapter'].includes(e.readerType)) {
-				throw new ValidationError('Each envelope needs readerType user or chapter.');
+				throw new ValidationError({
+					message: 'Each envelope needs readerType user or chapter.',
+					field: 'envelopes',
+					code: 'not_allowed_value',
+					params: { allowed: ['user', 'chapter'] }
+				});
 			}
 			const readerId = Number(e.readerId);
 			if (!Number.isInteger(readerId) || readerId <= 0) {
-				throw new ValidationError('Each envelope needs a numeric readerId.');
+				throw new ValidationError({
+					message: 'Each envelope needs a numeric readerId.',
+					field: 'envelopes',
+					code: 'not_a_number'
+				});
 			}
 			if (typeof e.wrappedKey !== 'string' || e.wrappedKey === '') {
-				throw new ValidationError('Each envelope needs a wrappedKey.');
+				throw new ValidationError({
+					message: 'Each envelope needs a wrappedKey.',
+					field: 'envelopes',
+					code: 'required'
+				});
 			}
 			const pool = e.readerType === 'user' ? allowed.users : allowed.chapters;
 			if (!pool.has(readerId)) {
@@ -297,7 +310,11 @@ export default class LetterKey extends Model {
 			}
 			const key = e.readerType + ':' + readerId;
 			if (seen.has(key)) {
-				throw new ValidationError('Duplicate envelope for ' + key + '.');
+				throw new ValidationError({
+					message: 'Duplicate envelope for ' + key + '.',
+					field: 'envelopes',
+					code: 'not_unique'
+				});
 			}
 			seen.add(key);
 			const envelope = { readerType: e.readerType, readerId, wrappedKey: e.wrappedKey };
@@ -311,7 +328,11 @@ export default class LetterKey extends Model {
 		// group alone, and a group member's client adds the writer's envelope
 		// when they get keys (LetterKey.missingForWriters).
 		if (!writer.anonymousForChapter && writer.publicKey && !seen.has('user:' + writer.id)) {
-			throw new ValidationError('The writer (user ' + writer.id + ') needs an envelope.');
+			throw new ValidationError({
+				message: 'The writer (user ' + writer.id + ') needs an envelope.',
+				field: 'envelopes',
+				code: 'required'
+			});
 		}
 		if (!writer.publicKey && seen.has('user:' + writer.id)) {
 			throw new ValidationError(

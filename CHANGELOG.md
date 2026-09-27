@@ -8,6 +8,26 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-28 (late)
+
+### Every refusal now says which field and why (#140)
+
+The last of the error-code work. The remaining 55 hand-thrown validation
+messages carry a field and a code: the end-to-end key bundle (`publicKey`,
+`kdfSalt`, `kdfParams`, the wrapped keys), envelopes, moderation proposals,
+notifications and devices, mail rules, the sign-in scheme, file uploads, and
+**pagination**, which every list shares — `page` and `page_size` now answer
+`out_of_range` with the range they take.
+
+No new codes were needed: the eighteen already in `docs/ERRORS.md` covered all
+of it, which is the argument for coarse codes rather than one per message.
+
+**For clients:** `validation_failed` should now be rare. Anything still
+answering it is a custom validator nobody has classified, so the sentence in
+`errors` remains the thing to show — and it is worth reporting, because it can
+be given a code in an afternoon. Nothing about the shape changed, and no
+sentence was reworded.
+
 ## 2026-09-28 (night)
 
 ### A test vector for a typed code (#139)

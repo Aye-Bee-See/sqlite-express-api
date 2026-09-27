@@ -144,7 +144,12 @@ export default class InvitationController extends RouteController {
 			}
 			if (kind !== undefined && kind !== '') {
 				if (!INVITATION_KINDS.includes(kind)) {
-					throw new ValidationError('kind must be one of ' + INVITATION_KINDS.join(', ') + '.');
+					throw new ValidationError({
+						message: 'kind must be one of ' + INVITATION_KINDS.join(', ') + '.',
+						field: 'kind',
+						code: 'not_allowed_value',
+						params: { allowed: INVITATION_KINDS }
+					});
 				}
 				where.kind = kind;
 			}

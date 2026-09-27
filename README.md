@@ -434,7 +434,7 @@ Everything that writes a row nobody else asked for is counted **per account**, o
 
 Three things worth knowing:
 
-- **Staff are counted too.** The token worth stealing is a group's or an admin's, and a limit that exempts them protects nothing. The exception is `POST /auth/user` **with** a token: an admin creating accounts is doing administration, not signing up, and is not counted against the address limit that guards open registration.
+- **Staff are counted too.** The token worth stealing is a group's or an admin's, and a limit that exempts them protects nothing. The exception is `POST /auth/user` with an **admin's** token: an admin creating accounts is doing administration, not signing up, and is not counted against the address limit that guards open registration. Any other token is counted like a sign-up without one.
 - **A refused request still counts.** Counting happens before the body is read, so a wrong body cannot buy extra tries, and a refused attachment or key rotation costs no upload and no 32 MB of parsing.
 - **Directory writes by an admin are not limited** (facilities, prisoners, groups). That is seeding work, done rarely and deliberately; a group's directory edits are proposals, which are limited.
 

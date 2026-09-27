@@ -10,6 +10,16 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### A signed-in account can no longer sign people up without limit (#147)
+
+Sign-ups (`POST /auth/user`) are limited per address wherever open registration
+is on. The limit meant to let an admin through, but it let through **any**
+request with a token: one ordinary account could create accounts as fast as it
+liked. Now only an admin's token skips the count; a writer's or a group's is
+counted like a sign-up without one.
+
+**For clients:** nothing to change. A client never signs up while signed in.
+
 ### Starting a thread no longer stalls letters (#145)
 
 A fix for a deadlock that only a database on disk could show. Sending a letter

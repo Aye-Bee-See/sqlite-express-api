@@ -1,4 +1,5 @@
 import { HttpError } from '#services/HttpError.js';
+import AuthzService from '#rtServices/authz.services.js';
 import { rateLimits } from '#constants';
 import ValidationError from '#services/ValidationError.js';
 
@@ -317,12 +318,14 @@ export const limiters = {
 		subject: perAccount
 	}),
 	// Registration is public wherever OPEN_REGISTRATION is on, so it is counted
-	// per address; an admin creating accounts with a token is not limited here.
+	// per address. An admin creating accounts is doing administration and is not
+	// limited here; any other token is. This once exempted every signed-in
+	// request, so one ordinary account could make accounts without end.
 	register: limit({
 		name: 'register',
 		what: 'sign-ups',
 		windowMs: minutes(rateLimits.writeWindowMinutes),
 		perIp: rateLimits.registerPerIp,
-		exempt: (req) => Boolean(req.user)
+		exempt: (req) => AuthzService.isAdmin(req)
 	})
 };

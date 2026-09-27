@@ -11,7 +11,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { CODES } from '#services/error-codes.js';
+import { CODES, REFUSAL_FAMILIES } from '#services/error-codes.js';
 
 export function catalogue() {
 	const rows = Object.entries(CODES).map(
@@ -53,6 +53,29 @@ export function catalogue() {
 		'| Code | What it means | `params` |\n' +
 		'| --- | --- | --- |\n' +
 		rows.join('\n') +
+		'\n' +
+		'\n' +
+		'## Refusals that are not about a field\n' +
+		'\n' +
+		'A `403`, `404`, `409`, `410` or `422` where the request was well formed and the answer is still no\n' +
+		'carries `name`, often `condition`, and a `code` composed from the two:\n' +
+		'\n' +
+		'```\n' +
+		'code = family + ("." + condition, when the refusal has one)\n' +
+		'```\n' +
+		'\n' +
+		'`family` is the error name in snake_case with `Error` dropped, so `InviteCodeError` + `used` is\n' +
+		'`invite_code.used`, and `NotFoundError` on its own is `not_found`. **Match the whole code, or just the\n' +
+		'family before the dot**: a refusal may grow a finer `condition` later, and a build that matched the\n' +
+		'family keeps working. `name` and `condition` are still sent and are not going away.\n' +
+		'\n' +
+		'A `5xx` is a fault rather than a refusal and carries no `code`.\n' +
+		'\n' +
+		'| Family | What a refusal in it means |\n' +
+		'| --- | --- |\n' +
+		Object.entries(REFUSAL_FAMILIES)
+			.map(([family, meaning]) => '| `' + family + '` | ' + meaning + ' |')
+			.join('\n') +
 		'\n'
 	);
 }

@@ -174,3 +174,90 @@ export function paramsForValidator(item) {
 	}
 	return undefined;
 }
+
+/**
+ * The refusals that are not about a field: a 403, 404, 409, 410 or 422 where
+ * the request was well formed and the answer is still no.
+ *
+ * These have carried `name` (`InviteCodeError`) and often `condition` (`used`)
+ * for a while, and both clients word them from that pair today. `code` is the
+ * same thing as one key, in the same namespace as the codes above, composed by
+ * one rule:
+ *
+ *     code = family + ('.' + condition, when the refusal has one)
+ *
+ * where `family` is the error's name in snake_case with `Error` dropped:
+ * `InviteCodeError` + `used` is `invite_code.used`, `NotFoundError` alone is
+ * `not_found`, `AccountDeleteError` + `group_owner` is
+ * `account_delete.group_owner`. A client may match the whole code or just the
+ * family before the dot, which is why the family is the stable part: a refusal
+ * may grow a finer `condition` later, and an older build that matched the
+ * family keeps working.
+ *
+ * **`name` and `condition` are still sent, and will be.** `code` is an
+ * addition, not a replacement, and neither will be removed in the release that
+ * introduces it (asked for by both clients, 27 September 2026).
+ */
+export const REFUSAL_FAMILIES = {
+	account_delete: 'An account cannot be deleted yet; the condition says what stands in the way.',
+	auth_scheme: "A sign-in scheme that cannot be used here, or a split account's fields missing.",
+	authentication: 'Not signed in, or a token that is no longer good.',
+	authorization: 'Signed in, and not allowed to do this.',
+	claim: 'A managed writer that cannot be claimed.',
+	claim_token: 'A claim code that is unknown, expired, or already used.',
+	duplicate_rule: 'A mail rule that already exists, or reads like one that does.',
+	encryption_key: 'A letter the server can no longer open with the key it has.',
+	encryption_mode: 'The request does not match the mode the server runs in.',
+	envelope: 'A letter key sealed to the wrong reader, or one that is missing.',
+	http: 'A refusal with no finer family of its own.',
+	idempotency: 'An Idempotency-Key that is in flight, reused, or whose letter is gone.',
+	invitation: 'An invitation that is unknown, expired, revoked, or already accepted.',
+	invite_code: 'An invite code that is unknown, expired, cancelled, or used.',
+	invite_quota: "A group's unused invite codes are at their limit.",
+	key_change: 'A key that may not be set or replaced in the way asked.',
+	key_version: 'Sealed to a group key that is no longer current; re-seal and send again.',
+	letter_held: 'A letter held because the person was moved or freed.',
+	letter_status: 'A status move that is not allowed, or that somebody else made first.',
+	not_found: 'No such record, or none this caller may see.',
+	owner: "Only a group's owner-admin may do this.",
+	pen_name_limit: 'A pen name change refused by the cooldown or the yearly count.',
+	rate_limit: 'Too many requests; Retry-After says when to come back.',
+	recovery: 'A recovery code or challenge that does not fit.',
+	reply_reference: 'A reply reference that fails its checksum or is unknown.',
+	rotation_incomplete: 'A group key rotation that did not carry everything it must.',
+	rule_in_use: 'A mail rule a facility still carries; retire it instead.',
+	rule_tag: 'A mail rule tag that cannot change, or is not the shape of one.',
+	submission_changed: 'The proposal was revised while it was being reviewed.',
+	submission_state: 'A proposal that is not in a state this decision fits.',
+	validation: 'Input that fails a rule; these also carry `problems` (above).'
+};
+
+/** The family of an error name: `InviteCodeError` is `invite_code`. */
+export function familyOf(name) {
+	return String(name ?? 'Error')
+		.replace(/Error$/, '')
+		.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+		.toLowerCase();
+}
+
+/** Is this a family the catalogue knows? */
+export function isKnownFamily(family) {
+	return Object.hasOwn(REFUSAL_FAMILIES, family);
+}
+
+/**
+ * The `code` for a refusal that is not about a field.
+ * @param {{name?: string, condition?: string}} err
+ * @returns {string}
+ */
+export function codeForRefusal(err) {
+	const family = familyOf(err && err.name);
+	const known = isKnownFamily(family) ? family : 'http';
+	if (!isKnownFamily(family)) {
+		// A new error name would ship a code nobody can look up; the test that reads
+		// the source catches it, and this keeps the answer honest in the meantime.
+		console.error('[errors] unknown refusal family "' + family + '"; add it to error-codes.js');
+	}
+	const condition = err && typeof err.condition === 'string' ? err.condition : null;
+	return condition && condition !== 'par' ? known + '.' + condition : known;
+}

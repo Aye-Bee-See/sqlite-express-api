@@ -68,7 +68,8 @@ test('a protected route rejects a missing token', async () => {
 		success: false,
 		name: 'AuthenticationError',
 		info: 'Unauthorized',
-		status: 401
+		status: 401,
+		code: 'authentication'
 	});
 });
 

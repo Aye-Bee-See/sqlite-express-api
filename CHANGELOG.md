@@ -8,6 +8,28 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-28
+
+### One key for every refusal (#136)
+
+Step 3 of the error codes, and the last of the shape work. A refusal that is not about a field — `403`, `404`, `409`, `410`, `422` — now carries a `code` beside the `name` and `condition` it has always sent:
+
+```json
+{
+	"success": false,
+	"name": "InviteCodeError",
+	"condition": "used",
+	"code": "invite_code.used",
+	"status": 410
+}
+```
+
+The code is composed by one rule: the error's name in snake_case with `Error` dropped, then the `condition` after a dot when there is one. So `NotFoundError` is `not_found`, `AccountDeleteError` with `condition: "group_owner"` is `account_delete.group_owner`, and a pen name refused by its cooldown is `pen_name_limit.cooldown`. Every family is listed in [docs/ERRORS.md](docs/ERRORS.md), and a test fails when the code throws an error name that has none.
+
+**`name` and `condition` are still sent and are not being removed** — both clients asked for that, since installed builds word these refusals from the pair today.
+
+**For clients:** match the whole code, or just the family before the dot. The family is the stable half: a refusal may grow a finer `condition` later, and a build that matched the family keeps working. A `5xx` is a fault, not a refusal, and carries no code; a `400` about a field answers with `problems` instead. So there is exactly one thing to key on, whichever kind of refusal it is.
+
 ## 2026-09-27 (evening)
 
 ### Codes on the flows people actually meet (#134)

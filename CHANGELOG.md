@@ -8,6 +8,14 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-28 (evening)
+
+### A finished backup is group-readable (#138)
+
+So that a copy can be fetched off the machine by something that is not root. A backup and the directory it sits in are now `0640` in a `0750` directory, owned as before; the working directory that briefly holds the database in the clear stays `0700`. What is inside an archive is encrypted to `BACKUP_PUBLIC_KEY`, whose private half is not on the server, so group-read gives away nothing — and it means a scheduled copier can run as an ordinary member of the service's group instead of needing `sudo` in a cron job.
+
+Nothing changes for a deployment that keeps backups on the server only.
+
 ## 2026-09-28 (later)
 
 ### A photo is hosted here, or there is no photo (#137)

@@ -165,7 +165,12 @@ async function backup({
 	if (dbStorage === ':memory:') {
 		throw new Error('An in-memory database cannot be backed up.');
 	}
-	await mkdir(dir, { recursive: true, mode: 0o700 });
+	// The directory and the finished archives are group-readable so that an
+	// off-site copier can fetch them as an ordinary member of the service's group,
+	// with no sudo in a cron job. What is inside is encrypted to BACKUP_PUBLIC_KEY
+	// and unreadable without the private half, which is not on this machine; the
+	// working directory below (the database in the clear, briefly) stays 0700.
+	await mkdir(dir, { recursive: true, mode: 0o750 });
 	const work = await mkdtemp(join(dir, '.work-'));
 	try {
 		// SQLite's own consistent copy: one read transaction, safe beside a running
@@ -213,7 +218,7 @@ async function backup({
 		});
 		await pipeline(
 			Readable.from(archive.seal(plain, recipient, now)),
-			createWriteStream(partial, { mode: 0o600 })
+			createWriteStream(partial, { mode: 0o640 })
 		);
 		// Only a finished backup ever carries the name a backup has.
 		const file = join(dir, name);

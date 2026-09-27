@@ -10,7 +10,7 @@ import {
 	statSync,
 	mkdirSync
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Sequelize } from 'sequelize';
 
@@ -94,7 +94,10 @@ test('a backup is one encrypted file the server cannot open, holding the databas
 	const made = await runBackup({ ...quiet, now: new Date('2026-09-21T10:00:00Z') });
 	assert.match(made.file, /abc-backup-20260921T100000Z\.abcbak$/);
 	assert.deepEqual([made.users, made.letters, made.attachments, made.missing], [1, 1, 1, []]);
-	assert.equal(statSync(made.file).mode & 0o777, 0o600);
+	// Group-readable, so an off-site copier fetches it without sudo; the contents
+	// are encrypted to a key that is not on this machine (README, "Backups").
+	assert.equal(statSync(made.file).mode & 0o777, 0o640);
+	assert.equal(statSync(dirname(made.file)).mode & 0o777, 0o750, 'and the directory it sits in');
 
 	// Nothing readable in it: not a username, not the SQLite signature, not the scan.
 	const bytes = readFileSync(made.file);

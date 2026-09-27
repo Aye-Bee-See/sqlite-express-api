@@ -284,7 +284,11 @@ export default class PrisonerController extends RouteController {
 			await this.#requirePhotoEditor(req);
 			const prisoner = await this.#photoRecord(req, req.body.prisoner);
 			if (!req.file) {
-				throw new ValidationError('Send the image in a "photo" field.');
+				throw new ValidationError({
+					message: 'Send the image in a "photo" field.',
+					field: 'photo',
+					code: 'required'
+				});
 			}
 			const mime = sniffType(req.file.buffer);
 			if (!mime || !PrisonerController.#PHOTO_TYPES.includes(mime)) {
@@ -299,7 +303,12 @@ export default class PrisonerController extends RouteController {
 			}
 			const credit = req.body.credit === undefined ? null : String(req.body.credit).trim() || null;
 			if (credit && credit.length > 200) {
-				throw new ValidationError('Photo credit can be at most 200 characters.');
+				throw new ValidationError({
+					message: 'Photo credit can be at most 200 characters.',
+					field: 'credit',
+					code: 'length_out_of_range',
+					params: { min: 0, max: 200 }
+				});
 			}
 			const clean = stripMetadata(req.file.buffer, mime);
 			const stored = await storeFile(clean, mime);

@@ -25,7 +25,11 @@ const READ_CONFIG = {
 			build: (tag) => {
 				// Only the shape of a tag reaches the SQL; one that is not on the list matches nothing.
 				if (!MAIL_RULE_TAG.test(tag)) {
-					throw new ValidationError('mailRule must be a rule tag from GET /prison/mail-rules.');
+					throw new ValidationError({
+						message: 'mailRule must be a rule tag from GET /prison/mail-rules.',
+						field: 'mailRule',
+						code: 'not_allowed_value'
+					});
 				}
 				return {
 					id: {
@@ -42,7 +46,12 @@ const READ_CONFIG = {
 		language: {
 			build: (code) => {
 				if (!/^[a-z]{2}$/.test(code)) {
-					throw new ValidationError('language must be a two-letter ISO 639-1 code in lower case.');
+					throw new ValidationError({
+						message: 'language must be a two-letter ISO 639-1 code in lower case.',
+						field: 'language',
+						code: 'wrong_type',
+						params: { expected: 'two-letter ISO 639-1 code, lower case' }
+					});
 				}
 				return {
 					id: {

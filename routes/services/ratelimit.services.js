@@ -130,7 +130,10 @@ export function bodyCredentialsOnly(req, res, next) {
 	const query = req.query || {};
 	if (query.username !== undefined || query.password !== undefined) {
 		return next(
-			new ValidationError('Send username and password in the JSON body, never in the URL.')
+			new ValidationError({
+				message: 'Send username and password in the JSON body, never in the URL.',
+				code: 'not_settable_here'
+			})
 		);
 	}
 	// A missing field is passport's to refuse (400 AuthenticationError); a number

@@ -47,7 +47,10 @@ export default {
 		if (crypto.isE2E()) {
 			// The browser encrypted the body; the server stores what it was given.
 			if (!instance.getDataValue('ciphertext') || !instance.getDataValue('nonce')) {
-				throw new ValidationError('End-to-end mode: send ciphertext and nonce, not messageText.');
+				throw new ValidationError({
+					message: 'End-to-end mode: send ciphertext and nonce, not messageText.',
+					code: 'wrong_encryption_mode'
+				});
 			}
 			return;
 		}

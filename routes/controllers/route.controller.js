@@ -55,12 +55,21 @@ export default class RouteController {
 		const sizeNum = blank(page_size) ? RouteController.DEFAULT_PAGE_SIZE : Number(page_size);
 		const errors = [];
 		if (!Number.isInteger(pageNum) || pageNum < 1 || pageNum > RouteController.MAX_PAGE) {
-			errors.push('page must be a positive integer.');
+			errors.push({
+				message: 'page must be a positive integer.',
+				field: 'page',
+				code: 'out_of_range',
+				params: { min: 1, max: RouteController.MAX_PAGE }
+			});
 		}
 		if (!Number.isInteger(sizeNum) || sizeNum < 1 || sizeNum > RouteController.MAX_PAGE_SIZE) {
-			errors.push(
-				'page_size must be an integer between 1 and ' + RouteController.MAX_PAGE_SIZE + '.'
-			);
+			errors.push({
+				message:
+					'page_size must be an integer between 1 and ' + RouteController.MAX_PAGE_SIZE + '.',
+				field: 'page_size',
+				code: 'out_of_range',
+				params: { min: 1, max: RouteController.MAX_PAGE_SIZE }
+			});
 		}
 		if (errors.length > 0) {
 			throw new ValidationError(errors);

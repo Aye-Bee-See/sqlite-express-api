@@ -210,7 +210,12 @@ export default class ModerationController extends RouteController {
 				fields !== undefined &&
 				(!fields || typeof fields !== 'object' || Array.isArray(fields))
 			) {
-				throw new ValidationError('fields must be an object of reviewer edits.');
+				throw new ValidationError({
+					message: 'fields must be an object of reviewer edits.',
+					field: 'fields',
+					code: 'wrong_type',
+					params: { expected: 'object' }
+				});
 			}
 			// An approved edit of a prisoner is an edit of a prisoner: the same follow-up
 			// for their writers' mail as a direct one.
@@ -258,7 +263,11 @@ export default class ModerationController extends RouteController {
 				);
 			}
 			if (typeof decisionNote !== 'string' || decisionNote.trim() === '') {
-				throw new ValidationError('decisionNote is required when rejecting.');
+				throw new ValidationError({
+					message: 'decisionNote is required when rejecting.',
+					field: 'decisionNote',
+					code: 'required'
+				});
 			}
 			const result = await Submission.reject(submission, {
 				reviewer: req.user.id,

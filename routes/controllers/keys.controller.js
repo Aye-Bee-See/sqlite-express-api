@@ -70,7 +70,12 @@ export default class KeysController extends RouteController {
 			}
 		}
 		if (out.publicKey !== undefined && !crypto.isPublicKey(out.publicKey)) {
-			throw new ValidationError('publicKey must be a base64 X25519 public key (32 bytes).');
+			throw new ValidationError({
+				message: 'publicKey must be a base64 X25519 public key (32 bytes).',
+				field: 'publicKey',
+				code: 'wrong_type',
+				params: { expected: 'base64 X25519 public key (32 bytes)' }
+			});
 		}
 		for (const field of [
 			'wrappedPrivateKey',
@@ -92,10 +97,18 @@ export default class KeysController extends RouteController {
 		// an auth key derived from them and no private key to wrap. A wrapped key
 		// without them could never be opened.
 		if (out.wrappedPrivateKey !== undefined && wrapped.some((f) => out[f] === undefined)) {
-			throw new ValidationError('wrappedPrivateKey needs kdfSalt and kdfParams with it.');
+			throw new ValidationError({
+				message: 'wrappedPrivateKey needs kdfSalt and kdfParams with it.',
+				field: 'kdfSalt',
+				code: 'required'
+			});
 		}
 		if ((out.kdfSalt === undefined) !== (out.kdfParams === undefined)) {
-			throw new ValidationError('kdfSalt and kdfParams go together.');
+			throw new ValidationError({
+				message: 'kdfSalt and kdfParams go together.',
+				field: 'kdfParams',
+				code: 'required'
+			});
 		}
 		const recovery = ['recoveryWrappedPrivateKey', 'recoverySalt', 'recoveryKdfParams'];
 		const recoveryPresent = recovery.filter((f) => out[f] !== undefined);
@@ -128,7 +141,10 @@ export default class KeysController extends RouteController {
 		if (requireAll) {
 			const missing = [...wrapped, 'publicKey'].filter((f) => out[f] === undefined);
 			if (missing.length > 0) {
-				throw new ValidationError('Missing key material: ' + missing.join(', ') + '.');
+				throw new ValidationError({
+					message: 'Missing key material: ' + missing.join(', ') + '.',
+					code: 'required'
+				});
 			}
 		}
 		return out;
@@ -210,7 +226,10 @@ export default class KeysController extends RouteController {
 		try {
 			const fields = KeysController.#keyFields(req.body);
 			if (Object.keys(fields).length === 0) {
-				throw new ValidationError('Send at least one key field.');
+				throw new ValidationError({
+					message: 'Send at least one key field.',
+					code: 'required'
+				});
 			}
 			const user = await User.getUserWithKeys({ id: req.user.id });
 			if (fields.publicKey !== undefined && user.publicKey && fields.publicKey !== user.publicKey) {
@@ -225,7 +244,11 @@ export default class KeysController extends RouteController {
 				!user.publicKey &&
 				fields.wrappedPrivateKey !== undefined
 			) {
-				throw new ValidationError('Send publicKey together with the first wrapped private key.');
+				throw new ValidationError({
+					message: 'Send publicKey together with the first wrapped private key.',
+					field: 'publicKey',
+					code: 'required'
+				});
 			}
 			if (
 				fields.publicKey !== undefined &&
@@ -292,7 +315,10 @@ export default class KeysController extends RouteController {
 					keyVersion: target.keyVersion
 				});
 			}
-			throw new ValidationError('Give user or chapter.');
+			throw new ValidationError({
+				message: 'Give user or chapter.',
+				code: 'required'
+			});
 		} catch (err) {
 			this.#fail(res, next, err);
 		}
@@ -366,12 +392,21 @@ export default class KeysController extends RouteController {
 			if (scheme === 'split') {
 				authScheme.checkPassword(scheme, password);
 			} else if (typeof password !== 'string' || password.length < 7) {
-				throw new ValidationError('password must be at least 7 characters.');
+				throw new ValidationError({
+					message: 'password must be at least 7 characters.',
+					field: 'password',
+					code: 'length_out_of_range',
+					params: { min: 7 }
+				});
 			}
 			const fields = KeysController.#keyFields(req.body);
 			authScheme.requireKeysForSplit(scheme, fields);
 			if (fields.wrappedPrivateKey === undefined) {
-				throw new ValidationError('Send the private key re-wrapped under the new password.');
+				throw new ValidationError({
+					message: 'Send the private key re-wrapped under the new password.',
+					field: 'wrappedPrivateKey',
+					code: 'required'
+				});
 			}
 			if (fields.publicKey !== undefined && fields.publicKey !== user.publicKey) {
 				throw new HttpError(409, 'The public key cannot change during recovery.', 'KeyChangeError');
@@ -498,10 +533,19 @@ export default class KeysController extends RouteController {
 				);
 			}
 			if (!crypto.isPublicKey(publicKey)) {
-				throw new ValidationError('publicKey must be a base64 X25519 public key (32 bytes).');
+				throw new ValidationError({
+					message: 'publicKey must be a base64 X25519 public key (32 bytes).',
+					field: 'publicKey',
+					code: 'wrong_type',
+					params: { expected: 'base64 X25519 public key (32 bytes)' }
+				});
 			}
 			if (typeof wrappedOrgPrivateKey !== 'string' || wrappedOrgPrivateKey === '') {
-				throw new ValidationError('wrappedOrgPrivateKey is required.');
+				throw new ValidationError({
+					message: 'wrappedOrgPrivateKey is required.',
+					field: 'wrappedOrgPrivateKey',
+					code: 'required'
+				});
 			}
 			const member = this.requireFound(await User.findByPk(memberId), 'User ' + memberId);
 			if (String(member.chapterId) !== String(chapter.id)) {
@@ -588,7 +632,11 @@ export default class KeysController extends RouteController {
 				);
 			}
 			if (typeof wrappedOrgPrivateKey !== 'string' || wrappedOrgPrivateKey === '') {
-				throw new ValidationError('wrappedOrgPrivateKey is required.');
+				throw new ValidationError({
+					message: 'wrappedOrgPrivateKey is required.',
+					field: 'wrappedOrgPrivateKey',
+					code: 'required'
+				});
 			}
 			const member = this.requireFound(await User.findByPk(userId), 'User ' + userId);
 			if (String(member.chapterId) !== String(chapter.id)) {
@@ -908,7 +956,10 @@ export default class KeysController extends RouteController {
 				);
 			}
 			if (map.has(id)) {
-				throw new ValidationError('Duplicate ' + idField + ' ' + id + ' in ' + label + '.');
+				throw new ValidationError({
+					message: 'Duplicate ' + idField + ' ' + id + ' in ' + label + '.',
+					code: 'not_unique'
+				});
 			}
 			map.set(id, value);
 		}
@@ -936,10 +987,19 @@ export default class KeysController extends RouteController {
 			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
 			await this.#requireRotator(req, chapter);
 			if (!crypto.isPublicKey(publicKey)) {
-				throw new ValidationError('publicKey must be a base64 X25519 public key (32 bytes).');
+				throw new ValidationError({
+					message: 'publicKey must be a base64 X25519 public key (32 bytes).',
+					field: 'publicKey',
+					code: 'wrong_type',
+					params: { expected: 'base64 X25519 public key (32 bytes)' }
+				});
 			}
 			if (publicKey === chapter.publicKey) {
-				throw new ValidationError('publicKey is the current key; a rotation needs a new keypair.');
+				throw new ValidationError({
+					message: 'publicKey is the current key; a rotation needs a new keypair.',
+					field: 'publicKey',
+					code: 'not_eligible'
+				});
 			}
 			KeysController.requireCurrentGroupKey(chapter, keyVersion, 'keyVersion');
 			const envelopes = KeysController.#sealedList(

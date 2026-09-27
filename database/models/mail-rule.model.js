@@ -163,7 +163,12 @@ export default class MailRule extends Model {
 			}
 		}
 		if (retired !== undefined && typeof retired !== 'boolean') {
-			throw new ValidationError('retired must be true or false.');
+			throw new ValidationError({
+				message: 'retired must be true or false.',
+				field: 'retired',
+				code: 'wrong_type',
+				params: { expected: 'true or false' }
+			});
 		}
 		rule.set({
 			...(category !== undefined ? { category } : {}),
@@ -226,7 +231,11 @@ export default class MailRule extends Model {
 			);
 		}
 		if (new Set(tags).size !== tags.length) {
-			throw new ValidationError('mailRules lists a rule more than once.');
+			throw new ValidationError({
+				message: 'mailRules lists a rule more than once.',
+				field: 'mailRules',
+				code: 'not_unique'
+			});
 		}
 		const rules = tags.length === 0 ? [] : await this.findAll({ where: { tag: tags } });
 		const known = new Set(rules.map((rule) => rule.tag));
@@ -248,7 +257,11 @@ export default class MailRule extends Model {
 		}
 		for (const [a, b] of MAIL_RULE_CONFLICTS) {
 			if (known.has(a) && known.has(b)) {
-				throw new ValidationError('mailRules cannot hold both ' + a + ' and ' + b + '.');
+				throw new ValidationError({
+					message: 'mailRules cannot hold both ' + a + ' and ' + b + '.',
+					field: 'mailRules',
+					code: 'not_eligible'
+				});
 			}
 		}
 		return rules;

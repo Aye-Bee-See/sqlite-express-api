@@ -54,7 +54,12 @@ export function isAuthKey(value) {
 export function schemeFrom(body) {
 	const scheme = body && body.authScheme !== undefined ? body.authScheme : 'plain';
 	if (!AUTH_SCHEMES.includes(scheme)) {
-		throw new ValidationError('authScheme must be one of ' + AUTH_SCHEMES.join(', ') + '.');
+		throw new ValidationError({
+			message: 'authScheme must be one of ' + AUTH_SCHEMES.join(', ') + '.',
+			field: 'authScheme',
+			code: 'not_allowed_value',
+			params: { allowed: AUTH_SCHEMES }
+		});
 	}
 	if (scheme === 'plain' && requireSplitAuth) {
 		throw new ValidationError(

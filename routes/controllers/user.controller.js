@@ -846,11 +846,19 @@ export default class UserController extends RouteController {
 					['claimSalt', claimSalt]
 				]) {
 					if (typeof value !== 'string' || value === '') {
-						throw new ValidationError('End-to-end mode: ' + field + ' is required.');
+						throw new ValidationError({
+							message: 'End-to-end mode: ' + field + ' is required.',
+							code: 'required'
+						});
 					}
 				}
 				if (!crypto.isKdfParams(claimKdfParams)) {
-					throw new ValidationError('End-to-end mode: claimKdfParams ' + crypto.KDF_PARAMS_HINT);
+					throw new ValidationError({
+						message: 'End-to-end mode: claimKdfParams ' + crypto.KDF_PARAMS_HINT,
+						field: 'claimKdfParams',
+						code: 'wrong_type',
+						params: { expected: 'argon2id parameters' }
+					});
 				}
 				const { expiresAt } = await ClaimToken.issueFromClient(
 					writer.id,
@@ -1010,7 +1018,10 @@ export default class UserController extends RouteController {
 				password === ''
 			) {
 				// Without them the account would be claimed with a password nobody knows.
-				throw new ValidationError('Choose a username and a password to claim the account.');
+				throw new ValidationError({
+					message: 'Choose a username and a password to claim the account.',
+					code: 'required'
+				});
 			}
 			const { record, writer } = await this.#validClaim(token);
 			const scheme = authScheme.schemeFrom(req.body);

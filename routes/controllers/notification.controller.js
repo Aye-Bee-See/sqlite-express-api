@@ -86,7 +86,12 @@ export default class NotificationController extends RouteController {
 		const { id, muted, label } = req.body;
 		try {
 			if (muted !== undefined && typeof muted !== 'boolean') {
-				throw new ValidationError('muted must be true or false.');
+				throw new ValidationError({
+					message: 'muted must be true or false.',
+					field: 'muted',
+					code: 'wrong_type',
+					params: { expected: 'true or false' }
+				});
 			}
 			const device = this.requireFound(
 				await Device.findOne({ where: { id: id ?? null, userId: req.user.id } }),
@@ -112,7 +117,10 @@ export default class NotificationController extends RouteController {
 		const { id, token } = req.body || {};
 		try {
 			if (id === undefined && token === undefined) {
-				throw new ValidationError('Give the device id or its token.');
+				throw new ValidationError({
+					message: 'Give the device id or its token.',
+					code: 'required'
+				});
 			}
 			const where = { userId: req.user.id, ...(id !== undefined ? { id } : { token }) };
 			const removed = await Device.destroy({ where });
@@ -134,7 +142,11 @@ export default class NotificationController extends RouteController {
 			if (since !== undefined && since !== '') {
 				after = Number(since);
 				if (!Number.isInteger(after) || after < 0) {
-					throw new ValidationError('since must be the id of the newest entry you already have.');
+					throw new ValidationError({
+						message: 'since must be the id of the newest entry you already have.',
+						field: 'since',
+						code: 'not_a_number'
+					});
 				}
 			}
 			const result = await Notification.feed(req.user.id, {
@@ -159,10 +171,19 @@ export default class NotificationController extends RouteController {
 		const { ids, upTo } = req.body || {};
 		try {
 			if (ids !== undefined && (!Array.isArray(ids) || ids.some((id) => !Number.isInteger(id)))) {
-				throw new ValidationError('ids must be an array of notification ids.');
+				throw new ValidationError({
+					message: 'ids must be an array of notification ids.',
+					field: 'ids',
+					code: 'wrong_type',
+					params: { expected: 'array of ids' }
+				});
 			}
 			if (upTo !== undefined && !Number.isInteger(upTo)) {
-				throw new ValidationError('upTo must be a notification id.');
+				throw new ValidationError({
+					message: 'upTo must be a notification id.',
+					field: 'upTo',
+					code: 'not_a_number'
+				});
 			}
 			const marked = await Notification.markRead(req.user.id, { ids, upTo });
 			this.#handleSuccess(res, {

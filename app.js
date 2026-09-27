@@ -17,7 +17,7 @@ import KeysRoutes from '#routes/keys/keys.js';
 import InviteCodeRoutes from '#routes/invite-code/invite-code.js';
 import NewsRoutes from '#routes/news/news.js';
 import ErrorService from '#rtServices/error.services.js';
-import { singleIds } from '#rtServices/request-shape.services.js';
+import { noNulCharacters, singleIds } from '#rtServices/request-shape.services.js';
 import '#rtServices/auth.services.js'; // registers the passport strategies
 import { NotFoundError } from '#services/HttpError.js';
 import { ROTATION_PATH } from '#routes/keys/keys.js';
@@ -74,6 +74,7 @@ export function createApp() {
 		req.method === 'POST' && req.path.replace(/\/+$/, '').toLowerCase() === ROTATION_PATH;
 	app.use((req, res, next) => (isRotation(req) ? next() : json(req, res, next)));
 	app.use(bodyParser.urlencoded({ extended: true }));
+	app.use(noNulCharacters);
 	app.use(singleIds);
 	app.use(passport.initialize());
 

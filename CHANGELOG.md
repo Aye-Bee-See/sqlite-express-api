@@ -10,6 +10,17 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### A NUL character is refused, not a server error (#160)
+
+`?id=%00` answered `500` on every endpoint that looks a record up: Sequelize
+writes a lookup's value into the SQL, and SQLite stops reading at a NUL, which
+leaves the quoted value open. Nothing the API takes can contain a NUL
+(ciphertext travels as base64), so one anywhere in the query or the body,
+including multipart fields and a key rotation, is now refused before any route
+runs: `400`, `wrong_type` on the field that holds it.
+
+**For clients:** nothing to change.
+
 ### Error codes: the rule holds, and no sentence goes without a field (#153)
 
 Four gaps in the error-code work (#133–#142).

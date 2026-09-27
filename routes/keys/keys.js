@@ -5,7 +5,7 @@ import { default as keysCtrlr } from '#rtControllers/keys.controller.js';
 import { limiters } from '#rtServices/ratelimit.services.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { default as bodyParser } from 'body-parser';
-import { singleIds } from '#rtServices/request-shape.services.js';
+import { noNulCharacters, singleIds } from '#rtServices/request-shape.services.js';
 import { rotationMaxBytes } from '#constants';
 
 /** Where a rotation is posted, as the app sees it: app.js leaves its body for this router to parse. */
@@ -78,6 +78,7 @@ class KeysRoutes {
 			// A rotation carries every envelope of the group: too large for the app-wide
 			// parser (which skips this path), and only read for a caller who may rotate.
 			bodyParser.json({ limit: rotationMaxBytes }),
+			noNulCharacters,
 			singleIds,
 			this.#Controller.rotate
 		);

@@ -2,6 +2,12 @@ import { DataTypes } from 'sequelize';
 import { recordStatusAttribute } from '#db/record-status.js';
 import { arrayOfStrings } from '#db/validators.js';
 
+/** What changes when a photo does: its upload time, in milliseconds. Also its ETag. */
+export function photoVersion(addedAt) {
+	const time = addedAt ? new Date(addedAt).getTime() : 0;
+	return String(Number.isFinite(time) ? time : 0);
+}
+
 const prisonerSchema = {
 	birthName: {
 		type: DataTypes.STRING
@@ -44,9 +50,17 @@ const prisonerSchema = {
 		type: DataTypes.JSON,
 		validate: arrayOfStrings('Interests')
 	},
-	/** A photo hosted here: the stored file, who put it there, and the credit line. */
+	/**
+	 * A photo hosted here: the stored file, who put it there, and the credit line.
+	 * The file's name on disk and the uploader's id are never sent to anyone:
+	 * their getters answer nothing, so no row, bare or nested in another record,
+	 * carries them. Code that needs them reads `getDataValue`.
+	 */
 	photoFile: {
-		type: DataTypes.STRING
+		type: DataTypes.STRING,
+		get() {
+			return undefined;
+		}
 	},
 	photoCredit: {
 		type: DataTypes.STRING,
@@ -58,13 +72,18 @@ const prisonerSchema = {
 		type: DataTypes.DATE
 	},
 	photoAddedBy: {
-		type: DataTypes.INTEGER
+		type: DataTypes.INTEGER,
+		get() {
+			return undefined;
+		}
 	},
 	/**
 	 * The one field a client needs to show a face, or null when there is none.
 	 * Every photo is hosted here (there is no longer a link to one hosted
 	 * elsewhere), so `hosted` is always true; it is kept so that a client written
-	 * against the older shape does not have to change to keep working.
+	 * against the older shape does not have to change to keep working. The `v`
+	 * in the URL changes with every upload, so an image cache keyed by URL (as
+	 * the phone clients' are) fetches a replaced photo rather than showing the old.
 	 */
 	photo: {
 		type: DataTypes.VIRTUAL,
@@ -74,7 +93,11 @@ const prisonerSchema = {
 				return null;
 			}
 			return {
-				url: '/prisoner/photo?prisoner=' + this.getDataValue('id'),
+				url:
+					'/prisoner/photo?prisoner=' +
+					this.getDataValue('id') +
+					'&v=' +
+					photoVersion(this.getDataValue('photoAddedAt')),
 				hosted: true,
 				credit: this.getDataValue('photoCredit') || null,
 				updatedAt: this.getDataValue('photoAddedAt')

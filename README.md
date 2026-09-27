@@ -1121,9 +1121,9 @@ The name chosen at sign-up is the first, not a change: it is free of both. A ref
 A directory of names and paragraphs is a wall of text; a photograph is what makes a stranger look twice. Photos are **hosted here**, and only here: no other host is told who is looking at which prisoner, and a photo cannot quietly become a broken square or somebody else's picture. (Until 28 September 2026 a record could carry `photoUrl`, a link to a picture on another site. No client was ever built to load one, and the column is gone.)
 
 - **Who may add one:** a superadmin, or the **group-owner admin** of an active group (decided 26 September 2026). It is published at once, the one part of a record a group changes without going through [moderation](#moderation), so it is kept to the person each group has already made answerable for it. Anyone else gets a `403`.
-- **One photo per record**, replaced rather than added to. The file it replaces is deleted.
-- **Everything describing the picture is removed before it is stored**: EXIF (which carries where it was taken, when, and the camera's serial number), XMP, IPTC, comments, and PNG text chunks. Colour profiles, gamma and transparency are kept, and the pixels are never re-encoded. One consequence: **EXIF orientation is removed with the rest**, so a photo taken sideways is shown sideways. Rotate before uploading, which is what a crop step does anyway.
-- **JPEG, PNG or WebP**, at most `PHOTO_MAX_BYTES` (5 MiB). The type is read from the file's own bytes, so a renamed PDF is refused.
+- **One photo per record**, replaced rather than added to. The file it replaces is deleted, and so is the file of a prisoner record that is deleted.
+- **Everything describing the picture is removed before it is stored**: EXIF (which carries where it was taken, when, and the camera's serial number), XMP, IPTC, comments, and PNG text chunks. Colour profiles, gamma and transparency are kept, and the pixels are never re-encoded. One consequence: **EXIF orientation is removed with the rest**, so a photo taken sideways is shown sideways. Rotate before uploading, which is what a crop step does anyway. **Nothing after the end of a JPEG is kept** either: phones append a second, smaller picture with its own EXIF, or a motion photo's video, and neither is drawn. A file that cannot be read from end to end is refused (`400`, `wrong_type` on `photo`) rather than stored with whatever it failed to recognise; saving it again, or a screenshot, gives one that can.
+- **JPEG, PNG or WebP**, at most `PHOTO_MAX_BYTES` (5 MiB). The type is read from the file's own bytes, so a renamed PDF is refused. The upload stops being read at that size, and who is sending it is checked before any of it is read.
 - **Reading a photo is public**, exactly as the record is: a photo on a `draft` or `pending` record is served to staff only, and `404` for everyone else.
 
 Every prisoner row carries `photo`, which is what a client should use:
@@ -1131,7 +1131,7 @@ Every prisoner row carries `photo`, which is what a client should use:
 ```json
 {
 	"photo": {
-		"url": "/prisoner/photo?prisoner=41",
+		"url": "/prisoner/photo?prisoner=41&v=1790412240000",
 		"hosted": true,
 		"credit": "Anarchist Black Cross Belarus",
 		"updatedAt": "2026-09-26T10:04:00.000Z"
@@ -1139,7 +1139,7 @@ Every prisoner row carries `photo`, which is what a client should use:
 }
 ```
 
-`url` is a path on this API; `null` in place of the whole object means the record has no photo. `hosted` is always `true` and is kept only so that a client written against the first shape of this field keeps working: **there is no longer any way to point a record at a photo hosted somewhere else** (the `photoUrl` column is gone as of 28 September 2026). A photo `url` can go straight into an `<img>` tag: it needs no token, answers `Cache-Control: public, max-age=86400`, and carries an `ETag` that changes when the photo does.
+`url` is a path on this API; `null` in place of the whole object means the record has no photo. `hosted` is always `true` and is kept only so that a client written against the first shape of this field keeps working: **there is no longer any way to point a record at a photo hosted somewhere else** (the `photoUrl` column is gone as of 28 September 2026). A photo `url` can go straight into an `<img>` tag: it needs no token. **`v` changes with every upload**, so an image cache keyed by URL (as the phone clients' are) fetches a replaced photo instead of showing the old one; use the `url` as given rather than building it. The picture answers `Cache-Control: public, no-cache` (`private, no-cache` on a record only staff may see) with an `ETag`: a browser keeps it, but asks each time it shows it, and is answered with a bodiless `304` while it is unchanged, so a photo taken down is gone at once. The row never carries the photo's file name or who uploaded it (the audit log records that).
 
 #### POST /prisoner/photo
 
@@ -1151,9 +1151,9 @@ curl -s -X POST http://localhost:3000/prisoner/photo \
   -F prisoner=41 -F 'credit=Anarchist Black Cross Belarus' -F photo=@portrait.jpg
 ```
 
-`201` with `{ id, photo, bytesStored, bytesUploaded }`: the two sizes differ by whatever metadata was stripped. `400` for a file that is not one of the three types, or is larger than `PHOTO_MAX_BYTES`; `403` for anyone but a superadmin or a group-owner admin; `404` for a record the caller cannot see.
+`201` with `{ id, photo, bytesStored, bytesUploaded }`: the two sizes differ by whatever metadata was stripped. `400` for a file that is not one of the three types (`not_allowed_value`), is larger than `PHOTO_MAX_BYTES` (`out_of_range`, `params.max`), or cannot be read to the end (`wrong_type`); `403` for anyone but a superadmin or a group-owner admin; `404` for a record the caller cannot see.
 
-#### GET /prisoner/photo?prisoner=
+#### GET /prisoner/photo?prisoner=&v=
 
 The picture itself, public. `404` when the record has no hosted photo, when its file is missing from storage, or when the record is not one this caller may see. Answers `304` to a request carrying the current `ETag`.
 

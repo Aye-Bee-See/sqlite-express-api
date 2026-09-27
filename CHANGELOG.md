@@ -10,6 +10,20 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27 (evening)
 
+### A relay group reads only the letters it relays (#155)
+
+A group sees a writer's thread because it relays a letter in it. Reading the
+thread (`GET /chat/chat?full=true`, `GET /chat/chats?full=true`) returned
+**every** letter in it, including those the writer sent the same prisoner
+through another group or directly; on a server-mode deployment that was their
+text. The inbox line's `last_message` was the thread's newest letter, whoever
+it went through, and `heldCount` counted all of them. All three now cover only
+the letters the group relays (or, end to end, holds an envelope for), which is
+what `GET /messaging/messages` already did.
+
+**For clients:** nothing to change. A group's inbox line now shows the newest
+letter it can read, rather than a blanked-out newer one it cannot.
+
 ### Error codes: the rule holds, and no sentence goes without a field (#153)
 
 Four gaps in the error-code work (#133–#142).

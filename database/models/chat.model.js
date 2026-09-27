@@ -83,6 +83,26 @@ function threadSummary(publishedOnly) {
 	];
 }
 
+/**
+ * A thread's letters, as far as the caller may read them. `messageWhere` is the
+ * caller's scope (routes/services/scope.services.js): a group sees a thread
+ * because it relays a letter in it, and reads that letter, not the others the
+ * writer sent the same prisoner through somebody else.
+ */
+function messagesInclude(publishedOnly, messageWhere = {}) {
+	return {
+		model: Message,
+		as: 'messages',
+		include: [relayGroupSummary(publishedOnly)],
+		...(scoped(messageWhere) ? { where: messageWhere, required: false } : {})
+	};
+}
+
+/** Does this where-clause narrow anything? (Op.or is a symbol key.) */
+function scoped(where) {
+	return Boolean(where) && Reflect.ownKeys(where).length > 0;
+}
+
 /** The relay group's id and name, on every message row. */
 function relayGroupSummary(publishedOnly) {
 	return { association: 'relay_group', attributes: ['id', 'name'], ...visibility(publishedOnly) };
@@ -147,13 +167,20 @@ export default class Chat extends Model {
 
 	// Read
 
-	static async readAllChats(full, limit, offset = 0, extraWhere = {}, publishedOnly = false) {
+	static async readAllChats(
+		full,
+		limit,
+		offset = 0,
+		extraWhere = {},
+		publishedOnly = false,
+		messageWhere = {}
+	) {
 		let filters = { limit, offset, where: { ...extraWhere } };
 		let options = { include: threadSummary(publishedOnly) };
 		if (full) {
 			options = {
 				include: [
-					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
+					messagesInclude(publishedOnly, messageWhere),
 					{
 						model: User,
 						as: 'user_details',
@@ -195,7 +222,8 @@ export default class Chat extends Model {
 		limit,
 		offset = 0,
 		extraWhere = {},
-		publishedOnly = false
+		publishedOnly = false,
+		messageWhere = {}
 	) {
 		const exists = await modelsService.modelInstanceExists('User', id);
 		if (exists instanceof Error) {
@@ -207,7 +235,7 @@ export default class Chat extends Model {
 			options = {
 				where: { ...extraWhere, user: id },
 				include: [
-					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
+					messagesInclude(publishedOnly, messageWhere),
 					{
 						model: User,
 						as: 'user_details',
@@ -233,7 +261,8 @@ export default class Chat extends Model {
 		limit,
 		offset = 0,
 		extraWhere = {},
-		publishedOnly = false
+		publishedOnly = false,
+		messageWhere = {}
 	) {
 		const exists = await modelsService.modelInstanceExists('Prisoner', id);
 		if (exists instanceof Error) {
@@ -245,7 +274,7 @@ export default class Chat extends Model {
 			options = {
 				where: { prisoner: id, ...extraWhere },
 				include: [
-					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
+					messagesInclude(publishedOnly, messageWhere),
 					{
 						model: User,
 						as: 'user_details',
@@ -265,12 +294,18 @@ export default class Chat extends Model {
 		return await Chat.findAndCountAll({ ...filters, ...listOptions(), distinct: true });
 	}
 
-	static async readChatByUserAndPrisoner(user, prisoner, full, publishedOnly = false) {
+	static async readChatByUserAndPrisoner(
+		user,
+		prisoner,
+		full,
+		publishedOnly = false,
+		messageWhere = {}
+	) {
 		if (full) {
 			return await this.findOne({
 				where: { user: user, prisoner: prisoner },
 				include: [
-					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
+					messagesInclude(publishedOnly, messageWhere),
 					{
 						model: User,
 						as: 'user_details',
@@ -299,12 +334,12 @@ export default class Chat extends Model {
 	 * @param {boolean} full include messages and user/prisoner details
 	 * @returns {Promise<Chat|null>}
 	 */
-	static async readChatById(id, full, publishedOnly = false) {
+	static async readChatById(id, full, publishedOnly = false, messageWhere = {}) {
 		if (full) {
 			return await this.findOne({
 				where: { id: id },
 				include: [
-					{ model: Message, as: 'messages', include: [relayGroupSummary(publishedOnly)] },
+					messagesInclude(publishedOnly, messageWhere),
 					{
 						model: User,
 						as: 'user_details',
@@ -336,20 +371,24 @@ export default class Chat extends Model {
 	 * the conversation that needs its writer (`choose_relay`, `reseal_needed`)
 	 * without loading its letters. `heldCount` and the distinct `heldReasons`.
 	 */
-	static async attachHeldCounts(chats) {
+	static async attachHeldCounts(chats, messageWhere = {}) {
 		if (chats.length === 0) {
 			return chats;
 		}
-		const [rows] = await this.sequelize.query(
-			`SELECT chat, heldReason, COUNT(*) AS n FROM Messages
-			WHERE chat IN (:chats) AND heldReason IS NOT NULL
-			GROUP BY chat, heldReason`,
-			{ replacements: { chats: chats.map((c) => c.id) } }
-		);
+		// Counted over the letters the caller may read, like everything else here.
+		const rows = await Message.count({
+			where: {
+				chat: chats.map((c) => c.id),
+				heldReason: { [Op.ne]: null },
+				...messageWhere
+			},
+			group: ['chat', 'heldReason'],
+			hooks: false
+		});
 		const held = new Map();
 		for (const row of rows) {
 			const entry = held.get(row.chat) || { count: 0, reasons: [] };
-			entry.count += Number(row.n);
+			entry.count += Number(row.count);
 			entry.reasons.push(row.heldReason);
 			held.set(row.chat, entry);
 		}
@@ -361,21 +400,40 @@ export default class Chat extends Model {
 		return chats;
 	}
 
-	static async attachLastMessages(chats) {
+	static async attachLastMessages(chats, messageWhere = {}) {
 		if (chats.length === 0) {
 			return chats;
 		}
 		// Only the newest letter of each thread is loaded (and, in server mode,
 		// decrypted). Loading every letter of every thread on the page to pick one
 		// cost a page of long threads thousands of rows and decryptions.
-		const [newest] = await this.sequelize.query(
-			`SELECT m.id AS id FROM Messages AS m
-			WHERE m.chat IN (:chats)
-				AND m.id = (
-					SELECT id FROM Messages WHERE chat = m.chat ORDER BY createdAt DESC, id DESC LIMIT 1
-				)`,
-			{ replacements: { chats: chats.map((c) => c.id) } }
-		);
+		let newest;
+		if (scoped(messageWhere)) {
+			// The newest the caller may read: a relay group's inbox line shows the
+			// letter it relays, not a later one the writer sent through somebody else.
+			// Ids only, so nothing here is decrypted.
+			const visible = await Message.findAll({
+				attributes: ['id', 'chat'],
+				where: { chat: chats.map((c) => c.id), ...messageWhere },
+				order: [
+					['createdAt', 'DESC'],
+					['id', 'DESC']
+				],
+				hooks: false,
+				raw: true
+			});
+			const seen = new Set();
+			newest = visible.filter((row) => !seen.has(row.chat) && seen.add(row.chat));
+		} else {
+			[newest] = await this.sequelize.query(
+				`SELECT m.id AS id FROM Messages AS m
+				WHERE m.chat IN (:chats)
+					AND m.id = (
+						SELECT id FROM Messages WHERE chat = m.chat ORDER BY createdAt DESC, id DESC LIMIT 1
+					)`,
+				{ replacements: { chats: chats.map((c) => c.id) } }
+			);
+		}
 		const messages =
 			newest.length === 0
 				? []

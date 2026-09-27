@@ -881,9 +881,11 @@ test('a forwarded group sees only the letters it holds envelopes for', async () 
 	const inbox = await get('/chat/chats', partnerMember);
 	const row = inbox.body.data.find((c) => c.id === letter.chat);
 	assert.ok(row, 'the chat is still listed');
-	assert.equal(row.last_message.id, second.body.data.id);
-	assert.equal(row.last_message.ciphertext, null, 'no ciphertext without an envelope');
-	assert.deepEqual(row.last_message.envelopes, []);
+	// The newest letter it holds an envelope for: the one it was not forwarded is
+	// not shown at all, not even as a blanked-out line that says it exists.
+	assert.equal(row.last_message.id, letter.id);
+	assert.ok(row.last_message.ciphertext, 'its own letter, readable');
+	assert.equal(row.last_message.envelopes.length, 1);
 
 	const own = await get('/chat/chat?id=' + letter.chat + '&full=true', alice);
 	assert.equal(own.body.data.messages.length, 2);

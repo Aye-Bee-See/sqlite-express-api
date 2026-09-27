@@ -10,6 +10,20 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27
 
+### Backups made before #138 become readable by the copier too (#165)
+
+The change in #138 made finished backups group-readable so an off-site copier
+could fetch them without sudo, but only in a backup directory it created: an
+existing one stayed `0700`, and the archives already in it `0600`, so on abctest
+the copier could read nothing until somebody ran `chmod` by hand. Each backup
+run now adds group read (and, for the directory, group search) where it is
+missing, to the directory and to every archive in it. Nothing is ever made
+readable to other users, and anything in the directory that is not an archive
+is left alone.
+
+**Deployment:** abctest's next nightly backup fixes its directory. Off-site
+copying itself is still deferred until there is production data.
+
 ### A NUL character is refused, not a server error (#160)
 
 `?id=%00` answered `500` on every endpoint that looks a record up: Sequelize

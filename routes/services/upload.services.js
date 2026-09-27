@@ -1,6 +1,6 @@
 import multer from 'multer';
 import ValidationError from '#services/ValidationError.js';
-import { noNulCharacters } from '#rtServices/request-shape.services.js';
+import { noNulCharacters } from '#rtServices/nul-characters.services.js';
 import { uploadMaxBytes } from '#constants';
 import { ALLOWED_MIME_TYPES } from '#services/files.js';
 

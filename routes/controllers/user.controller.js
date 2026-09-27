@@ -341,7 +341,12 @@ export default class UserController extends RouteController {
 			const penNameEnforced = !AuthzService.isAdmin(req) && !custody;
 			if (penName !== undefined) {
 				await User.checkPenName(penName, { forUser: newUser.id });
-				if (penNameEnforced && penName !== null && penName !== '') {
+				if (
+					penNameEnforced &&
+					penName !== null &&
+					penName !== '' &&
+					!(await PenName.isCurrent(newUser.id, penName))
+				) {
 					// Refuse before the row is written, so a refusal changes nothing.
 					await PenName.refuseOverLimit(newUser.id, {
 						returning: await PenName.usedBefore(newUser.id, penName)
@@ -1080,6 +1085,9 @@ export default class UserController extends RouteController {
 			// The token is spent and the account taken in one step, each only if
 			// still unspent and unclaimed: two requests with one token cannot both win,
 			// and a claim that fails (a taken username) leaves the token usable.
+			// One moment for the claim and a pen name chosen at it: that name is the
+			// writer's sign-up name, not a change (PenName.changeStatus).
+			const now = new Date();
 			await inTransaction(User.sequelize, async (transaction) => {
 				const [spent] = await ClaimToken.update(
 					{ usedAt: new Date() },
@@ -1093,10 +1101,10 @@ export default class UserController extends RouteController {
 				await User.claim(
 					writer,
 					{ username, password, email, keys, authScheme: scheme },
-					{ transaction }
+					{ transaction, now }
 				);
 				if (penName !== undefined && penName !== null && penName !== '') {
-					const clean = await PenName.claim(writer.id, penName, { transaction });
+					const clean = await PenName.claim(writer.id, penName, { transaction, now });
 					await User.update(
 						{ penName: clean },
 						{ where: { id: writer.id }, transaction, hooks: false }

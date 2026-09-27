@@ -298,7 +298,8 @@ The schema is owned by the files in `database/migrations/`, run by [Umzug](https
 Rules:
 
 - Every migration exports `async up({ context: queryInterface })` and `async down(...)`, and `down` must genuinely revert `up`; the test suite reverts and re-applies the whole history.
-- Never edit an applied migration; add a new one. The initial migration is frozen: it reproduces exactly what `sequelize.sync()` used to create, which is what lets `runMigrations()` adopt a pre-migration database by recording that migration as applied (it checks for tables and an empty `SequelizeMeta`).
+- Never edit or rename an applied migration; add a new one. Umzug runs migrations in the order of their names, so a new one must sort after the last: `2026.09.28T00.00.00.drop-photo-url.js` was named for a day that had not yet come, and cannot be renamed now that servers have applied it under that name, so anything added before 29 September 2026 must still be named after it.
+- The initial migration is frozen: it reproduces exactly what `sequelize.sync()` used to create, which is what lets `runMigrations()` adopt a pre-migration database by recording that migration as applied (it checks for tables and an empty `SequelizeMeta`).
 - Change the model and its schema file in the same commit as the migration, and run `npm test` to prove they match.
 - SQLite cannot alter most column properties in place. Umzug's `queryInterface.changeColumn` works for simple cases; for anything else, create a new table, copy, drop, rename, inside the migration.
 - `removeColumn` and `changeColumn` on SQLite rebuild the table by copying, dropping, and renaming. With foreign keys on, the drop fires `ON DELETE CASCADE` on every table that references the one being rebuilt and silently empties them (the encryption migration lost every `LetterKeys` and `Attachments` row this way before the guard existed). Wrap such calls in `withForeignKeysOff(queryInterface, fn)` from `database/migration-helpers.js`.

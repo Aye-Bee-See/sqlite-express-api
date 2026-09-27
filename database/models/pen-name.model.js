@@ -155,7 +155,10 @@ export default class PenName extends Model {
 			return holder.name;
 		} else {
 			try {
-				await this.create({ userId, name: clean, nameKey: key, claimedAt: now }, { transaction });
+				await this.create(
+					{ userId, name: clean, nameKey: key, claimedAt: now, createdAt: now },
+					{ transaction }
+				);
 			} catch (err) {
 				if (err && err.name === 'SequelizeUniqueConstraintError') {
 					throw new ValidationError(
@@ -166,6 +169,21 @@ export default class PenName extends Model {
 			}
 		}
 		return clean;
+	}
+
+	/**
+	 * Is this the account's current name, in any spelling that folds to it? Sending
+	 * it again (a profile form saves every field it shows) is not a change.
+	 */
+	static async isCurrent(userId, name) {
+		let key;
+		try {
+			key = PenName.keyOf(PenName.check(name));
+		} catch {
+			return false;
+		}
+		const holder = await this.findOne({ where: { nameKey: key, retiredAt: null } });
+		return Boolean(holder) && String(holder.userId) === String(userId);
 	}
 
 	/**
@@ -190,7 +208,9 @@ export default class PenName extends Model {
 	 * `newNamesLeft` how many brand-new names are left in the rolling year.
 	 * Going back to one of the account's own old names spends the cooldown but
 	 * not a new name. An account that has never had a pen name may take one at
-	 * once: the first name is not a change.
+	 * once: the first name is not a change. Nor, for a writer who claimed their
+	 * account, is any name from before the claim (the group chose those) or the
+	 * one chosen at it, which is their sign-up name in all but name.
 	 * @returns {Promise<{changeAllowedAt: string|null, newNamesLeft: number, newNamesWindowEnds: string|null, cooldownDays: number, newPerYear: number}>}
 	 */
 	static async changeStatus(userId, { now = new Date(), transaction } = {}) {
@@ -214,8 +234,16 @@ export default class PenName extends Model {
 		// before the column existed, where the two are the same thing.
 		const since = current ? (current.claimedAt ?? current.createdAt) : null;
 		const windowStart = new Date(now.getTime() - YEAR_MS);
-		// The first name ever is the one chosen at sign-up, not a change.
-		const counted = rows.slice(1).filter((row) => row.createdAt >= windowStart);
+		// The first name ever is the one chosen at sign-up, not a change; for a
+		// claimed account, nothing up to and including the claim is.
+		const owner = await this.sequelize.models.User.findByPk(userId, {
+			attributes: ['claimedAt'],
+			transaction
+		});
+		const claimedAt = owner?.claimedAt ?? null;
+		const counted = rows
+			.slice(1)
+			.filter((row) => row.createdAt >= windowStart && !(claimedAt && row.createdAt <= claimedAt));
 		return {
 			...shape,
 			changeAllowedAt: since

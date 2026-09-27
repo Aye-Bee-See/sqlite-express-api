@@ -10,6 +10,21 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-27
 
+### Ownership only passes to someone who holds the key (#167)
+
+`PUT /auth/chapter-owner` could make a group admin who did not hold the chapter
+key its owner. From then on nobody could hand the key to anyone, take it back,
+or rotate it: the old owner had lost the right, and the new one had nothing to
+seal. Only a superadmin moving ownership back undid it. Once a chapter has a
+key, ownership now goes only to a group admin who holds it; anyone else is
+`409 OwnerError`, `condition: "no_key"` (`code: "owner.no_key"`), whether the
+owner or a superadmin asks. A chapter with no key yet is unaffected. Decided 27
+September.
+
+**For clients:** in the "pass ownership" screen, offer only group admins who
+hold the key (`GET /auth/member-keys`), or explain `owner.no_key` as "hand them
+the key first".
+
 ### Every group admin may add a photo (#166)
 
 Photo upload (`POST /prisoner/photo`, `DELETE /prisoner/photo`) was a

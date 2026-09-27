@@ -2,7 +2,7 @@ process.env.ENCRYPTION_MODE = 'e2e';
 
 const { test, before, after } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
-const { startServer, stopServer, put, del, makeFixtures, makeUser, User } = await import(
+const { startServer, stopServer, put, del, makeFixtures, makeUser, User, Chapter } = await import(
 	'./helpers.js'
 );
 const { default: OrgMemberKey } = await import('#models/org-member-key.model.js');
@@ -52,37 +52,37 @@ test('a group-owner admin hands ownership on, and the last key holder hands the 
 	assert.equal(owner.body.condition, 'group_owner');
 	assert.match(owner.body.error, /group-owner admin/);
 
+	// Ownership goes to someone who holds the key, so it is handed over first (a
+	// keyless owner could not hand it on, and the chapter would be stranded).
+	const wrapped = client.seal(second.keys.fields.publicKey, bytes(groupKeys.privateKey));
+	const keyless = await put(
+		'/auth/chapter-owner',
+		{ chapter: f.group.id, user: second.id },
+		holder
+	);
+	assert.equal(keyless.status, 409, JSON.stringify(keyless.body));
+	assert.equal(keyless.body.code, 'owner.no_key');
+	const handed = await put(
+		'/auth/member-key',
+		{ chapter: f.group.id, user: second.id, keyVersion: 1, wrappedOrgPrivateKey: wrapped },
+		holder
+	);
+	assert.equal(handed.status, 200, JSON.stringify(handed.body));
 	const transfer = await put(
 		'/auth/chapter-owner',
 		{ chapter: f.group.id, user: second.id },
 		holder
 	);
 	assert.equal(transfer.status, 200, JSON.stringify(transfer.body));
-	assert.deepEqual(
-		[transfer.body.data.owner, transfer.body.data.holdsGroupKey],
-		[second.id, false]
-	);
+	assert.deepEqual([transfer.body.data.owner, transfer.body.data.holdsGroupKey], [second.id, true]);
 
-	// No longer the owner, still the only one who can open the chapter's key.
-	const stuck = await del('/auth/user', { id: holder.id, password: holder.password }, holder);
-	assert.equal(stuck.status, 409, JSON.stringify(stuck.body));
-	assert.match(stuck.body.error, /last holder/);
-	assert.equal(await User.count({ where: { id: holder.id } }), 1);
-
-	// Only the owner hands keys now, so the old owner cannot; the new owner does.
-	const wrapped = client.seal(second.keys.fields.publicKey, bytes(groupKeys.privateKey));
+	// Only the owner hands keys now, so the old owner cannot.
 	const byOldOwner = await put(
 		'/auth/member-key',
 		{ chapter: f.group.id, user: second.id, keyVersion: 1, wrappedOrgPrivateKey: wrapped },
 		holder
 	);
 	assert.equal(byOldOwner.status, 403);
-	const handed = await put(
-		'/auth/member-key',
-		{ chapter: f.group.id, user: second.id, keyVersion: 1, wrappedOrgPrivateKey: wrapped },
-		second
-	);
-	assert.equal(handed.status, 200, JSON.stringify(handed.body));
 
 	// Now both hold it, and both leave at the same moment: each must not count the
 	// other as the one who stays.
@@ -102,4 +102,35 @@ test('a group-owner admin hands ownership on, and the last key holder hands the 
 		1,
 		'the group keeps a holder'
 	);
+});
+
+test('the last holder of a group key cannot leave, or the group could never read its letters', async () => {
+	// A group with one group admin, who made its key: nobody to hand ownership to,
+	// and nobody else holding the key.
+	const group = await Chapter.createChapter({
+		name: 'One Admin',
+		location: {},
+		accountStatus: 'active'
+	});
+	const account = await makeUser({ role: 'chapter', username: 'onlyadmin' });
+	await User.update({ chapterId: group.id }, { where: { id: account.id } });
+	const only = { token: account.token, id: account.id, password: account.password };
+	const keys = client.accountKeys(only.password, 'R3');
+	assert.equal((await put('/auth/keys', keys.fields, only)).status, 200);
+	const theirs = client.keypair();
+	const made = await put(
+		'/auth/chapter-keys',
+		{
+			chapter: group.id,
+			publicKey: theirs.publicKey,
+			wrappedOrgPrivateKey: client.seal(keys.fields.publicKey, bytes(theirs.privateKey))
+		},
+		only
+	);
+	assert.equal(made.status, 200, JSON.stringify(made.body));
+	const leave = await del('/auth/user', { id: only.id, password: only.password }, only);
+	assert.equal(leave.status, 409, JSON.stringify(leave.body));
+	assert.equal(leave.body.condition, 'last_key_holder');
+	assert.match(leave.body.error, /last holder/);
+	assert.equal(await User.count({ where: { id: only.id } }), 1);
 });

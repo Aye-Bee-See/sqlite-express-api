@@ -769,6 +769,22 @@ export default class KeysController extends RouteController {
 						'OwnerError'
 					);
 				}
+				// An owner without the key can neither hand it on, nor take it back, nor
+				// rotate it: passing ownership to one stranded the chapter until a
+				// superadmin undid it (decided 27 September). Hand the key over first.
+				// Checked under the lock, so it cannot be taken back in between. A
+				// chapter with no key yet has nothing to strand.
+				if (fresh.publicKey && !(await OrgMemberKey.forMember(fresh.id, who.id))) {
+					const err = new HttpError(
+						409,
+						'User ' +
+							userId +
+							' does not hold the chapter key. Hand it to them first (PUT /auth/member-key), then pass ownership: an owner without the key cannot hand it on, take it back, or rotate it.',
+						'OwnerError'
+					);
+					err.condition = 'no_key';
+					throw err;
+				}
 				// Conditional on the owner it replaces: two transfers at once cannot both win.
 				if (!(await Chapter.setOwner(fresh.id, who.id, fresh.ownerId))) {
 					throw new HttpError(

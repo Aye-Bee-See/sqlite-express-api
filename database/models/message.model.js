@@ -171,6 +171,28 @@ export default class Message extends Model {
 	}
 
 	/**
+	 * Refuse a letter a group will not mail: its writer is blocked there (decided
+	 * 30 September 2026). The group itself may still log a letter for them, on
+	 * paper for instance: the block is about the writer sending, not about what
+	 * the group chooses to do. Only that group is closed to them.
+	 * @throws {HttpError} 403 GroupBlockError
+	 */
+	static async refuseBlocked(relayChapter, userId, callerChapter = null, { transaction } = {}) {
+		if (!relayChapter || String(callerChapter) === String(relayChapter)) {
+			return;
+		}
+		if (await this.sequelize.models.GroupBlock.isBlocked(relayChapter, userId, { transaction })) {
+			throw new HttpError(
+				403,
+				'The group that mails to this facility (group ' +
+					relayChapter +
+					') is not mailing letters from this account. If the facility has another group, choose it as relayChapter.',
+				'GroupBlockError'
+			);
+		}
+	}
+
+	/**
 	 * Create a letter or reply with its relay group resolved and the first
 	 * history row written.
 	 * @param {object} message fields for createMessage
@@ -215,6 +237,9 @@ export default class Message extends Model {
 				field: 'relayChapter',
 				code: 'required'
 			});
+		}
+		if (message.sender !== 'prisoner') {
+			await Message.refuseBlocked(relayChapter, message.user, callerChapter, { transaction });
 		}
 		const status = initialStatusFor(message.sender, { paper });
 		const resendOf = await this.#checkResend(message, { transaction });

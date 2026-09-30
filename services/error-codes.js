@@ -215,6 +215,7 @@ export const REFUSAL_FAMILIES = {
 	encryption_key: 'A letter the server can no longer open with the key it has.',
 	encryption_mode: 'The request does not match the mode the server runs in.',
 	envelope: 'A letter key sealed to the wrong reader, or one that is missing.',
+	group_block: 'The group that would mail this letter has blocked its writer.',
 	http: 'A refusal with no finer family of its own.',
 	idempotency: 'An Idempotency-Key that is in flight, reused, or whose letter is gone.',
 	invitation: 'An invitation that is unknown, expired, revoked, or already accepted.',

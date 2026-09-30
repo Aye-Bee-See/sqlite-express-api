@@ -1319,6 +1319,16 @@ Every group key has a version: `keyVersion` is `0` until the group has keys, `1`
 
 **Every group admin is told of every change** (content-free push and the feed, like everything else): `group.key` with `detail.action` `set`, `handed`, `removed`, or `rotated` (and `member` or `keyVersion`); `group.owner` with the new `owner`, the `previous` one, and `by` (`owner`, `superadmin`, or `first key`); `group.waiting` with the `member` who has keys of their own and is waiting for the chapter's. The actor is never told of their own action; a group admin whose copy is removed is told.
 
+#### Blocking a writer
+
+A group admin can stop a writer who is misusing the system from sending letters **through that group** (decided 30 September 2026). It reaches that group only: the writer can still write through any other group, and only a superadmin stops an account everywhere, by giving it the `banned` role.
+
+- `POST /chapter/block {"user": 12, "reason": "Repeated threats in letters."}`: any group admin of an active group, for their own group. `reason` is required (at most 500 characters); **the writer is told it**, and so is every group admin of the group. Only a writer (`role: user`) can be blocked. Blocking again replaces the reason. A superadmin gets `403`: they ban instead.
+- While the block stands, the writer's letters **waiting in that group's queue are held** (`heldReason: "writer_blocked"`), so none goes out by accident: the group can still decline one, or print it with `release: true` on purpose. A **new letter**, or a letter moved, **to that group** is `403 GroupBlockError` (`code: "group_block"`), wherever the group came from: chosen by the writer, or the only group mailing to that facility. The group itself may still write for a managed writer it looks after; the block is about the writer sending.
+- `DELETE /chapter/block {"user": 12}` lifts it: any group admin of the group, or a superadmin naming `chapter`. The held letters go back into the queue as they were (`released` says how many). `404` when there is no such block.
+- `GET /chapter/blocks`: the group's blocks, each with `writer` (`id`, `penName`, `name`), `reason`, `blockedBy` and `blockedAt`. A superadmin names `?chapter=`.
+- Notifications: `writer.block` to the writer (`action` `blocked` with the group and the reason, or `lifted`), `group.block` to the group's admins. Audited as `chapter.block` and `chapter.block.remove`, in the two-year window; other groups do not see them in the group's history.
+
 #### Rotating a group key
 
 Rotation replaces the group's keypair, and it is how a member is really removed: whoever is left out of the new key can open nothing stored from then on. Only a member who holds the group key can do it, because every item has to be opened with the old key; an admin cannot.
@@ -1839,7 +1849,7 @@ Parameters: `user`, `prisoner`, `full`, `page`, `page_size`. `user` and `prisone
 
 Chats are ordered by most recent message first; chats with no messages come last. Every row carries `prisoner_details` (`id`, `birthName`, `chosenName`, `status`, `prison`) with a nested `prison_details` (`id`, `prisonName`, `country`) so an inbox line can name the person and the facility without another request (`null` for a non-staff caller when the record is not published, like every other embed); `full=true` replaces it with the complete prisoner and adds `user_details` and `messages`. Every row also carries two extra fields for inbox views:
 
-- `heldCount`: how many of the thread's letters are held, and `heldReasons`: the distinct reasons (`choose_relay`, `reseal_needed`, `prisoner_free`), sorted; `0` and `[]` when none. Enough for an inbox to mark the conversation that needs its writer (`choose_relay` and `reseal_needed` wait on the writer; `prisoner_free` waits on the group). Also on the single read.
+- `heldCount`: how many of the thread's letters are held, and `heldReasons`: the distinct reasons (`choose_relay`, `reseal_needed`, `prisoner_free`, `writer_blocked`), sorted; `0` and `[]` when none. Enough for an inbox to mark the conversation that needs its writer (`choose_relay` and `reseal_needed` wait on the writer; `prisoner_free` waits on the group). Also on the single read.
 - `lastMessageAt`: timestamp of the newest message, or `null`.
 - `last_message`: `{ id, sender, messageText, status, createdAt }` of the newest message, or `null`. `sender` tells you the direction (`user` means sent, `prisoner` means received).
 
@@ -2027,11 +2037,12 @@ When the directory learns that someone was **moved to another facility**:
 - their letters still `queued` go where a new letter would go now. The group that was going to mail one keeps it if it serves the new facility too; otherwise the letter is routed again and the new group is told it is waiting (`letter.queued`). Printed and mailed letters are on paper already and are left alone;
 - where nothing can be decided for the writer, the letter is **held** (`heldReason` on the letter, `null` otherwise):
 
-| `heldReason`    | Why                                                                                                                             | What lifts it                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `choose_relay`  | The new facility only takes relayed mail and has several relay groups, or none                                                  | The writer picks one: `PUT /messaging/message {"id": 41, "relayChapter": 3}`      |
-| `reseal_needed` | End-to-end mode: the letter is sealed to a group that does not serve the new facility, and the server cannot seal it to another | The writer's client deletes the queued letter and sends it again                  |
-| `prisoner_free` | They were freed (below)                                                                                                         | The group prints it on purpose, the writer deletes it, or the status is corrected |
+| `heldReason`     | Why                                                                                                                             | What lifts it                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `choose_relay`   | The new facility only takes relayed mail and has several relay groups, or none                                                  | The writer picks one: `PUT /messaging/message {"id": 41, "relayChapter": 3}`      |
+| `reseal_needed`  | End-to-end mode: the letter is sealed to a group that does not serve the new facility, and the server cannot seal it to another | The writer's client deletes the queued letter and sends it again                  |
+| `prisoner_free`  | They were freed (below)                                                                                                         | The group prints it on purpose, the writer deletes it, or the status is corrected |
+| `writer_blocked` | The group that would mail it blocked its writer ([Blocking a writer](#blocking-a-writer))                                       | The group lifts the block, or prints or declines it on purpose                    |
 
 When someone's `status` becomes **`free`**, their writers get `prisoner.status` (`{ "prisoner": 12, "status": "free", "held": 2 }`) and their queued letters are held as `prisoner_free`: a letter posted to a prison someone has left may never be forwarded. If the status goes back to `incarcerated` or `pretrial`, those holds are lifted.
 
@@ -2074,7 +2085,7 @@ A relay group sees the letter and its whole thread, can record the prisoner's re
 | `declineReason`                         | string   | Read-only. Why the relay group declined to mail it (`facility_rule`, `content`, `other`); `null` otherwise. Set through `PUT /messaging/status`.                                                                                                                                      |
 | `declineRule`                           | string   | Read-only. For a `facility_rule` decline, the tag of the facility's mail rule it would break; `null` otherwise.                                                                                                                                                                       |
 | `declineNote`                           | string   | Read-only. The group's few words to the writer about a decline (at most 200 characters, never encrypted); `null` otherwise.                                                                                                                                                           |
-| `heldReason`                            | string   | Read-only. Why a queued letter is held (`choose_relay`, `reseal_needed`, `prisoner_free`), or `null`. See [Moved and freed](#moved-and-freed).                                                                                                                                        |
+| `heldReason`                            | string   | Read-only. Why a queued letter is held (`choose_relay`, `reseal_needed`, `prisoner_free`, `writer_blocked`), or `null`. See [Moved and freed](#moved-and-freed).                                                                                                                      |
 | `resendOf`                              | integer  | Optional, on create only: the id of the writer's `returned` or `declined` letter to the same prisoner that this one replaces.                                                                                                                                                         |
 | `prisoner`                              | integer  | Required. Id of the prisoner side.                                                                                                                                                                                                                                                    |
 
@@ -2677,6 +2688,8 @@ curl -s 'http://localhost:3000/auth/notifications?since=41' -H "Authorization: B
 | `group.key`          | Every group admin of a chapter (the actor excepted)                     | `{ "action": "handed", "member": 7 }` (`set`, `handed`, `removed` with `member`; `rotated` with `keyVersion`)                                            |
 | `group.owner`        | Every group admin of a chapter                                          | `{ "owner": 7, "previous": 2, "by": "owner" }` (`by` also `superadmin` or `first key`)                                                                   |
 | `group.waiting`      | Every group admin of a chapter                                          | `{ "member": 9 }`: a group admin with keys of their own is waiting for the chapter's                                                                     |
+| `group.block`        | Every group admin of a chapter                                          | `{ "action": "blocked", "writer": 12, "held": 1 }`, or `{ "action": "lifted", "writer": 12, "released": 1 }`                                             |
+| `writer.block`       | The writer a group blocked, or unblocked                                | `{ "action": "blocked", "chapter": { "id": 3, "name": "PDX ABC" }, "reason": "…" }`; `lifted` carries no reason                                          |
 
 The account that did the thing is never told about it, and accounts nobody can sign in to (unclaimed and anonymous writers, banned accounts) are skipped.
 

@@ -24,7 +24,11 @@ export const NOTIFICATION_EVENTS = [
 	// keys and is waiting to be handed the chapter's.
 	'group.key',
 	'group.owner',
-	'group.waiting'
+	'group.waiting',
+	// Group admins: a writer was blocked from the group, or the block was lifted.
+	'group.block',
+	// A writer: a group blocked them from its letters (with the reason), or lifted it.
+	'writer.block'
 ];
 
 /** One entry of an account's feed. Holds ids and states, never letter content. */

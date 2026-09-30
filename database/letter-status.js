@@ -84,10 +84,17 @@ export function isOpen(status) {
 }
 
 /**
- * Why a queued letter is held (Messages.heldReason; null means it is not). The
- * person it is for was moved or freed after it was written.
+ * Why a queued letter is held (Messages.heldReason; null means it is not): the
+ * person it is for was moved or freed after it was written, or the group that
+ * would mail it has blocked its writer.
  */
 export const HELD_PRISONER_FREE = 'prisoner_free'; // they are out: print it only on purpose
 export const HELD_CHOOSE_RELAY = 'choose_relay'; // moved, and the writer must pick who mails it now
 export const HELD_RESEAL = 'reseal_needed'; // moved (end-to-end mode): sealed to a group that no longer serves them
-export const HELD_REASONS = [HELD_PRISONER_FREE, HELD_CHOOSE_RELAY, HELD_RESEAL];
+export const HELD_WRITER_BLOCKED = 'writer_blocked'; // the group blocked its writer; released if the block is lifted
+export const HELD_REASONS = [
+	HELD_PRISONER_FREE,
+	HELD_CHOOSE_RELAY,
+	HELD_RESEAL,
+	HELD_WRITER_BLOCKED
+];

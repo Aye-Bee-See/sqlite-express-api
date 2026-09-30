@@ -12,6 +12,7 @@ import ChapterRoutes from '#routes/chapter/chapter.js';
 import ModerationRoutes from '#routes/moderation/moderation.js';
 import InvitationRoutes from '#routes/invitation/invitation.js';
 import NotificationRoutes from '#routes/notification/notification.js';
+import TwoFactorRoutes from '#routes/two-factor/two-factor.js';
 import * as push from '#services/push.js';
 import KeysRoutes from '#routes/keys/keys.js';
 import InviteCodeRoutes from '#routes/invite-code/invite-code.js';
@@ -101,6 +102,7 @@ export function createApp() {
 	app.use('/auth', KeysRoutes.Router);
 	app.use('/auth', InviteCodeRoutes.Router);
 	app.use('/auth', NotificationRoutes.Router);
+	app.use('/auth', TwoFactorRoutes.Router);
 	app.use('/prison', prisonRoutes.Router);
 	app.use('/prisoner', PrisonerRoutes.Router);
 	app.use('/messaging', MessageRoutes.Router);

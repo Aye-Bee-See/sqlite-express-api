@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import { HttpError } from '#services/HttpError.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { rateLimits } from '#constants';
@@ -189,6 +190,31 @@ export const limiters = {
 		perIp: rateLimits.loginPerIp,
 		perSubject: rateLimits.loginFailuresPerUser,
 		subject: (req) => req.body && req.body.username,
+		failuresOnly: true
+	}),
+	// The second step of a two-factor sign-in: counted like failed sign-ins, per
+	// account (read from the challenge) and per address. Six digits is a million
+	// codes; ten tries a quarter of an hour is not a way through them.
+	twoFactor: limit({
+		name: 'two-factor',
+		what: 'two-factor codes',
+		windowMs: minutes(rateLimits.loginWindowMinutes),
+		perIp: rateLimits.loginPerIp,
+		perSubject: rateLimits.loginFailuresPerUser,
+		subject: (req) => {
+			const payload = jwt.decode(String(req.body?.challenge ?? ''));
+			return payload && payload.id !== undefined ? 'user-' + payload.id : undefined;
+		},
+		failuresOnly: true
+	}),
+	// Codes asked for while signed in (confirming, switching off, new recovery
+	// codes): a stolen session must not become a way to guess them.
+	twoFactorManage: limit({
+		name: 'two-factor-manage',
+		what: 'two-factor codes',
+		windowMs: minutes(rateLimits.loginWindowMinutes),
+		perSubject: rateLimits.loginFailuresPerUser,
+		subject: (req) => (req.user ? 'user-' + req.user.id : undefined),
 		failuresOnly: true
 	}),
 	// Deleting your own account asks for the password again; a stolen token must

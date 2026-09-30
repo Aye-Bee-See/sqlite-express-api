@@ -1,5 +1,7 @@
 import { Op } from 'sequelize';
 import User from '#models/user.model.js';
+import TwoFactorRecoveryCode from '#models/two-factor-recovery-code.model.js';
+import TwoFactorController from '#rtControllers/two-factor.controller.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
@@ -18,7 +20,7 @@ import { withGroupKeyLock } from '#rtServices/groupkey.services.js';
 import authService from '#rtServices/auth.services.js';
 import RevokedToken from '#models/revoked-token.model.js';
 import Device from '#models/device.model.js';
-import { KEY_COLUMNS, KEY_INPUT } from '#models/user.model.js';
+import { KEY_COLUMNS, KEY_INPUT, TWO_FACTOR_COLUMNS } from '#models/user.model.js';
 import { retentionMaxDays } from '#constants';
 import * as crypto from '#services/crypto.js';
 import Chapter from '#models/chapter.model.js';
@@ -49,6 +51,7 @@ export default class UserController extends RouteController {
 		this.loginParams = this.loginParams.bind(this);
 		this.penNameAvailable = this.penNameAvailable.bind(this);
 		this.penName = this.penName.bind(this);
+		this.loginTwoFactor = this.loginTwoFactor.bind(this);
 		this.claim = this.claim.bind(this);
 		this.register = this.create;
 		this.#handleErr = super.handleErr;
@@ -69,8 +72,9 @@ export default class UserController extends RouteController {
 	#stripPassword(userObject, req) {
 		const plain = typeof userObject.toJSON === 'function' ? userObject.toJSON() : { ...userObject };
 		delete plain.password;
-		// Key material only travels through GET /auth/keys and the claim and recovery flows.
-		for (const column of KEY_COLUMNS) {
+		// Key material only travels through GET /auth/keys and the claim and recovery
+		// flows; two-factor secrets travel nowhere.
+		for (const column of [...KEY_COLUMNS, ...TWO_FACTOR_COLUMNS]) {
 			delete plain[column];
 		}
 		// The internal note is for the managing chapter and admins only.
@@ -1192,17 +1196,87 @@ export default class UserController extends RouteController {
 	// login route
 	async login(req, res) {
 		if (req.isAuthenticated()) {
-			const token = req.authInfo.token;
-			const user = this.#stripPassword(req.user, req);
-			// The login lookup bypasses the default scope; key material is only
-			// handed out as the bundle, and only in end-to-end mode.
-			for (const column of KEY_COLUMNS) {
-				delete user[column];
+			if (req.authInfo.twoFactor) {
+				// The password was right and the account uses two-factor sign-in: no
+				// session, no user and no keys yet, only the challenge for the next step.
+				const { challenge, expires } = req.authInfo.twoFactor;
+				this.#handleSuccess(
+					res,
+					{ twoFactor: { challenge, expiresAt: new Date(expires).toISOString() } },
+					'twoFactor'
+				);
+				return;
 			}
-			const keys = crypto.isE2E() ? await KeysController.keyBundle(req.user.id) : undefined;
-			this.#handleSuccess(res, { user, token, ...(keys ? { keys } : {}) });
+			this.#handleSuccess(res, await this.#signedIn(req.user, req.authInfo.token, req));
 		} else {
 			this.#handleErr(res);
+		}
+	}
+
+	/** What a finished sign-in answers: the account, the session, and in e2e mode the key bundle. */
+	async #signedIn(account, token, req) {
+		const user = this.#stripPassword(account, req);
+		// The login lookup bypasses the default scope; key material is only
+		// handed out as the bundle, and only in end-to-end mode.
+		for (const column of KEY_COLUMNS) {
+			delete user[column];
+		}
+		const keys = crypto.isE2E() ? await KeysController.keyBundle(account.id) : undefined;
+		return { user, token, ...(keys ? { keys } : {}) };
+	}
+
+	/**
+	 * POST /auth/login/two-factor { challenge, code } or { challenge, recoveryCode }:
+	 * the second step of a two-factor sign-in. The code from the authenticator app
+	 * works once; a recovery code is used up. A wrong code leaves the challenge
+	 * usable until it expires, within the failed-attempt limit.
+	 */
+	async loginTwoFactor(req, res, next) {
+		const { challenge, code, recoveryCode } = req.body;
+		try {
+			const found = await authService.challengeUser(challenge);
+			if (!found) {
+				const err = new HttpError(
+					401,
+					'That sign-in has expired or was already used. Sign in again with your password.',
+					'AuthenticationError'
+				);
+				err.condition = 'challenge_expired';
+				throw err;
+			}
+			const { user, payload } = found;
+			let usedRecovery = false;
+			if (recoveryCode !== undefined && recoveryCode !== null && recoveryCode !== '') {
+				usedRecovery = await TwoFactorRecoveryCode.use(user.id, recoveryCode);
+				if (!usedRecovery) {
+					throw TwoFactorController.wrongCode('recoveryCode');
+				}
+			} else {
+				await TwoFactorController.acceptCode(user, code);
+			}
+			if (!(await authService.spendChallenge(payload))) {
+				const err = new HttpError(
+					401,
+					'That sign-in was already used. Sign in again with your password.',
+					'AuthenticationError'
+				);
+				err.condition = 'challenge_expired';
+				throw err;
+			}
+			if (usedRecovery) {
+				await audit(req, 'user.two-factor.recovery-used', 'user', user.id, {
+					left: await TwoFactorRecoveryCode.left(user.id)
+				});
+			}
+			const full = await User.scope('withPassword').findByPk(user.id);
+			const token = await authService.issueToken(full);
+			this.#handleSuccess(res, await this.#signedIn(full, token, req));
+		} catch (err) {
+			if (err && (err.status === 401 || err.status === 403 || err.status === 429)) {
+				return next(err);
+			}
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 }

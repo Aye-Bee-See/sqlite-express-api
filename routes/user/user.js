@@ -65,6 +65,13 @@ class UserRoutes {
 			this.#Controller.login
 		);
 
+		// The second step of a two-factor sign-in: public, the challenge is the credential.
+		this.Router.post(
+			userEnd.post.loginTwoFactor,
+			limiters.twoFactor,
+			this.#Controller.loginTwoFactor
+		);
+
 		// Sessions
 		this.Router.post(
 			userEnd.post.logout,

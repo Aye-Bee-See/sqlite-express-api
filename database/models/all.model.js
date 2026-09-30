@@ -18,6 +18,7 @@ import SessionRun from '#models/session-run.model.js';
 import Invitation from '#models/invitation.model.js';
 import InviteCode from '#models/invite-code.model.js';
 import PenName from '#models/pen-name.model.js';
+import TwoFactorRecoveryCode from '#models/two-factor-recovery-code.model.js';
 import ReplyReference from '#models/reply-reference.model.js';
 import NewsItem from '#models/news-item.model.js';
 import GroupBlock from '#models/group-block.model.js';
@@ -91,6 +92,7 @@ export {
 	Invitation,
 	InviteCode,
 	PenName,
+	TwoFactorRecoveryCode,
 	ReplyReference,
 	NewsItem,
 	GroupBlock,

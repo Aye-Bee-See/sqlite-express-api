@@ -447,6 +447,25 @@ Four things worth knowing:
 
 Successful sign-ins never count against a username; once the failure limit is reached, even the right password is refused until the window ends. Usernames are compared case-insensitively. Set `RATE_LIMIT_ENABLED=false` to switch limiting off, and set `TRUST_PROXY` when the API is behind a reverse proxy, otherwise every client appears to come from the proxy's address and shares one budget.
 
+### Two-factor sign-in
+
+Optional for everyone, writers included (decided 30 September 2026): a six-digit code from an authenticator app (TOTP, RFC 6238: SHA-1, 30 seconds, as every app makes them), with one-time **recovery codes** for a lost phone. Superadmins will be able to make it required for superadmins and for groups; until then nobody has to.
+
+**Setting it up**, signed in:
+
+1. `POST /auth/two-factor/setup` answers `{ secret, otpauthUri }`. Show `otpauthUri` as a QR code (and `secret` for typing in); nothing changes yet. Asking again replaces the secret being set up.
+2. `POST /auth/two-factor/confirm {"code": "123456"}` with the first code from the app switches it on and answers **ten recovery codes** (`XXXXX-XXXXX`), **the only time they are shown**. They are typed codes like any other here: any case, spaces or dashes, `O` read as `0` and `I`/`L` as `1`. A wrong code is `400`, `not_eligible` on `code`.
+3. `GET /auth/two-factor` answers `{ enabled, enabledAt, settingUp, recoveryCodesLeft }`.
+
+**Signing in** with it on takes two steps:
+
+1. `POST /auth/login` with the right password answers **no session**: `{ "data": { "twoFactor": { "challenge": "…", "expiresAt": "…" } } }`, with no `user`, `token` or key bundle. The challenge lasts five minutes and is not a session: used as a bearer token, it is `401`.
+2. `POST /auth/login/two-factor {"challenge": "…", "code": "123456"}`, or `{"challenge": "…", "recoveryCode": "…"}`, answers exactly what a one-step sign-in does (`user`, `token`, and in end-to-end mode `keys`). A code works once, and a recovery code is used up (audited as `user.two-factor.recovery-used`). A wrong one is `400` on `code` or `recoveryCode`, and the challenge stays good for another try; one that was used, or has expired, is `401` with `condition: "challenge_expired"`: sign in again with the password. Failed tries are counted like failed sign-ins, per account and per address.
+
+**Changing it**: `POST /auth/two-factor/recovery-codes {"code": "…"}` makes a fresh set and ends the old one. `DELETE /auth/two-factor` with a `code` or a `recoveryCode` switches it off: a session alone is not enough. Both, and switching it on, are audited in the two-year window. A code asked for while signed in is counted like failed sign-ins too.
+
+Account recovery (a lost password) does not sign anyone in, so it leaves two-factor sign-in as it was: after recovering, a person signs in with the new password and a code or recovery code. The secret is stored as it is, not encrypted: a copy of the database gives an attacker the codes but not the password, which the server never holds in a usable form.
+
 ### Signing out and revoking tokens
 
 Tokens last a week, and each one carries an id, so a token can be ended early:
@@ -817,42 +836,48 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 
 ### Users
 
-| Method | Path                         | Auth                                            | Purpose                                                                                       |
-| ------ | ---------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| POST   | `/auth/join`                 | Public                                          | Make an account with an invite code ([Invite codes](#invite-codes))                           |
-| GET    | `/auth/join`                 | Public                                          | Check an invite code: which chapter, until when                                               |
-| POST   | `/auth/invite-codes`         | Group admin of an active chapter, or superadmin | Issue a batch of invite codes, shown once                                                     |
-| GET    | `/auth/invite-codes`         | Group admin of an active chapter, or superadmin | The chapter's batches with counts                                                             |
-| DELETE | `/auth/invite-codes`         | Group admin of an active chapter, or superadmin | Cancel unused codes, one batch or all                                                         |
-| POST   | `/auth/user`                 | Admin (public only with `OPEN_REGISTRATION`)    | Create an account; admins may set other roles                                                 |
-| POST   | `/auth/login`                | Public                                          | Log in and receive a token                                                                    |
-| POST   | `/auth/logout`               | Any                                             | End this token, or every token for the account with `{"everywhere": true}`                    |
-| POST   | `/auth/revoke`               | Admin                                           | End every token for an account without banning it                                             |
-| GET    | `/auth/users`                | Admin                                           | List users, optionally by role                                                                |
-| GET    | `/auth/user`                 | Self or admin                                   | Get one user by id, email, or username; a group may read its unclaimed writers                |
-| PUT    | `/auth/user`                 | Self or admin                                   | Update a user; a group may edit its unclaimed writers' name, email, note                      |
-| DELETE | `/auth/user`                 | Self or admin                                   | Delete a user; a group may delete its unclaimed writers                                       |
-| POST   | `/auth/writer`               | Group                                           | Create a managed writer under the caller's group                                              |
-| GET    | `/auth/writers`              | Group                                           | List the group's managed writers (admins: all, or `?chapter=`)                                |
-| POST   | `/auth/writer/token`         | Group                                           | Generate or regenerate a writer's claim token                                                 |
-| DELETE | `/auth/writer/token`         | Group                                           | Revoke a writer's claim token                                                                 |
-| GET    | `/auth/claim`                | Public                                          | Check a claim token                                                                           |
-| GET    | `/auth/pen-name-available`   | Public                                          | Is a pen name free? ([Pen names](#pen-names))                                                 |
-| GET    | `/auth/pen-name`             | Any                                             | The caller's pen name and every name they have used                                           |
-| POST   | `/auth/claim`                | Public                                          | Claim a managed account                                                                       |
-| GET    | `/auth/keys`                 | Any                                             | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
-| PUT    | `/auth/keys`                 | Any                                             | Set the public key once; re-wrap the private key (password change, recovery code)             |
-| GET    | `/auth/public-key`           | Any                                             | A user's or group's public key, to seal an envelope to                                        |
-| GET    | `/auth/recover`              | Public                                          | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
-| POST   | `/auth/recover`              | Public                                          | Finish recovery with the opened challenge and a re-wrapped key                                |
-| PUT    | `/auth/chapter-keys`         | Group admin of the chapter (not a superadmin)   | Give a group its keypair (once) and the first member the wrapped group key                    |
-| PUT    | `/auth/member-key`           | Group-owner admin only                          | Hand the wrapped group key to a member                                                        |
-| PUT    | `/auth/chapter-owner`        | Group-owner admin, or superadmin                | Make another group admin the chapter's group-owner admin                                      |
-| DELETE | `/auth/member-key`           | Group-owner admin only                          | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
-| GET    | `/auth/member-keys`          | Group member or admin                           | Which members hold the group key                                                              |
-| GET    | `/auth/chapter-rotation`     | Group-owner admin, holding the key              | Everything sealed to the group key, for re-sealing                                            |
-| POST   | `/auth/chapter-rotation`     | Group-owner admin, holding the key              | Replace the group keypair; members left out lose access                                       |
-| GET    | `/auth/encryption-readiness` | Admin                                           | Who still has to set up keys, and whether the switch to e2e can go ahead                      |
+| Method | Path                              | Auth                                            | Purpose                                                                                       |
+| ------ | --------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| POST   | `/auth/join`                      | Public                                          | Make an account with an invite code ([Invite codes](#invite-codes))                           |
+| GET    | `/auth/join`                      | Public                                          | Check an invite code: which chapter, until when                                               |
+| POST   | `/auth/invite-codes`              | Group admin of an active chapter, or superadmin | Issue a batch of invite codes, shown once                                                     |
+| GET    | `/auth/invite-codes`              | Group admin of an active chapter, or superadmin | The chapter's batches with counts                                                             |
+| DELETE | `/auth/invite-codes`              | Group admin of an active chapter, or superadmin | Cancel unused codes, one batch or all                                                         |
+| POST   | `/auth/user`                      | Admin (public only with `OPEN_REGISTRATION`)    | Create an account; admins may set other roles                                                 |
+| POST   | `/auth/login`                     | Public                                          | Log in and receive a token                                                                    |
+| POST   | `/auth/login/two-factor`          | Public (the challenge is the credential)        | The second step of a two-factor sign-in                                                       |
+| GET    | `/auth/two-factor`                | Any signed-in account                           | Is two-factor sign-in on, and how many recovery codes are left                                |
+| POST   | `/auth/two-factor/setup`          | Any signed-in account                           | A secret for an authenticator app                                                             |
+| POST   | `/auth/two-factor/confirm`        | Any signed-in account                           | Switch it on with the first code; answers recovery codes                                      |
+| POST   | `/auth/two-factor/recovery-codes` | Any signed-in account                           | A fresh set of recovery codes                                                                 |
+| DELETE | `/auth/two-factor`                | Any signed-in account                           | Switch it off, with a code                                                                    |
+| POST   | `/auth/logout`                    | Any                                             | End this token, or every token for the account with `{"everywhere": true}`                    |
+| POST   | `/auth/revoke`                    | Admin                                           | End every token for an account without banning it                                             |
+| GET    | `/auth/users`                     | Admin                                           | List users, optionally by role                                                                |
+| GET    | `/auth/user`                      | Self or admin                                   | Get one user by id, email, or username; a group may read its unclaimed writers                |
+| PUT    | `/auth/user`                      | Self or admin                                   | Update a user; a group may edit its unclaimed writers' name, email, note                      |
+| DELETE | `/auth/user`                      | Self or admin                                   | Delete a user; a group may delete its unclaimed writers                                       |
+| POST   | `/auth/writer`                    | Group                                           | Create a managed writer under the caller's group                                              |
+| GET    | `/auth/writers`                   | Group                                           | List the group's managed writers (admins: all, or `?chapter=`)                                |
+| POST   | `/auth/writer/token`              | Group                                           | Generate or regenerate a writer's claim token                                                 |
+| DELETE | `/auth/writer/token`              | Group                                           | Revoke a writer's claim token                                                                 |
+| GET    | `/auth/claim`                     | Public                                          | Check a claim token                                                                           |
+| GET    | `/auth/pen-name-available`        | Public                                          | Is a pen name free? ([Pen names](#pen-names))                                                 |
+| GET    | `/auth/pen-name`                  | Any                                             | The caller's pen name and every name they have used                                           |
+| POST   | `/auth/claim`                     | Public                                          | Claim a managed account                                                                       |
+| GET    | `/auth/keys`                      | Any                                             | The caller's key bundle (wrapped private key, salts, KDF parameters, group key)               |
+| PUT    | `/auth/keys`                      | Any                                             | Set the public key once; re-wrap the private key (password change, recovery code)             |
+| GET    | `/auth/public-key`                | Any                                             | A user's or group's public key, to seal an envelope to                                        |
+| GET    | `/auth/recover`                   | Public                                          | Start password recovery: recovery-wrapped key plus a sealed challenge                         |
+| POST   | `/auth/recover`                   | Public                                          | Finish recovery with the opened challenge and a re-wrapped key                                |
+| PUT    | `/auth/chapter-keys`              | Group admin of the chapter (not a superadmin)   | Give a group its keypair (once) and the first member the wrapped group key                    |
+| PUT    | `/auth/member-key`                | Group-owner admin only                          | Hand the wrapped group key to a member                                                        |
+| PUT    | `/auth/chapter-owner`             | Group-owner admin, or superadmin                | Make another group admin the chapter's group-owner admin                                      |
+| DELETE | `/auth/member-key`                | Group-owner admin only                          | Stop handing it out (does not revoke a key already opened; the last holder cannot be removed) |
+| GET    | `/auth/member-keys`               | Group member or admin                           | Which members hold the group key                                                              |
+| GET    | `/auth/chapter-rotation`          | Group-owner admin, holding the key              | Everything sealed to the group key, for re-sealing                                            |
+| POST   | `/auth/chapter-rotation`          | Group-owner admin, holding the key              | Replace the group keypair; members left out lose access                                       |
+| GET    | `/auth/encryption-readiness`      | Admin                                           | Who still has to set up keys, and whether the switch to e2e can go ahead                      |
 
 #### User fields
 
@@ -904,7 +929,7 @@ A duplicate username or email is a general error with `"error": "Username alread
 
 #### POST /auth/login
 
-See [Logging in](#logging-in). `username` and `password` go in the JSON body, as text. In the URL they would be written to access logs, so that is a `400`.
+See [Logging in](#logging-in). `username` and `password` go in the JSON body, as text. In the URL they would be written to access logs, so that is a `400`. With [two-factor sign-in](#two-factor-sign-in) on, a right password answers a `twoFactor` challenge instead of a session; `POST /auth/login/two-factor` finishes it.
 
 #### GET /auth/login-params
 

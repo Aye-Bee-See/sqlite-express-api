@@ -96,4 +96,5 @@ A `5xx` is a fault rather than a refusal and carries no `code`.
 | `rule_tag`            | A mail rule tag that cannot change, or is not the shape of one.                                                                                                                              |
 | `submission_changed`  | The proposal was revised while it was being reviewed.                                                                                                                                        |
 | `submission_state`    | A proposal that is not in a state this decision fits.                                                                                                                                        |
+| `two_factor`          | Two-factor sign-in is not in the state the request needs: on already, not on, or changed meanwhile.                                                                                          |
 | `validation`          | Input that fails a rule; these also carry `problems` (above).                                                                                                                                |

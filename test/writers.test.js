@@ -15,6 +15,7 @@ import {
 	ClaimToken,
 	Message
 } from './helpers.js';
+import { newPenName } from './helpers.js';
 
 let f;
 let admin;
@@ -200,12 +201,23 @@ test('claiming turns a managed writer into an independent account', async () => 
 	assert.equal(info.body.data.chapter.id, f.group.id);
 	assert.equal(info.body.data.managerNote, undefined);
 
-	const short = await post('/auth/claim', { token, username: 'cl', password: 'x' });
+	const short = await post('/auth/claim', {
+		penName: newPenName(),
+		token,
+		username: 'cl',
+		password: 'x'
+	});
 	assert.equal(short.status, 400);
-	const taken = await post('/auth/claim', { token, username: 'alice', password: 'longenough' });
+	const taken = await post('/auth/claim', {
+		penName: newPenName(),
+		token,
+		username: 'alice',
+		password: 'longenough'
+	});
 	assert.equal(taken.status, 400);
 
 	const res = await post('/auth/claim', {
+		penName: newPenName(),
 		token,
 		username: 'claimer',
 		password: 'claimerpass',
@@ -222,7 +234,12 @@ test('claiming turns a managed writer into an independent account', async () => 
 
 	const jwt = await login('claimer', 'claimerpass');
 	assert.ok(jwt);
-	const reuse = await post('/auth/claim', { token, username: 'again', password: 'againpass' });
+	const reuse = await post('/auth/claim', {
+		penName: newPenName(),
+		token,
+		username: 'again',
+		password: 'againpass'
+	});
 	assert.equal(reuse.status, 410);
 	assert.match(reuse.body.info, /already been used/);
 	assert.equal(reuse.body.condition, 'used', 'serialised, not only in the sentence');
@@ -247,7 +264,12 @@ test('expired and unknown tokens are refused', async () => {
 	assert.equal(info.status, 410);
 	assert.match(info.body.info, /expired/);
 	assert.equal(info.body.condition, 'expired');
-	const claim = await post('/auth/claim', { token, username: 'late', password: 'latepass' });
+	const claim = await post('/auth/claim', {
+		penName: newPenName(),
+		token,
+		username: 'late',
+		password: 'latepass'
+	});
 	assert.equal(claim.status, 410);
 	assert.equal(claim.body.condition, 'expired');
 	const unknown = await get('/auth/claim?token=NOPE');
@@ -373,7 +395,12 @@ test("a group's shared anonymous account cannot be handed to anyone", async () =
 	// A token issued for it before this was refused must not work either.
 	const { token } = await ClaimToken.issue(anon.id, f.chapter.id);
 	assert.equal((await get('/auth/claim?token=' + token)).status, 410);
-	const claim = await post('/auth/claim', { token, username: 'grabber', password: 'longenough' });
+	const claim = await post('/auth/claim', {
+		penName: newPenName(),
+		token,
+		username: 'grabber',
+		password: 'longenough'
+	});
 	assert.equal(claim.status, 410, JSON.stringify(claim.body));
 	const still = await User.findByPk(anon.id);
 	assert.equal(still.claimedAt, null);
@@ -429,7 +456,12 @@ test('a claimed writer keeps their threads and the group loses access', async ()
 	);
 	assert.equal(sent.status, 201);
 	const { token } = (await post('/auth/writer/token', { writer: w.id }, chapter)).body.data;
-	await post('/auth/claim', { token, username: 'leaver', password: 'leaverpass' });
+	await post('/auth/claim', {
+		penName: newPenName(),
+		token,
+		username: 'leaver',
+		password: 'leaverpass'
+	});
 	const me = { token: await login('leaver', 'leaverpass') };
 	const mine = await get('/messaging/messages', me);
 	assert.equal(mine.body.data.length, 1);

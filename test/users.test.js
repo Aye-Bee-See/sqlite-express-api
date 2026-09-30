@@ -11,6 +11,7 @@ import {
 	makeUser,
 	User
 } from './helpers.js';
+import { newPenName } from './helpers.js';
 
 let f;
 let admin;
@@ -142,6 +143,7 @@ test('string length rules are enforced', async () => {
 	];
 	for (const [overrides, field] of cases) {
 		const res = await post('/auth/user', {
+			penName: newPenName(),
 			username: 'valid' + Math.random().toString(36).slice(2, 8),
 			password: 'longenough',
 			email: Math.random().toString(36).slice(2, 10) + '@example.com',

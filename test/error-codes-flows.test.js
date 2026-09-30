@@ -15,6 +15,7 @@ import {
 	baseUrlOf,
 	sequelize
 } from './helpers.js';
+import { newPenName } from './helpers.js';
 import ValidationError from '../services/ValidationError.js';
 
 let f;
@@ -45,6 +46,7 @@ test('pen names: the availability check says why, in a code as well as a sentenc
 test('joining: a reserved username and a placeholder email say which field and why', async () => {
 	const { codes } = (await post('/auth/invite-codes', { count: 2 }, f.chapter)).body.data;
 	const reserved = await post('/auth/join', {
+		penName: newPenName(),
 		code: codes[0],
 		username: 'writer-taken',
 		password: 'a long enough password',
@@ -54,6 +56,7 @@ test('joining: a reserved username and a placeholder email say which field and w
 	assert.deepEqual(reserved.body.problems, [{ field: 'username', code: 'reserved_value' }]);
 
 	const placeholder = await post('/auth/join', {
+		penName: newPenName(),
 		code: codes[0],
 		username: 'goodname',
 		password: 'a long enough password',

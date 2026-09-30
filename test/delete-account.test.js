@@ -21,6 +21,7 @@ import {
 	LetterKey,
 	Prison
 } from './helpers.js';
+import { newPenName } from './helpers.js';
 import AuditLog from '../database/models/audit-log.model.js';
 import MessageStatus from '../database/models/message-status.model.js';
 
@@ -112,6 +113,7 @@ test('deleting your own account needs your password, and removes everything you 
 		401
 	);
 	const again = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'carol',
 		password: 'a-new-person',
 		email: 'someone-else@example.com'

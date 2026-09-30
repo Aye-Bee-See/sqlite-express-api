@@ -3,6 +3,7 @@ process.env.REQUIRE_SPLIT_AUTH = 'true';
 const { test, before, after } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
 const { startServer, stopServer, get, post, makeFixtures, User } = await import('./helpers.js');
+const { newPenName } = await import('./helpers.js');
 const client = await import('./e2e-client.js');
 
 let f;
@@ -15,6 +16,7 @@ after(stopServer);
 
 test('with REQUIRE_SPLIT_AUTH no new account may send its password, and split ones still can be made', async () => {
 	const plain = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'stillplain',
 		email: 'p@example.com',
 		password: 'a plain password'
@@ -23,6 +25,7 @@ test('with REQUIRE_SPLIT_AUTH no new account may send its password, and split on
 	assert.match(plain.body.errors[0], /never reaches it/);
 	const keys = client.splitKeys('a split password', 'R');
 	const split = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'nowsplit',
 		email: 's@example.com',
 		password: keys.authKey,

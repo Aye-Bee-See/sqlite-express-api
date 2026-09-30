@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { startServer, stopServer, makeFixtures, makeUser, post, put, get, del } from './helpers.js';
+import { newPenName } from './helpers.js';
 import ValidationError from '../services/ValidationError.js';
 import {
 	CODES,
@@ -152,6 +153,7 @@ test('a nested object says which one it is about', async () => {
 	);
 	assert.equal(invitation.status, 201, JSON.stringify(invitation.body));
 	const refused = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: invitation.body.data.token,
 		username: 'riverside',
 		email: 'riverside@example.com',
@@ -172,6 +174,7 @@ test('every 400 carries problems, even one thrown as a plain refusal', async () 
 
 test('an auth key that is not one is a client bug, and says so without a field', async () => {
 	const res = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'splitwrong',
 		email: 'splitwrong@example.com',
 		password: 'not-an-auth-key',
@@ -199,10 +202,18 @@ test('a refusal carries one code, composed from the name and condition it still 
 	const { codes } = (await post('/auth/invite-codes', { count: 1 }, f.chapter)).body.data;
 	const join = { code: codes[0], password: 'a long enough password' };
 	assert.equal(
-		(await post('/auth/join', { ...join, username: 'firstuse', email: 'f@example.com' })).status,
+		(
+			await post('/auth/join', {
+				penName: newPenName(),
+				...join,
+				username: 'firstuse',
+				email: 'f@example.com'
+			})
+		).status,
 		201
 	);
 	const second = await post('/auth/join', {
+		penName: newPenName(),
 		...join,
 		username: 'seconduse',
 		email: 's@example.com'
@@ -278,7 +289,13 @@ test('a unique clash names its field; a foreign key says both directions', async
 	// "validation_failed" }` and hid its sentence under `error`.
 	const { codes } = (await post('/auth/invite-codes', { count: 2 }, f.chapter)).body.data;
 	const join = (username, email, code) =>
-		post('/auth/join', { code, username, email, password: 'a long enough password' });
+		post('/auth/join', {
+			penName: newPenName(),
+			code,
+			username,
+			email,
+			password: 'a long enough password'
+		});
 	assert.equal((await join('firstcomer', 'first@example.com', codes[0])).status, 201);
 
 	const taken = await join('firstcomer', 'second@example.com', codes[1]);

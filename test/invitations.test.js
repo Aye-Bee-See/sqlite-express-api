@@ -13,6 +13,7 @@ import {
 	User,
 	Chapter
 } from './helpers.js';
+import { newPenName } from './helpers.js';
 import Invitation from '../database/models/invitation.model.js';
 import AuditLog from '../database/models/audit-log.model.js';
 
@@ -151,6 +152,7 @@ test('the token shows its holder what it is for, and nothing private', async () 
 test('accepting a group invitation creates the group, vouched for, and its first account', async () => {
 	const created = await invite({ kind: 'group', inviteeName: 'Lakeside ABC' });
 	const res = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: created.token,
 		...account('lakeside'),
 		name: 'Sam',
@@ -209,6 +211,7 @@ test('accepting a group invitation creates the group, vouched for, and its first
 
 	// Used once.
 	const again = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: created.token,
 		...account('lakeside2'),
 		group: { name: 'Again', location: {} }
@@ -227,13 +230,18 @@ test('a member invitation adds an account to the inviting group, active at once'
 	assert.equal(info.body.data.groupFields, undefined);
 
 	const withGroup = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: created.token,
 		...account('jojo'),
 		group: { name: 'Sneaky', location: {} }
 	});
 	assert.equal(withGroup.status, 400, 'a member invitation cannot found a group');
 
-	const res = await post('/invitation/accept', { token: created.token, ...account('jojo') });
+	const res = await post('/invitation/accept', {
+		penName: newPenName(),
+		token: created.token,
+		...account('jojo')
+	});
 	assert.equal(res.status, 201, JSON.stringify(res.body));
 	assert.equal(res.body.data.user.chapterId, f.group.id);
 	assert.equal(res.body.data.user.role, 'chapter');
@@ -265,7 +273,11 @@ test('a failed acceptance leaves nothing behind and the invitation usable', asyn
 		]
 	];
 	for (const [body, what] of cases) {
-		const res = await post('/invitation/accept', { token: created.token, ...body });
+		const res = await post('/invitation/accept', {
+			penName: newPenName(),
+			token: created.token,
+			...body
+		});
 		assert.equal(res.status, 400, what + ': ' + JSON.stringify(res.body));
 	}
 	assert.equal(await Chapter.count(), groups, 'no group was left behind');
@@ -273,6 +285,7 @@ test('a failed acceptance leaves nothing behind and the invitation usable', asyn
 	assert.equal((await Invitation.findByPk(created.id)).status, 'pending');
 
 	const ok = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: created.token,
 		...account('careful'),
 		group
@@ -292,6 +305,7 @@ test('a failure after the account exists is undone as well', async (t) => {
 	const body = {
 		token: created.token,
 		...account('unlucky'),
+		penName: newPenName(),
 		group: { name: 'Unlucky ABC', location: {} }
 	};
 	const failed = await post('/invitation/accept', body);
@@ -301,6 +315,10 @@ test('a failure after the account exists is undone as well', async (t) => {
 	assert.equal((await Invitation.findByPk(created.id)).status, 'pending');
 	assert.equal(await AuditLog.count({ where: { action: 'invitation.accept' } }), audits);
 
+	// The pen name it reserved is free again: the same person tries again with it.
+	const free = await get('/auth/pen-name-available?name=' + encodeURIComponent(body.penName));
+	assert.equal(free.body.data.available, true, 'the pen name was not kept');
+
 	t.mock.restoreAll();
 	const retried = await post('/invitation/accept', body);
 	assert.equal(retried.status, 201, JSON.stringify(retried.body));
@@ -309,8 +327,12 @@ test('a failure after the account exists is undone as well', async (t) => {
 test('two acceptances of one invitation: one account', async () => {
 	const created = await invite({ kind: 'member', inviteeName: 'Twin' });
 	const results = await Promise.all([
-		post('/invitation/accept', { token: created.token, ...account('twin1') }),
-		post('/invitation/accept', { token: created.token, ...account('twin2') })
+		post('/invitation/accept', {
+			penName: newPenName(),
+			token: created.token,
+			...account('twin1')
+		}),
+		post('/invitation/accept', { penName: newPenName(), token: created.token, ...account('twin2') })
 	]);
 	assert.deepEqual(results.map((r) => r.status).sort(), [201, 410]);
 	assert.equal(await User.count({ where: { username: ['twin1', 'twin2'] } }), 1);
@@ -324,7 +346,13 @@ test('invitations expire, can be renewed, and can be withdrawn', async () => {
 	);
 	assert.equal((await get('/invitation/invitation?token=' + created.token)).status, 410);
 	assert.equal(
-		(await post('/invitation/accept', { token: created.token, ...account('late') })).status,
+		(
+			await post('/invitation/accept', {
+				penName: newPenName(),
+				token: created.token,
+				...account('late')
+			})
+		).status,
 		410
 	);
 	const listed = await get('/invitation/invitations?kind=member&status=pending', member);
@@ -371,6 +399,7 @@ test('an invitation is only as good as the group behind it', async () => {
 	await Chapter.update({ accountStatus: 'suspended' }, { where: { id: otherGroup.id } });
 	assert.equal((await get('/invitation/invitation?token=' + created.token)).status, 410);
 	const res = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: created.token,
 		...account('orphaned'),
 		group: { name: 'Orphaned ABC', location: {} }
@@ -387,6 +416,7 @@ test('an invitee may set up their encryption keys in the same step', async () =>
 	const { fields } = client.accountKeys('longenough', 'RECOVERY-CODE');
 	const created = await invite({ kind: 'member', inviteeName: 'Keyed' });
 	const res = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: created.token,
 		...account('keyed'),
 		...fields
@@ -403,6 +433,7 @@ test('an invitee may set up their encryption keys in the same step', async () =>
 
 	const halfKeys = await invite({ kind: 'member', inviteeName: 'Half' });
 	const bad = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: halfKeys.token,
 		...account('halfkeys'),
 		publicKey: fields.publicKey,

@@ -3,6 +3,7 @@ process.env.OPEN_REGISTRATION = 'false';
 const { test, before, after } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
 const { startServer, stopServer, post, makeFixtures, User } = await import('./helpers.js');
+const { newPenName } = await import('./helpers.js');
 
 let f;
 before(async () => {
@@ -13,6 +14,7 @@ after(stopServer);
 
 test('with registration closed (the default), the front door is an invite code', async () => {
 	const walkIn = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'stranger',
 		email: 's@example.com',
 		password: 'a long enough password'
@@ -23,12 +25,18 @@ test('with registration closed (the default), the front door is an invite code',
 	// A superadmin still creates accounts; a chapter's code still opens the door.
 	const byAdmin = await post(
 		'/auth/user',
-		{ username: 'made', email: 'm@example.com', password: 'a long enough password' },
+		{
+			penName: newPenName(),
+			username: 'made',
+			email: 'm@example.com',
+			password: 'a long enough password'
+		},
 		f.admin
 	);
 	assert.equal(byAdmin.status, 201, JSON.stringify(byAdmin.body));
 	const { codes } = (await post('/auth/invite-codes', { count: 1 }, f.chapter)).body.data;
 	const joined = await post('/auth/join', {
+		penName: newPenName(),
 		code: codes[0],
 		username: 'invited',
 		password: 'a long enough password'

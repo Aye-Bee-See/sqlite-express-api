@@ -237,6 +237,11 @@ export default class UserController extends RouteController {
 			);
 		}
 		try {
+			// A writer signing up chooses a pen name. A staff account an admin makes
+			// signs no letters, and does not need one.
+			if (role === AuthzService.USER) {
+				PenName.requireGiven(penName);
+			}
 			const keys = KeysController.keyFields(req.body, { newAccount: true });
 			const scheme = authScheme.schemeFrom(req.body);
 			authScheme.checkPassword(scheme, password);
@@ -1061,6 +1066,10 @@ export default class UserController extends RouteController {
 				});
 			}
 			const { record, writer } = await this.#validClaim(token);
+			// The writer's own pen name, unless the group already gave them one they keep.
+			if (!writer.penName) {
+				PenName.requireGiven(penName);
+			}
 			const scheme = authScheme.schemeFrom(req.body);
 			authScheme.checkPassword(scheme, password);
 			let keys = {};

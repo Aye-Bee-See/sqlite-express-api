@@ -4,6 +4,7 @@ const { test, before, after } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
 const { startServer, stopServer, get, post, put, makeFixtures, makeUser, User, Chapter } =
 	await import('./helpers.js');
+const { newPenName } = await import('./helpers.js');
 const client = await import('./e2e-client.js');
 
 /**
@@ -84,6 +85,7 @@ test('an admin cannot move a keyed writer to a group that cannot open their key'
 
 test('a new account has all of its first keys or none', async () => {
 	const lonely = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'halfkeyed',
 		password: 'longenough',
 		email: 'halfkeyed@example.com',

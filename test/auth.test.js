@@ -13,6 +13,7 @@ import {
 	makeUser,
 	User
 } from './helpers.js';
+import { newPenName } from './helpers.js';
 
 let f;
 before(async () => {
@@ -109,6 +110,7 @@ test('a banned user cannot log in and an existing token stops working', async ()
 
 test('public registration creates a user with role user and status 201', async () => {
 	const res = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'newbie',
 		password: 'longenough',
 		email: 'newbie@example.com',
@@ -123,6 +125,7 @@ test('public registration creates a user with role user and status 201', async (
 
 test('anonymous registration cannot request another role', async () => {
 	const res = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'sneaky',
 		password: 'longenough',
 		email: 'sneaky@example.com',
@@ -136,7 +139,13 @@ test('anonymous registration cannot request another role', async () => {
 test('a non-admin token cannot create another role either', async () => {
 	const res = await post(
 		'/auth/user',
-		{ username: 'sneaky2', password: 'longenough', email: 'sneaky2@example.com', role: 'chapter' },
+		{
+			penName: newPenName(),
+			username: 'sneaky2',
+			password: 'longenough',
+			email: 'sneaky2@example.com',
+			role: 'chapter'
+		},
 		{ token: f.alice.token }
 	);
 	assert.equal(res.status, 403);
@@ -145,7 +154,12 @@ test('a non-admin token cannot create another role either', async () => {
 test('a bad token on registration is rejected rather than treated as anonymous', async () => {
 	const res = await post(
 		'/auth/user',
-		{ username: 'sneaky3', password: 'longenough', email: 'sneaky3@example.com' },
+		{
+			penName: newPenName(),
+			username: 'sneaky3',
+			password: 'longenough',
+			email: 'sneaky3@example.com'
+		},
 		{ token: 'garbage' }
 	);
 	assert.equal(res.status, 401);
@@ -154,7 +168,13 @@ test('a bad token on registration is rejected rather than treated as anonymous',
 test('an admin can create a chapter account; role is case-insensitive', async () => {
 	const res = await post(
 		'/auth/user',
-		{ username: 'chap2', password: 'longenough', email: 'chap2@example.com', role: 'Chapter' },
+		{
+			penName: newPenName(),
+			username: 'chap2',
+			password: 'longenough',
+			email: 'chap2@example.com',
+			role: 'Chapter'
+		},
 		{ token: f.admin.token }
 	);
 	assert.equal(res.status, 201);
@@ -163,6 +183,7 @@ test('an admin can create a chapter account; role is case-insensitive', async ()
 
 test('registration validates input and reports every problem', async () => {
 	const res = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'x',
 		password: 'short',
 		email: 'bad',
@@ -179,6 +200,7 @@ test('registration validates input and reports every problem', async () => {
 
 test('duplicate usernames and emails are refused with 400, naming the field', async () => {
 	const dupeName = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'alice',
 		password: 'longenough',
 		email: 'fresh@example.com'
@@ -192,6 +214,7 @@ test('duplicate usernames and emails are refused with 400, naming the field', as
 		{ field: 'username', code: 'not_unique', params: { fields: ['username'] } }
 	]);
 	const dupeMail = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'freshname',
 		password: 'longenough',
 		email: 'alice@example.com'

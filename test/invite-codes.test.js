@@ -13,6 +13,7 @@ import {
 	User,
 	Chapter
 } from './helpers.js';
+import { newPenName } from './helpers.js';
 import { Op } from 'sequelize';
 import InviteCode, { normalizeCode, hashCode } from '../database/models/invite-code.model.js';
 import AuditLog from '../database/models/audit-log.model.js';
@@ -27,6 +28,7 @@ after(stopServer);
 const issue = (body, who = f.chapter) => post('/auth/invite-codes', body, who);
 const joinWith = (code, extra = {}) =>
 	post('/auth/join', {
+		penName: newPenName(),
 		code,
 		username: 'n' + Math.random().toString(36).slice(2, 8),
 		password: 'a long enough password',
@@ -100,6 +102,7 @@ test('a newcomer joins with a code, the account is theirs, and the chapter learn
 	// Typed from a slip: lower case, no dashes, and an O for a 0 are all the same code.
 	const typed = codes[0].toLowerCase().replace(/-/g, '').replace(/0/g, 'o');
 	const joined = await post('/auth/join', {
+		penName: newPenName(),
 		code: typed,
 		username: 'newcomer',
 		password: 'a long enough password',
@@ -266,6 +269,7 @@ test('a join in end-to-end mode carries the keys made on the device, under the s
 	const { codes } = (await issue({ count: 1 })).body.data;
 	const { authKey, fields, privateKey } = e2e.splitKeys('a long enough password', 'RECOVERY-CODE');
 	const joined = await post('/auth/join', {
+		penName: newPenName(),
 		code: codes[0],
 		username: 'e2ejoiner',
 		password: authKey,
@@ -289,6 +293,7 @@ test('a join in end-to-end mode carries the keys made on the device, under the s
 		codes: [again]
 	} = (await issue({ count: 1 })).body.data;
 	const bare = await post('/auth/join', {
+		penName: newPenName(),
 		code: again,
 		username: 'bare',
 		password: authKey,

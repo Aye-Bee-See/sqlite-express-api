@@ -18,6 +18,7 @@ import {
 	Prisoner,
 	sequelize
 } from './helpers.js';
+import { newPenName } from './helpers.js';
 import MailRule from '../database/models/mail-rule.model.js';
 import MessageStatus from '../database/models/message-status.model.js';
 import IdempotencyKey from '../database/models/idempotency-key.model.js';
@@ -251,6 +252,7 @@ test('sign-in refuses credentials in the URL and credentials that are not text',
 
 test('nobody can take the name of a group anonymous writer, or a placeholder address', async () => {
 	const reg = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'anon-' + relay.group.id,
 		password: 'longenough',
 		email: 'squatter@example.com'
@@ -284,10 +286,15 @@ test('a group can still edit a managed writer whose placeholder address is sent 
 test('a claim needs a username and a password, and leaves the token usable when it fails', async () => {
 	const w = (await post('/auth/writer', { name: 'To Claim' }, f.chapter)).body.data;
 	const { token } = (await post('/auth/writer/token', { writer: w.id }, f.chapter)).body.data;
-	const bare = await post('/auth/claim', { token });
+	const bare = await post('/auth/claim', { penName: newPenName(), token });
 	assert.equal(bare.status, 400, JSON.stringify(bare.body));
 	assert.equal((await User.findByPk(w.id)).claimedAt, null);
-	const taken = await post('/auth/claim', { token, username: 'alice', password: 'longenough' });
+	const taken = await post('/auth/claim', {
+		penName: newPenName(),
+		token,
+		username: 'alice',
+		password: 'longenough'
+	});
 	assert.equal(taken.status, 400);
 	assert.equal((await get('/auth/claim?token=' + token)).status, 200);
 });
@@ -296,8 +303,18 @@ test('two claims with one token: one account, one winner', async () => {
 	const w = (await post('/auth/writer', { name: 'Raced' }, f.chapter)).body.data;
 	const { token } = (await post('/auth/writer/token', { writer: w.id }, f.chapter)).body.data;
 	const results = await Promise.all([
-		post('/auth/claim', { token, username: 'racer-one', password: 'longenough1' }),
-		post('/auth/claim', { token, username: 'racer-two', password: 'longenough2' })
+		post('/auth/claim', {
+			penName: newPenName(),
+			token,
+			username: 'racer-one',
+			password: 'longenough1'
+		}),
+		post('/auth/claim', {
+			penName: newPenName(),
+			token,
+			username: 'racer-two',
+			password: 'longenough2'
+		})
 	]);
 	const statuses = results.map((r) => r.status).sort();
 	assert.equal(statuses[0], 201, JSON.stringify(results.map((r) => r.body)));

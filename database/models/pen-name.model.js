@@ -184,6 +184,26 @@ export default class PenName extends Model {
 	}
 
 	/**
+	 * Refuse an account made without a pen name (decided 30 September 2026). It is
+	 * the name letters are signed with and the name a reply comes back to; without
+	 * one, the printed reference line falls back to the person's display name,
+	 * which may be their real one. Shape and uniqueness are checked where the name
+	 * is claimed; this is only whether one was given.
+	 * @throws {ValidationError} required, on penName
+	 */
+	static requireGiven(name) {
+		// Missing or blank; anything else that is not a name is refused by its shape.
+		if (name === undefined || name === null || (typeof name === 'string' && name.trim() === '')) {
+			throw new ValidationError({
+				message:
+					'Choose a pen name: the name your letters are signed with, and the name a reply comes back to.',
+				field: 'penName',
+				code: 'required'
+			});
+		}
+	}
+
+	/**
 	 * Is this the account's current name, in any spelling that folds to it? Sending
 	 * it again (a profile form saves every field it shows) is not a change.
 	 */

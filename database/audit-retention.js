@@ -42,7 +42,9 @@ const SECURITY_PREFIXES = [
 	// The only record that a deletion happened at all. Letters, attachments and
 	// their files go with it, so a run that removed three hundred letters should
 	// not age out sooner than deleting one record does.
-	'retention.run'
+	'retention.run',
+	// A group deciding not to send somebody's letter.
+	'letter.decline'
 ];
 
 /** Actions kept for the longer window, whatever else they are. */

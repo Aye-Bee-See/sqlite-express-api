@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { LETTER_STATUSES, RETURN_REASONS } from '#db/letter-status.js';
+import { LETTER_STATUSES, RETURN_REASONS, DECLINE_REASONS } from '#db/letter-status.js';
 
 /** One row per status change of a message; the first row is its creation. */
 const messageStatusSchema = {
@@ -23,20 +23,25 @@ const messageStatusSchema = {
 	changedBy: {
 		type: DataTypes.INTEGER
 	},
-	/** For a move to `returned`: why it came back. */
+	/** For a move to `returned`: why it came back; to `declined`: why it was not sent. */
 	reason: {
 		type: DataTypes.STRING,
 		validate: {
 			isIn: {
-				args: [RETURN_REASONS],
-				msg: 'reason must be one of ' + RETURN_REASONS.join(', ') + '.'
+				args: [[...RETURN_REASONS, ...DECLINE_REASONS]],
+				msg: 'reason must be one of ' + [...RETURN_REASONS, ...DECLINE_REASONS].join(', ') + '.'
 			}
 		}
 	},
+	/** For a `facility_rule` decline: the mail rule's tag. */
+	rule: {
+		type: DataTypes.STRING
+	},
 	/**
-	 * For a move to `returned`: a few words from whoever handled it ("stamped
-	 * REFUSED, no explanation"). Not encrypted in any mode, and the writer reads
-	 * it: nothing about what the letter said belongs here.
+	 * For a move to `returned` or `declined`: a few words from whoever handled it
+	 * ("stamped REFUSED, no explanation"; "names a member of staff, which this
+	 * facility refuses"). Not encrypted in any mode, and the writer reads it:
+	 * nothing the letter said belongs here.
 	 */
 	note: {
 		type: DataTypes.STRING,

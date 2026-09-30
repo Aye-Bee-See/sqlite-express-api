@@ -27,6 +27,8 @@ import {
 	MAILED,
 	RETURNED,
 	RETURN_REASONS,
+	DECLINED,
+	DECLINE_REASONS,
 	HELD_CHOOSE_RELAY
 } from '#db/letter-status.js';
 
@@ -419,7 +421,7 @@ export default class Message extends Model {
 	 * @returns {{reason?: string, note?: string|null}} what a return says about itself
 	 * @throws {ValidationError|HttpError}
 	 */
-	static #checkMove(message, status, { reason, note, release, named = false } = {}) {
+	static #checkMove(message, status, { reason, note, rule, release, named = false } = {}) {
 		if (!LETTER_STATUSES.includes(status)) {
 			throw new ValidationError({
 				message: 'Status must be one of ' + LETTER_STATUSES.join(', ') + '.',
@@ -428,7 +430,7 @@ export default class Message extends Model {
 				params: { allowed: LETTER_STATUSES }
 			});
 		}
-		const why = Message.#returnDetails(status, reason, note);
+		const why = Message.#moveDetails(status, { reason, note, rule });
 		// In a batch the sentence says which letter; alone, it reads as it always has.
 		const say = (sentence) =>
 			named
@@ -441,7 +443,8 @@ export default class Message extends Model {
 				'LetterStatusError'
 			);
 		}
-		if (message.heldReason && release !== true) {
+		// Declining a held letter needs no release: not sending it is the safe way round.
+		if (message.heldReason && release !== true && status !== DECLINED) {
 			// Held because the person was moved or freed after it was written. Whoever
 			// prints it anyway says so, so that it is a decision and not an oversight.
 			throw new HttpError(
@@ -491,8 +494,11 @@ export default class Message extends Model {
 						status,
 						statusChangedAt: at,
 						statusChangedBy: changedBy,
-						returnReason: why.reason ?? null,
-						returnNote: why.note ?? null
+						returnReason: status === RETURNED ? why.reason : null,
+						returnNote: status === RETURNED ? why.note : null,
+						declineReason: status === DECLINED ? why.reason : null,
+						declineRule: status === DECLINED ? why.rule : null,
+						declineNote: status === DECLINED ? why.note : null
 					},
 					{
 						// Exactly the letter that was checked: not moved on, not held, and
@@ -524,6 +530,7 @@ export default class Message extends Model {
 						toStatus: status,
 						changedBy,
 						reason: why.reason ?? null,
+						rule: why.rule ?? null,
 						note: why.note ?? null
 					},
 					{ transaction }
@@ -619,27 +626,47 @@ export default class Message extends Model {
 	}
 
 	/**
-	 * A letter that came back says why; no other move takes a reason.
-	 * @returns {{reason?: string, note?: string|null}}
+	 * A letter that came back, or that its group declined to send, says why; no
+	 * other move takes a reason. A `facility_rule` decline names the rule, which
+	 * the caller checks against the letter's facility.
+	 * @returns {{reason?: string, note?: string|null, rule?: string|null}}
 	 * @throws {ValidationError}
 	 */
-	static #returnDetails(status, reason, note) {
-		if (status !== RETURNED) {
-			if (reason !== undefined || note !== undefined) {
-				throw new ValidationError({
-					message: 'reason and note only go with the status returned.',
-					field: 'reason',
-					code: 'not_settable_here'
-				});
+	static #moveDetails(status, { reason, note, rule }) {
+		const reasons = { [RETURNED]: RETURN_REASONS, [DECLINED]: DECLINE_REASONS }[status];
+		if (!reasons) {
+			for (const [field, value] of Object.entries({ reason, note, rule })) {
+				if (value !== undefined) {
+					throw new ValidationError({
+						message: field + ' only goes with the status returned or declined.',
+						field,
+						code: 'not_settable_here'
+					});
+				}
 			}
 			return {};
 		}
-		if (!RETURN_REASONS.includes(reason)) {
+		if (!reasons.includes(reason)) {
 			throw new ValidationError({
-				message: 'A returned letter needs a reason: one of ' + RETURN_REASONS.join(', ') + '.',
+				message: 'A ' + status + ' letter needs a reason: one of ' + reasons.join(', ') + '.',
 				field: 'reason',
 				code: 'not_allowed_value',
-				params: { allowed: RETURN_REASONS }
+				params: { allowed: reasons }
+			});
+		}
+		const wantsRule = status === DECLINED && reason === 'facility_rule';
+		if (wantsRule && (typeof rule !== 'string' || rule.trim() === '')) {
+			throw new ValidationError({
+				message: "Name the mail rule it would break (rule): one of the facility's rule tags.",
+				field: 'rule',
+				code: 'required'
+			});
+		}
+		if (!wantsRule && rule !== undefined && rule !== null) {
+			throw new ValidationError({
+				message: 'rule only goes with a decline for the reason facility_rule.',
+				field: 'rule',
+				code: 'not_settable_here'
 			});
 		}
 		if (note !== undefined && note !== null && typeof note !== 'string') {
@@ -659,11 +686,11 @@ export default class Message extends Model {
 				params: { min: 0, max: 200 }
 			});
 		}
-		return { reason, note: words === '' ? null : words };
+		return { reason, note: words === '' ? null : words, rule: wantsRule ? rule.trim() : null };
 	}
 
 	/**
-	 * A letter sent again names the returned letter it replaces: the same
+	 * A letter sent again names the returned or declined letter it replaces: the same
 	 * writer's, to the same person. (The text is the client's to send again; in
 	 * end-to-end mode the server could not copy it.)
 	 * @throws {ValidationError}
@@ -681,9 +708,10 @@ export default class Message extends Model {
 			original &&
 			String(original.user) === String(message.user) &&
 			String(original.prisoner) === String(message.prisoner);
-		if (!same || original.status !== RETURNED) {
+		if (!same || ![RETURNED, DECLINED].includes(original.status)) {
 			throw new ValidationError({
-				message: "resendOf must be one of this writer's returned letters to the same prisoner.",
+				message:
+					"resendOf must be one of this writer's returned or declined letters to the same prisoner.",
 				field: 'resendOf',
 				code: 'not_eligible'
 			});
@@ -697,7 +725,7 @@ export default class Message extends Model {
 			include: [
 				{ model: MessageStatus, as: 'status_history' },
 				{ model: Attachment, as: 'attachments' },
-				// For a returned letter: what was sent in its place, if anything.
+				// For a returned or declined letter: what was sent in its place, if anything.
 				{ association: 'resent_as', attributes: ['id', 'status', 'createdAt'] },
 				relayGroupSummary(publishedOnly)
 			],

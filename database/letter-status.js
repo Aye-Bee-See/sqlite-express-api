@@ -1,7 +1,9 @@
 /**
  * Letter lifecycle. Outgoing letters (sender `user`) move queued -> printed
  * -> mailed, driven by the relay group that prints them; a mailed letter that
- * comes back is `returned`, with the reason. Prisoner replies (sender
+ * comes back is `returned`, with the reason. Before it is mailed, the group may
+ * decide not to send it at all: `declined`, with the reason (decided 30
+ * September 2026). Prisoner replies (sender
  * `prisoner`) are recorded as `received` and stay there.
  */
 
@@ -10,16 +12,23 @@ export const PRINTED = 'printed';
 export const MAILED = 'mailed';
 export const RECEIVED = 'received';
 export const RETURNED = 'returned';
+export const DECLINED = 'declined';
 
-export const LETTER_STATUSES = [QUEUED, PRINTED, MAILED, RECEIVED, RETURNED];
+export const LETTER_STATUSES = [QUEUED, PRINTED, MAILED, RECEIVED, RETURNED, DECLINED];
 
-/** Allowed forward moves. `received` is terminal and only ever initial; `returned` is terminal. */
+/**
+ * Allowed forward moves. `received` is terminal and only ever initial;
+ * `returned` and `declined` are terminal. A letter may be declined until it is
+ * mailed: a paper letter starts as `printed`, and a printed page can still be
+ * kept back.
+ */
 export const TRANSITIONS = {
-	[QUEUED]: [PRINTED],
-	[PRINTED]: [MAILED],
+	[QUEUED]: [PRINTED, DECLINED],
+	[PRINTED]: [MAILED, DECLINED],
 	[MAILED]: [RETURNED],
 	[RECEIVED]: [],
-	[RETURNED]: []
+	[RETURNED]: [],
+	[DECLINED]: []
 };
 
 /**
@@ -35,11 +44,21 @@ export const RETURN_REASONS = [
 	'unknown' // it came back and nothing says why
 ];
 
+/**
+ * Why the group that relays a letter decided not to send it. Codes, so that
+ * clients word them in the writer's language.
+ */
+export const DECLINE_REASONS = [
+	'facility_rule', // it would break one of the facility's mail rules (named in `rule`)
+	'content', // inappropriate or unsafe to send
+	'other' // something else; the note says what
+];
+
 /** The reasons that say the directory's address for this person may be wrong. */
 export const ADDRESS_RETURN_REASONS = ['transferred', 'released', 'bad_address'];
 
 /** Statuses that end a letter's journey: what retention counts from, and may remove. */
-export const SETTLED_STATUSES = [MAILED, RECEIVED, RETURNED];
+export const SETTLED_STATUSES = [MAILED, RECEIVED, RETURNED, DECLINED];
 
 /**
  * The status a new message starts in, from its sender. A paper letter already

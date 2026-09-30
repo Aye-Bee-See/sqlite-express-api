@@ -10,6 +10,25 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-30
 
+### A group can decline to mail a letter, and say why (#170)
+
+Decided 30 September. A group admin may refuse to mail a letter their group
+relays, with `PUT /messaging/status` (or the batch endpoint) and the new status
+**`declined`**. A reason is required: `facility_rule` (naming one of the
+facility's own mail rules in `rule`), `content` (inappropriate or unsafe), or
+`other`, with an optional note to the writer of up to 200 characters. A letter
+can be declined while queued or printed, paper and held letters included, never
+once mailed; `declined` is final. Only the group that relays the letter can
+decline it: a superadmin cannot read it, and cannot decline it. The writer is
+notified with the reason and may write it again with `resendOf`, as after a
+return. Declines are audited as `letter.decline`, in the two-year window.
+
+**For clients:** the queue and the letter screen need a "Don't send" action for
+group admins: choose the reason, pick the rule from the facility's list when it
+is a rule, and add a note. Writers see `declined` with `declineReason`,
+`declineRule` and `declineNote`, and a "Write it again" that sends `resendOf`.
+Word the three reasons yourselves, as with return reasons.
+
 ### A server can install without the development tools (#169)
 
 `npm ci --omit=dev` used to fail: the `prepare` script ran `husky`, which is a

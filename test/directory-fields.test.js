@@ -1,6 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, stopServer, get, post, put, del, makeFixtures, Chapter } from './helpers.js';
+import { newPenName } from './helpers.js';
 
 let f;
 let admin;
@@ -343,6 +344,7 @@ test('an admin can put an account in a group; the member cannot change it', asyn
 	);
 	assert.equal(self.status, 403);
 	const registered = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'joiner',
 		password: 'longenough',
 		email: 'joiner@example.com',
@@ -354,6 +356,7 @@ test('an admin can put an account in a group; the member cannot change it', asyn
 	const staffCreated = await post(
 		'/auth/user',
 		{
+			penName: newPenName(),
 			username: 'member2',
 			password: 'longenough',
 			email: 'm2@example.com',

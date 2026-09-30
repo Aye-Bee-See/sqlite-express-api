@@ -1,4 +1,5 @@
 import RouteController from '#rtControllers/route.controller.js';
+import PenName from '#models/pen-name.model.js';
 import AuthzService from '#rtServices/authz.services.js';
 import InviteCode from '#models/invite-code.model.js';
 import User from '#models/user.model.js';
@@ -186,6 +187,9 @@ export default class InviteCodeController extends RouteController {
 		const { code, username, password, email, name, bio, penName } = req.body;
 		try {
 			const { record, chapter } = await this.#usable(code);
+			// Decided 30 September: every account made here has a pen name from the start.
+			// Checked once the code is known to be good, so a bad code is still the answer.
+			PenName.requireGiven(penName);
 			const keys = KeysController.keyFields(req.body, { newAccount: true });
 			const scheme = authScheme.schemeFrom(req.body);
 			authScheme.checkPassword(scheme, password);

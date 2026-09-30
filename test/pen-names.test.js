@@ -356,3 +356,83 @@ test('staff rename past the limits: an admin for anyone, a group for the writers
 	assert.equal((await put('/auth/user', { id, penName: 'Robin Cedar' }, f.chapter)).status, 200);
 	assert.equal((await User.findByPk(id)).penName, 'Robin Cedar');
 });
+
+test('an account cannot be made without a pen name, however it is made', async () => {
+	// Decided 30 September: the name letters are signed with, from the start.
+	const refused = (res, what) => {
+		assert.equal(res.status, 400, what + ': ' + JSON.stringify(res.body));
+		assert.deepEqual(res.body.problems, [{ field: 'penName', code: 'required' }], what);
+	};
+	const credentials = (username) => ({
+		username,
+		email: username + '@example.com',
+		password: 'a long enough password'
+	});
+
+	refused(await post('/auth/user', credentials('nopen1')), 'signing up');
+	refused(await post('/auth/user', { ...credentials('nopen2'), penName: '   ' }), 'a blank one');
+
+	const issued = await post('/auth/invite-codes', { count: 1 }, f.chapter);
+	assert.equal(issued.status, 201, JSON.stringify(issued.body));
+	const [code] = issued.body.data.codes;
+	refused(await post('/auth/join', { code, ...credentials('nopen3') }), 'joining with a code');
+	// The code was not spent on the refusal.
+	assert.equal(
+		(await post('/auth/join', { code, ...credentials('withpen3'), penName: 'Wren Thatcher' }))
+			.status,
+		201
+	);
+
+	const invitation = await post(
+		'/invitation/invitation',
+		{ kind: 'member', inviteeName: 'Pen Less' },
+		f.chapter
+	);
+	assert.equal(invitation.status, 201, JSON.stringify(invitation.body));
+	refused(
+		await post('/invitation/accept', {
+			token: invitation.body.data.token,
+			...credentials('nopen4')
+		}),
+		'accepting an invitation'
+	);
+
+	// A managed writer the group named keeps that name at claim; one without must choose.
+	for (const [given, expect] of [
+		[undefined, 400],
+		['Group Given Name', 201]
+	]) {
+		const writer = await post(
+			'/auth/writer',
+			{ name: 'Claimer', ...(given ? { penName: given } : {}) },
+			f.chapter
+		);
+		const { token } = (await post('/auth/writer/token', { writer: writer.body.data.id }, f.chapter))
+			.body.data;
+		// What the claim form is told: the name to fill in, or null when it must ask.
+		const info = await get('/auth/claim?token=' + token);
+		assert.equal(info.body.data.writer.penName, given ?? null);
+		const username = given ? 'claimnamed' : 'claimbare';
+		const res = await post('/auth/claim', { token, ...credentials(username) });
+		if (expect === 400) {
+			refused(res, 'claiming with no name at all');
+		} else {
+			assert.equal(res.status, 201, JSON.stringify(res.body));
+			assert.equal((await User.findByPk(writer.body.data.id)).penName, 'Group Given Name');
+		}
+	}
+});
+
+test('a staff account an admin makes signs no letters, and needs no pen name', async () => {
+	const res = await post(
+		'/auth/user',
+		{
+			username: 'staffnopen',
+			email: 'staffnopen@example.com',
+			password: 'a long enough password',
+			role: 'chapter'
+		},
+		f.admin
+	);
+	assert.equal(res.status, 201, JSON.stringify(res.body));
+});

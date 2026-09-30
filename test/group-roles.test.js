@@ -4,6 +4,7 @@ const { test, before, after } = await import('node:test');
 const assert = (await import('node:assert/strict')).default;
 const { startServer, stopServer, get, post, put, del, makeFixtures, makeUser, User, Chapter } =
 	await import('./helpers.js');
+const { newPenName } = await import('./helpers.js');
 const { default: OrgMemberKey } = await import('#models/org-member-key.model.js');
 const { default: Notification } = await import('#models/notification.model.js');
 const { default: AuditLog } = await import('#models/audit-log.model.js');
@@ -309,6 +310,7 @@ test('a chapter that joins by invitation gets its founder as group-owner admin',
 	assert.equal(invite.status, 201, JSON.stringify(invite.body));
 	const keys = client.splitKeys('founder password 1', 'RF');
 	const accepted = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: invite.body.data.token,
 		username: 'founder',
 		email: 'founder@example.com',

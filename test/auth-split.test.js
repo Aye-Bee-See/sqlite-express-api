@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import sodium from 'libsodium-wrappers';
 import { startServer, stopServer, makeFixtures, get, post, put, User, Prison } from './helpers.js';
+import { newPenName } from './helpers.js';
 import * as client from './e2e-client.js';
 import * as authScheme from '../services/auth-scheme.js';
 import { normalizeToken } from '../database/models/claim-token.model.js';
@@ -70,6 +71,7 @@ test('login-params never says whether an account exists', async () => {
 test('a split account is made, signs in with its auth key, and its password never works', async () => {
 	const keys = client.splitKeys('correct horse battery', 'RECOVERY-CODE');
 	const made = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'splitter',
 		email: 'splitter@example.com',
 		password: keys.authKey,
@@ -120,11 +122,12 @@ test('a split password has one shape, and comes with its salt', async () => {
 		keys.authKey + '=',
 		'x'.repeat(44)
 	]) {
-		const res = await post('/auth/user', { ...base, password });
+		const res = await post('/auth/user', { penName: newPenName(), ...base, password });
 		assert.equal(res.status, 400, password);
 		assert.match(res.body.errors[0], /auth key/);
 	}
 	const bare = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'shapely',
 		email: 'shapely@example.com',
 		password: keys.authKey,
@@ -132,7 +135,14 @@ test('a split password has one shape, and comes with its salt', async () => {
 	});
 	assert.equal(bare.status, 400, 'no salt, no split');
 	assert.equal(
-		(await post('/auth/user', { ...base, password: keys.authKey, authScheme: 'sideways' })).status,
+		(
+			await post('/auth/user', {
+				penName: newPenName(),
+				...base,
+				password: keys.authKey,
+				authScheme: 'sideways'
+			})
+		).status,
 		400
 	);
 	assert.equal(await User.count({ where: { username: 'shapely' } }), 0);
@@ -141,6 +151,7 @@ test('a split password has one shape, and comes with its salt', async () => {
 test('a split account never goes back, and changes its password with a new salt, by its holder only', async () => {
 	const first = client.splitKeys('first password here', 'R1');
 	await post('/auth/user', {
+		penName: newPenName(),
 		username: 'mover',
 		email: 'mover@example.com',
 		password: first.authKey,
@@ -205,6 +216,7 @@ test('claiming, accepting an invitation, and finishing recovery can all move to 
 	const { token } = (await post('/auth/writer/token', { writer: w.id }, f.chapter)).body.data;
 	const ck = client.splitKeys('claimed password here', 'RC');
 	const plainClaim = await post('/auth/claim', {
+		penName: newPenName(),
 		token,
 		username: 'claimer',
 		password: 'claimed password here',
@@ -212,6 +224,7 @@ test('claiming, accepting an invitation, and finishing recovery can all move to 
 	});
 	assert.equal(plainClaim.status, 400, 'the password itself is not an auth key');
 	const claimed = await post('/auth/claim', {
+		penName: newPenName(),
 		token,
 		username: 'claimer',
 		password: ck.authKey,
@@ -229,6 +242,7 @@ test('claiming, accepting an invitation, and finishing recovery can all move to 
 	assert.equal(invite.status, 201, JSON.stringify(invite.body));
 	const ik = client.splitKeys('volunteer password', 'RV');
 	const accepted = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: invite.body.data.token,
 		username: 'volunteer2',
 		email: 'v2@example.com',
@@ -241,6 +255,7 @@ test('claiming, accepting an invitation, and finishing recovery can all move to 
 	// Recovery: a plain account with keys moves to split as it recovers.
 	const plainKeys = client.accountKeys('old plain password', 'RECOVER-ME');
 	await post('/auth/user', {
+		penName: newPenName(),
 		username: 'recoverer',
 		email: 'r@example.com',
 		password: 'old plain password',
@@ -279,6 +294,7 @@ test('the readiness report counts who still sends a password', async () => {
 
 test('an account that moves to split while a plain password is being set is not moved back', async () => {
 	await post('/auth/user', {
+		penName: newPenName(),
 		username: 'racer',
 		email: 'racer@example.com',
 		password: 'plain password one'
@@ -315,6 +331,7 @@ test('in server mode a split account needs no keys: the salt and recipe travel a
 	const made = await post(
 		'/auth/user',
 		{
+			penName: newPenName(),
 			username: 'keyless',
 			email: 'keyless@example.com',
 			password: keys.authKey,
@@ -335,6 +352,7 @@ test('in server mode a split account needs no keys: the salt and recipe travel a
 	assert.equal(ok.status, 200, JSON.stringify(ok.body));
 	// Only one of the pair is still refused, and a wrapped key without them.
 	const half = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'halfway',
 		email: 'halfway@example.com',
 		password: keys.authKey,

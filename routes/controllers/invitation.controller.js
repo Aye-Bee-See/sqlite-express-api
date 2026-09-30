@@ -1,4 +1,5 @@
 import RouteController from '#rtControllers/route.controller.js';
+import PenName from '#models/pen-name.model.js';
 import AuthzService from '#rtServices/authz.services.js';
 import KeysController from '#rtControllers/keys.controller.js';
 import Invitation from '#models/invitation.model.js';
@@ -293,6 +294,9 @@ export default class InvitationController extends RouteController {
 		let createdUser = null;
 		try {
 			const { record, chapter } = await this.#usable(token);
+			// Decided 30 September: every account made here has a pen name from the start.
+			// Checked once the code is known to be good, so a bad code is still the answer.
+			PenName.requireGiven(penName);
 			const keys = KeysController.keyFields(req.body, { newAccount: true });
 			const scheme = authScheme.schemeFrom(req.body);
 			authScheme.checkPassword(scheme, password);
@@ -376,6 +380,10 @@ export default class InvitationController extends RouteController {
 			// invitee can correct and try again. The account goes before the
 			// group it points at.
 			if (createdUser) {
+				// The pen name it reserved goes too. Names are kept for ever once an
+				// account has used one, but this account never existed for anyone, and
+				// keeping its name told the invitee their own name was taken on retry.
+				await PenName.destroy({ where: { userId: createdUser.id } }).catch(() => {});
 				await createdUser.destroy({ force: true }).catch(() => {});
 			}
 			if (createdGroup) {

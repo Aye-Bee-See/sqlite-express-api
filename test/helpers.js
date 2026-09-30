@@ -175,6 +175,16 @@ let counter = 0;
  * and log them in. Returns { user, token, password }.
  * @param {{role?: string, username?: string, password?: string, email?: string, name?: string}} [overrides]
  */
+let penCounter = 0;
+/**
+ * A fresh pen name for a sign-up the test makes through the API, where one is
+ * required (decided 30 September 2026). Site-unique within a test file.
+ */
+export function newPenName() {
+	penCounter += 1;
+	return 'Test Writer ' + penCounter;
+}
+
 export async function makeUser(overrides = {}) {
 	counter += 1;
 	const password = overrides.password || 'password' + counter;

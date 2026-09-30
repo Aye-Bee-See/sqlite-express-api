@@ -20,6 +20,7 @@ const assert = (await import('node:assert/strict')).default;
 const { startServer, stopServer, makeFixtures, makeUser, post, upload, Message } = await import(
 	'./helpers.js'
 );
+const { newPenName } = await import('./helpers.js');
 const { reset } = await import('../routes/services/ratelimit.services.js');
 
 let f;
@@ -174,6 +175,7 @@ test('a refused request is counted, so a bad body cannot buy extra tries', async
 test('sign-ups are counted per address, with a token or without; an admin making accounts is not', async () => {
 	for (let i = 0; i < 3; i++) {
 		const res = await post('/auth/user', {
+			penName: newPenName(),
 			username: 'signup' + i,
 			email: 'signup' + i + '@example.com',
 			password: 'a long enough password'
@@ -182,6 +184,7 @@ test('sign-ups are counted per address, with a token or without; an admin making
 	}
 	assertRefused(
 		await post('/auth/user', {
+			penName: newPenName(),
 			username: 'signup4',
 			email: 'signup4@example.com',
 			password: 'a long enough password'
@@ -195,6 +198,7 @@ test('sign-ups are counted per address, with a token or without; an admin making
 			await post(
 				'/auth/user',
 				{
+					penName: newPenName(),
 					username: 'viatoken' + who.id,
 					email: 'viatoken' + who.id + '@example.com',
 					password: 'a long enough password'
@@ -210,6 +214,7 @@ test('sign-ups are counted per address, with a token or without; an admin making
 			await post(
 				'/auth/user',
 				{
+					penName: newPenName(),
 					username: 'madebyadmin',
 					email: 'madebyadmin@example.com',
 					password: 'a long enough password'

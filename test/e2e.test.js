@@ -19,6 +19,7 @@ const {
 	Chapter,
 	Prison
 } = await import('./helpers.js');
+const { newPenName } = await import('./helpers.js');
 const client = await import('./e2e-client.js');
 
 let f;
@@ -77,6 +78,7 @@ test('health announces the encryption mode', async () => {
 test('kdfParams must name the KDF, on registration, key updates, and password re-wraps', async () => {
 	const { fields } = client.accountKeys('kdfpass', 'RECOVERY');
 	const bad = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'kdfless',
 		password: 'kdfpass',
 		email: 'k@example.com',
@@ -100,6 +102,7 @@ test('kdfParams must name the KDF, on registration, key updates, and password re
 test('registration and key bundles', async () => {
 	const { privateKey, fields } = client.accountKeys('carolpass', 'RECOVERY-carol');
 	const reg = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'carol',
 		password: 'carolpass',
 		email: 'carol@example.com',
@@ -583,9 +586,15 @@ test('claiming moves the keypair to the writer; the group loses its copy', async
 
 	const pw = client.wrapPrivateKey(priv, 'heldpass', '');
 	const rc = client.wrapPrivateKey(priv, 'RECOVERY-held', 'recovery');
-	const noMaterial = await post('/auth/claim', { token, username: 'held', password: 'heldpass' });
+	const noMaterial = await post('/auth/claim', {
+		penName: newPenName(),
+		token,
+		username: 'held',
+		password: 'heldpass'
+	});
 	assert.equal(noMaterial.status, 400);
 	const claimed = await post('/auth/claim', {
+		penName: newPenName(),
 		token,
 		username: 'held',
 		password: 'heldpass',
@@ -931,6 +940,7 @@ test('an Idempotency-Key retry that was encrypted afresh is still the same lette
 test('in end-to-end mode a split account is made with its keys: the salt and recipe alone are refused', async () => {
 	const keys = client.splitKeys('a long enough password', 'RECOVERY-CODE');
 	const bare = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'saltonly',
 		email: 'saltonly@example.com',
 		password: keys.authKey,
@@ -941,6 +951,7 @@ test('in end-to-end mode a split account is made with its keys: the salt and rec
 	assert.equal(bare.status, 400, JSON.stringify(bare.body));
 	assert.match(bare.body.errors[0], /end-to-end mode an account is made with its keys/);
 	const whole = await post('/auth/user', {
+		penName: newPenName(),
 		username: 'saltonly',
 		email: 'saltonly@example.com',
 		password: keys.authKey,

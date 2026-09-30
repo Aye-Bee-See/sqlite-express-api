@@ -8,6 +8,31 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-09-30
+
+### A pen name is required to make an account (#168)
+
+Decided 30 September. `POST /auth/user` (for a writer), `POST /auth/join`,
+`POST /invitation/accept` and `POST /auth/claim` now refuse a request without a
+`penName`: `400`, `required` on `penName`, with nothing made and no code or
+invitation spent. A managed writer the group already named keeps that name at
+claim and need not send one; a staff account an admin makes signs no letters and
+needs none. `POST /auth/writer` is unchanged. `GET /auth/claim?token=` now also
+answers `writer.penName`, so a claim form can fill it in, or require it when it
+is `null`. Without a pen name, the printed
+reference line fell back to the person's display name, which may be their real
+one.
+
+Found while doing it: an invitation acceptance that failed part way removed the
+account but kept the pen name it had reserved, so the retry was told the
+person's own name was taken. The name is released with the account now.
+
+**For clients:** every sign-up, join, claim and invitation form must send
+`penName`, and should ask for it on the same screen as the username. Nudge towards
+two parts without enforcing it. Ask an existing account that has none at its next
+sign-in (`GET /auth/pen-name` answers `penName: null`). A client that does not
+send it yet can no longer make accounts.
+
 ## 2026-09-27
 
 ### Ownership only passes to someone who holds the key (#167)

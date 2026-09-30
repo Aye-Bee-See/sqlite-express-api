@@ -7,6 +7,7 @@ const assert = (await import('node:assert/strict')).default;
 const { startServer, stopServer, get, post, login, makeFixtures, Chapter } = await import(
 	'./helpers.js'
 );
+const { newPenName } = await import('./helpers.js');
 
 let f;
 before(async () => {
@@ -29,6 +30,7 @@ test('with INVITATION_AUTO_ACTIVATE a vouched group is active and listed at once
 	assert.equal(info.body.data.activation, 'immediate');
 
 	const res = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: created.body.data.token,
 		username: 'trusted',
 		password: 'longenough',
@@ -62,6 +64,7 @@ test("an admin's own invitation needs no second approval, even with nobody vouch
 	const info = await get('/invitation/invitation?token=' + created.body.data.token);
 	assert.equal(info.body.data.activation, 'immediate');
 	const res = await post('/invitation/accept', {
+		penName: newPenName(),
 		token: created.body.data.token,
 		username: 'founding',
 		password: 'longenough',

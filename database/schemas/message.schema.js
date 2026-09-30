@@ -1,5 +1,10 @@
 import { DataTypes } from 'sequelize';
-import { LETTER_STATUSES, RETURN_REASONS, HELD_REASONS } from '#db/letter-status.js';
+import {
+	LETTER_STATUSES,
+	RETURN_REASONS,
+	DECLINE_REASONS,
+	HELD_REASONS
+} from '#db/letter-status.js';
 
 const messageSchema = {
 	chat: {
@@ -125,6 +130,29 @@ const messageSchema = {
 	},
 	/** What the envelope said when it came back, as typed by the group (at most 200 characters); set with the status, never directly. */
 	returnNote: {
+		type: DataTypes.STRING,
+		validate: { len: { args: [0, 200], msg: 'note can be at most 200 characters.' } }
+	},
+	/** Why the relay group declined to mail it (DECLINE_REASONS); null otherwise. Set with the status, never directly. */
+	declineReason: {
+		type: DataTypes.STRING,
+		validate: {
+			isIn: {
+				args: [DECLINE_REASONS],
+				msg: 'reason must be one of ' + DECLINE_REASONS.join(', ') + '.'
+			}
+		}
+	},
+	/** For a `facility_rule` decline: the tag of the facility's mail rule it would break. */
+	declineRule: {
+		type: DataTypes.STRING
+	},
+	/**
+	 * For a decline: a few words to the writer from the volunteer who made it, at
+	 * most 200 characters. Not encrypted in any mode: it says why, and must not
+	 * quote the letter.
+	 */
+	declineNote: {
 		type: DataTypes.STRING,
 		validate: { len: { args: [0, 200], msg: 'note can be at most 200 characters.' } }
 	},

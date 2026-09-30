@@ -7,7 +7,9 @@ import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import ValidationError from '#services/ValidationError.js';
-import { isOpen, LETTER_STATUSES, RETURNED, PRINTED } from '#db/letter-status.js';
+import { isOpen, LETTER_STATUSES, RETURNED, DECLINED, PRINTED } from '#db/letter-status.js';
+import Prison from '#models/prison.model.js';
+import MailRule from '#models/mail-rule.model.js';
 import Attachment from '#models/attachment.model.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { sniffType } from '#services/files.js';
@@ -591,7 +593,7 @@ export default class MessageController extends RouteController {
 	 * lifecycle. Admins, or the group that relays the letter.
 	 */
 	async updateStatus(req, res, next) {
-		const { id, status, reason, note, release } = req.body;
+		const { id, status, reason, note, rule, release } = req.body;
 		try {
 			const message = this.requireFound(await Message.getMessageByID(id), 'Message ' + id);
 			const chapterId = await AuthzService.activeChapterOf(req);
@@ -605,27 +607,31 @@ export default class MessageController extends RouteController {
 					'Only the relay group or an admin can change a letter status.'
 				);
 			}
+			if (status === DECLINED) {
+				MessageController.#requireDecliner(chapterId, [message]);
+				await MessageController.#requireFacilityRule(reason, rule, [message]);
+			}
 			const from = message.status;
 			const updated = await Message.changeStatus(message, status, req.user.id, {
 				reason,
 				note,
+				rule,
 				release
 			});
-			await audit(req, 'letter.status', 'message', updated.id, {
-				from,
-				to: status,
-				...(updated.returnReason ? { reason: updated.returnReason } : {})
-			});
+			const why = MessageController.#whyOf(updated);
+			if (status === DECLINED) {
+				// A decision about somebody's letter: kept in the two-year window.
+				await audit(req, 'letter.decline', 'message', updated.id, { from, ...why });
+			} else {
+				await audit(req, 'letter.status', 'message', updated.id, { from, to: status, ...why });
+			}
 			await notify(
 				[updated.user],
 				{
 					event: 'letter.status',
 					chat: updated.chat,
 					message: updated.id,
-					detail: {
-						status: updated.status,
-						...(updated.returnReason ? { reason: updated.returnReason } : {})
-					}
+					detail: { status: updated.status, ...why }
 				},
 				{ actor: req.user.id }
 			);
@@ -898,7 +904,7 @@ export default class MessageController extends RouteController {
 	 * of PUT /messaging/status; one audit entry, and one notification per writer.
 	 */
 	async updateStatusBatch(req, res, next) {
-		const { ids, status, reason, note, release } = req.body;
+		const { ids, status, reason, note, rule, release } = req.body;
 		try {
 			const wanted = MessageController.#batchIds(ids);
 			const found = await Message.findAll({ where: { id: wanted }, hooks: false });
@@ -922,18 +928,27 @@ export default class MessageController extends RouteController {
 			}
 			// In the order asked for, so that "the first letter that cannot move" means something.
 			const letters = wanted.map((id) => found.find((message) => message.id === id));
+			if (status === DECLINED) {
+				MessageController.#requireDecliner(chapterId, letters);
+				await MessageController.#requireFacilityRule(reason, rule, letters);
+			}
 			const moved = await Message.changeStatuses(letters, status, req.user.id, {
 				reason,
 				note,
+				rule,
 				release
 			});
-			await audit(req, 'letter.status.batch', 'message', null, {
-				to: status,
-				count: moved.length,
-				ids: moved.map((m) => m.id),
-				...(status === RETURNED ? { reason } : {})
-			});
-			await this.#announceBatch(req, letters, status, status === RETURNED ? reason : undefined);
+			const why =
+				status === RETURNED || status === DECLINED
+					? { reason, ...(status === DECLINED && reason === 'facility_rule' ? { rule } : {}) }
+					: {};
+			const batch = { count: moved.length, ids: moved.map((m) => m.id), ...why };
+			if (status === DECLINED) {
+				await audit(req, 'letter.decline', 'message', null, batch);
+			} else {
+				await audit(req, 'letter.status.batch', 'message', null, { to: status, ...batch });
+			}
+			await this.#announceBatch(req, letters, status, why);
 			this.#handleSuccess(res, { status, count: moved.length, ids: moved.map((m) => m.id) });
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -959,8 +974,77 @@ export default class MessageController extends RouteController {
 		return clean;
 	}
 
+	/**
+	 * Declining is the group's own decision about a letter it relays: its group
+	 * admins read the letter with the group's key. A superadmin holds no key, so
+	 * cannot, and does not decline (decided 30 September 2026).
+	 * @throws {HttpError} 403
+	 */
+	static #requireDecliner(chapterId, letters) {
+		const foreign = letters.filter((m) => !chapterId || m.relayChapter !== chapterId);
+		if (foreign.length > 0) {
+			throw AuthzService.forbidden(
+				'Only a group admin of the group that relays it can decline a letter (letter ' +
+					foreign.map((m) => m.id).join(', ') +
+					').'
+			);
+		}
+	}
+
+	/**
+	 * A decline for a facility's rule names a rule that facility has. Checked for
+	 * every letter in a batch, whose facilities may differ.
+	 * @throws {ValidationError} not_eligible on rule
+	 */
+	static async #requireFacilityRule(reason, rule, letters) {
+		if (reason !== 'facility_rule' || typeof rule !== 'string' || rule.trim() === '') {
+			return; // the move's own check says what is missing
+		}
+		const prisoners = await Prisoner.findAll({
+			where: { id: [...new Set(letters.map((m) => m.prisoner))] },
+			attributes: ['id', 'prison']
+		});
+		const prisons = await Prison.findAll({
+			where: { id: [...new Set(prisoners.map((p) => p.prison).filter(Boolean))] },
+			attributes: ['id'],
+			// mailRules is read from the rule rows, so they come along.
+			include: [MailRule.detailsInclude()]
+		});
+		const rulesOf = new Map(prisons.map((p) => [p.id, p.mailRules || []]));
+		const prisonOf = new Map(prisoners.map((p) => [p.id, p.prison]));
+		const without = letters.filter(
+			(m) => !(rulesOf.get(prisonOf.get(m.prisoner)) || []).includes(rule.trim())
+		);
+		if (without.length > 0) {
+			throw new ValidationError({
+				message:
+					'The facility of letter ' +
+					without.map((m) => m.id).join(', ') +
+					' has no mail rule "' +
+					rule.trim() +
+					'". Name one of its own rules, or decline for another reason.',
+				field: 'rule',
+				code: 'not_eligible'
+			});
+		}
+	}
+
+	/** What a letter's move says about itself, for the audit log and the writer. */
+	static #whyOf(letter) {
+		if (letter.status === RETURNED && letter.returnReason) {
+			return { reason: letter.returnReason };
+		}
+		if (letter.status === DECLINED && letter.declineReason) {
+			return {
+				reason: letter.declineReason,
+				...(letter.declineRule ? { rule: letter.declineRule } : {})
+			};
+		}
+		return {};
+	}
+
 	/** One notification per writer, however many of their letters moved. */
-	async #announceBatch(req, letters, status, reason) {
+	async #announceBatch(req, letters, status, why) {
 		const byWriter = new Map();
 		for (const letter of letters) {
 			byWriter.set(letter.user, [...(byWriter.get(letter.user) || []), letter]);
@@ -976,7 +1060,7 @@ export default class MessageController extends RouteController {
 					message: theirs.length === 1 ? theirs[0].id : null,
 					detail: {
 						status,
-						...(reason ? { reason } : {}),
+						...why,
 						...(theirs.length > 1
 							? { count: theirs.length, messages: theirs.map((l) => l.id) }
 							: {})

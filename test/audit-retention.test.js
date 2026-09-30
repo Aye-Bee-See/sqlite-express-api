@@ -149,6 +149,7 @@ test('every audit action the code writes has been sorted into a window on purpos
 		'invite-code.cancel': R,
 		'invite-code.issue': R,
 		'invite-code.join': R,
+		'letter.decline': S,
 		'letter.envelope': R,
 		'letter.rerouted': R,
 		'letter.status': R,

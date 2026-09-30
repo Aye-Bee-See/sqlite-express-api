@@ -44,6 +44,27 @@ class ModerationRoutes {
 		this.Router.put(moderationEnd.put.approve, authenticate, admin, this.#Controller.approve);
 		this.Router.put(moderationEnd.put.reject, authenticate, admin, this.#Controller.reject);
 
+		// Recommending that a writer be blocked site-wide (decided 30 September 2026):
+		// a group admin files it, a superadmin decides. The controller checks who.
+		this.Router.post(
+			moderationEnd.post.createBanRecommendation,
+			authenticate,
+			staff,
+			this.#Controller.createBanRecommendation
+		);
+		this.Router.get(
+			moderationEnd.get.banRecommendations,
+			authenticate,
+			staff,
+			this.#Controller.banRecommendations
+		);
+		this.Router.put(
+			moderationEnd.put.decideBanRecommendation,
+			authenticate,
+			admin,
+			this.#Controller.decideBanRecommendation
+		);
+
 		// Oversight
 		this.Router.get(moderationEnd.get.audit, authenticate, admin, this.#Controller.audit);
 		this.Router.get(moderationEnd.get.summary, authenticate, admin, this.#Controller.summary);

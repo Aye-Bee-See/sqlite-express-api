@@ -10,6 +10,7 @@ import messageStatusSchema from '#schemas/message-status.schema.js';
 import attachmentSchema from '#schemas/attachment.schema.js';
 import letterKeySchema from '#schemas/letter-key.schema.js';
 import submissionSchema from '#schemas/submission.schema.js';
+import banRecommendationSchema from '#schemas/ban-recommendation.schema.js';
 import auditLogSchema from '#schemas/audit-log.schema.js';
 import orgMemberKeySchema from '#schemas/org-member-key.schema.js';
 import revokedTokenSchema from '#schemas/revoked-token.schema.js';
@@ -37,6 +38,7 @@ export default class Schemas {
 	static attachment = attachmentSchema;
 	static letterKey = letterKeySchema;
 	static submission = submissionSchema;
+	static banRecommendation = banRecommendationSchema;
 	static auditLog = auditLogSchema;
 	static orgMemberKey = orgMemberKeySchema;
 	static revokedToken = revokedTokenSchema;

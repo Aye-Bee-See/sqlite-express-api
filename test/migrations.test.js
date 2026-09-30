@@ -373,7 +373,9 @@ test('no table has lost its delete rules or its AUTOINCREMENT to a rebuild', asy
 		'PrisonerSupport',
 		'PrisonRelay',
 		'PrisonMailRules',
-		'RevokedTokens'
+		'RevokedTokens',
+		// Keyed by the setting's name.
+		'SiteSettings'
 	];
 	for (const { name, sql } of tables) {
 		const references = (sql.match(/REFERENCES/g) || []).length;

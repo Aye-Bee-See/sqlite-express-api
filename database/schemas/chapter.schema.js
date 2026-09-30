@@ -124,6 +124,16 @@ const chapterSchema = {
 	recordStatus: {
 		type: DataTypes.STRING,
 		...recordStatusAttribute
+	},
+	/**
+	 * Every group admin of this group must use two-factor sign-in. Set by a
+	 * superadmin (PUT /auth/two-factor/group), never through the group's own
+	 * edits; off unless switched on.
+	 */
+	requireTwoFactor: {
+		type: DataTypes.BOOLEAN,
+		allowNull: false,
+		defaultValue: false
 	}
 };
 

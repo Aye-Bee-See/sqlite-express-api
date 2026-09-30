@@ -3,6 +3,7 @@ import { default as passport } from 'passport';
 import { twoFactorEnd } from '#routes/constants.js';
 import TwoFactorController from '#rtControllers/two-factor.controller.js';
 import { limiters } from '#rtServices/ratelimit.services.js';
+import AuthzService from '#rtServices/authz.services.js';
 
 /** Two-factor sign-in for one's own account, mounted under /auth. */
 class TwoFactorRoutes {
@@ -32,6 +33,12 @@ class TwoFactorRoutes {
 			limiters.twoFactorManage,
 			this.#Controller.recoveryCodes
 		);
+		// Requiring it, and resetting it for a lost phone: superadmins.
+		const superadmin = [signedIn, AuthzService.requireRole(AuthzService.ADMIN)];
+		this.Router.get(twoFactorEnd.get.policy, ...superadmin, this.#Controller.policy);
+		this.Router.put(twoFactorEnd.put.setPolicy, ...superadmin, this.#Controller.setPolicy);
+		this.Router.put(twoFactorEnd.put.setGroup, ...superadmin, this.#Controller.setGroup);
+		this.Router.delete(twoFactorEnd.delete.resetUser, ...superadmin, this.#Controller.resetUser);
 		this.Router.delete(
 			twoFactorEnd.delete.remove,
 			signedIn,

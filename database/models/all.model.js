@@ -18,6 +18,7 @@ import SessionRun from '#models/session-run.model.js';
 import Invitation from '#models/invitation.model.js';
 import InviteCode from '#models/invite-code.model.js';
 import PenName from '#models/pen-name.model.js';
+import SiteSetting from '#models/site-setting.model.js';
 import TwoFactorRecoveryCode from '#models/two-factor-recovery-code.model.js';
 import ReplyReference from '#models/reply-reference.model.js';
 import NewsItem from '#models/news-item.model.js';
@@ -92,6 +93,7 @@ export {
 	Invitation,
 	InviteCode,
 	PenName,
+	SiteSetting,
 	TwoFactorRecoveryCode,
 	ReplyReference,
 	NewsItem,

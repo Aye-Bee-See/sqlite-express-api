@@ -34,15 +34,21 @@ const endpoints = {
 	},
 	twoFactor: {
 		get: {
-			one: '/two-factor'
+			one: '/two-factor',
+			policy: '/two-factor/policy'
 		},
 		post: {
 			setup: '/two-factor/setup',
 			confirm: '/two-factor/confirm',
 			recoveryCodes: '/two-factor/recovery-codes'
 		},
+		put: {
+			setPolicy: '/two-factor/policy',
+			setGroup: '/two-factor/group'
+		},
 		delete: {
-			remove: '/two-factor'
+			remove: '/two-factor',
+			resetUser: '/two-factor/user'
 		}
 	},
 	inviteCode: {
@@ -563,6 +569,20 @@ const messages = {
 			one: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading two-factor sign-in.' } }
+			},
+			policy: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading who must use two-factor sign-in.' } }
+			}
+		},
+		put: {
+			setPolicy: {
+				success: { condition: { par: 'Saved.' } },
+				error: { condition: { par: 'Error saving who must use two-factor sign-in.' } }
+			},
+			setGroup: {
+				success: { condition: { par: 'Saved.' } },
+				error: { condition: { par: "Error saving the group's two-factor requirement." } }
 			}
 		},
 		post: {
@@ -589,6 +609,10 @@ const messages = {
 			remove: {
 				success: { condition: { par: 'Two-factor sign-in is off.' } },
 				error: { condition: { par: 'Error switching off two-factor sign-in.' } }
+			},
+			resetUser: {
+				success: { condition: { par: 'Two-factor sign-in reset for this account.' } },
+				error: { condition: { par: 'Error resetting two-factor sign-in.' } }
 			}
 		}
 	},

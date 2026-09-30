@@ -143,6 +143,7 @@ test('every audit action the code writes has been sorted into a window on purpos
 		'chapter.member-key': S,
 		'chapter.member-key.remove': S,
 		'chapter.owner': S,
+		'chapter.two-factor': S,
 		'chapter.update': R,
 		'invitation.accept': S,
 		'invitation.create': S,
@@ -172,6 +173,7 @@ test('every audit action the code writes has been sorted into a window on purpos
 		'prisoner.support.remove': R,
 		'prisoner.update': R,
 		'retention.run': S,
+		'site.two-factor-policy': S,
 		'submission.approve': S,
 		'submission.create': R,
 		'submission.reject': S,
@@ -190,6 +192,7 @@ test('every audit action the code writes has been sorted into a window on purpos
 		'user.two-factor.enable': S,
 		'user.two-factor.recovery-codes': S,
 		'user.two-factor.recovery-used': S,
+		'user.two-factor.reset': S,
 		'user.update': S,
 		'writer.claim': S,
 		'writer.create': S

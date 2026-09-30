@@ -40,7 +40,9 @@ test('setting it up: a secret and a link for the app, then a code confirms it an
 		enabled: false,
 		enabledAt: null,
 		settingUp: false,
-		recoveryCodesLeft: 0
+		recoveryCodesLeft: 0,
+		required: false,
+		requiredBecause: []
 	});
 	const setup = await post('/auth/two-factor/setup', {}, who);
 	assert.match(setup.body.data.secret, /^[A-Z2-7]{32}$/);

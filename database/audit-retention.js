@@ -46,7 +46,10 @@ const SECURITY_PREFIXES = [
 	// A group deciding not to send somebody's letter.
 	'letter.decline',
 	// A group closing itself to a writer, and opening again.
-	'chapter.block'
+	'chapter.block',
+	// Who must use two-factor sign-in: site-wide, and per group.
+	'site.',
+	'chapter.two-factor'
 ];
 
 /** Actions kept for the longer window, whatever else they are. */

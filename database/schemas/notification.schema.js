@@ -12,6 +12,10 @@ export const NOTIFICATION_EVENTS = [
 	'letter.status',
 	'letter.queued',
 	'submission.decided',
+	// Superadmins: a group recommends that a writer be blocked site-wide.
+	'ban.recommended',
+	// The recommending group's admins: a superadmin banned the writer, or dismissed it.
+	'ban.decided',
 	// Somebody you write to was moved to another facility, or their status changed (freed).
 	'prisoner.moved',
 	'prisoner.status',

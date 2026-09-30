@@ -208,6 +208,7 @@ export const REFUSAL_FAMILIES = {
 	auth_scheme: "A sign-in scheme that cannot be used here, or a split account's fields missing.",
 	authentication: 'Not signed in, or a token that is no longer good.',
 	authorization: 'Signed in, and not allowed to do this.',
+	ban_recommendation: 'A recommendation to ban that is already waiting, or already decided.',
 	claim: 'A managed writer that cannot be claimed.',
 	claim_token: 'A claim code that is unknown, expired, or already used.',
 	duplicate_rule: 'A mail rule that already exists, or reads like one that does.',

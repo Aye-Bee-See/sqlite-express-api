@@ -10,6 +10,24 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-30
 
+### A group can recommend a site-wide block, and a superadmin decides (#172)
+
+Decided 30 September. Beside blocking a writer from its own letters (#171), a
+group admin can recommend that a writer be blocked everywhere:
+`POST /moderation/ban-recommendation` with the writer and a required reason,
+which is for the superadmin and not shown to the writer. It waits in the
+moderation queue (`GET /moderation/ban-recommendations`, and
+`pendingBanRecommendations` in the moderation summary), and every superadmin is
+told. A superadmin decides with `PUT /moderation/ban-recommendation`: `ban`
+gives the writer the existing `banned` role, which ends their sessions at once,
+and settles every recommendation waiting for them; `dismiss` settles that one.
+The recommending group is told either way, with the superadmin's note.
+
+**For clients:** group admins need "Recommend a site-wide block" beside "Block
+from our group", with a reason, and a list of their group's recommendations and
+what became of them. The superadmin view (web admin) needs the queue with Ban and
+Dismiss. Word `ban.recommended` and `ban.decided`.
+
 ### A group can block a writer from its letters (#171)
 
 Decided 30 September. A group admin can stop a writer who is misusing the

@@ -2542,6 +2542,15 @@ Body `{"id": 7, "decisionNote": "..."}`. The note is required.
 - Values longer than 1000 characters are cut with an ellipsis, so an audit entry cannot become a copy of a `bio`.
 - `photo`, `support` and `relay` changes appear as their own actions (`prisoner.photo`, `prisoner.support.add`, `prison.relay.add`, and so on) rather than as field changes.
 
+#### Recommending a site-wide block
+
+A group can only block a writer from its own letters (`POST /chapter/block`, under Groups). To ask for more, a group admin recommends that the writer be blocked **site-wide**, with a reason; the recommendation waits in the moderation queue, and a superadmin decides (decided 30 September 2026). A site-wide block is the ban: the `banned` role, which ends every session the account has at once.
+
+- `POST /moderation/ban-recommendation {"user": 12, "reason": "Threats to a volunteer, in three letters."}`: a group admin of an active group. `reason` is required, at most 1000 characters, and is for the superadmin: **the writer is not told of a recommendation**. Only a writer (`role: user`) can be recommended; one already banned is `400`. A group has one waiting recommendation per writer (`409 BanRecommendationError`, `condition: "pending"`). A superadmin gets `403`: they ban directly. Every superadmin is told (`ban.recommended`), and `GET /moderation/summary` counts them as `pendingBanRecommendations`.
+- `GET /moderation/ban-recommendations?status=`: a superadmin sees every group's, `pending` by default; a group admin sees their own group's, in any state. Each row carries `writer`, `chapter_details`, `recommended_by`, `reason`, `status`, and once decided `decided_by`, `decidedAt` and `decisionNote`.
+- `PUT /moderation/ban-recommendation {"id": 4, "decision": "ban", "note": "…"}`: a superadmin. **`ban`** gives the writer the `banned` role and settles every recommendation still waiting for them, from any group, as `banned`; **`dismiss`** settles this one. `note` (at most 500 characters) goes back to the group. A decided recommendation is `409` (`condition: "decided"`). The recommending group's admins are told (`ban.decided`, with `decision`).
+- Audited as `user.ban-recommend`, `user.ban`, and `user.ban-recommend.dismiss`, in the two-year window.
+
 #### GET /moderation/audit
 
 Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest first. Each entry is `{ id, actor, action, resource, targetId, details, createdAt, actor_details }`. Actions recorded:
@@ -2561,6 +2570,7 @@ Parameters: `actor`, `action`, `resource`, `target`, `page`, `page_size`. Newest
 ```json
 {
 	"pendingSubmissions": { "prisoner": 2, "prison": 0, "chapter": 1 },
+	"pendingBanRecommendations": 1,
 	"records": {
 		"prisoner": { "draft": 1, "pending": 0, "published": 40 },
 		"prison": { "draft": 0, "pending": 2, "published": 52 },
@@ -2671,6 +2681,8 @@ curl -s 'http://localhost:3000/auth/notifications?since=41' -H "Authorization: B
 | `letter.status`      | The writer, when their letter is printed, mailed, or returned           | `{ "status": "printed" }`; for a return, `{ "status": "returned", "reason": "transferred" }`                                                             |
 | `letter.queued`      | The members of the relay group, when a letter arrives for them to print | none                                                                                                                                                     |
 | `submission.decided` | The person who proposed a change, when it is approved or rejected       | `{ "status": "approved", "resource": "prison" }`                                                                                                         |
+| `ban.recommended`    | Every superadmin                                                        | `{ "recommendation": 4, "user": 12 }`: a group recommends that a writer be blocked site-wide                                                             |
+| `ban.decided`        | Every group admin of the recommending group                             | `{ "recommendation": 4, "user": 12, "decision": "banned" }` (or `dismissed`)                                                                             |
 | `prisoner.moved`     | Everyone with a thread to a prisoner whose facility changed             | `{ "prisoner": 12, "prison": 7, "held": 0 }` (`held`: how many of their queued letters to this person are waiting for them now, whenever they were held) |
 | `prisoner.status`    | The same people, when the prisoner's status becomes `free`              | `{ "prisoner": 12, "status": "free", "held": 2 }`                                                                                                        |
 | `group.key`          | Every group admin of a chapter (the actor excepted)                     | `{ "action": "handed", "member": 7 }` (`set`, `handed`, `removed` with `member`; `rotated` with `keyVersion`)                                            |

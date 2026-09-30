@@ -168,15 +168,18 @@ const endpoints = {
 			many: '/submissions',
 			one: '/submission',
 			audit: '/audit',
-			summary: '/summary'
+			summary: '/summary',
+			banRecommendations: '/ban-recommendations'
 		},
 		post: {
-			create: '/submission'
+			create: '/submission',
+			createBanRecommendation: '/ban-recommendation'
 		},
 		put: {
 			update: '/submission',
 			approve: '/approve',
-			reject: '/reject'
+			reject: '/reject',
+			decideBanRecommendation: '/ban-recommendation'
 		},
 		delete: {
 			remove: '/submission'
@@ -727,15 +730,27 @@ const messages = {
 			summary: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error building the moderation summary.' } }
+			},
+			banRecommendations: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error listing the recommendations.' } }
 			}
 		},
 		post: {
 			create: {
 				success: { condition: { par: 'Thanks. Your proposal is waiting for review.' } },
 				error: { condition: { par: 'Error filing the proposal.' } }
+			},
+			createBanRecommendation: {
+				success: { condition: { par: 'Thanks. A superadmin will decide.' } },
+				error: { condition: { par: 'Error filing the recommendation.' } }
 			}
 		},
 		put: {
+			decideBanRecommendation: {
+				success: { condition: { par: 'Decided.' } },
+				error: { condition: { par: 'Error deciding the recommendation.' } }
+			},
 			update: {
 				success: { condition: { par: 'Proposal updated.' } },
 				error: { condition: { par: 'Error updating the proposal.' } }

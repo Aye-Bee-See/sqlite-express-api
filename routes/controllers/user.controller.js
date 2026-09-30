@@ -1020,14 +1020,16 @@ export default class UserController extends RouteController {
 
 	/**
 	 * GET /auth/claim?token=…: is the token usable, and for whom?
-	 * Public; reveals only the writer's name and the managing group's name.
+	 * Public; reveals only the writer's name, the pen name the group gave them
+	 * (signed on every letter anyway, and what the claim form fills in or, when
+	 * null, requires), and the managing group's name.
 	 */
 	async claimInfo(req, res) {
 		try {
 			const { record, writer } = await this.#validClaim(req.query.token);
 			const chapter = await Chapter.findByPk(writer.managedBy);
 			const info = {
-				writer: { id: writer.id, name: writer.name },
+				writer: { id: writer.id, name: writer.name, penName: writer.penName ?? null },
 				chapter: chapter ? { id: chapter.id, name: chapter.name } : null,
 				expiresAt: record.expiresAt
 			};

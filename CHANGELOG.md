@@ -17,7 +17,9 @@ Decided 30 September. `POST /auth/user` (for a writer), `POST /auth/join`,
 `penName`: `400`, `required` on `penName`, with nothing made and no code or
 invitation spent. A managed writer the group already named keeps that name at
 claim and need not send one; a staff account an admin makes signs no letters and
-needs none. `POST /auth/writer` is unchanged. Without a pen name, the printed
+needs none. `POST /auth/writer` is unchanged. `GET /auth/claim?token=` now also
+answers `writer.penName`, so a claim form can fill it in, or require it when it
+is `null`. Without a pen name, the printed
 reference line fell back to the person's display name, which may be their real
 one.
 

@@ -409,6 +409,9 @@ test('an account cannot be made without a pen name, however it is made', async (
 		);
 		const { token } = (await post('/auth/writer/token', { writer: writer.body.data.id }, f.chapter))
 			.body.data;
+		// What the claim form is told: the name to fill in, or null when it must ask.
+		const info = await get('/auth/claim?token=' + token);
+		assert.equal(info.body.data.writer.penName, given ?? null);
 		const username = given ? 'claimnamed' : 'claimbare';
 		const res = await post('/auth/claim', { token, ...credentials(username) });
 		if (expect === 400) {

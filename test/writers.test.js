@@ -197,7 +197,7 @@ test('claiming turns a managed writer into an independent account', async () => 
 
 	const info = await get('/auth/claim?token=' + token.toLowerCase());
 	assert.equal(info.status, 200);
-	assert.deepEqual(info.body.data.writer, { id: w.id, name: 'Claimer' });
+	assert.deepEqual(info.body.data.writer, { id: w.id, name: 'Claimer', penName: null });
 	assert.equal(info.body.data.chapter.id, f.group.id);
 	assert.equal(info.body.data.managerNote, undefined);
 

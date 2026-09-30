@@ -110,3 +110,23 @@ test('deleting your own account is not a place to guess the password', async () 
 	assert.equal(blocked.status, 429, 'even the right password waits now');
 	assert.ok(blocked.headers.get('retry-after'));
 });
+
+test('the second step of a two-factor sign-in is counted like failed sign-ins', async () => {
+	const { codeAt, stepAt } = await import('../services/totp.js');
+	const who = await makeUser({ username: 'guesscodes', password: 'a long enough password' });
+	const setup = await post('/auth/two-factor/setup', {}, who);
+	await post('/auth/two-factor/confirm', { code: codeAt(setup.body.data.secret, stepAt()) }, who);
+	const signIn = await post('/auth/login', {
+		username: 'guesscodes',
+		password: 'a long enough password'
+	});
+	const { challenge } = signIn.body.data.twoFactor;
+	for (let i = 0; i < 3; i++) {
+		assert.equal(
+			(await post('/auth/login/two-factor', { challenge, code: '00000' + i })).status,
+			400
+		);
+	}
+	const stopped = await post('/auth/login/two-factor', { challenge, code: '000009' });
+	assert.equal(stopped.status, 429, 'a million codes are not a way in');
+});

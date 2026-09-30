@@ -186,6 +186,10 @@ test('every audit action the code writes has been sorted into a window on purpos
 		'user.penName': S,
 		'user.recover': S,
 		'user.revoke': S,
+		'user.two-factor.disable': S,
+		'user.two-factor.enable': S,
+		'user.two-factor.recovery-codes': S,
+		'user.two-factor.recovery-used': S,
 		'user.update': S,
 		'writer.claim': S,
 		'writer.create': S

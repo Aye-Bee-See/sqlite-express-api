@@ -10,6 +10,25 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-30
 
+### Two-factor sign-in, optional for everyone (#173)
+
+Decided 30 September. Any account can switch on a second step at sign-in: a
+six-digit code from an authenticator app, with ten one-time recovery codes for a
+lost phone. `POST /auth/two-factor/setup` gives the secret and an `otpauth://`
+link for a QR code; `POST /auth/two-factor/confirm` with the first code switches
+it on and shows the recovery codes once. With it on, `POST /auth/login` answers a
+five-minute `twoFactor.challenge` instead of a session, and
+`POST /auth/login/two-factor` with the challenge and a code (or a recovery code)
+finishes the sign-in with the usual answer. Codes work once, tries are counted
+like failed sign-ins, and switching it off needs a code. Superadmins making it
+required comes next.
+
+**For clients:** handle `data.twoFactor` in the sign-in answer: ask for the code,
+with "Use a recovery code" beside it, then call `POST /auth/login/two-factor`.
+A settings screen: set up (show the QR code from `otpauthUri`), confirm, show
+and ask the person to keep the recovery codes, make new ones, switch it off.
+Nothing changes for an account that has not switched it on.
+
 ### A group can recommend a site-wide block, and a superadmin decides (#172)
 
 Decided 30 September. Beside blocking a writer from its own letters (#171), a

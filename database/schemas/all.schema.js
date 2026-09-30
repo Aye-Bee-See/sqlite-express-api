@@ -18,6 +18,7 @@ import sessionRunSchema from '#schemas/session-run.schema.js';
 import invitationSchema from '#schemas/invitation.schema.js';
 import inviteCodeSchema from '#schemas/invite-code.schema.js';
 import penNameSchema from '#schemas/pen-name.schema.js';
+import twoFactorRecoveryCodeSchema from '#schemas/two-factor-recovery-code.schema.js';
 import groupBlockSchema from '#schemas/group-block.schema.js';
 import replyReferenceSchema from '#schemas/reply-reference.schema.js';
 import newsItemSchema from '#schemas/news-item.schema.js';
@@ -47,6 +48,7 @@ export default class Schemas {
 	static invitation = invitationSchema;
 	static inviteCode = inviteCodeSchema;
 	static penName = penNameSchema;
+	static twoFactorRecoveryCode = twoFactorRecoveryCodeSchema;
 	static groupBlock = groupBlockSchema;
 	static replyReference = replyReferenceSchema;
 	static newsItem = newsItemSchema;

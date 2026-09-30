@@ -12,6 +12,7 @@ const endpoints = {
 		post: {
 			create: '/user',
 			login: '/login',
+			loginTwoFactor: '/login/two-factor',
 			logout: '/logout',
 			revoke: '/revoke',
 			createWriter: '/writer',
@@ -29,6 +30,19 @@ const endpoints = {
 	news: {
 		get: {
 			many: '/'
+		}
+	},
+	twoFactor: {
+		get: {
+			one: '/two-factor'
+		},
+		post: {
+			setup: '/two-factor/setup',
+			confirm: '/two-factor/confirm',
+			recoveryCodes: '/two-factor/recovery-codes'
+		},
+		delete: {
+			remove: '/two-factor'
 		}
 	},
 	inviteCode: {
@@ -330,8 +344,17 @@ const messages = {
 				error: { condition: { par: 'Error registering user.' } }
 			},
 			login: {
-				success: { condition: { par: 'Login success.' } },
+				success: {
+					condition: {
+						par: 'Login success.',
+						twoFactor: 'Enter the code from your authenticator app.'
+					}
+				},
 				error: { condition: { par: 'No such user or associated password found.' } }
+			},
+			loginTwoFactor: {
+				success: { condition: { par: 'Login success.' } },
+				error: { condition: { par: 'Error checking the code.' } }
 			},
 			logout: {
 				success: {
@@ -532,6 +555,40 @@ const messages = {
 			many: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading the news.' } }
+			}
+		}
+	},
+	twoFactor: {
+		get: {
+			one: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading two-factor sign-in.' } }
+			}
+		},
+		post: {
+			setup: {
+				success: {
+					condition: { par: 'Add this to your authenticator app, then confirm with a code.' }
+				},
+				error: { condition: { par: 'Error setting up two-factor sign-in.' } }
+			},
+			confirm: {
+				success: {
+					condition: {
+						par: 'Two-factor sign-in is on. Keep the recovery codes somewhere safe: they are shown once.'
+					}
+				},
+				error: { condition: { par: 'Error switching on two-factor sign-in.' } }
+			},
+			recoveryCodes: {
+				success: { condition: { par: 'New recovery codes. The old ones no longer work.' } },
+				error: { condition: { par: 'Error making new recovery codes.' } }
+			}
+		},
+		delete: {
+			remove: {
+				success: { condition: { par: 'Two-factor sign-in is off.' } },
+				error: { condition: { par: 'Error switching off two-factor sign-in.' } }
 			}
 		}
 	},
@@ -1005,5 +1062,6 @@ export const {
 	notification: notificationEnd,
 	keys: keysEnd,
 	inviteCode: inviteCodeEnd,
-	news: newsEnd
+	news: newsEnd,
+	twoFactor: twoFactorEnd
 } = endpoints;

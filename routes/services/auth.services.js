@@ -65,6 +65,72 @@ export default class authService {
 		return !user.sessionsRevokedAt || issued >= user.sessionsRevokedAt.getTime();
 	}
 
+	/** How long the second step of a two-factor sign-in may take. */
+	static TWO_FACTOR_CHALLENGE_MS = 5 * 60 * 1000;
+
+	/**
+	 * The first half of a two-factor sign-in: proof that the password was right,
+	 * good for five minutes and for nothing but POST /auth/login/two-factor. The
+	 * JWT strategy refuses any token with a `purpose`, so it never works as a session.
+	 */
+	static async #createChallenge(user) {
+		const now = Date.now();
+		// Recorded like any token's issue, so the session checks (tokenLive) accept it.
+		await SessionRun.recordIssue(now);
+		const expires = now + authService.TWO_FACTOR_CHALLENGE_MS;
+		const challenge = jwt.sign(
+			{ id: user.id, purpose: 'two-factor', issued: now, jti: randomBytes(16).toString('hex') },
+			secretOrKey,
+			{ expiresIn: Math.floor(authService.TWO_FACTOR_CHALLENGE_MS / 1000) }
+		);
+		return { challenge, expires };
+	}
+
+	/**
+	 * The account a two-factor challenge was made for, or null when it is not
+	 * one, has expired, was used, or the account's sessions were ended since.
+	 */
+	static async challengeUser(challenge) {
+		let payload;
+		try {
+			payload = jwt.verify(String(challenge ?? ''), secretOrKey);
+		} catch {
+			return null;
+		}
+		if (payload?.purpose !== 'two-factor' || payload.id === undefined) {
+			return null;
+		}
+		const user = await User.scope('withTwoFactor').findByPk(payload.id);
+		if (!user || user.role === 'banned' || !user.totpEnabledAt) {
+			return null;
+		}
+		if (!(await authService.tokenLive(payload, user))) {
+			return null;
+		}
+		return { user, payload };
+	}
+
+	/**
+	 * Spend a challenge: true for the one request that gets to, false for any other
+	 * (two requests with two good codes cannot both sign in). The unique index on
+	 * the token id decides.
+	 */
+	static async spendChallenge(payload) {
+		try {
+			await RevokedToken.create({
+				jti: payload.jti,
+				userId: payload.id,
+				expiresAt: new Date(payload.exp * 1000)
+			});
+			return true;
+		} catch (err) {
+			if (err?.name === 'SequelizeUniqueConstraintError') {
+				return false;
+			}
+			throw err;
+		}
+	}
+
 	static async #verify(username, password, done) {
 		let user;
 
@@ -73,6 +139,10 @@ export default class authService {
 			if (user && user.role !== 'banned' && !User.isUnclaimedManaged(user)) {
 				const match = (await bcrypt.compare(password, user.password)) || false;
 				if (match) {
+					if (user.totpEnabledAt) {
+						// Right password; the code from the authenticator app comes next.
+						return done(null, user, { twoFactor: await authService.#createChallenge(user) });
+					}
 					const token = await authService.#createJWT(user);
 
 					return done(null, user, { token: token });
@@ -92,6 +162,10 @@ export default class authService {
 	static authorize = new JwtStrategy(authService.#jwtOptions, async (jwt_payload, next) => {
 		try {
 			if (jwt_payload?.id === undefined || jwt_payload.id === null) {
+				return next(null, false);
+			}
+			// A token made for one step of something (a two-factor challenge) is not a session.
+			if (jwt_payload.purpose !== undefined) {
 				return next(null, false);
 			}
 			const user = await User.getUser({ id: jwt_payload.id });

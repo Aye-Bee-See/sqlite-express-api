@@ -32,6 +32,14 @@ export const KEY_COLUMNS = [
 	'recoveryChallengeExpiresAt'
 ];
 
+/** Two-factor state: read only by the sign-in and two-factor code, never sent. */
+export const TWO_FACTOR_COLUMNS = [
+	'totpSecret',
+	'totpPendingSecret',
+	'totpEnabledAt',
+	'totpLastStep'
+];
+
 /** Fields a client may supply to set up an account's keys. */
 export const KEY_INPUT = [
 	'publicKey',
@@ -82,10 +90,13 @@ export default class User extends Model {
 			// Never select the password hash unless a caller opts in with
 			// User.scope('withPassword'). This also covers every include of User
 			// from other models (chat.user_details and so on).
-			defaultScope: { attributes: { exclude: ['password', ...KEY_COLUMNS] } },
+			defaultScope: {
+				attributes: { exclude: ['password', ...KEY_COLUMNS, ...TWO_FACTOR_COLUMNS] }
+			},
 			scopes: {
-				withKeys: { attributes: { exclude: ['password'] } },
-				withPassword: { attributes: { include: ['password'] } }
+				withKeys: { attributes: { exclude: ['password', ...TWO_FACTOR_COLUMNS] } },
+				withPassword: { attributes: { include: ['password'] } },
+				withTwoFactor: { attributes: { exclude: ['password', ...KEY_COLUMNS] } }
 			}
 		});
 	}

@@ -169,6 +169,23 @@ const userSchema = {
 				msg: 'Role must be one of admin, user, chapter, or banned.'
 			}
 		}
+	},
+	/**
+	 * Two-factor sign-in: the authenticator-app secret (base32), the one waiting to
+	 * be confirmed while it is being set up, when it was switched on, and the time
+	 * step of the last code accepted, so a code works once. Never sent to anyone.
+	 */
+	totpSecret: {
+		type: DataTypes.STRING
+	},
+	totpPendingSecret: {
+		type: DataTypes.STRING
+	},
+	totpEnabledAt: {
+		type: DataTypes.DATE
+	},
+	totpLastStep: {
+		type: DataTypes.INTEGER
 	}
 };
 

@@ -10,6 +10,22 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-30
 
+### A server can install without the development tools (#169)
+
+`npm ci --omit=dev` used to fail: the `prepare` script ran `husky`, which is a
+development tool and not installed that way. So the test server installed
+everything, ESLint, Prettier and Husky included, on every hourly update. The
+script is now `husky || true`: on a developer's machine it installs the commit
+hook as before, and where Husky is absent it does nothing. Checked in a clean
+copy: `npm ci --omit=dev` succeeds, installs no development tools, and the server
+boots and answers `/health`.
+
+**Deployment:** once this is merged, change `npm ci` to `npm ci --omit=dev` in
+abctest's update script. Not before: the old `prepare` would fail the install
+and the update would roll back.
+
+**For clients:** nothing to change.
+
 ### A pen name is required to make an account (#168)
 
 Decided 30 September. `POST /auth/user` (for a writer), `POST /auth/join`,

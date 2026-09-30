@@ -53,7 +53,7 @@ Notes:
 
 - `npm ci` works and is preferred; the lockfile is in sync. `bcrypt` and `sqlite3` are native modules with prebuilt binaries for Intel and Apple Silicon Macs; their install scripts are pre-approved in `package.json` (see [Tooling](#tooling)).
 - Verified on Node 24 and Node 26. `engines.node` is `>=20.17`. Node 26 specifically needs `jsonwebtoken` 9.0.3 or newer (already pinned) because it removed `SlowBuffer`.
-- `npm ci` runs the `prepare` script, which installs the Husky pre-commit hook.
+- `npm ci` runs the `prepare` script, which installs the Husky pre-commit hook. A server installs with `npm ci --omit=dev`, without Husky or any other development tool: `prepare` is `husky || true`, so the missing hook installer is skipped rather than failing the install.
 - The database is created and seeded on first boot and persists afterwards. `DB_RESET=true npm start` wipes it.
 - To get an admin token, log in as the seeded `admin` with the auth key `npm run auth-key -- admin abcpassword` prints (seeded accounts use the split scheme and never accept their password), or set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` in `.env`.
 
@@ -793,14 +793,14 @@ Chat list readers add a `lastMessageAt` attribute (a correlated `MAX(createdAt)`
 
 ### npm scripts
 
-| Script            | Command                                             | Notes                                          |
-| ----------------- | --------------------------------------------------- | ---------------------------------------------- |
-| `npm start`       | `node index.js`                                     |                                                |
-| `npm run dev`     | `nodemon index.js`                                  | Restarts on file changes.                      |
-| `npm test`        | `echo "echo the test"`                              | Placeholder. There are no tests.               |
-| `npm run lint`    | `eslint --fix "**/*.+(js\|mjs)"`                    | Autofixes. Review the diff (see below).        |
-| `npm run format`  | `prettier --write "**/*.+(js\|mjs\|json\|css\|md)"` |                                                |
-| `npm run prepare` | `husky`                                             | Runs automatically after `npm ci` / `install`. |
+| Script            | Command                                             | Notes                                                                                                    |
+| ----------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `npm start`       | `node index.js`                                     |                                                                                                          |
+| `npm run dev`     | `nodemon index.js`                                  | Restarts on file changes.                                                                                |
+| `npm test`        | `echo "echo the test"`                              | Placeholder. There are no tests.                                                                         |
+| `npm run lint`    | `eslint --fix "**/*.+(js\|mjs)"`                    | Autofixes. Review the diff (see below).                                                                  |
+| `npm run format`  | `prettier --write "**/*.+(js\|mjs\|json\|css\|md)"` |                                                                                                          |
+| `npm run prepare` | `husky \|\| true`                                   | Runs automatically after `npm ci` / `install`; does nothing where Husky is not installed (`--omit=dev`). |
 
 ### ESLint
 

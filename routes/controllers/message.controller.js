@@ -578,6 +578,12 @@ export default class MessageController extends RouteController {
 						newMessage.relayChapter,
 						scope.chapterId || null
 					);
+					// Rerouting to a group that has blocked the writer is refused too.
+					await Message.refuseBlocked(
+						newMessage.relayChapter,
+						current.user,
+						scope.chapterId || null
+					);
 				}
 			}
 			const updatedRows = await Message.updateMessage(newMessage);

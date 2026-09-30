@@ -134,6 +134,8 @@ test('every audit action the code writes has been sorted into a window on purpos
 	const S = 'security';
 	const R = 'routine';
 	const decided = {
+		'chapter.block': S,
+		'chapter.block.remove': S,
 		'chapter.create': R,
 		'chapter.delete': S,
 		'chapter.keys': S,

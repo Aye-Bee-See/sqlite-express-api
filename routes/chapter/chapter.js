@@ -49,6 +49,12 @@ class ChapterRoutes {
 			this.#Controller.history
 		);
 
+		// Blocking a writer from the group's letters (decided 30 September 2026).
+		const signedIn = passport.authenticate('UsrJStrat', { session: false, failWithError: true });
+		this.Router.get(chapterEnd.get.blocks, signedIn, this.#Controller.blocks);
+		this.Router.post(chapterEnd.post.block, signedIn, this.#Controller.block);
+		this.Router.delete(chapterEnd.delete.unblock, signedIn, this.#Controller.unblock);
+
 		// Update
 
 		this.Router.put(

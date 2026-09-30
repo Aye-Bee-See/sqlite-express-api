@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-30
 
-### A superadmin can require two-factor sign-in (#174)
+### A superadmin can require two-factor sign-in (#175)
 
 Decided 30 September. Every switch starts off, so nothing changes until a
 superadmin uses one. A superadmin can require two-factor sign-in for all

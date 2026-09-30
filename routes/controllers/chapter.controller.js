@@ -7,6 +7,10 @@ import AuthzService from '#rtServices/authz.services.js';
 import { audit } from '#rtServices/audit.services.js';
 import AuditLog from '#models/audit-log.model.js';
 import { changesBetween } from '#services/record-changes.js';
+import GroupBlock from '#models/group-block.model.js';
+import User from '#models/user.model.js';
+import ValidationError from '#services/ValidationError.js';
+import { notify, membersOf } from '#rtServices/notify.services.js';
 
 /** What another group may read of a group's history: edits to its directory record. */
 const DIRECTORY_ACTIONS = ['chapter.create', 'chapter.update', 'chapter.delete'];
@@ -54,6 +58,9 @@ export default class chapterController extends RouteController {
 		this.getOne = this.getOne.bind(this);
 		this.update = this.update.bind(this);
 		this.remove = this.remove.bind(this);
+		this.blocks = this.blocks.bind(this);
+		this.block = this.block.bind(this);
+		this.unblock = this.unblock.bind(this);
 
 		this.#handleSuccess = super.handleSuccess;
 		this.#handleErr = super.handleErr;
@@ -196,6 +203,172 @@ export default class chapterController extends RouteController {
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);
+		}
+	}
+
+	// Blocking a writer (decided 30 September 2026)
+
+	/**
+	 * The group whose blocks this caller manages: their own active group, or for
+	 * a superadmin the one named. A superadmin may list and lift blocks, but
+	 * blocks nobody from a group; stopping an account everywhere is the ban.
+	 * @throws {Error} 403, or 400 when a superadmin names no group
+	 */
+	async #blockingGroup(req, named, { superadminMay }) {
+		if (AuthzService.isAdmin(req)) {
+			if (!superadminMay) {
+				throw AuthzService.forbidden(
+					"A group blocks a writer from its own letters; a superadmin stops an account everywhere by banning it (role 'banned')."
+				);
+			}
+			if (named === undefined || named === null || named === '') {
+				throw new ValidationError({
+					message: 'Name the group (chapter).',
+					field: 'chapter',
+					code: 'required'
+				});
+			}
+			return this.requireFound(await Chapter.findByPk(named), 'Chapter ' + named).id;
+		}
+		const own = await AuthzService.activeChapterOf(req);
+		if (!own) {
+			throw await AuthzService.refusalFor(req);
+		}
+		if (named !== undefined && named !== null && named !== '' && String(named) !== String(own)) {
+			throw AuthzService.forbidden('A group admin manages the blocks of their own group only.');
+		}
+		return own;
+	}
+
+	/** GET /chapter/blocks?chapter=: the writers this group will not mail letters for. */
+	async blocks(req, res) {
+		try {
+			const chapterId = await this.#blockingGroup(req, req.query.chapter, { superadminMay: true });
+			const rows = await GroupBlock.findAll({
+				where: { chapterId },
+				include: [
+					{ association: 'writer', attributes: ['id', 'penName', 'name'] },
+					{ association: 'blocked_by', attributes: ['id', 'username', 'name'] }
+				],
+				order: [['id', 'DESC']]
+			});
+			this.#handleSuccess(
+				res,
+				rows.map((row) => ({
+					chapter: row.chapterId,
+					writer: row.writer,
+					reason: row.reason,
+					blockedBy: row.blocked_by,
+					blockedAt: row.createdAt
+				}))
+			);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.handleErr(res, errorVar);
+		}
+	}
+
+	/**
+	 * POST /chapter/block { user, reason }: this group will not mail letters from
+	 * this writer. Their letters waiting in its queue are held; they are told, with
+	 * the reason, and so is every group admin of the group. Blocking again
+	 * replaces the reason.
+	 */
+	async block(req, res) {
+		const { user: userId, reason } = req.body;
+		try {
+			const chapterId = await this.#blockingGroup(req, req.body.chapter, { superadminMay: false });
+			const words = typeof reason === 'string' ? reason.trim() : '';
+			if (words === '') {
+				throw new ValidationError({
+					message: 'Say why (reason): the writer and your group are told.',
+					field: 'reason',
+					code: 'required'
+				});
+			}
+			if (words.length > 500) {
+				throw new ValidationError({
+					message: 'reason can be at most 500 characters.',
+					field: 'reason',
+					code: 'length_out_of_range',
+					params: { min: 1, max: 500 }
+				});
+			}
+			const writer = this.requireFound(await User.findByPk(userId), 'User ' + userId);
+			if (writer.role !== 'user') {
+				throw new ValidationError({
+					message: 'Only a writer can be blocked from a group.',
+					field: 'user',
+					code: 'not_eligible'
+				});
+			}
+			const { held } = await GroupBlock.block({
+				chapterId,
+				userId: writer.id,
+				reason: words,
+				blockedBy: req.user.id
+			});
+			await audit(req, 'chapter.block', 'chapter', chapterId, {
+				writer: writer.id,
+				reason: words,
+				held
+			});
+			const group = await Chapter.findByPk(chapterId, { attributes: ['id', 'name'] });
+			await notify(
+				[writer.id],
+				{
+					event: 'writer.block',
+					detail: { action: 'blocked', chapter: { id: group.id, name: group.name }, reason: words }
+				},
+				{ actor: req.user.id }
+			);
+			await notify(
+				await membersOf(chapterId),
+				{ event: 'group.block', detail: { action: 'blocked', writer: writer.id, held } },
+				{ actor: req.user.id }
+			);
+			this.#handleSuccess(res, { chapter: chapterId, user: writer.id, reason: words, held });
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.handleErr(res, errorVar);
+		}
+	}
+
+	/**
+	 * DELETE /chapter/block { user, chapter? }: lift a block. Any group admin of
+	 * the group, or a superadmin naming it. The letters it held go back into the
+	 * queue as they were.
+	 */
+	async unblock(req, res) {
+		const { user: userId } = req.body;
+		try {
+			const chapterId = await this.#blockingGroup(req, req.body.chapter, { superadminMay: true });
+			const { lifted, released } = await GroupBlock.lift(chapterId, userId);
+			if (!lifted) {
+				this.requireFound(null, 'A block of user ' + userId + ' by chapter ' + chapterId);
+			}
+			await audit(req, 'chapter.block.remove', 'chapter', chapterId, {
+				writer: Number(userId),
+				released
+			});
+			const group = await Chapter.findByPk(chapterId, { attributes: ['id', 'name'] });
+			await notify(
+				[userId],
+				{
+					event: 'writer.block',
+					detail: { action: 'lifted', chapter: { id: group.id, name: group.name } }
+				},
+				{ actor: req.user.id }
+			);
+			await notify(
+				await membersOf(chapterId),
+				{ event: 'group.block', detail: { action: 'lifted', writer: Number(userId), released } },
+				{ actor: req.user.id }
+			);
+			this.#handleSuccess(res, { chapter: chapterId, user: Number(userId), released });
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.handleErr(res, errorVar);
 		}
 	}
 }

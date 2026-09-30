@@ -116,16 +116,19 @@ const endpoints = {
 		get: {
 			many: '/chapters',
 			one: '/chapter',
-			history: '/history'
+			history: '/history',
+			blocks: '/blocks'
 		},
 		post: {
-			create: '/chapter'
+			create: '/chapter',
+			block: '/block'
 		},
 		put: {
 			update: '/chapter'
 		},
 		delete: {
-			remove: '/chapter'
+			remove: '/chapter',
+			unblock: '/block'
 		}
 	},
 	notification: {
@@ -895,6 +898,10 @@ const messages = {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading the history.' } }
 			},
+			blocks: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the blocked writers.' } }
+			},
 			many: {
 				success: { condition: { par: 'Successfully retireved chapter list' } },
 				error: {
@@ -917,6 +924,10 @@ const messages = {
 			create: {
 				success: { condition: { par: 'Successfully created chapter' } },
 				error: { condition: { par: 'Error creating chapter' } }
+			},
+			block: {
+				success: { condition: { par: 'Writer blocked from the group.' } },
+				error: { condition: { par: 'Error blocking the writer.' } }
 			}
 		},
 		put: {
@@ -934,6 +945,10 @@ const messages = {
 						absent: 'No such chapter'
 					}
 				}
+			},
+			unblock: {
+				success: { condition: { par: 'Block lifted.' } },
+				error: { condition: { par: 'Error lifting the block.' } }
 			}
 		}
 	}

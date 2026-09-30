@@ -10,6 +10,24 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-30
 
+### A group can block a writer from its letters (#171)
+
+Decided 30 September. A group admin can stop a writer who is misusing the
+system from sending letters through their group: `POST /chapter/block` with the
+writer and a required reason, which the writer is told. It reaches that group
+only; a superadmin stops an account everywhere with the existing ban. While the
+block stands, the writer's letters waiting in the group's queue are held
+(`writer_blocked`), and a new letter to that group is `403`, code `group_block`.
+Any group admin of the group, or a superadmin, lifts it with
+`DELETE /chapter/block`, and the held letters go back into the queue.
+`GET /chapter/blocks` lists them. The writer gets `writer.block`, the group's
+admins `group.block`; both events are audited in the two-year window.
+
+**For clients:** group admins need "Block from our group" on a writer (from a
+letter or thread), with a reason, and a list of blocked writers with "Unblock".
+Writers need to word `writer.block`, the `group_block` refusal (suggest another
+group where the facility has one), and the `writer_blocked` hold.
+
 ### A group can decline to mail a letter, and say why (#170)
 
 Decided 30 September. A group admin may refuse to mail a letter their group

@@ -44,7 +44,9 @@ const SECURITY_PREFIXES = [
 	// not age out sooner than deleting one record does.
 	'retention.run',
 	// A group deciding not to send somebody's letter.
-	'letter.decline'
+	'letter.decline',
+	// A group closing itself to a writer, and opening again.
+	'chapter.block'
 ];
 
 /** Actions kept for the longer window, whatever else they are. */

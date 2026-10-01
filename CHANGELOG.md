@@ -8,7 +8,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
-## 2026-09-30
+## 2026-10-01
 
 ### A superadmin can require two-factor sign-in (#175)
 
@@ -30,6 +30,8 @@ set-up screen. Any request answering `two_factor_required.setup_required` means
 the same, mid-session. `GET /auth/two-factor` now says `required` and
 `requiredBecause`; hide "switch off" when it is required. The web admin needs the
 policy screen and the per-group switch, and a reset on an account.
+
+## 2026-09-30
 
 ### Two-factor sign-in, optional for everyone (#173)
 

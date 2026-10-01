@@ -7,6 +7,9 @@ import bcrypt from 'bcrypt';
 import passport from 'passport';
 import { secretOrKey } from '#constants';
 import AuthzService from '#rtServices/authz.services.js';
+import { HttpError } from '#services/HttpError.js';
+import { requirementFor } from '#services/two-factor-policy.js';
+import { twoFactorEnd, userEnd } from '#routes/constants.js';
 export default class authService {
 	static #jwtOptions = {
 		secretOrKey: secretOrKey,
@@ -159,26 +162,73 @@ export default class authService {
 		{ usernameField: 'username', passwordField: 'password' },
 		authService.#verify
 	);
-	static authorize = new JwtStrategy(authService.#jwtOptions, async (jwt_payload, next) => {
-		try {
-			if (jwt_payload?.id === undefined || jwt_payload.id === null) {
-				return next(null, false);
-			}
-			// A token made for one step of something (a two-factor challenge) is not a session.
-			if (jwt_payload.purpose !== undefined) {
-				return next(null, false);
-			}
-			const user = await User.getUser({ id: jwt_payload.id });
-			if (user && user.role !== 'banned' && (await authService.tokenLive(jwt_payload, user))) {
-				await AuthzService.noteGroupStanding(user);
-				return next(null, user);
-			}
-			return next(null, false);
-		} catch (err) {
-			const errVar = !(err instanceof Error) ? new Error(err) : err;
-			return next(errVar);
+	/**
+	 * What someone who must set up two-factor sign-in, and has not, may still do:
+	 * set it up, see where they stand, and sign out. Everything else is refused
+	 * until they have, whether they signed in before the requirement or after it.
+	 */
+	static #duringSetup = new Set([
+		'GET /auth' + twoFactorEnd.get.one,
+		'POST /auth' + twoFactorEnd.post.setup,
+		'POST /auth' + twoFactorEnd.post.confirm,
+		'POST /auth' + userEnd.post.logout
+	]);
+
+	/** @throws {HttpError} 403 TwoFactorRequiredError, when the account must set it up first */
+	static async #requireTwoFactorSetUp(req, user) {
+		const need = await requirementFor(user);
+		if (!need.required) {
+			return;
 		}
-	});
+		const state = await User.scope('withTwoFactor').findByPk(user.id, {
+			attributes: ['id', 'totpEnabledAt']
+		});
+		if (state && state.totpEnabledAt) {
+			return;
+		}
+		const path =
+			req.method +
+			' ' +
+			String(req.originalUrl || '')
+				.split('?')[0]
+				.replace(/\/+$/, '');
+		if (authService.#duringSetup.has(path)) {
+			return;
+		}
+		const err = new HttpError(
+			403,
+			'This account must use two-factor sign-in. Set it up first (POST /auth/two-factor/setup, then POST /auth/two-factor/confirm).',
+			'TwoFactorRequiredError'
+		);
+		err.condition = 'setup_required';
+		err.because = need.because;
+		throw err;
+	}
+
+	static authorize = new JwtStrategy(
+		{ ...authService.#jwtOptions, passReqToCallback: true },
+		async (req, jwt_payload, next) => {
+			try {
+				if (jwt_payload?.id === undefined || jwt_payload.id === null) {
+					return next(null, false);
+				}
+				// A token made for one step of something (a two-factor challenge) is not a session.
+				if (jwt_payload.purpose !== undefined) {
+					return next(null, false);
+				}
+				const user = await User.getUser({ id: jwt_payload.id });
+				if (user && user.role !== 'banned' && (await authService.tokenLive(jwt_payload, user))) {
+					await AuthzService.noteGroupStanding(user);
+					await authService.#requireTwoFactorSetUp(req, user);
+					return next(null, user);
+				}
+				return next(null, false);
+			} catch (err) {
+				const errVar = !(err instanceof Error) ? new Error(err) : err;
+				return next(errVar);
+			}
+		}
+	);
 }
 
 // Register the strategies once. Route files refer to them by name in

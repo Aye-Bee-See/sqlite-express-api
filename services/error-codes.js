@@ -240,6 +240,8 @@ export const REFUSAL_FAMILIES = {
 	rule_tag: 'A mail rule tag that cannot change, or is not the shape of one.',
 	submission_changed: 'The proposal was revised while it was being reviewed.',
 	submission_state: 'A proposal that is not in a state this decision fits.',
+	two_factor_required:
+		'This account must use two-factor sign-in and has not set it up: only setting it up, and signing out, work until it has.',
 	two_factor:
 		'Two-factor sign-in is not in the state the request needs: on already, not on, or changed meanwhile.',
 	validation: 'Input that fails a rule; these also carry `problems` (above).'

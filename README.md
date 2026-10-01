@@ -449,7 +449,7 @@ Successful sign-ins never count against a username; once the failure limit is re
 
 ### Two-factor sign-in
 
-Optional for everyone, writers included (decided 30 September 2026): a six-digit code from an authenticator app (TOTP, RFC 6238: SHA-1, 30 seconds, as every app makes them), with one-time **recovery codes** for a lost phone. Superadmins will be able to make it required for superadmins and for groups; until then nobody has to.
+Optional for everyone, writers included (decided 30 September 2026): a six-digit code from an authenticator app (TOTP, RFC 6238: SHA-1, 30 seconds, as every app makes them), with one-time **recovery codes** for a lost phone. A superadmin can make it required (below); until one does, nobody has to.
 
 **Setting it up**, signed in:
 
@@ -463,6 +463,17 @@ Optional for everyone, writers included (decided 30 September 2026): a six-digit
 2. `POST /auth/login/two-factor {"challenge": "…", "code": "123456"}`, or `{"challenge": "…", "recoveryCode": "…"}`, answers exactly what a one-step sign-in does (`user`, `token`, and in end-to-end mode `keys`). A code works once, and a recovery code is used up (audited as `user.two-factor.recovery-used`). A wrong one is `400` on `code` or `recoveryCode`, and the challenge stays good for another try; one that was used, or has expired, is `401` with `condition: "challenge_expired"`: sign in again with the password. Failed tries are counted like failed sign-ins, per account and per address.
 
 **Changing it**: `POST /auth/two-factor/recovery-codes {"code": "…"}` makes a fresh set and ends the old one. `DELETE /auth/two-factor` with a `code` or a `recoveryCode` switches it off: a session alone is not enough. Both, and switching it on, are audited in the two-year window. A code asked for while signed in is counted like failed sign-ins too.
+
+**Requiring it.** Every switch starts off. A superadmin can require two-factor sign-in (decided 30 September 2026):
+
+- `PUT /auth/two-factor/policy {"superadmins": true}` for every superadmin. The superadmin who does it must have their own switched on first (`409`, `condition: "own_first"`), so the switch cannot shut out the one using it.
+- `PUT /auth/two-factor/policy {"allGroups": true}` for the group admins of every group.
+- `PUT /auth/two-factor/group {"chapter": 3, "required": true}` for the group admins of one group (`requireTwoFactor` on the group, staff-only in reads).
+- `GET /auth/two-factor/policy` answers `{ superadmins, allGroups, groups: [{ id, name }] }`. Writers are never required to use it. Changes are audited as `site.two-factor-policy` and `chapter.two-factor`, in the two-year window.
+
+Someone it is required for who has not set it up **can still sign in**: `POST /auth/login` answers the usual session with `twoFactor: { setupRequired: true, because: ["group"] }` (`superadmins`, `all_groups`, `group`). Until they have set it up, **every request but setting it up is `403`** with `code: "two_factor_required.setup_required"`; what still works is `GET /auth/two-factor` (which says `required` and `requiredBecause`), `POST /auth/two-factor/setup`, `POST /auth/two-factor/confirm`, and `POST /auth/logout`. This holds for sessions that began before the requirement too. While it is required, it cannot be switched off (`409`, `condition: "required"`).
+
+**A lost phone and lost recovery codes:** a superadmin resets the account with `DELETE /auth/two-factor/user {"user": 12}` (audited as `user.two-factor.reset`). The person signs in with their password, and sets it up again if it is required of them.
 
 Account recovery (a lost password) does not sign anyone in, so it leaves two-factor sign-in as it was: after recovering, a person signs in with the new password and a code or recovery code. The secret is stored as it is, not encrypted: a copy of the database gives an attacker the codes but not the password, which the server never holds in a usable form.
 
@@ -851,6 +862,10 @@ The **Auth** column says who may call the endpoint: _Public_ (no token needed; d
 | POST   | `/auth/two-factor/confirm`        | Any signed-in account                           | Switch it on with the first code; answers recovery codes                                      |
 | POST   | `/auth/two-factor/recovery-codes` | Any signed-in account                           | A fresh set of recovery codes                                                                 |
 | DELETE | `/auth/two-factor`                | Any signed-in account                           | Switch it off, with a code                                                                    |
+| GET    | `/auth/two-factor/policy`         | Superadmin                                      | Who must use two-factor sign-in                                                               |
+| PUT    | `/auth/two-factor/policy`         | Superadmin                                      | Require it for superadmins, or for every group                                                |
+| PUT    | `/auth/two-factor/group`          | Superadmin                                      | Require it for one group's admins                                                             |
+| DELETE | `/auth/two-factor/user`           | Superadmin                                      | Reset someone's two-factor sign-in (a lost phone)                                             |
 | POST   | `/auth/logout`                    | Any                                             | End this token, or every token for the account with `{"everywhere": true}`                    |
 | POST   | `/auth/revoke`                    | Admin                                           | End every token for an account without banning it                                             |
 | GET    | `/auth/users`                     | Admin                                           | List users, optionally by role                                                                |

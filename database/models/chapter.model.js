@@ -28,7 +28,7 @@ export const CHAPTER_FIELDS = [
 ];
 
 /** What only staff see of a group: the figures behind its public number. */
-export const CHAPTER_STAFF_ONLY = ['lettersCounted', 'lettersSentBefore'];
+export const CHAPTER_STAFF_ONLY = ['lettersCounted', 'lettersSentBefore', 'requireTwoFactor'];
 
 export default class Chapter extends Model {
 	static init(sequelize) {

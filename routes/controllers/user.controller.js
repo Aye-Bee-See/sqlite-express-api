@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import User from '#models/user.model.js';
 import TwoFactorRecoveryCode from '#models/two-factor-recovery-code.model.js';
 import TwoFactorController from '#rtControllers/two-factor.controller.js';
+import { requirementFor } from '#services/two-factor-policy.js';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
@@ -1207,7 +1208,13 @@ export default class UserController extends RouteController {
 				);
 				return;
 			}
-			this.#handleSuccess(res, await this.#signedIn(req.user, req.authInfo.token, req));
+			const answer = await this.#signedIn(req.user, req.authInfo.token, req);
+			// Required and not set up yet: signed in, but only set-up works until it is.
+			const need = await requirementFor(req.user);
+			if (need.required) {
+				answer.twoFactor = { setupRequired: true, because: need.because };
+			}
+			this.#handleSuccess(res, answer);
 		} else {
 			this.#handleErr(res);
 		}

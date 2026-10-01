@@ -8,6 +8,8 @@ import ValidationError from '#services/ValidationError.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { audit } from '#rtServices/audit.services.js';
 import * as totp from '#services/totp.js';
+import Chapter from '#models/chapter.model.js';
+import { requirementFor, sitePolicy, setSitePolicy } from '#services/two-factor-policy.js';
 
 /**
  * Two-factor sign-in for one's own account (decided 30 September 2026): an
@@ -23,6 +25,10 @@ export default class TwoFactorController extends RouteController {
 		this.confirm = this.confirm.bind(this);
 		this.remove = this.remove.bind(this);
 		this.recoveryCodes = this.recoveryCodes.bind(this);
+		this.policy = this.policy.bind(this);
+		this.setPolicy = this.setPolicy.bind(this);
+		this.setGroup = this.setGroup.bind(this);
+		this.resetUser = this.resetUser.bind(this);
 		this.#handleSuccess = super.handleSuccess;
 		this.#handleErr = super.handleErr;
 	}
@@ -85,11 +91,15 @@ export default class TwoFactorController extends RouteController {
 	async getOne(req, res, next) {
 		try {
 			const me = await TwoFactorController.#me(req);
+			const need = await requirementFor(me);
 			this.#handleSuccess(res, {
 				enabled: Boolean(me.totpEnabledAt),
 				enabledAt: me.totpEnabledAt ?? null,
 				settingUp: !me.totpEnabledAt && Boolean(me.totpPendingSecret),
-				recoveryCodesLeft: me.totpEnabledAt ? await TwoFactorRecoveryCode.left(me.id) : 0
+				recoveryCodesLeft: me.totpEnabledAt ? await TwoFactorRecoveryCode.left(me.id) : 0,
+				// Required for this account, and why: superadmins, all_groups, group.
+				required: need.required,
+				requiredBecause: need.because
 			});
 		} catch (err) {
 			this.#fail(res, next, err);
@@ -214,6 +224,16 @@ export default class TwoFactorController extends RouteController {
 		try {
 			const me = await TwoFactorController.#me(req);
 			TwoFactorController.#requireOn(me);
+			const need = await requirementFor(me);
+			if (need.required) {
+				const err = new HttpError(
+					409,
+					'Two-factor sign-in is required for this account, so it cannot be switched off. A superadmin can reset it for a lost phone.',
+					'TwoFactorError'
+				);
+				err.condition = 'required';
+				throw err;
+			}
 			const by = await TwoFactorController.#proveFactor(me, req.body);
 			await User.update(
 				{ totpSecret: null, totpPendingSecret: null, totpEnabledAt: null, totpLastStep: null },
@@ -241,6 +261,127 @@ export default class TwoFactorController extends RouteController {
 				count: RECOVERY_CODE_COUNT
 			});
 			this.#handleSuccess(res, { recoveryCodes });
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	// Requiring it (superadmins only; decided 30 September 2026)
+
+	/** GET /auth/two-factor/policy: who must use it now. */
+	async policy(req, res, next) {
+		try {
+			const site = await sitePolicy();
+			const groups = await Chapter.findAll({
+				where: { requireTwoFactor: true },
+				attributes: ['id', 'name'],
+				order: [['name', 'ASC']]
+			});
+			this.#handleSuccess(res, { ...site, groups });
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * PUT /auth/two-factor/policy { superadmins?, allGroups? }: require it, or
+	 * stop requiring it, site-wide. A superadmin switches on their own before
+	 * requiring it of superadmins, so the switch cannot shut out the one using it.
+	 */
+	async setPolicy(req, res, next) {
+		try {
+			const changes = {};
+			for (const field of ['superadmins', 'allGroups']) {
+				if (req.body[field] === undefined) {
+					continue;
+				}
+				if (typeof req.body[field] !== 'boolean') {
+					throw new ValidationError({
+						message: field + ' must be true or false.',
+						field,
+						code: 'wrong_type',
+						params: { expected: 'true or false' }
+					});
+				}
+				changes[field] = req.body[field];
+			}
+			if (Object.keys(changes).length === 0) {
+				throw new ValidationError({
+					message: 'Send superadmins, allGroups, or both.',
+					field: 'superadmins',
+					code: 'required'
+				});
+			}
+			if (changes.superadmins === true && !(await TwoFactorController.#me(req)).totpEnabledAt) {
+				const err = new HttpError(
+					409,
+					'Switch on your own two-factor sign-in before requiring it of superadmins.',
+					'TwoFactorError'
+				);
+				err.condition = 'own_first';
+				throw err;
+			}
+			const before = await sitePolicy();
+			const after = await setSitePolicy(changes, req.user.id);
+			await audit(req, 'site.two-factor-policy', 'site', null, { before, after });
+			this.#handleSuccess(res, after);
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/** PUT /auth/two-factor/group { chapter, required }: require it of one group's admins. */
+	async setGroup(req, res, next) {
+		const { chapter: chapterId, required } = req.body;
+		try {
+			if (typeof required !== 'boolean') {
+				throw new ValidationError({
+					message: 'required must be true or false.',
+					field: 'required',
+					code: 'wrong_type',
+					params: { expected: 'true or false' }
+				});
+			}
+			const group = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
+			await Chapter.update(
+				{ requireTwoFactor: required },
+				{ where: { id: group.id }, hooks: false }
+			);
+			await audit(req, 'chapter.two-factor', 'chapter', group.id, { required });
+			this.#handleSuccess(res, { chapter: group.id, required });
+		} catch (err) {
+			this.#fail(res, next, err);
+		}
+	}
+
+	/**
+	 * DELETE /auth/two-factor/user { user }: a superadmin switches off someone's
+	 * two-factor sign-in, for a lost phone and lost recovery codes. If it is
+	 * required for them, they set it up again at their next sign-in.
+	 */
+	async resetUser(req, res, next) {
+		const { user: userId } = req.body;
+		try {
+			const who = this.requireFound(
+				await User.scope('withTwoFactor').findByPk(userId),
+				'User ' + userId
+			);
+			if (!who.totpEnabledAt && !who.totpPendingSecret) {
+				const err = new HttpError(
+					409,
+					'Two-factor sign-in is not on for this account.',
+					'TwoFactorError'
+				);
+				err.condition = 'not_enabled';
+				throw err;
+			}
+			await User.update(
+				{ totpSecret: null, totpPendingSecret: null, totpEnabledAt: null, totpLastStep: null },
+				{ where: { id: who.id }, hooks: false }
+			);
+			await TwoFactorRecoveryCode.clear(who.id);
+			await audit(req, 'user.two-factor.reset', 'user', who.id);
+			this.#handleSuccess(res, { user: who.id, enabled: false });
 		} catch (err) {
 			this.#fail(res, next, err);
 		}

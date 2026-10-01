@@ -10,6 +10,27 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-09-30
 
+### A superadmin can require two-factor sign-in (#175)
+
+Decided 30 September. Every switch starts off, so nothing changes until a
+superadmin uses one. A superadmin can require two-factor sign-in for all
+superadmins (having switched on their own first), for the group admins of every
+group, or for the group admins of chosen groups (`PUT /auth/two-factor/policy`,
+`PUT /auth/two-factor/group`, `GET /auth/two-factor/policy`). Someone it is
+required for who has not set it up can still sign in, and is told so
+(`twoFactor.setupRequired` in the sign-in answer), but every request except
+setting it up and signing out is `403`, code
+`two_factor_required.setup_required`, including in sessions that began before
+the requirement. While required, it cannot be switched off. A superadmin can
+reset someone's two-factor sign-in for a lost phone
+(`DELETE /auth/two-factor/user`). Writers are never required to use it.
+
+**For clients:** on sign-in, `twoFactor.setupRequired` means go straight to the
+set-up screen. Any request answering `two_factor_required.setup_required` means
+the same, mid-session. `GET /auth/two-factor` now says `required` and
+`requiredBecause`; hide "switch off" when it is required. The web admin needs the
+policy screen and the per-group switch, and a reset on an account.
+
 ### Two-factor sign-in, optional for everyone (#173)
 
 Decided 30 September. Any account can switch on a second step at sign-in: a

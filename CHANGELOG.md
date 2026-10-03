@@ -24,6 +24,17 @@ the read from scanning every block at each sign-in.
 **For clients:** read it at sign-in, and wherever a letter is held as
 `writer_blocked`, rather than relying on having seen the feed entry. It also
 makes a "Groups not mailing your letters" settings page possible.
+### The inbox says whether the newest letter is on hold (#178)
+
+Closes #177. `last_message` on each thread in `GET /chat/chats` now carries
+`heldReason`: `null` for a letter on its way, otherwise why it is held
+(`writer_blocked`, `choose_relay`, `reseal_needed`, `prisoner_free`). A held
+letter is still `status: "queued"`, so an inbox reading only `status` said
+"waiting to print" beside "a letter is on hold". The thread's `heldCount` and
+`heldReasons` are unchanged.
+
+**For clients:** word the newest letter from `heldReason` when it is set, not
+from `status`.
 
 ## 2026-10-01
 

@@ -459,6 +459,9 @@ export default class Chat extends Model {
 									}
 								: {}),
 							status: m.status,
+							// A held letter is still `queued`: this says whether it is on its
+							// way or on hold, and why (null when it is not held).
+							heldReason: m.heldReason ?? null,
 							createdAt: m.createdAt
 						}
 					: null

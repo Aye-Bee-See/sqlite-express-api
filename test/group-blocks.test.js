@@ -76,6 +76,11 @@ test('a group blocks a writer: their queued letters are held, new ones refused, 
 		held: 1
 	});
 	assert.equal((await Message.findByPk(waiting.body.data.id)).heldReason, 'writer_blocked');
+	// The inbox says so too, on the newest letter, not only in the thread's count (#177).
+	const inbox = await get('/chat/chats', writer);
+	const line = inbox.body.data.find((c) => c.id === waiting.body.data.chat);
+	assert.equal(line.last_message.heldReason, 'writer_blocked');
+	assert.equal(line.last_message.status, 'queued');
 
 	// A new letter through that group is refused, with a code a client can word.
 	const refused = await post('/messaging/message', letter(f.prisoner1.id), writer);
@@ -123,6 +128,10 @@ test('a group blocks a writer: their queued letters are held, new ones refused, 
 	assert.equal(lifted.status, 200, JSON.stringify(lifted.body));
 	assert.equal(lifted.body.data.released, 1);
 	assert.equal((await Message.findByPk(waiting.body.data.id)).heldReason, null);
+	const after = (await get('/chat/chats', writer)).body.data.find(
+		(c) => c.id === waiting.body.data.chat
+	);
+	assert.equal(after.last_message.heldReason, null, 'on its way again');
 	assert.equal((await post('/messaging/message', letter(f.prisoner1.id), writer)).status, 201);
 	assert.ok(
 		await AuditLog.findOne({ where: { action: 'chapter.block.remove', targetId: f.group.id } })

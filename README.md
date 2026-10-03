@@ -1891,7 +1891,7 @@ Chats are ordered by most recent message first; chats with no messages come last
 
 - `heldCount`: how many of the thread's letters are held, and `heldReasons`: the distinct reasons (`choose_relay`, `reseal_needed`, `prisoner_free`, `writer_blocked`), sorted; `0` and `[]` when none. Enough for an inbox to mark the conversation that needs its writer (`choose_relay` and `reseal_needed` wait on the writer; `prisoner_free` waits on the group). Also on the single read.
 - `lastMessageAt`: timestamp of the newest message, or `null`.
-- `last_message`: `{ id, sender, messageText, status, createdAt }` of the newest message, or `null`. `sender` tells you the direction (`user` means sent, `prisoner` means received).
+- `last_message`: `{ id, sender, messageText, status, heldReason, createdAt }` of the newest message, or `null`. `sender` tells you the direction (`user` means sent, `prisoner` means received). `heldReason` is `null` unless that letter is [held](#moved-and-freed), so an inbox can tell a letter on its way (`queued`, `null`) from one on hold (`queued`, `"writer_blocked"`); `heldCount` covers the whole thread.
 
 ```json
 {
@@ -1905,6 +1905,8 @@ Chats are ordered by most recent message first; chats with no messages come last
 		"id": 1,
 		"sender": "user",
 		"messageText": "Hello",
+		"status": "queued",
+		"heldReason": null,
 		"createdAt": "2026-09-11T18:21:43.426Z"
 	}
 }

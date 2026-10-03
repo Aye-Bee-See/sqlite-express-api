@@ -8,6 +8,20 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-10-03
+
+### The inbox says whether the newest letter is on hold (#178)
+
+Closes #177. `last_message` on each thread in `GET /chat/chats` now carries
+`heldReason`: `null` for a letter on its way, otherwise why it is held
+(`writer_blocked`, `choose_relay`, `reseal_needed`, `prisoner_free`). A held
+letter is still `status: "queued"`, so an inbox reading only `status` said
+"waiting to print" beside "a letter is on hold". The thread's `heldCount` and
+`heldReasons` are unchanged.
+
+**For clients:** word the newest letter from `heldReason` when it is set, not
+from `status`.
+
 ## 2026-10-01
 
 ### A superadmin can require two-factor sign-in (#175)

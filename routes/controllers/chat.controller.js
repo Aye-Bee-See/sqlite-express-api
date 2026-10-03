@@ -70,6 +70,10 @@ export default class ChatController extends RouteController {
 	 * e2e: attach the caller's envelopes to embedded and latest messages, and
 	 * hide ciphertext the caller holds no envelope for (a group that was
 	 * forwarded one letter must not receive the rest of the thread).
+	 *
+	 * A writer's own thread keeps every letter: one without an envelope (a reply
+	 * recorded before they had keys) stays, without its body, so their client can
+	 * say a reply is waiting for the group to share it.
 	 */
 	async #e2eEnvelopes(chats, req, scope) {
 		if (!crypto.isE2E() || chats.length === 0) {
@@ -85,21 +89,28 @@ export default class ChatController extends RouteController {
 		const last = chats.map((c) => c.getDataValue('last_message')).filter(Boolean);
 		const ids = [...embedded.map((m) => m.id), ...last.map((m) => m.id)];
 		const map = await LetterKey.envelopeMap(ids, reader);
+		const sealed = ['ciphertext', 'nonce', 'relayNoteCiphertext', 'relayNoteNonce'];
+		const own = scope.kind === 'own';
 		for (const chat of chats) {
 			if (chat.messages) {
-				const readable = chat.messages.filter(
-					(m) => reader.all || (map.get(m.id) || []).length > 0
+				const shown = chat.messages.filter(
+					(m) => reader.all || own || (map.get(m.id) || []).length > 0
 				);
-				for (const m of readable) {
+				for (const m of shown) {
 					m.setDataValue('envelopes', map.get(m.id) || []);
+					if (!reader.all && m.getDataValue('envelopes').length === 0) {
+						for (const field of sealed) {
+							m.setDataValue(field, null);
+						}
+					}
 				}
-				chat.setDataValue('messages', readable);
+				chat.setDataValue('messages', shown);
 			}
 		}
 		for (const m of last) {
 			m.envelopes = map.get(m.id) || [];
 			if (!reader.all && m.envelopes.length === 0) {
-				for (const field of ['ciphertext', 'nonce', 'relayNoteCiphertext', 'relayNoteNonce']) {
+				for (const field of sealed) {
 					m[field] = null;
 				}
 			}

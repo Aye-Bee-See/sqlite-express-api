@@ -10,6 +10,23 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-03
 
+### A writer's thread shows a reply they cannot open yet (#182)
+
+In end-to-end mode a thread (`GET /chat/chat?full=true`) held only the letters
+the caller had an envelope for. A reply recorded before the writer had keys
+was therefore missing from their own thread, so the website's "waiting for
+your group to share it" state never appeared. It is in the thread now, with
+`envelopes: []` and no body (`ciphertext`, `nonce` and the relay note's pair
+are `null`), until a group member adds the writer's envelope.
+`GET /messaging/messages` already returned it. Groups are unchanged: a group
+forwarded one letter still sees only that letter (#155).
+
+**For clients:** in your own thread, treat a letter with `envelopes: []` as
+waiting, not as a decryption failure. It opens once a group member's client
+adds the envelope (`GET /messaging/envelopes/missing`). No event is sent when
+that happens, so refetch the thread when it is opened or at sign-in. Raised in
+Aye-Bee-See/letters-support-frontend#4.
+
 ### A split account's salt changes only with its password (#181)
 
 `PUT /auth/keys` accepted a new `kdfSalt` or `kdfParams` from a split account

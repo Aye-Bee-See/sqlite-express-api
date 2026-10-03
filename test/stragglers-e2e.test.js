@@ -164,6 +164,15 @@ test('a reply can be recorded for a writer who has no keys, and reaches him when
 	const waiting = await get('/messaging/message?id=' + recorded.body.data.id, bob);
 	assert.equal(waiting.status, 200);
 	assert.deepEqual(waiting.body.data.envelopes, []);
+	// So does his thread: the reply is there, without a body, for "waiting" (web #4).
+	const thread = await get('/chat/chat?full=true&prisoner=' + recorded.body.data.prisoner, bob);
+	assert.equal(thread.status, 200, JSON.stringify(thread.body));
+	const inThread = thread.body.data.messages.find((m) => m.id === recorded.body.data.id);
+	assert.ok(inThread, 'the reply is in his thread');
+	assert.deepEqual(inThread.envelopes, []);
+	assert.equal(inThread.ciphertext, null);
+	assert.equal(inThread.nonce, null);
+	assert.equal(inThread.sender, 'prisoner');
 	assert.deepEqual((await get('/messaging/envelopes/missing', member)).body.data, []);
 
 	// He signs in and gets keys. The server catches up his old letter, the one it

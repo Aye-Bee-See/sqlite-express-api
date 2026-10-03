@@ -65,6 +65,13 @@ class UserRoutes {
 			this.#Controller.login
 		);
 
+		// The groups not mailing this writer's letters, and why (#174).
+		this.Router.get(
+			userEnd.get.blocks,
+			passport.authenticate('UsrJStrat', { session: false, failWithError: true }),
+			this.#Controller.blocks
+		);
+
 		// The second step of a two-factor sign-in: public, the challenge is the credential.
 		this.Router.post(
 			userEnd.post.loginTwoFactor,

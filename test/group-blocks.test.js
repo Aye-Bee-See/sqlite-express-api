@@ -217,3 +217,21 @@ test('a held letter can still be declined, and printing it needs release', async
 	);
 	assert.equal(declined.status, 200, JSON.stringify(declined.body));
 });
+
+test('a writer can read which groups are not mailing their letters, and why, but not who decided (#174)', async () => {
+	const writer = await makeUser({ username: 'readsblocks' });
+	assert.deepEqual((await get('/auth/blocks', writer)).body.data, [], 'none yet');
+	await post('/chapter/block', { user: writer.id, reason: 'Abusive letters.' }, f.chapter);
+	const mine = await get('/auth/blocks', writer);
+	assert.equal(mine.status, 200, JSON.stringify(mine.body));
+	assert.equal(mine.body.data.length, 1);
+	const [row] = mine.body.data;
+	assert.deepEqual(row.chapter, { id: f.group.id, name: f.group.name });
+	assert.equal(row.reason, 'Abusive letters.');
+	assert.ok(row.blockedAt);
+	assert.equal('blockedBy' in row, false, 'the writer is never told who');
+	assert.deepEqual((await get('/auth/blocks', f.chapter)).body.data, [], 'not a writer: none');
+	assert.equal((await get('/auth/blocks', {})).status, 401);
+	await del('/chapter/block', { user: writer.id }, f.chapter);
+	assert.deepEqual((await get('/auth/blocks', writer)).body.data, [], 'lifted');
+});

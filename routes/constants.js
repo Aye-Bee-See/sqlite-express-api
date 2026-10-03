@@ -7,7 +7,8 @@ const endpoints = {
 			claimInfo: '/claim',
 			loginParams: '/login-params',
 			penNameAvailable: '/pen-name-available',
-			penName: '/pen-name'
+			penName: '/pen-name',
+			blocks: '/blocks'
 		},
 		post: {
 			create: '/user',
@@ -327,6 +328,10 @@ const messages = {
 			penName: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading the pen name.' } }
+			},
+			blocks: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the groups not mailing your letters.' } }
 			},
 			loginParams: {
 				success: { condition: { par: 'Sign-in parameters.' } },

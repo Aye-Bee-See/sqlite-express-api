@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
 import User from '#models/user.model.js';
+import GroupBlock from '#models/group-block.model.js';
 import TwoFactorRecoveryCode from '#models/two-factor-recovery-code.model.js';
 import TwoFactorController from '#rtControllers/two-factor.controller.js';
 import { requirementFor } from '#services/two-factor-policy.js';
@@ -53,6 +54,7 @@ export default class UserController extends RouteController {
 		this.penNameAvailable = this.penNameAvailable.bind(this);
 		this.penName = this.penName.bind(this);
 		this.loginTwoFactor = this.loginTwoFactor.bind(this);
+		this.blocks = this.blocks.bind(this);
 		this.claim = this.claim.bind(this);
 		this.register = this.create;
 		this.#handleErr = super.handleErr;
@@ -1217,6 +1219,39 @@ export default class UserController extends RouteController {
 			this.#handleSuccess(res, answer);
 		} else {
 			this.#handleErr(res);
+		}
+	}
+
+	/**
+	 * GET /auth/blocks: the groups not mailing this writer's letters, and why,
+	 * newest first (closes #174). Only what the writer was told in `writer.block`:
+	 * the group and the reason, never who blocked them. The feed entry is read once
+	 * for all of a writer's devices, so this is what a second phone, a reinstall or
+	 * the website reads. Anyone who is not a writer has none.
+	 */
+	async blocks(req, res) {
+		try {
+			const rows =
+				req.user.role === 'user'
+					? await GroupBlock.findAll({
+							where: { userId: req.user.id },
+							include: [{ association: 'chapter_details', attributes: ['id', 'name'] }],
+							order: [['id', 'DESC']]
+						})
+					: [];
+			this.#handleSuccess(
+				res,
+				rows.map((row) => ({
+					chapter: row.chapter_details
+						? { id: row.chapter_details.id, name: row.chapter_details.name }
+						: { id: row.chapterId, name: null },
+					reason: row.reason,
+					blockedAt: row.createdAt
+				}))
+			);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
 		}
 	}
 

@@ -232,6 +232,29 @@ test('a writer can read which groups are not mailing their letters, and why, but
 	assert.equal('blockedBy' in row, false, 'the writer is never told who');
 	assert.deepEqual((await get('/auth/blocks', f.chapter)).body.data, [], 'not a writer: none');
 	assert.equal((await get('/auth/blocks', {})).status, 401);
+	// Newest first, across groups; lifting one leaves the other.
+	await post('/chapter/block', { user: writer.id, reason: 'Spam to our volunteers.' }, otherAdmin);
+	const both = (await get('/auth/blocks', writer)).body.data;
+	assert.deepEqual(
+		both.map((b) => b.chapter.id),
+		[otherGroup.id, f.group.id]
+	);
 	await del('/chapter/block', { user: writer.id }, f.chapter);
+	assert.deepEqual(
+		(await get('/auth/blocks', writer)).body.data.map((b) => b.chapter.id),
+		[otherGroup.id],
+		'the lifted one is gone, the other stays'
+	);
+	await del('/chapter/block', { user: writer.id }, otherAdmin);
 	assert.deepEqual((await get('/auth/blocks', writer)).body.data, [], 'lifted');
+});
+
+test("reading a writer's blocks uses an index, not the whole table", async () => {
+	const { sequelize } = await import('./helpers.js');
+	const [plan] = await sequelize.query(
+		'EXPLAIN QUERY PLAN SELECT * FROM GroupBlocks WHERE userId = 1 ORDER BY id DESC'
+	);
+	const said = plan.map((row) => row.detail).join(' | ');
+	assert.match(said, /USING (COVERING )?INDEX group_blocks_user/, said);
+	assert.doesNotMatch(said, /TEMP B-TREE/, 'and needs no sort for newest first');
 });

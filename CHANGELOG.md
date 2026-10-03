@@ -19,12 +19,15 @@ change the next sign-in derived a different key and the account was locked out
 for good. It is now a `400` (`not_settable_here`, on the field). A new salt goes
 with a new password, through `PUT /auth/user`, as before. Sending the values the
 account already has, as re-wrapping the private key under the same password
-does, still works. Found while reading web issue Aye-Bee-See/letters-support-frontend#3.
+does, still works. A key write that crosses a password change made on another
+device is now a `409` (`KeyChangeError`) instead of putting the old password's
+salt and wrapped key back over the new ones. Found while reading web issue Aye-Bee-See/letters-support-frontend#3.
 
 **For clients:** nothing to change if you only send a new salt with a password
 change. If a key-setup or re-wrap screen generates a fresh salt for an account
 that is already `split`, it now gets a `400` rather than locking the person out:
-reuse the salt and parameters from the key bundle instead.
+reuse the salt and parameters from the key bundle instead. On a `409` from
+`PUT /auth/keys`, reload the keys and ask for the password again.
 
 ### A writer can look up which groups are not mailing their letters (#179)
 

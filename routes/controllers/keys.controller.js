@@ -247,6 +247,22 @@ export default class KeysController extends RouteController {
 					code: 'required'
 				});
 			}
+			// The wrapped key, salt, and recipe belong to one password. If a password
+			// change landed between the checks below and the write, the write would put
+			// the old password's values over the new ones (for a split account, a
+			// lockout). Every password change makes a new hash, so read it first, before
+			// what the checks look at, and write only while it is still the one stored.
+			const tiedToPassword = ['wrappedPrivateKey', 'kdfSalt', 'kdfParams'].some(
+				(field) => fields[field] !== undefined
+			);
+			const passwordHash = tiedToPassword
+				? (
+						await User.scope('withPassword').findOne({
+							where: { id: req.user.id },
+							attributes: ['password']
+						})
+					).password
+				: undefined;
 			const user = await User.getUserWithKeys({ id: req.user.id });
 			if (fields.publicKey !== undefined && user.publicKey && fields.publicKey !== user.publicKey) {
 				throw new HttpError(
@@ -309,6 +325,9 @@ export default class KeysController extends RouteController {
 				// First set: only if nobody set it in the meantime.
 				where.publicKey = null;
 			}
+			if (tiedToPassword) {
+				where.password = passwordHash;
+			}
 			// The moment the account can first open what is sealed to it: a first key, or
 			// the wrapped private key arriving for a public key stored without one.
 			const becameUsable = !user.wrappedPrivateKey && fields.wrappedPrivateKey !== undefined;
@@ -316,7 +335,9 @@ export default class KeysController extends RouteController {
 			if (count === 0) {
 				throw new HttpError(
 					409,
-					'The public key was set by another request; reload your keys.',
+					tiedToPassword
+						? 'Your keys or password changed in another request; reload your keys.'
+						: 'The public key was set by another request; reload your keys.',
 					'KeyChangeError'
 				);
 			}

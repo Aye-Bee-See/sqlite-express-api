@@ -295,11 +295,14 @@ test('the readiness report counts who still sends a password', async () => {
 test('an account that moves to split while a plain password is being set is not moved back', async () => {
 	await post('/auth/user', {
 		penName: newPenName(),
-		username: 'racer',
-		email: 'racer@example.com',
+		username: 'keyracer',
+		email: 'kr' + Date.now() + '@example.com',
 		password: 'plain password one'
 	});
-	const session = await post('/auth/login', { username: 'racer', password: 'plain password one' });
+	const session = await post('/auth/login', {
+		username: 'keyracer',
+		password: 'plain password one'
+	});
 	const me = { token: session.body.data.token.token };
 	const id = session.body.data.user.id;
 	// Between this request's check (still plain) and its write, another device of
@@ -484,10 +487,69 @@ test('a split account keeps its salt and recipe unless the password changes with
 		{
 			wrappedPrivateKey: keys.fields.wrappedPrivateKey,
 			kdfSalt: keys.fields.kdfSalt,
-			kdfParams: { ...keys.fields.kdfParams }
+			// The same entries in another order are the same recipe.
+			kdfParams: Object.fromEntries(Object.entries(keys.fields.kdfParams).reverse())
 		},
 		me
 	);
 	assert.equal(same.status, 200, JSON.stringify(same.body));
 	assert.equal((await signIn('saltkeeper', password)).status, 200, 'and it still signs in');
+});
+
+test('a key write that loses a race with a password change is refused, not written over it', async () => {
+	const keys = client.splitKeys('the old password', 'RC-RACE');
+	const made = await post('/auth/user', {
+		username: 'midrewrap',
+		email: 'midrewrap@example.com',
+		password: keys.authKey,
+		penName: newPenName(),
+		...keys.fields
+	});
+	assert.equal(made.status, 201, JSON.stringify(made.body));
+	const session = await signIn('midrewrap', 'the old password');
+	const me = { token: session.body.data.token.token };
+	const id = session.body.data.user.id;
+
+	// A second device changes the password while this re-wrap is between its
+	// checks and its write: the checks pass against the old salt.
+	const next = client.splitKeys('the new password', 'RC-RACE-2');
+	const read = User.getUserWithKeys;
+	User.getUserWithKeys = async function (...args) {
+		User.getUserWithKeys = read;
+		const stale = await read.apply(this, args);
+		const changed = await put(
+			'/auth/user',
+			{
+				id,
+				password: next.authKey,
+				authScheme: 'split',
+				wrappedPrivateKey: next.fields.wrappedPrivateKey,
+				kdfSalt: next.fields.kdfSalt,
+				kdfParams: next.fields.kdfParams
+			},
+			me
+		);
+		assert.equal(changed.status, 200, JSON.stringify(changed.body));
+		return stale;
+	};
+	try {
+		const rewrap = await put(
+			'/auth/keys',
+			{
+				wrappedPrivateKey: keys.fields.wrappedPrivateKey,
+				kdfSalt: keys.fields.kdfSalt,
+				kdfParams: keys.fields.kdfParams
+			},
+			me
+		);
+		assert.equal(rewrap.status, 409, JSON.stringify(rewrap.body));
+		assert.equal(rewrap.body.name, 'KeyChangeError');
+	} finally {
+		User.getUserWithKeys = read;
+	}
+	assert.equal(
+		(await signIn('midrewrap', 'the new password')).status,
+		200,
+		'the new password stands'
+	);
 });

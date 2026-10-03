@@ -10,6 +10,20 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-03
 
+### A writer can look up which groups are not mailing their letters (#179)
+
+Closes #174. `GET /auth/blocks` answers the signed-in writer's current blocks,
+newest first: `{ chapter: { id, name }, reason, blockedAt }`. It holds only what
+the writer was told in the `writer.block` feed entry, never who blocked them.
+That entry is read once for all of a writer's devices, so a second phone, a
+reinstalled app or the website had no way to say which group was holding a
+letter, or why. Anyone who is not a writer gets an empty list. A new index on
+the writer (migration `2026.10.03T00.00.00.group-blocks-user-index.js`) keeps
+the read from scanning every block at each sign-in.
+
+**For clients:** read it at sign-in, and wherever a letter is held as
+`writer_blocked`, rather than relying on having seen the feed entry. It also
+makes a "Groups not mailing your letters" settings page possible.
 ### The inbox says whether the newest letter is on hold (#178)
 
 Closes #177. `last_message` on each thread in `GET /chat/chats` now carries

@@ -18,7 +18,9 @@ export default class GroupBlock extends Model {
 			modelName: 'GroupBlock',
 			tableName: 'GroupBlocks',
 			indexes: [
-				{ unique: true, fields: ['chapterId', 'userId'], name: 'group_blocks_chapter_user' }
+				{ unique: true, fields: ['chapterId', 'userId'], name: 'group_blocks_chapter_user' },
+				// A writer's own blocks, read at sign-in (GET /auth/blocks).
+				{ fields: ['userId'], name: 'group_blocks_user' }
 			]
 		});
 	}

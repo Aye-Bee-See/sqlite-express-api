@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-03
 
-### A writer's thread shows a reply they cannot open yet (#PR)
+### A writer's thread shows a reply they cannot open yet (#182)
 
 In end-to-end mode a thread (`GET /chat/chat?full=true`) held only the letters
 the caller had an envelope for. A reply recorded before the writer had keys

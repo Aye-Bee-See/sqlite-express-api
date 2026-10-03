@@ -10,6 +10,22 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-03
 
+### A split account's salt changes only with its password (#PR)
+
+`PUT /auth/keys` accepted a new `kdfSalt` or `kdfParams` from a split account
+on their own. Its sign-in key is derived from the password with those two, but
+the server keeps the hash of the key derived with the old ones, so after such a
+change the next sign-in derived a different key and the account was locked out
+for good. It is now a `400` (`not_settable_here`, on the field). A new salt goes
+with a new password, through `PUT /auth/user`, as before. Sending the values the
+account already has, as re-wrapping the private key under the same password
+does, still works. Found while reading web issue Aye-Bee-See/letters-support-frontend#3.
+
+**For clients:** nothing to change if you only send a new salt with a password
+change. If a key-setup or re-wrap screen generates a fresh salt for an account
+that is already `split`, it now gets a `400` rather than locking the person out:
+reuse the salt and parameters from the key bundle instead.
+
 ### A writer can look up which groups are not mailing their letters (#179)
 
 Closes #174. `GET /auth/blocks` answers the signed-in writer's current blocks,

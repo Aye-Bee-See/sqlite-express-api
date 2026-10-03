@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import RouteController from '#rtControllers/route.controller.js';
 import AuthzService from '#rtServices/authz.services.js';
 import User, { KEY_INPUT, KEY_COLUMNS } from '#models/user.model.js';
@@ -278,6 +279,30 @@ export default class KeysController extends RouteController {
 					field: 'wrappedPrivateKey',
 					code: 'required'
 				});
+			}
+			// A split account's sign-in key is derived from the password with kdfSalt and
+			// kdfParams (README, "Signing in without sending the password"). Changing
+			// either here, without a new password, would leave the stored hash tied to
+			// the old ones: the next sign-in derives a different key, and the account is
+			// locked out. They change with the password, through PUT /auth/user. Sending
+			// the values it already has (a re-wrap does) is fine.
+			if (user.authScheme === 'split') {
+				for (const field of ['kdfSalt', 'kdfParams']) {
+					if (
+						fields[field] !== undefined &&
+						user[field] !== null &&
+						user[field] !== undefined &&
+						!isDeepStrictEqual(fields[field], user[field])
+					) {
+						throw new ValidationError({
+							message:
+								field +
+								' changes only with the password on a split account (PUT /auth/user with the new password), or the account could not sign in again.',
+							field,
+							code: 'not_settable_here'
+						});
+					}
+				}
 			}
 			const where = { id: req.user.id };
 			if (fields.publicKey !== undefined && !user.publicKey) {

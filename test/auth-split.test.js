@@ -444,3 +444,50 @@ test('a typed code reaches the same key however it was typed: the vector for tha
 	// same code: the alphabet has no I, L, O or U for exactly this reason.
 	assert.equal(normalizeToken('IL-il'), '1111');
 });
+
+test('a split account keeps its salt and recipe unless the password changes with them', async () => {
+	// The sign-in key comes from the password with kdfSalt and kdfParams: changing either
+	// alone through PUT /auth/keys would lock the account out at its next sign-in.
+	const password = 'salt stays put';
+	const keys = client.splitKeys(password, 'RC-SALT');
+	const made = await post('/auth/user', {
+		username: 'saltkeeper',
+		email: 'saltkeeper@example.com',
+		password: keys.authKey,
+		penName: newPenName(),
+		...keys.fields
+	});
+	assert.equal(made.status, 201, JSON.stringify(made.body));
+	const session = await signIn('saltkeeper', password);
+	assert.equal(session.status, 200, JSON.stringify(session.body));
+	const me = { token: session.body.data.token.token };
+
+	const other = client.splitKeys(password, 'RC-OTHER').fields;
+	const newSalt = await put(
+		'/auth/keys',
+		{ kdfSalt: other.kdfSalt, kdfParams: keys.fields.kdfParams },
+		me
+	);
+	assert.equal(newSalt.status, 400, JSON.stringify(newSalt.body));
+	assert.deepEqual(newSalt.body.problems, [{ field: 'kdfSalt', code: 'not_settable_here' }]);
+	const newRecipe = await put(
+		'/auth/keys',
+		{ kdfSalt: keys.fields.kdfSalt, kdfParams: { ...keys.fields.kdfParams, N: 2048 } },
+		me
+	);
+	assert.equal(newRecipe.status, 400, JSON.stringify(newRecipe.body));
+	assert.equal(newRecipe.body.problems[0].field, 'kdfParams');
+
+	// The same values again, as a re-wrap sends them, are fine.
+	const same = await put(
+		'/auth/keys',
+		{
+			wrappedPrivateKey: keys.fields.wrappedPrivateKey,
+			kdfSalt: keys.fields.kdfSalt,
+			kdfParams: { ...keys.fields.kdfParams }
+		},
+		me
+	);
+	assert.equal(same.status, 200, JSON.stringify(same.body));
+	assert.equal((await signIn('saltkeeper', password)).status, 200, 'and it still signs in');
+});

@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-03
 
-### A declined letter keeps the words of the rule it would break (#PR)
+### A declined letter keeps the words of the rule it would break (#184)
 
 Closes #183. A `facility_rule` decline kept only the rule's tag, and clients
 looked its wording up in `GET /prison/mail-rules`. That list leaves out retired

@@ -944,9 +944,15 @@ export default class MessageController extends RouteController {
 				rule,
 				release
 			});
+			const ruleLabel = moved.find((m) => m.ruleLabel)?.ruleLabel;
 			const why =
 				status === RETURNED || status === DECLINED
-					? { reason, ...(status === DECLINED && reason === 'facility_rule' ? { rule } : {}) }
+					? {
+							reason,
+							...(status === DECLINED && reason === 'facility_rule'
+								? { rule, ...(ruleLabel ? { ruleLabel } : {}) }
+								: {})
+						}
 					: {};
 			const batch = { count: moved.length, ids: moved.map((m) => m.id), ...why };
 			if (status === DECLINED) {
@@ -1043,7 +1049,8 @@ export default class MessageController extends RouteController {
 		if (letter.status === DECLINED && letter.declineReason) {
 			return {
 				reason: letter.declineReason,
-				...(letter.declineRule ? { rule: letter.declineRule } : {})
+				...(letter.declineRule ? { rule: letter.declineRule } : {}),
+				...(letter.declineRuleLabel ? { ruleLabel: letter.declineRuleLabel } : {})
 			};
 		}
 		return {};

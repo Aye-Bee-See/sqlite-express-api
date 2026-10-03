@@ -622,6 +622,55 @@ test('the return-note migration copies the newest returned note onto each return
 	await old.close();
 });
 
+test('the decline-label migration gives each rule decline the label its rule has, retired or not', async () => {
+	const MIGRATION = '2026.10.03T01.00.00.decline-rule-label.js';
+	const old = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const names = (await createMigrator(old, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(old, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	const at = (day) => `'2026-01-${day} 00:00:00.000 +00:00'`;
+	await old.query(
+		`INSERT INTO User (id, username, password, email, role, createdAt, updatedAt) VALUES (1, 'w', 'x', 'w@example.com', 'user', ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('P', '{}', ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Prisoners (birthName, prison, createdAt, updatedAt) VALUES ('X', 1, ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Chats (user, prisoner, createdAt, updatedAt) VALUES (1, 1, ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO MailRules (tag, category, label, retiredAt, createdAt, updatedAt) VALUES
+			('test_live', 'other', 'A live rule', NULL, ${at('01')}, ${at('01')}),
+			('test_retired', 'other', 'A retired rule', ${at('02')}, ${at('01')}, ${at('02')})`
+	);
+	// 1: a live rule. 2: a retired one. 3: a rule since deleted. 4: another reason.
+	await old.query(
+		`INSERT INTO Messages (id, chat, sender, prisoner, user, status, declineReason, declineRule, createdAt, updatedAt) VALUES
+			(1, 1, 'user', 1, 1, 'declined', 'facility_rule', 'test_live', ${at('02')}, ${at('03')}),
+			(2, 1, 'user', 1, 1, 'declined', 'facility_rule', 'test_retired', ${at('02')}, ${at('03')}),
+			(3, 1, 'user', 1, 1, 'declined', 'facility_rule', 'test_gone', ${at('02')}, ${at('03')}),
+			(4, 1, 'user', 1, 1, 'declined', 'content', NULL, ${at('02')}, ${at('03')})`
+	);
+	await createMigrator(old, { quiet: true }).up({ to: MIGRATION });
+	const [rows] = await old.query('SELECT id, declineRuleLabel FROM Messages ORDER BY id');
+	assert.deepEqual(
+		rows.map((r) => [r.id, r.declineRuleLabel]),
+		[
+			[1, 'A live rule'],
+			[2, 'A retired rule'],
+			[3, null],
+			[4, null]
+		]
+	);
+	await createMigrator(old, { quiet: true }).down({ to: MIGRATION });
+	const [after] = await old.query('SELECT id, declineRule FROM Messages ORDER BY id');
+	assert.equal(after.length, 4, 'rolling back drops the column and keeps the rows');
+	assert.equal(after[0].declineRule, 'test_live');
+	await old.close();
+});
+
 test('the reply-reference migration gives every existing outgoing letter a number, mailed ones a year, and adds the two rules', async () => {
 	const MIGRATION = '2026.09.24T01.00.00.pen-names-reply-reference.js';
 	const old = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });

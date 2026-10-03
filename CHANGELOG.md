@@ -8,7 +8,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
-## 2026-10-02
+## 2026-10-03
 
 ### A writer can look up which groups are not mailing their letters (#179)
 

@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-03
 
-### A split account's salt changes only with its password (#PR)
+### A split account's salt changes only with its password (#181)
 
 `PUT /auth/keys` accepted a new `kdfSalt` or `kdfParams` from a split account
 on their own. Its sign-in key is derived from the password with those two, but

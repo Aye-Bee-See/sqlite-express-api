@@ -9,7 +9,7 @@ import { threadScope, resolveWriter } from '#rtServices/scope.services.js';
 import ValidationError from '#services/ValidationError.js';
 import { isOpen, LETTER_STATUSES, RETURNED, DECLINED, PRINTED } from '#db/letter-status.js';
 import Prison from '#models/prison.model.js';
-import MailRule from '#models/mail-rule.model.js';
+import MailRule, { oneRuleChangeAtATime } from '#models/mail-rule.model.js';
 import Attachment from '#models/attachment.model.js';
 import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { sniffType } from '#services/files.js';
@@ -615,14 +615,18 @@ export default class MessageController extends RouteController {
 			}
 			if (status === DECLINED) {
 				MessageController.#requireDecliner(chapterId, [message]);
-				await MessageController.#requireFacilityRule(reason, rule, [message]);
 			}
 			const from = message.status;
-			const updated = await Message.changeStatus(message, status, req.user.id, {
-				reason,
-				note,
-				rule,
-				release
+			const updated = await MessageController.#withRuleHeld(status, reason, async () => {
+				if (status === DECLINED) {
+					await MessageController.#requireFacilityRule(reason, rule, [message]);
+				}
+				return await Message.changeStatus(message, status, req.user.id, {
+					reason,
+					note,
+					rule,
+					release
+				});
 			});
 			const why = MessageController.#whyOf(updated);
 			if (status === DECLINED) {
@@ -936,13 +940,17 @@ export default class MessageController extends RouteController {
 			const letters = wanted.map((id) => found.find((message) => message.id === id));
 			if (status === DECLINED) {
 				MessageController.#requireDecliner(chapterId, letters);
-				await MessageController.#requireFacilityRule(reason, rule, letters);
 			}
-			const moved = await Message.changeStatuses(letters, status, req.user.id, {
-				reason,
-				note,
-				rule,
-				release
+			const moved = await MessageController.#withRuleHeld(status, reason, async () => {
+				if (status === DECLINED) {
+					await MessageController.#requireFacilityRule(reason, rule, letters);
+				}
+				return await Message.changeStatuses(letters, status, req.user.id, {
+					reason,
+					note,
+					rule,
+					release
+				});
 			});
 			const ruleLabel = moved.find((m) => m.ruleLabel)?.ruleLabel;
 			const why =
@@ -1001,6 +1009,17 @@ export default class MessageController extends RouteController {
 					').'
 			);
 		}
+	}
+
+	/**
+	 * A decline for a facility's rule is checked and made in the queue rule
+	 * changes take, so the rule cannot be deleted between the check and the
+	 * move, which keeps its label on the letter (#183). Any other move runs as is.
+	 */
+	static async #withRuleHeld(status, reason, work) {
+		return status === DECLINED && reason === 'facility_rule'
+			? await oneRuleChangeAtATime(work)
+			: await work();
 	}
 
 	/**

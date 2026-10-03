@@ -205,6 +205,49 @@ test("a declined letter keeps its rule's words, whatever later happens to the ru
 	assert.equal(plain.body.data.declineRuleLabel, null);
 });
 
+test('a rule cannot be deleted between a decline naming it and the decline itself', async () => {
+	const made = await post(
+		'/prison/mail-rule',
+		{
+			tag: 'no_perfume',
+			category: 'paper_and_ink',
+			label: 'No scented paper',
+			description: 'Perfume, scented paper, or anything sprayed.'
+		},
+		f.admin
+	);
+	assert.equal(made.status, 201, JSON.stringify(made.body));
+	const carry = (mailRules) => put('/prison/prison', { id: f.prison.id, mailRules }, f.admin);
+	assert.equal(
+		(await carry(['no_stickers_or_labels', 'handwritten_only', 'no_perfume'])).status,
+		200
+	);
+	const letter = await send();
+
+	// An admin drops the rule and deletes it while the decline is between its
+	// check and its move. Both wait for the decline, so its label is kept.
+	const move = Message.changeStatuses;
+	let ruleChanges;
+	Message.changeStatuses = async function (...args) {
+		Message.changeStatuses = move;
+		ruleChanges = (async () => [
+			(await carry(['no_stickers_or_labels', 'handwritten_only'])).status,
+			(await del('/prison/mail-rule', { id: made.body.data.id }, f.admin)).status
+		])();
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		return await move.apply(this, args);
+	};
+	try {
+		const res = await decline(letter.id, { reason: 'facility_rule', rule: 'no_perfume' });
+		assert.equal(res.status, 200, JSON.stringify(res.body));
+		assert.equal(res.body.data.declineRuleLabel, 'No scented paper');
+	} finally {
+		Message.changeStatuses = move;
+	}
+	assert.deepEqual(await ruleChanges, [200, 200], 'and then the rule goes');
+	assert.equal((await Message.findByPk(letter.id)).declineRuleLabel, 'No scented paper');
+});
+
 test('only the group that relays it declines it: not a superadmin, the writer, or another group', async () => {
 	const letter = await send();
 	for (const [who, what] of [

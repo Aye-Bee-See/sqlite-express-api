@@ -79,6 +79,23 @@ export default class MailRule extends Model {
 		};
 	}
 
+	/**
+	 * The labels of these tags as they read now, retired rules included.
+	 * @param {string[]} tags
+	 * @returns {Promise<Map<string, string>>}
+	 */
+	static async labelsOf(tags, { transaction = null } = {}) {
+		if (tags.length === 0) {
+			return new Map();
+		}
+		const rows = await this.findAll({
+			attributes: ['tag', 'label'],
+			where: { tag: [...new Set(tags)] },
+			transaction
+		});
+		return new Map(rows.map((row) => [row.tag, row.label]));
+	}
+
 	/** @param {{includeRetired?: boolean}} options */
 	static async list({ includeRetired = false } = {}) {
 		const rows = await this.findAll({

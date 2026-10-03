@@ -11,8 +11,10 @@ import {
 	User,
 	Chapter,
 	Prison,
-	Message
+	Message,
+	del
 } from './helpers.js';
+import MailRule from '../database/models/mail-rule.model.js';
 import Notification from '../database/models/notification.model.js';
 import AuditLog from '../database/models/audit-log.model.js';
 
@@ -124,6 +126,126 @@ test("a facility's rule is named, and must be one that facility has", async () =
 		400,
 		'a return reason is not one'
 	);
+});
+
+test("a declined letter keeps its rule's words, whatever later happens to the rule", async () => {
+	// The writer is told the rule as the group saw it. Looking the tag up later
+	// failed once the rule was retired (writers do not see retired rules) or
+	// deleted, and a renamed rule changed what an old decline said (#183).
+	const made = await post(
+		'/prison/mail-rule',
+		{
+			tag: 'no_glitter',
+			category: 'paper_and_ink',
+			label: 'No glitter',
+			description: 'Glitter, sequins, and anything that sheds.'
+		},
+		f.admin
+	);
+	assert.equal(made.status, 201, JSON.stringify(made.body));
+	const ruleId = made.body.data.id;
+	const carry = (mailRules) => put('/prison/prison', { id: f.prison.id, mailRules }, f.admin);
+	assert.equal(
+		(await carry(['no_stickers_or_labels', 'handwritten_only', 'no_glitter'])).status,
+		200
+	);
+
+	const letter = await send();
+	const res = await decline(letter.id, { reason: 'facility_rule', rule: 'no_glitter' });
+	assert.equal(res.status, 200, JSON.stringify(res.body));
+	assert.equal(res.body.data.declineRuleLabel, 'No glitter');
+	const told = await Notification.findOne({
+		where: { userId: f.alice.id, event: 'letter.status', message: letter.id },
+		order: [['id', 'DESC']]
+	});
+	assert.deepEqual(told.detail, {
+		status: 'declined',
+		reason: 'facility_rule',
+		rule: 'no_glitter',
+		ruleLabel: 'No glitter'
+	});
+
+	// A batch says it too, once for the writer.
+	const one = await send();
+	const two = await send();
+	const batch = await put(
+		'/messaging/status/batch',
+		{ ids: [one.id, two.id], status: 'declined', reason: 'facility_rule', rule: 'no_glitter' },
+		f.chapter
+	);
+	assert.equal(batch.status, 200, JSON.stringify(batch.body));
+	const toldOnce = await Notification.findOne({
+		where: { userId: f.alice.id, event: 'letter.status' },
+		order: [['id', 'DESC']]
+	});
+	assert.equal(toldOnce.detail.ruleLabel, 'No glitter');
+	assert.equal((await Message.findByPk(two.id)).declineRuleLabel, 'No glitter');
+
+	// Renamed, retired, then dropped and deleted: the letter says what it said.
+	const renamed = await put(
+		'/prison/mail-rule',
+		{ id: ruleId, label: 'Nothing that sheds' },
+		f.admin
+	);
+	assert.equal(renamed.status, 200, JSON.stringify(renamed.body));
+	assert.equal(
+		(await put('/prison/mail-rule', { id: ruleId, retired: true }, f.admin)).status,
+		200
+	);
+	assert.equal((await carry(['no_stickers_or_labels', 'handwritten_only'])).status, 200);
+	assert.equal((await del('/prison/mail-rule', { id: ruleId }, f.admin)).status, 200);
+	assert.equal(await MailRule.count({ where: { tag: 'no_glitter' } }), 0);
+	const mine = await get('/messaging/message?id=' + letter.id, f.alice);
+	assert.equal(mine.body.data.declineRule, 'no_glitter');
+	assert.equal(mine.body.data.declineRuleLabel, 'No glitter');
+
+	// Any other decline has none.
+	const other = await send();
+	const plain = await decline(other.id, { reason: 'content' });
+	assert.equal(plain.body.data.declineRuleLabel, null);
+});
+
+test('a rule cannot be deleted between a decline naming it and the decline itself', async () => {
+	const made = await post(
+		'/prison/mail-rule',
+		{
+			tag: 'no_perfume',
+			category: 'paper_and_ink',
+			label: 'No scented paper',
+			description: 'Perfume, scented paper, or anything sprayed.'
+		},
+		f.admin
+	);
+	assert.equal(made.status, 201, JSON.stringify(made.body));
+	const carry = (mailRules) => put('/prison/prison', { id: f.prison.id, mailRules }, f.admin);
+	assert.equal(
+		(await carry(['no_stickers_or_labels', 'handwritten_only', 'no_perfume'])).status,
+		200
+	);
+	const letter = await send();
+
+	// An admin drops the rule and deletes it while the decline is between its
+	// check and its move. Both wait for the decline, so its label is kept.
+	const move = Message.changeStatuses;
+	let ruleChanges;
+	Message.changeStatuses = async function (...args) {
+		Message.changeStatuses = move;
+		ruleChanges = (async () => [
+			(await carry(['no_stickers_or_labels', 'handwritten_only'])).status,
+			(await del('/prison/mail-rule', { id: made.body.data.id }, f.admin)).status
+		])();
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		return await move.apply(this, args);
+	};
+	try {
+		const res = await decline(letter.id, { reason: 'facility_rule', rule: 'no_perfume' });
+		assert.equal(res.status, 200, JSON.stringify(res.body));
+		assert.equal(res.body.data.declineRuleLabel, 'No scented paper');
+	} finally {
+		Message.changeStatuses = move;
+	}
+	assert.deepEqual(await ruleChanges, [200, 200], 'and then the rule goes');
+	assert.equal((await Message.findByPk(letter.id)).declineRuleLabel, 'No scented paper');
 });
 
 test('only the group that relays it declines it: not a superadmin, the writer, or another group', async () => {

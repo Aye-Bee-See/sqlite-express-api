@@ -501,7 +501,7 @@ export default class Message extends Model {
 	 * trust. Every letter is checked first; then one transaction moves them, each
 	 * only if it still has the status it was checked with.
 	 * @param {Message[]} messages
-	 * @returns {Promise<{id: number, from: string}[]>}
+	 * @returns {Promise<{id: number, from: string, ruleLabel?: string}[]>}
 	 * @throws {ValidationError|HttpError} naming the first letter that cannot make the move
 	 */
 	static async changeStatuses(messages, status, changedBy = null, options = {}) {
@@ -512,7 +512,17 @@ export default class Message extends Model {
 		}));
 		const at = new Date();
 		await inTransaction(this.sequelize, async (transaction) => {
-			for (const { message, from, why } of moves) {
+			// The rule's words as the group saw them, kept with the letter (#183).
+			const labels =
+				status === DECLINED
+					? await MailRule.labelsOf(moves.map(({ why }) => why.rule).filter(Boolean), {
+							transaction
+						})
+					: new Map();
+			for (const move of moves) {
+				move.ruleLabel = move.why.rule ? (labels.get(move.why.rule) ?? null) : null;
+			}
+			for (const { message, from, why, ruleLabel } of moves) {
 				const [count] = await this.update(
 					{
 						heldReason: null,
@@ -523,6 +533,7 @@ export default class Message extends Model {
 						returnNote: status === RETURNED ? why.note : null,
 						declineReason: status === DECLINED ? why.reason : null,
 						declineRule: status === DECLINED ? why.rule : null,
+						declineRuleLabel: status === DECLINED ? ruleLabel : null,
 						declineNote: status === DECLINED ? why.note : null
 					},
 					{
@@ -577,7 +588,11 @@ export default class Message extends Model {
 				);
 			}
 		});
-		return moves.map(({ message, from }) => ({ id: message.id, from }));
+		return moves.map(({ message, from, ruleLabel }) => ({
+			id: message.id,
+			from,
+			...(ruleLabel ? { ruleLabel } : {})
+		}));
 	}
 
 	/**

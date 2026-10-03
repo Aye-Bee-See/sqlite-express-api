@@ -148,6 +148,14 @@ const messageSchema = {
 		type: DataTypes.STRING
 	},
 	/**
+	 * For a `facility_rule` decline: the rule's label as it read when the group
+	 * declined, so the writer is told the same words after the rule is renamed,
+	 * retired, or deleted. Set with the status, never directly.
+	 */
+	declineRuleLabel: {
+		type: DataTypes.STRING
+	},
+	/**
 	 * For a decline: a few words to the writer from the volunteer who made it, at
 	 * most 200 characters. Not encrypted in any mode: it says why, and must not
 	 * quote the letter.

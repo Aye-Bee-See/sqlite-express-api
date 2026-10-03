@@ -10,6 +10,25 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-03
 
+### A declined letter keeps the words of the rule it would break (#184)
+
+Closes #183. A `facility_rule` decline kept only the rule's tag, and clients
+looked its wording up in `GET /prison/mail-rules`. That list leaves out retired
+rules for writers, a rule no facility carries can be deleted outright, and a
+renamed rule changed what an old decline said. So a writer could be told "it
+would break one of the facility's mail rules" with no rule named. The letter
+now carries `declineRuleLabel`: the rule's label as it read when the group
+declined it, which stays put whatever happens to the rule afterwards. The
+`letter.status` notification for such a decline carries it too, as
+`detail.ruleLabel`. Migration `2026.10.03T01.00.00.decline-rule-label.js` fills
+it in for letters already declined, from their rule as it reads now (retired
+or not); a letter whose rule was already deleted stays `null`.
+
+**For clients:** show `declineRuleLabel` (or `detail.ruleLabel` in the
+notification) for a rule decline, rather than looking `declineRule` up in the
+mail-rule list. When it is `null`, keep the general wording without a rule
+named.
+
 ### A writer's thread shows a reply they cannot open yet (#182)
 
 In end-to-end mode a thread (`GET /chat/chat?full=true`) held only the letters

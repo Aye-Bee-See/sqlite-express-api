@@ -24,6 +24,7 @@ the read from scanning every block at each sign-in.
 **For clients:** read it at sign-in, and wherever a letter is held as
 `writer_blocked`, rather than relying on having seen the feed entry. It also
 makes a "Groups not mailing your letters" settings page possible.
+
 ### The inbox says whether the newest letter is on hold (#178)
 
 Closes #177. `last_message` on each thread in `GET /chat/chats` now carries

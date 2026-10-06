@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
-### Invitation 409s say why (#PR)
+### Invitation 409s say why (#197)
 
 Closes #190. Three `409 InvitationError` refusals carried only a sentence, so
 their `code` was the bare `invitation`. They now carry a condition, using the

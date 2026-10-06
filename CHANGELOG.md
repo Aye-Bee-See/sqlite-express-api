@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
-### Batch status refusals name the letters in a field (#PR)
+### Batch status refusals name the letters in a field (#196)
 
 Closes #188. When `PUT /messaging/status/batch` stopped, it said which letters
 did it only inside the English sentence. Every such refusal now carries `ids`,

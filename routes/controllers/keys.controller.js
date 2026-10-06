@@ -573,13 +573,21 @@ export default class KeysController extends RouteController {
 	}
 
 	/**
-	 * PUT /auth/chapter-keys { chapter, publicKey, wrappedOrgPrivateKey, user? }:
-	 * give a group its keypair. The first member (or an admin, naming the
-	 * member) wraps the new group private key to that member.
+	 * PUT /auth/chapter-keys { chapter?, publicKey, wrappedOrgPrivateKey }:
+	 * give a group its keypair. The first member wraps the new group private
+	 * key to themselves. `chapter` defaults to the caller's own (#185).
 	 */
 	async chapterKeys(req, res, next) {
-		const { chapter: chapterId, publicKey, wrappedOrgPrivateKey } = req.body;
+		const { publicKey, wrappedOrgPrivateKey } = req.body;
+		const chapterId = req.body.chapter ?? AuthzService.chapterOf(req);
 		try {
+			if (chapterId === undefined || chapterId === null) {
+				throw new ValidationError({
+					message: 'chapter is required: this account is not a group admin of any group.',
+					field: 'chapter',
+					code: 'required'
+				});
+			}
 			const chapter = this.requireFound(await Chapter.findByPk(chapterId), 'Chapter ' + chapterId);
 			// Only a group admin of the chapter, on their own device: whoever makes a key
 			// knows it, and a superadmin must never be able to read a chapter's mail.
@@ -682,8 +690,9 @@ export default class KeysController extends RouteController {
 	}
 
 	/**
-	 * PUT /auth/member-key { chapter, user, wrappedOrgPrivateKey }: an
-	 * existing key holder (or an admin) hands the group key to a member.
+	 * PUT /auth/member-key { chapter, user, wrappedOrgPrivateKey, keyVersion }:
+	 * the group-owner admin hands the group key to a member. `keyVersion` is
+	 * required, so a copy of a key rotated away is refused, not stored (#185).
 	 */
 	async putMemberKey(req, res, next) {
 		const { chapter: chapterId, user: userId, wrappedOrgPrivateKey } = req.body;
@@ -719,9 +728,7 @@ export default class KeysController extends RouteController {
 			// a client that says which version it wrapped is told when that is stale.
 			await withGroupKeyLock(async () => {
 				const current = await this.#ownerNow(req, chapter.id);
-				if (req.body.keyVersion !== undefined) {
-					KeysController.requireCurrentGroupKey(current, req.body.keyVersion, 'keyVersion');
-				}
+				KeysController.requireCurrentGroupKey(current, req.body.keyVersion, 'keyVersion');
 				await OrgMemberKey.put({
 					chapterId: chapter.id,
 					userId: member.id,
@@ -963,7 +970,10 @@ export default class KeysController extends RouteController {
 		return { envelopes, writers };
 	}
 
-	/** Only a member who holds the group key can rotate it: an admin cannot open what must be re-sealed. */
+	/**
+	 * Only the group-owner admin rotates the key (decided 22 September 2026, #115):
+	 * a superadmin could not open what must be re-sealed in any case.
+	 */
 	async #requireRotator(req, chapter) {
 		await this.#requireOwner(req, chapter);
 		if (!(await OrgMemberKey.forMember(chapter.id, req.user.id))) {

@@ -10,6 +10,25 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
+### Group key calls match the README: a default group, a required key version, owner-only rotation (#193)
+
+Closes #185. Three places where the README and the code disagreed:
+
+- `PUT /auth/chapter-keys` refused a body without `chapter`, which the README
+  never mentioned. It now defaults to the caller's own group. A superadmin
+  belongs to none, so for them it is still required (a `400`).
+- `PUT /auth/member-key` skipped the stale-key check when `keyVersion` was
+  missing, so a group key copy sealed under a key that had since been rotated
+  away could be stored silently, and the admin given it would open nothing
+  new. `keyVersion` is now required (a `400` with `field: "keyVersion"`), as
+  `orgKeyVersion` already is when a group gives a managed writer keys.
+- Rotation is the group-owner admin's alone, as decided on 22 September and
+  as the code always did. The README said any key holder could rotate; it is
+  corrected.
+
+**For clients:** nothing to change. All three clients already send `chapter`
+and `keyVersion`. A new client may leave `chapter` out.
+
 ### A group cannot choose its own voucher or publish its own record (#192)
 
 Closes #189. `PUT /chapter/chapter` refused `accountStatus` from a group

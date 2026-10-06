@@ -217,6 +217,7 @@ test('a group gets a keypair and hands it to members one by one', async () => {
 		{
 			chapter: f.group.id,
 			user: second.id,
+			keyVersion: 1,
 			wrappedOrgPrivateKey: client.seal(secondKeys.publicKey, orgPriv)
 		},
 		member

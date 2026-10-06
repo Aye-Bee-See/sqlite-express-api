@@ -54,7 +54,14 @@ test('a superadmin cannot make a chapter key; the group admin who does becomes t
 	assert.match(bySuperadmin.body.info, /superadmin cannot/);
 	assert.equal((await Chapter.findByPk(f.group.id)).publicKey, null);
 
-	const set = await put('/auth/chapter-keys', body, owner);
+	// A superadmin belongs to no group, so naming none is a 400 for them.
+	const unnamed = { publicKey: body.publicKey, wrappedOrgPrivateKey: body.wrappedOrgPrivateKey };
+	const nowhere = await put('/auth/chapter-keys', unnamed, f.admin);
+	assert.equal(nowhere.status, 400, JSON.stringify(nowhere.body));
+	assert.deepEqual(nowhere.body.problems, [{ field: 'chapter', code: 'required' }]);
+
+	// A group admin may leave `chapter` out: it is their own group (#185).
+	const set = await put('/auth/chapter-keys', unnamed, owner);
 	assert.equal(set.status, 200, JSON.stringify(set.body));
 	assert.equal(set.body.data.owner, owner.id);
 	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, owner.id);
@@ -102,6 +109,15 @@ test('group admins with keys and no copy of the chapter key are listed as waitin
 });
 
 test('only the group-owner admin hands the key over, takes it away, or rotates; a holder who is not the owner cannot', async () => {
+	// Without saying which version of the group key it sealed, it is refused (#185).
+	const unversioned = await put(
+		'/auth/member-key',
+		{ chapter: f.group.id, user: second.id, wrappedOrgPrivateKey: wrappedFor(second) },
+		owner
+	);
+	assert.equal(unversioned.status, 400, JSON.stringify(unversioned.body));
+	assert.deepEqual(unversioned.body.problems, [{ field: 'keyVersion', code: 'required' }]);
+
 	// The owner hands the key to second.
 	const handed = await put(
 		'/auth/member-key',

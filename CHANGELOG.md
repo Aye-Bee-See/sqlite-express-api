@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
-### Managed writers: the README matches the code, and keying a writer says what it caught up (#PR)
+### Managed writers: the README matches the code, and keying a writer says what it caught up (#194)
 
 Closes #186. When a group gives an unclaimed writer their first keys through
 `PUT /auth/user`, the server seals the writer's server-held letters to them,

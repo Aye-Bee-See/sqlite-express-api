@@ -462,17 +462,20 @@ export default class Message extends Model {
 				? 'Letter ' + message.id + ': ' + sentence[0].toLowerCase() + sentence.slice(1)
 				: sentence;
 		if (!canTransition(message.status, status)) {
-			throw new HttpError(
+			const err = new HttpError(
 				409,
 				say('A ' + message.status + ' letter cannot move to ' + status + '.'),
 				'LetterStatusError'
 			);
+			err.condition = 'not_allowed';
+			err.ids = [message.id];
+			throw err;
 		}
 		// Declining a held letter needs no release: not sending it is the safe way round.
 		if (message.heldReason && release !== true && status !== DECLINED) {
 			// Held because the person was moved or freed after it was written. Whoever
 			// prints it anyway says so, so that it is a decision and not an oversight.
-			throw new HttpError(
+			const err = new HttpError(
 				409,
 				say(
 					'This letter is held (' +
@@ -481,6 +484,10 @@ export default class Message extends Model {
 				),
 				'LetterHeldError'
 			);
+			// Why it is held, as on the letter: the client words it from that.
+			err.condition = message.heldReason;
+			err.ids = [message.id];
+			throw err;
 		}
 		return why;
 	}
@@ -557,6 +564,7 @@ export default class Message extends Model {
 						'LetterStatusError'
 					);
 					err.condition = 'changed_meanwhile';
+					err.ids = [message.id];
 					throw err;
 				}
 				await MessageStatus.create(

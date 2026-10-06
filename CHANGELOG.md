@@ -10,6 +10,30 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
+### Batch status refusals name the letters in a field (#196)
+
+Closes #188. When `PUT /messaging/status/batch` stopped, it said which letters
+did it only inside the English sentence. Every such refusal now carries `ids`,
+the letters it is about, and a `condition` where it had none:
+
+- `409` `letter_status.not_allowed` (was `letter_status`): the lifecycle does
+  not allow the move.
+- `409` `letter_held.<heldReason>` (was `letter_held`): a held letter without
+  `release`.
+- `403` `authorization.not_yours` (was `authorization`): not the caller's to
+  move or decline.
+- `404` `not_found`, and the `changed_meanwhile` `409`, gain `ids` only.
+- A `facility_rule` decline naming a rule the facility lacks puts the letters
+  in `problems[0].params.ids`.
+
+`PUT /messaging/status` sends the same, naming its one letter. `ids` is a
+general field of the error body, so other refusals may carry it later.
+
+**For clients:** highlight the rows in `ids` rather than reading numbers out of
+the sentence. Nothing breaks: `name` is unchanged, and the new conditions only
+extend `code` past its family. A check that reads "any condition other than
+`changed_meanwhile` is not changed-meanwhile", as both apps do, stays right.
+
 ### Group screens get the writer's pen name on threads, and their public key with a reply reference (#195)
 
 Closes #187. `user_details` on `GET /chat/chats` and `GET /chat/chat` now

@@ -60,6 +60,11 @@ export default class ErrorService {
 				body.condition = condition;
 			}
 		}
+		if (status < 500 && err && Array.isArray(err.ids)) {
+			// The records a refusal is about (a batch names the letters that stopped it),
+			// so a client need not read them out of the sentence (#188).
+			body.ids = err.ids;
+		}
 		if (status === 400) {
 			// A 400 always carries problems, even when it was thrown as an HttpError
 			// rather than a ValidationError: clients read one shape (README, "Errors").

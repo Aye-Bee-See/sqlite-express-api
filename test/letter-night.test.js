@@ -111,6 +111,9 @@ test('all or none: one letter that cannot move stops the whole batch, and says w
 	);
 	assert.equal(res.status, 409);
 	assert.equal(res.body.name, 'LetterStatusError');
+	// Named in fields as well as in the sentence (#188).
+	assert.deepEqual(res.body.ids, [already.id]);
+	assert.equal(res.body.code, 'letter_status.not_allowed');
 	assert.match(
 		res.body.error,
 		new RegExp('^Letter ' + already.id + ': a printed letter cannot move to printed')
@@ -137,12 +140,23 @@ test("a batch holding somebody else's letter, or one that does not exist, moves 
 	);
 	assert.equal(foreign.status, 403);
 	assert.match(JSON.stringify(foreign.body), new RegExp('letter ' + theirs.id));
+	assert.deepEqual(foreign.body.ids, [theirs.id]);
+	assert.equal(foreign.body.code, 'authorization.not_yours');
+	// One letter at a time says the same.
+	const one = await put('/messaging/status', { id: theirs.id, status: 'printed' }, f.chapter);
+	assert.equal(one.status, 403, JSON.stringify(one.body));
+	assert.equal(one.body.code, 'authorization.not_yours');
+	assert.deepEqual(one.body.ids, [theirs.id]);
+	const gone = await put('/messaging/status', { id: String(987654), status: 'printed' }, f.chapter);
+	assert.equal(gone.status, 404, JSON.stringify(gone.body));
+	assert.deepEqual(gone.body.ids, [987654]);
 	const missing = await put(
 		'/messaging/status/batch',
 		{ ids: [mine.id, 987654], status: 'printed' },
 		f.chapter
 	);
 	assert.equal(missing.status, 404);
+	assert.deepEqual(missing.body.ids, [987654]);
 	assert.equal(
 		(await put('/messaging/status/batch', { ids: [mine.id], status: 'printed' }, f.alice)).status,
 		403
@@ -231,6 +245,8 @@ test('returns and held letters keep their rules in a batch', async () => {
 	);
 	assert.equal(blind.status, 409);
 	assert.equal(blind.body.name, 'LetterHeldError');
+	assert.deepEqual(blind.body.ids, [held.id]);
+	assert.equal(blind.body.condition, 'prisoner_free', 'why it is held, as on the letter');
 	assert.deepEqual(await statuses([held.id, free.id]), ['queued', 'queued']);
 	const knowing = await put(
 		'/messaging/status/batch',
@@ -266,6 +282,7 @@ test('a letter that changes between the check and the move stops the batch', asy
 	}
 	assert.equal(res.status, 409, JSON.stringify(res.body));
 	assert.match(res.body.error, /changed by someone else meanwhile; nothing was moved/);
+	assert.deepEqual(res.body.ids, [two.id]);
 	assert.deepEqual(await statuses([one.id]), ['queued'], 'the first letter was rolled back');
 	assert.equal((await MessageStatus.historyFor(one.id)).length, 1);
 });

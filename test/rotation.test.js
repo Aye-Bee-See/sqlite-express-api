@@ -122,6 +122,7 @@ before(async () => {
 			{
 				chapter: f.group.id,
 				user: who.id,
+				keyVersion: 1,
 				wrappedOrgPrivateKey: client.seal(keys[name].publicKey, bytes(oldGroup.privateKey))
 			},
 			first
@@ -575,7 +576,12 @@ test('two removals at once cannot leave the group without a holder', async () =>
 	for (const who of [first, second]) {
 		const res = await put(
 			'/auth/member-key',
-			{ chapter: f.group.id, user: who.id, wrappedOrgPrivateKey: 'sealed' },
+			{
+				chapter: f.group.id,
+				user: who.id,
+				keyVersion: (await Chapter.findByPk(f.group.id)).keyVersion,
+				wrappedOrgPrivateKey: 'sealed'
+			},
 			first
 		);
 		assert.equal(res.status, 200, JSON.stringify(res.body));

@@ -690,6 +690,8 @@ code = family + ("." + condition, when the refusal has one)
 
 `family` is the error's `name` in snake_case with `Error` dropped, so `InviteCodeError` with `condition: "used"` is `code: "invite_code.used"`, and a plain `NotFoundError` is `code: "not_found"`. The condition is whichever `condition` the answer carries, the error's own or the endpoint's (`GET /auth/user?id=` that finds nobody is `not_found.id`), so `code` never disagrees with `condition`. A body the server cannot read at all is `request_body` with `not_json`, `too_large`, `unsupported_encoding`, `unsupported_charset`, `too_many_parameters` or `unreadable`. Every family is listed in [docs/ERRORS.md](docs/ERRORS.md). **Match the whole code, or just the family before the dot**: a refusal may grow a finer `condition` in a later release, and a build that matched the family keeps working.
 
+**`ids`**, when present, lists the records the refusal is about, so a client can mark them without reading the sentence. A batch sends it: the letters that stopped `PUT /messaging/status/batch`.
+
 `name` and `condition` are still sent, and are not going away; `code` is an addition. A `5xx` is a fault rather than a refusal and carries no `code`. A `400` about a field answers with `problems` instead (above), so every refusal has exactly one thing to key on.
 
 ```json
@@ -2336,7 +2338,18 @@ For letter nights: a group prints thirty letters and marks them in one request.
 
 Body: `{"ids": [41, 42, 43], "status": "printed"}`, with `reason`, `note` and `rule` for `returned` and `declined`, and `release` for held letters, exactly as on `PUT /messaging/status`. A declined batch is one `letter.decline` audit entry naming every letter. `ids` is 1 to 200 different letter ids.
 
-**All or none.** Every letter is checked first (it exists, the caller is its relay group or an admin, the lifecycle allows the move, it is not held); then one transaction moves them all. If any letter cannot move, nothing is changed, and the error says which: `"Letter 42: a printed letter cannot move to printed."` (`409`), `403` naming the letters that are not the caller's to move, `404` naming the ones that do not exist. A letter somebody else changed in the same moment stops the batch too (`409`, "nothing was moved").
+**All or none.** Every letter is checked first (it exists, the caller is its relay group or an admin, the lifecycle allows the move, it is not held); then one transaction moves them all. If any letter cannot move, nothing is changed, and the error says which, both in the sentence and in `ids` (see [General errors](#general-errors)):
+
+| Status | `code`                                                                                        | `ids`                                          |
+| ------ | --------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `409`  | `letter_status.not_allowed`: the lifecycle does not allow the move                            | the first letter that cannot move              |
+| `409`  | `letter_held.<why>`: a held letter without `release` (`why` is its `heldReason`)              | that letter                                    |
+| `409`  | `letter_status.changed_meanwhile`: somebody else changed it in the same moment                | that letter                                    |
+| `403`  | `authorization.not_yours`: not the caller's to move (or, declining, not their group's letter) | every such letter                              |
+| `404`  | `not_found`                                                                                   | every id that does not exist                   |
+| `400`  | `not_eligible` on `rule`: a `facility_rule` decline naming a rule the facility lacks          | in `problems[0].params.ids`, every such letter |
+
+`PUT /messaging/status` sends the same codes, with `ids` naming its one letter.
 
 ```json
 {

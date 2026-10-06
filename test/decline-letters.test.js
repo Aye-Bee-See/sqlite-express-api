@@ -102,7 +102,9 @@ test("a facility's rule is named, and must be one that facility has", async () =
 
 	const notTheirs = await decline(letter.id, { reason: 'facility_rule', rule: 'postcards_only' });
 	assert.equal(notTheirs.status, 400);
-	assert.deepEqual(notTheirs.body.problems, [{ field: 'rule', code: 'not_eligible' }]);
+	assert.deepEqual(notTheirs.body.problems, [
+		{ field: 'rule', code: 'not_eligible', params: { ids: [letter.id] } }
+	]);
 
 	const typed = await decline(letter.id, {
 		reason: 'facility_rule',
@@ -285,7 +287,8 @@ test('a printed letter, a paper one, or a held one can be declined; a mailed one
 	await put('/messaging/status', { id: mailed.id, status: 'mailed' }, f.chapter);
 	const late = await decline(mailed.id, { reason: 'content' });
 	assert.equal(late.status, 409, JSON.stringify(late.body));
-	assert.equal(late.body.code, 'letter_status');
+	assert.equal(late.body.code, 'letter_status.not_allowed');
+	assert.deepEqual(late.body.ids, [mailed.id]);
 });
 
 test('the writer may write it again, pointing at the letter it replaces', async () => {

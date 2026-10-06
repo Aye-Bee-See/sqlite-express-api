@@ -924,7 +924,9 @@ export default class MessageController extends RouteController {
 			const found = await Message.findAll({ where: { id: wanted }, hooks: false });
 			const missing = wanted.filter((id) => !found.some((message) => message.id === id));
 			if (missing.length > 0) {
-				throw new NotFoundError('Message ' + missing.join(', ') + ' not found');
+				const err = new NotFoundError('Message ' + missing.join(', ') + ' not found');
+				err.ids = missing;
+				throw err;
 			}
 			const chapterId = await AuthzService.activeChapterOf(req);
 			if (!AuthzService.isAdmin(req)) {
@@ -933,10 +935,14 @@ export default class MessageController extends RouteController {
 				}
 				const foreign = found.filter((m) => !chapterId || m.relayChapter !== chapterId);
 				if (foreign.length > 0) {
-					throw AuthzService.forbidden(
-						'Only the relay group or an admin can change a letter status (letter ' +
-							foreign.map((m) => m.id).join(', ') +
-							').'
+					throw MessageController.#naming(
+						AuthzService.forbidden(
+							'Only the relay group or an admin can change a letter status (letter ' +
+								foreign.map((m) => m.id).join(', ') +
+								').'
+						),
+						'not_yours',
+						foreign
 					);
 				}
 			}
@@ -998,6 +1004,13 @@ export default class MessageController extends RouteController {
 		return clean;
 	}
 
+	/** A refusal about some of the letters asked for, naming them for the client (#188). */
+	static #naming(err, condition, letters) {
+		err.condition = condition;
+		err.ids = letters.map((m) => m.id);
+		return err;
+	}
+
 	/**
 	 * Declining is the group's own decision about a letter it relays: its group
 	 * admins read the letter with the group's key. A superadmin holds no key, so
@@ -1007,10 +1020,14 @@ export default class MessageController extends RouteController {
 	static #requireDecliner(chapterId, letters) {
 		const foreign = letters.filter((m) => !chapterId || m.relayChapter !== chapterId);
 		if (foreign.length > 0) {
-			throw AuthzService.forbidden(
-				'Only a group admin of the group that relays it can decline a letter (letter ' +
-					foreign.map((m) => m.id).join(', ') +
-					').'
+			throw MessageController.#naming(
+				AuthzService.forbidden(
+					'Only a group admin of the group that relays it can decline a letter (letter ' +
+						foreign.map((m) => m.id).join(', ') +
+						').'
+				),
+				'not_yours',
+				foreign
 			);
 		}
 	}
@@ -1059,7 +1076,8 @@ export default class MessageController extends RouteController {
 					rule.trim() +
 					'". Name one of its own rules, or decline for another reason.',
 				field: 'rule',
-				code: 'not_eligible'
+				code: 'not_eligible',
+				params: { ids: without.map((m) => m.id) }
 			});
 		}
 	}

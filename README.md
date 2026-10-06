@@ -1236,6 +1236,16 @@ Body: `{"name": "Sam", "email": "sam@example.com", "managerNote": "Comes on Tues
 
 Returns `201` with the new user record.
 
+In end-to-end mode (the default), the group's browser makes the writer's keypair first and sends it with the rest:
+
+```bash
+curl -s -X POST http://localhost:3000/auth/writer \
+  -H "Authorization: Bearer $CHAPTER_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Sam","managerNote":"Comes on Tuesdays","publicKey":"…","orgWrappedPrivateKey":"…","orgKeyVersion":1}'
+```
+
+In server mode the key fields are left out:
+
 ```bash
 curl -s -X POST http://localhost:3000/auth/writer \
   -H "Authorization: Bearer $CHAPTER_TOKEN" -H 'Content-Type: application/json' \

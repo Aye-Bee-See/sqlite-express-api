@@ -65,6 +65,85 @@ test('groups carry a network role and an account status with defaults', async ()
 	assert.equal(pub.body.data.networkRole, 'relay');
 });
 
+test('a group cannot choose its own voucher or publish its own record', async () => {
+	// The invitation names who vouched for a group, and a superadmin decides
+	// whether its record is public; the group cannot undo either afterwards (#189).
+	await Chapter.update({ recordStatus: 'pending' }, { where: { id: f.group.id } });
+	const stored = await Chapter.findByPk(f.group.id);
+	for (const [field, value] of [
+		['vouchedBy', pendingGroup.id],
+		['recordStatus', 'published']
+	]) {
+		const res = await put('/chapter/chapter', { id: f.group.id, [field]: value }, chapter);
+		assert.equal(res.status, 403, field + ': ' + JSON.stringify(res.body));
+		assert.match(res.body.info, /Only an admin/);
+		const made = await post(
+			'/chapter/chapter',
+			{ name: 'Self-made ' + field, location: {}, [field]: value },
+			chapter
+		);
+		assert.equal(made.status, 403, 'nor on a group it creates: ' + field);
+	}
+	const after = await Chapter.findByPk(f.group.id);
+	assert.equal(after.vouchedBy, stored.vouchedBy);
+	assert.equal(after.recordStatus, 'pending');
+
+	// Saving the whole record back, with those fields as they are, is fine.
+	const roundTrip = await put(
+		'/chapter/chapter',
+		{
+			id: f.group.id,
+			about: 'Saved from the settings page',
+			vouchedBy: stored.vouchedBy,
+			recordStatus: stored.recordStatus,
+			accountStatus: stored.accountStatus
+		},
+		chapter
+	);
+	assert.equal(roundTrip.status, 200, JSON.stringify(roundTrip.body));
+	const alone = await put(
+		'/chapter/chapter',
+		{ id: f.group.id, recordStatus: stored.recordStatus },
+		chapter
+	);
+	assert.equal(alone.status, 200, 'even with nothing else in it: ' + JSON.stringify(alone.body));
+
+	// ...and does not put back a value an admin changed after it was read.
+	const write = Chapter.updateChapter;
+	Chapter.updateChapter = async function (...args) {
+		Chapter.updateChapter = write;
+		await Chapter.update({ recordStatus: 'draft' }, { where: { id: f.group.id } });
+		return await write.apply(this, args);
+	};
+	try {
+		const stale = await put(
+			'/chapter/chapter',
+			{ id: f.group.id, about: 'Saved again', recordStatus: stored.recordStatus },
+			chapter
+		);
+		assert.equal(stale.status, 200, JSON.stringify(stale.body));
+	} finally {
+		Chapter.updateChapter = write;
+	}
+	assert.equal(
+		(await Chapter.findByPk(f.group.id)).recordStatus,
+		'draft',
+		"the admin's change stands"
+	);
+	await Chapter.update({ recordStatus: stored.recordStatus }, { where: { id: f.group.id } });
+
+	// An admin sets them.
+	const byAdmin = await put(
+		'/chapter/chapter',
+		{ id: f.group.id, vouchedBy: pendingGroup.id, recordStatus: 'published' },
+		admin
+	);
+	assert.equal(byAdmin.status, 200, JSON.stringify(byAdmin.body));
+	const done = await Chapter.findByPk(f.group.id);
+	assert.deepEqual([done.vouchedBy, done.recordStatus], [pendingGroup.id, 'published']);
+	await Chapter.update({ vouchedBy: stored.vouchedBy }, { where: { id: f.group.id } });
+});
+
 test('only an admin sets account status; a chapter-created group starts pending', async () => {
 	const own = await post('/chapter/chapter', { name: 'Sister Group', location: {} }, chapter);
 	assert.equal(own.status, 201);

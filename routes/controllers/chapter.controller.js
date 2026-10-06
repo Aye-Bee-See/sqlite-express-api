@@ -39,6 +39,18 @@ const READ_CONFIG = {
 	}
 };
 
+/**
+ * What a superadmin decides about a group, never the group itself: whether it
+ * is in the network, who vouched for it, and whether its record is public.
+ * (An invitation names the voucher at acceptance; a group could otherwise
+ * choose its own afterwards. #189)
+ */
+const ADMIN_ONLY = {
+	accountStatus: "Only an admin can set a group's account status.",
+	vouchedBy: 'Only an admin can say which group vouched for a group.',
+	recordStatus: "Only an admin can set a group's record status."
+};
+
 /** Group key state: written only by the key endpoints under /auth. */
 const KEY_STATE = ['publicKey', 'keyVersion', 'keyRotatedAt'];
 const KEY_STATE_REFUSAL =
@@ -75,8 +87,9 @@ export default class chapterController extends RouteController {
 		if (KEY_STATE.some((f) => req.body[f] !== undefined)) {
 			return next(AuthzService.forbidden(KEY_STATE_REFUSAL));
 		}
-		if (req.body.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
-			return next(AuthzService.forbidden("Only an admin can set a group's account status."));
+		const adminOnly = chapterController.#adminOnlyRefusal(req, req.body, null);
+		if (adminOnly) {
+			return next(adminOnly);
 		}
 		try {
 			const chapter = await Chapter.createChapter(req.body);
@@ -156,6 +169,27 @@ export default class chapterController extends RouteController {
 	}
 
 	/** Non-admins may only change or delete the group they belong to. */
+	/**
+	 * A non-admin may not set an ADMIN_ONLY field. On an update, sending back the
+	 * value already stored is not setting it (a client that saves the whole record).
+	 * @returns {Error|null} the 403, or null
+	 */
+	static #adminOnlyRefusal(req, fields, stored) {
+		if (AuthzService.isAdmin(req)) {
+			return null;
+		}
+		for (const [field, refusal] of Object.entries(ADMIN_ONLY)) {
+			if (fields[field] === undefined) {
+				continue;
+			}
+			if (stored && String(fields[field] ?? '') === String(stored[field] ?? '')) {
+				continue;
+			}
+			return AuthzService.forbidden(refusal);
+		}
+		return null;
+	}
+
 	#ownGroupOnly(req, id) {
 		if (AuthzService.isAdmin(req) || String(AuthzService.chapterOf(req)) === String(id)) {
 			return null;
@@ -168,15 +202,14 @@ export default class chapterController extends RouteController {
 		if (KEY_STATE.some((f) => newChapter[f] !== undefined)) {
 			return next(AuthzService.forbidden(KEY_STATE_REFUSAL));
 		}
-		if (newChapter.accountStatus !== undefined && !AuthzService.isAdmin(req)) {
-			return next(AuthzService.forbidden("Only an admin can set a group's account status."));
-		}
-		const refusal = this.#ownGroupOnly(req, newChapter.id);
-		if (refusal) {
-			return next(refusal);
-		}
 		try {
 			const was = await Chapter.findByPk(newChapter.id);
+			const refusal =
+				chapterController.#adminOnlyRefusal(req, newChapter, was) ||
+				this.#ownGroupOnly(req, newChapter.id);
+			if (refusal) {
+				return next(refusal);
+			}
 			const updatedRows = await Chapter.updateChapter(newChapter);
 			this.requireAffected(updatedRows, 'Chapter ' + newChapter.id);
 			await audit(req, 'chapter.update', 'chapter', newChapter.id, {

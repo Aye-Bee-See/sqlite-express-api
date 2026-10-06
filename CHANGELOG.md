@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
-### Group key calls match the README: a default group, a required key version, owner-only rotation (#PR)
+### Group key calls match the README: a default group, a required key version, owner-only rotation (#193)
 
 Closes #185. Three places where the README and the code disagreed:
 

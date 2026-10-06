@@ -2845,7 +2845,7 @@ curl -s -X POST http://localhost:3000/invitation/invitation \
 | `inviteeEmail`, `note` | Optional, private to the inviting group and admins.                                                                                                                    |
 | `chapter`              | Admins only: the vouching group (`group`; may be omitted, so nobody vouches) or the group being joined (`member`; required). A group always invites on its own behalf. |
 
-Returns `201` with the invitation and `token`. The token appears in this response and in the renew response, nowhere else. Only a member of an **active** group can invite (`403` otherwise), and an admin cannot make a pending or suspended group vouch (`409`). List rows carry `state`: `pending`, `expired`, `accepted`, or `revoked`; filter with `status`, `kind`, and (admin) `chapter`.
+Returns `201` with the invitation and `token`. The token appears in this response and in the renew response, nowhere else. Only a member of an **active** group can invite (`403` otherwise), and an admin cannot make a pending or suspended group vouch (`409`, `code: "invitation.inactive"`, the same as accepting through a group that is no longer active). Renewing (`PUT`) or withdrawing (`DELETE`) works only on a pending invitation, expired or not. Otherwise it is a `409` whose condition is what the invitation is now, `accepted` or `revoked` (`code: "invitation.accepted"`), the same words accepting it would get. List rows carry `state`: `pending`, `expired`, `accepted`, or `revoked`; filter with `status`, `kind`, and (admin) `chapter`.
 
 #### GET /invitation/invitation?token=
 

@@ -10,6 +10,22 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
+### Invitation 409s say why (#PR)
+
+Closes #190. Three `409 InvitationError` refusals carried only a sentence, so
+their `code` was the bare `invitation`. They now carry a condition, using the
+same words the accept path already uses:
+
+- Making a pending or suspended group vouch: `invitation.inactive`, as when an
+  invitation is accepted through a group that is no longer active.
+- Renewing or withdrawing an invitation that is no longer pending:
+  `invitation.accepted` or `invitation.revoked`, whichever it is now. The status
+  is read again at the refusal, so a race reports what actually happened.
+  An expired invitation is still pending, and can still be renewed or withdrawn.
+
+**For clients:** word these from `code`, as for accepting. A client matching
+the family `invitation` keeps working.
+
 ### Batch status refusals name the letters in a field (#196)
 
 Closes #188. When `PUT /messaging/status/batch` stopped, it said which letters

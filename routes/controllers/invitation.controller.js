@@ -7,7 +7,7 @@ import Chapter from '#models/chapter.model.js';
 import User from '#models/user.model.js';
 import { RESOURCES } from '#models/submission.model.js';
 import ValidationError from '#services/ValidationError.js';
-import { HttpError } from '#services/HttpError.js';
+import { HttpError, NotFoundError } from '#services/HttpError.js';
 import { audit } from '#rtServices/audit.services.js';
 import { INVITATION_KINDS, INVITATION_STATUSES } from '#schemas/invitation.schema.js';
 import { invitationAutoActivate } from '#constants';
@@ -108,11 +108,14 @@ export default class InvitationController extends RouteController {
 					'Chapter ' + chapterId
 				);
 				if (chapter.accountStatus !== 'active') {
-					throw new HttpError(
+					const err = new HttpError(
 						409,
 						'Chapter ' + chapter.id + ' is not an active member of the network.',
 						'InvitationError'
 					);
+					// The same condition as accepting through a group that is no longer active.
+					err.condition = 'inactive';
+					throw err;
 				}
 			}
 			const { invitation, token } = await Invitation.issue({
@@ -245,11 +248,7 @@ export default class InvitationController extends RouteController {
 			const invitation = await this.#managed(req, req.body.id);
 			const renewed = await Invitation.renew(invitation.id);
 			if (!renewed) {
-				throw new HttpError(
-					409,
-					'Only a pending invitation can be renewed; this one is ' + invitation.status + '.',
-					'InvitationError'
-				);
+				throw await InvitationController.#notPending(invitation.id, 'renewed');
 			}
 			await audit(req, 'invitation.renew', 'invitation', invitation.id);
 			this.#handleSuccess(
@@ -261,16 +260,33 @@ export default class InvitationController extends RouteController {
 		}
 	}
 
+	/**
+	 * The 409 for renewing or withdrawing an invitation that is no longer pending.
+	 * Its status is read again, so a race reports what happened, not what was
+	 * read before it; the condition is that status (`accepted`, `revoked`), the
+	 * same words accepting it would say (#190).
+	 */
+	static async #notPending(id, verb) {
+		const now = await Invitation.findByPk(id, { attributes: ['id', 'status'] });
+		if (!now) {
+			return new NotFoundError('Invitation ' + id + ' not found');
+		}
+		const status = now.status;
+		const err = new HttpError(
+			409,
+			'Only a pending invitation can be ' + verb + '; this one is ' + status + '.',
+			'InvitationError'
+		);
+		err.condition = status;
+		return err;
+	}
+
 	/** DELETE /invitation/invitation { id }: withdraw a pending invitation. */
 	async remove(req, res, next) {
 		try {
 			const invitation = await this.#managed(req, req.body.id);
 			if (!(await Invitation.revoke(invitation.id))) {
-				throw new HttpError(
-					409,
-					'Only a pending invitation can be withdrawn; this one is ' + invitation.status + '.',
-					'InvitationError'
-				);
+				throw await InvitationController.#notPending(invitation.id, 'withdrawn');
 			}
 			await audit(req, 'invitation.revoke', 'invitation', invitation.id);
 			this.#handleSuccess(

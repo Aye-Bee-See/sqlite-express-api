@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
-### Group screens get the writer's pen name on threads, and their public key with a reply reference (#PR)
+### Group screens get the writer's pen name on threads, and their public key with a reply reference (#195)
 
 Closes #187. `user_details` on `GET /chat/chats` and `GET /chat/chat` now
 carries `penName`. A group's thread list showed the writer's account name

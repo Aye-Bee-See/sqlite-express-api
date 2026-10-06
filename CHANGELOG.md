@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
-### A group cannot choose its own voucher or publish its own record (#PR)
+### A group cannot choose its own voucher or publish its own record (#192)
 
 Closes #189. `PUT /chapter/chapter` refused `accountStatus` from a group
 account but not `vouchedBy` or `recordStatus`. A group admin could therefore

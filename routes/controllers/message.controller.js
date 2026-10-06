@@ -605,7 +605,12 @@ export default class MessageController extends RouteController {
 	async updateStatus(req, res, next) {
 		const { id, status, reason, note, rule, release } = req.body;
 		try {
-			const message = this.requireFound(await Message.getMessageByID(id), 'Message ' + id);
+			const message = await Message.getMessageByID(id);
+			if (!message) {
+				const err = new NotFoundError('Message ' + id + ' not found');
+				err.ids = [Number.isSafeInteger(Number(id)) ? Number(id) : id];
+				throw err;
+			}
 			const chapterId = await AuthzService.activeChapterOf(req);
 			const mayChange =
 				AuthzService.isAdmin(req) || (chapterId && message.relayChapter === chapterId);
@@ -613,8 +618,10 @@ export default class MessageController extends RouteController {
 				throw await AuthzService.groupRefusal(req);
 			}
 			if (!mayChange) {
-				throw AuthzService.forbidden(
-					'Only the relay group or an admin can change a letter status.'
+				throw MessageController.#naming(
+					AuthzService.forbidden('Only the relay group or an admin can change a letter status.'),
+					'not_yours',
+					[message]
 				);
 			}
 			if (status === DECLINED) {

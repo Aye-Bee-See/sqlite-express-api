@@ -142,6 +142,14 @@ test("a batch holding somebody else's letter, or one that does not exist, moves 
 	assert.match(JSON.stringify(foreign.body), new RegExp('letter ' + theirs.id));
 	assert.deepEqual(foreign.body.ids, [theirs.id]);
 	assert.equal(foreign.body.code, 'authorization.not_yours');
+	// One letter at a time says the same.
+	const one = await put('/messaging/status', { id: theirs.id, status: 'printed' }, f.chapter);
+	assert.equal(one.status, 403, JSON.stringify(one.body));
+	assert.equal(one.body.code, 'authorization.not_yours');
+	assert.deepEqual(one.body.ids, [theirs.id]);
+	const gone = await put('/messaging/status', { id: String(987654), status: 'printed' }, f.chapter);
+	assert.equal(gone.status, 404, JSON.stringify(gone.body));
+	assert.deepEqual(gone.body.ids, [987654]);
 	const missing = await put(
 		'/messaging/status/batch',
 		{ ids: [mine.id, 987654], status: 'printed' },

@@ -101,6 +101,36 @@ test('a group cannot choose its own voucher or publish its own record', async ()
 		chapter
 	);
 	assert.equal(roundTrip.status, 200, JSON.stringify(roundTrip.body));
+	const alone = await put(
+		'/chapter/chapter',
+		{ id: f.group.id, recordStatus: stored.recordStatus },
+		chapter
+	);
+	assert.equal(alone.status, 200, 'even with nothing else in it: ' + JSON.stringify(alone.body));
+
+	// ...and does not put back a value an admin changed after it was read.
+	const write = Chapter.updateChapter;
+	Chapter.updateChapter = async function (...args) {
+		Chapter.updateChapter = write;
+		await Chapter.update({ recordStatus: 'draft' }, { where: { id: f.group.id } });
+		return await write.apply(this, args);
+	};
+	try {
+		const stale = await put(
+			'/chapter/chapter',
+			{ id: f.group.id, about: 'Saved again', recordStatus: stored.recordStatus },
+			chapter
+		);
+		assert.equal(stale.status, 200, JSON.stringify(stale.body));
+	} finally {
+		Chapter.updateChapter = write;
+	}
+	assert.equal(
+		(await Chapter.findByPk(f.group.id)).recordStatus,
+		'draft',
+		"the admin's change stands"
+	);
+	await Chapter.update({ recordStatus: stored.recordStatus }, { where: { id: f.group.id } });
 
 	// An admin sets them.
 	const byAdmin = await put(

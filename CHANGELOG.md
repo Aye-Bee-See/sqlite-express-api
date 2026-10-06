@@ -20,7 +20,8 @@ superadmin still had it `pending`. `POST /chapter/chapter` had the same gap
 for a group a group account creates. All three fields are now admin-only on
 both calls (`403`, "Only an admin…"). Sending back the value already stored is
 not a change and still succeeds, so a settings page that saves the whole
-record keeps working. Found by the web client.
+record keeps working. Those values are not written, so they cannot put back a
+value an admin changed in the meantime. Found by the web client.
 
 **For clients:** leave `vouchedBy` and `recordStatus` read-only on a group's
 own settings page. Sending them unchanged is fine.

@@ -210,10 +210,17 @@ export default class chapterController extends RouteController {
 			if (refusal) {
 				return next(refusal);
 			}
-			const updatedRows = await Chapter.updateChapter(newChapter);
+			// What a group sent of ADMIN_ONLY is what was stored when it was read; it
+			// is not written, so it cannot put back a value an admin has changed since.
+			const fields = AuthzService.isAdmin(req)
+				? newChapter
+				: Object.fromEntries(
+						Object.entries(newChapter).filter(([field]) => !(field in ADMIN_ONLY))
+					);
+			const updatedRows = await Chapter.updateChapter(fields);
 			this.requireAffected(updatedRows, 'Chapter ' + newChapter.id);
 			await audit(req, 'chapter.update', 'chapter', newChapter.id, {
-				changes: changesBetween(was, newChapter, CHAPTER_FIELDS)
+				changes: changesBetween(was, fields, CHAPTER_FIELDS)
 			});
 			this.#handleSuccess(res, { updatedRows, newChapter });
 		} catch (err) {

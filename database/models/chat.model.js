@@ -42,6 +42,8 @@ function listOptions() {
 const WRITER_EMBED = [
 	'id',
 	'name',
+	// What the writer signs with, and so the name a volunteer knows them by (#187).
+	'penName',
 	'username',
 	'bio',
 	'role',

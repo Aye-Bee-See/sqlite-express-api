@@ -29,6 +29,22 @@ Closes #185. Three places where the README and the code disagreed:
 **For clients:** nothing to change. All three clients already send `chapter`
 and `keyVersion`. A new client may leave `chapter` out.
 
+### A group cannot choose its own voucher or publish its own record (#192)
+
+Closes #189. `PUT /chapter/chapter` refused `accountStatus` from a group
+account but not `vouchedBy` or `recordStatus`. A group admin could therefore
+name any group as the one that vouched for them, undoing the voucher an
+invitation records, and could publish their own group's record while a
+superadmin still had it `pending`. `POST /chapter/chapter` had the same gap
+for a group a group account creates. All three fields are now admin-only on
+both calls (`403`, "Only an admin…"). Sending back the value already stored is
+not a change and still succeeds, so a settings page that saves the whole
+record keeps working. Those values are not written, so they cannot put back a
+value an admin changed in the meantime. Found by the web client.
+
+**For clients:** leave `vouchedBy` and `recordStatus` read-only on a group's
+own settings page. Sending them unchanged is fine.
+
 ## 2026-10-03
 
 ### A declined letter keeps the words of the rule it would break (#184)

@@ -104,6 +104,8 @@ test('the user model writes no column a profile update has no business with', as
 test('a thread read with full=true keeps staff notes and private user fields to itself', async () => {
 	await aliceWrites();
 	await User.update({ managerNote: 'met at the March night' }, { where: { id: f.alice.id } });
+	const named = await put('/auth/user', { id: f.alice.id, penName: 'Alice Thornbush' }, f.alice);
+	assert.equal(named.status, 200, JSON.stringify(named.body));
 	for (const reader of [f.alice, relay.member]) {
 		const list = await get('/chat/chats?full=true', reader);
 		assert.equal(list.status, 200);
@@ -118,11 +120,15 @@ test('a thread read with full=true keeps staff notes and private user fields to 
 			'id',
 			'managedBy',
 			'name',
+			'penName',
 			'publicKey',
 			'role',
 			'username'
 		]);
+		// The name the letters are signed with, the one a volunteer knows (#187).
+		assert.equal(chat.user_details.penName, 'Alice Thornbush');
 		const one = await get('/chat/chat?id=' + chat.id + '&full=true', reader);
+		assert.equal(one.body.data.user_details.penName, chat.user_details.penName);
 		assert.equal(one.status, 200);
 		assert.ok(!JSON.stringify(one.body).includes('met at the March night'));
 		assert.ok(!JSON.stringify(one.body).includes('@example.com'));

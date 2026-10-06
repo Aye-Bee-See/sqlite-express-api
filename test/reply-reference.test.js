@@ -170,11 +170,19 @@ test("a volunteer looks a reference up: a typo is refused, a stranger's number i
 			id: f.alice.id,
 			penName: 'Alice Wren',
 			name: f.alice.user.name ?? null,
-			anonymous: false
+			anonymous: false,
+			publicKey: null
 		},
 		prisoner: { id: f.prisoner1.id, birthName: 'Prisoner One', chosenName: 'One' },
 		careOf: { id: f.group.id, name: 'Fixture Group' }
 	});
+	// A writer with keys comes with their public key, to seal a reply to (#187).
+	const keyed = { publicKey: Buffer.alloc(32, 7).toString('base64') };
+	await User.update({ publicKey: keyed.publicKey }, { where: { id: f.alice.id } });
+	const withKey = await get('/messaging/reference?number=' + formatReference(ref), f.chapter);
+	assert.equal(withKey.body.data.writer.publicKey, keyed.publicKey);
+	await User.update({ publicKey: null }, { where: { id: f.alice.id } });
+
 	// Another group, and a writer, see nothing; a number never issued is the same nothing.
 	const other = await Chapter.createChapter({
 		name: 'Other',

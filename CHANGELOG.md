@@ -10,6 +10,21 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
+### Group screens get the writer's pen name on threads, and their public key with a reply reference (#PR)
+
+Closes #187. `user_details` on `GET /chat/chats` and `GET /chat/chat` now
+carries `penName`. A group's thread list showed the writer's account name
+("user1"), while the reference lookup, the blocks list and the message rows
+showed the pen name their letters are signed with. `GET /messaging/reference`
+now gives `writer.publicKey` (`null` for a writer without keys), so a group
+recording a reply can seal it to the writer without calling
+`GET /auth/public-key` afterwards.
+
+**For clients:** show `user_details.penName` for a writer wherever a group sees
+a thread, falling back to `name` when it is `null`. When recording a reply from
+a reference, seal to `writer.publicKey`. When it is `null`, the reply carries
+the group's envelope alone, as before.
+
 ### Managed writers: the README matches the code, and keying a writer says what it caught up (#194)
 
 Closes #186. When a group gives an unclaimed writer their first keys through

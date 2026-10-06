@@ -417,7 +417,9 @@ export default class MessageController extends RouteController {
 			}
 			const { row, letter } = await this.#referenceFor(req, scope, req.query.number);
 			const [writer, prisoner, group] = await Promise.all([
-				User.findByPk(row.user, { attributes: ['id', 'penName', 'name', 'anonymousForChapter'] }),
+				User.findByPk(row.user, {
+					attributes: ['id', 'penName', 'name', 'anonymousForChapter', 'publicKey']
+				}),
 				Prisoner.findByPk(row.prisoner, { attributes: ['id', 'birthName', 'chosenName'] }),
 				Chapter.findByPk(letter ? letter.relayChapter : row.chapter, { attributes: ['id', 'name'] })
 			]);
@@ -445,7 +447,9 @@ export default class MessageController extends RouteController {
 							id: writer.id,
 							penName: writer.penName,
 							name: writer.name,
-							anonymous: Boolean(writer.anonymousForChapter)
+							anonymous: Boolean(writer.anonymousForChapter),
+							// To seal a reply to them, without a second request (#187).
+							publicKey: writer.publicKey ?? null
 						}
 					: null,
 				prisoner: prisoner

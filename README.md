@@ -1214,14 +1214,37 @@ Body `{"prisoner": 41}`. Takes the photo off the record and deletes the file. Th
 A group often writes on behalf of people who have no account: someone at a letter-writing night, or someone who wants the group to handle everything. A **managed writer** is a `user` account the group creates for such a person. Until the writer claims it:
 
 - The account cannot log in. It has a generated username (`writer-…`), an unguessable password, and, if no email was given, a placeholder address ending in `@managed.example`.
-- The group's `chapter` accounts see its threads, send letters as it, record prisoner replies, and may edit its `name`, `email`, and `managerNote` or delete it.
+- The group's `chapter` accounts see its threads, send letters as it, record prisoner replies, and may delete it or edit it with `PUT /auth/user`. A group may set exactly these fields on its unclaimed writer: `name`, `penName`, `email`, `managerNote`, `retentionDays`, and, in end-to-end mode, the writer's first keys (`publicKey`, `orgWrappedPrivateKey`, `orgKeyVersion`; see [Managed writers and claiming](#managed-writers-and-claiming)). Any other field is a `403`. When the group gives the writer their first keys, the answer carries `caughtUp` (see [Latecomers](#latecomers)).
 - The group can hand the writer a **claim token** (valid for `CLAIM_TOKEN_DAYS`, 14 unless set; shown once; the answer carries its `expiresAt`, which is what clients should show). The writer visits the claim page, picks a username and password, and the account becomes theirs: the group loses access to it and its threads, and `claimedAt` / `claimedFrom` record the hand-over.
 
 Every group also has one **anonymous writer**, created the first time a `chapter` account sends a letter or creates a chat without naming a `user`. It appears in the writers list like a managed writer, and all of the group's anonymous letters share it. **It can never be claimed**: it is not one person, and whoever claimed it would own the anonymous letters of everyone the group ever wrote for, and receive the next ones. `POST /auth/writer/token` for it is a `409` (`ClaimError`), and it never has keys. When someone who wrote anonymously wants an account of their own, create a managed writer for them (`POST /auth/writer`), send their next letters under it, and hand that account over; their earlier anonymous letters stay with the group.
 
 #### POST /auth/writer
 
-Body: `{"name": "Sam", "email": "sam@example.com", "managerNote": "Comes on Tuesdays"}`. `name` is required (3 to 32 characters); `email` and `managerNote` are optional. Admins must add `"chapter": <group id>`; a `chapter` account's own group is used and any `chapter` in its body is ignored. Returns `201` with the new user record.
+Body: `{"name": "Sam", "email": "sam@example.com", "managerNote": "Comes on Tuesdays"}`.
+
+| Field                  | Notes                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `name`                 | Required, 3 to 32 characters.                                                                                       |
+| `penName`              | Optional: the name the writer signs with (see [Pen names](#pen-names)). Without it the writer chooses one at claim. |
+| `email`                | Optional. Without it the account gets a placeholder address ending in `@managed.example`.                           |
+| `managerNote`          | Optional. Seen only by the managing group and admins.                                                               |
+| `chapter`              | Admins only, and required for them. A `chapter` account's own group is used, and any `chapter` it sends is ignored. |
+| `publicKey`            | End-to-end mode only, and required there: the writer's public key, made in the group's browser.                     |
+| `orgWrappedPrivateKey` | End-to-end mode only, and required there: the writer's private key sealed to the group key.                         |
+| `orgKeyVersion`        | End-to-end mode only, and required there: the version of the group key `orgWrappedPrivateKey` was sealed to.        |
+
+Returns `201` with the new user record.
+
+In end-to-end mode (the default), the group's browser makes the writer's keypair first and sends it with the rest:
+
+```bash
+curl -s -X POST http://localhost:3000/auth/writer \
+  -H "Authorization: Bearer $CHAPTER_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Sam","managerNote":"Comes on Tuesdays","publicKey":"…","orgWrappedPrivateKey":"…","orgKeyVersion":1}'
+```
+
+In server mode the key fields are left out:
 
 ```bash
 curl -s -X POST http://localhost:3000/auth/writer \
@@ -1258,6 +1281,8 @@ Parameters: `page`, `page_size`, `q` (matches username, email, or name). A `chap
 #### POST /auth/writer/token
 
 Body: `{"writer": 58}`. Generates a token for the writer and returns it once; generating again replaces the previous token. `409` if the account is not an unclaimed managed writer, `403` if another group manages it.
+
+**The example below is server mode.** In end-to-end mode (the default) the group's browser makes the token and sends only its hash and the claim material (see [Managed writers and claiming](#managed-writers-and-claiming)), so the answer has `writer` and `expiresAt` and no `token`.
 
 ```json
 {

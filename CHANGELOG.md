@@ -10,6 +10,22 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
+### Managed writers: the README matches the code, and keying a writer says what it caught up (#194)
+
+Closes #186. When a group gives an unclaimed writer their first keys through
+`PUT /auth/user`, the server seals the writer's server-held letters to them,
+but the answer never said so. It now carries `caughtUp: { letters, sealed,
+dropped }`, as `PUT /auth/keys` does (`null` once `ENCRYPTION_KEY` is gone).
+Any other edit has no `caughtUp`. The README now gives `POST /auth/writer` a
+field table (`penName`, and in end-to-end mode `publicKey`,
+`orgWrappedPrivateKey` and `orgKeyVersion`, which were only mentioned
+elsewhere). It lists in one place the fields a group may set on its unclaimed
+writer, where any other is a `403`, and it marks the `POST /auth/writer/token`
+example as server mode: in end-to-end mode the answer has no `token`.
+
+**For clients:** nothing to change. A group screen that keys a writer may show
+`caughtUp` the way sign-in does.
+
 ### Group key calls match the README: a default group, a required key version, owner-only rotation (#193)
 
 Closes #185. Three places where the README and the code disagreed:

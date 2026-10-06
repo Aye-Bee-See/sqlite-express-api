@@ -259,10 +259,16 @@ test('a public key nobody holds the private half of is refused, so no letter can
 		member
 	);
 	assert.equal(prepared.status, 200, JSON.stringify(prepared.body));
+	// The answer says what was caught up, as PUT /auth/keys does (#186).
+	assert.deepEqual(prepared.body.data.caughtUp, { letters: 1, sealed: 1, dropped: 1 });
 	assert.equal(
 		await LetterKey.count({ where: { message: heldForWriter.id, readerType: 'server' } }),
 		0
 	);
+	// Any other edit has nothing to catch up, and says nothing about it.
+	const renamed = await put('/auth/user', { id: f.writer.id, managerNote: 'Keyed' }, member);
+	assert.equal(renamed.status, 200, JSON.stringify(renamed.body));
+	assert.equal(renamed.body.data.caughtUp, undefined);
 });
 
 test('an account stored with a bare public key catches up when its private half arrives', async () => {

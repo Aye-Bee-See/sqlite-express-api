@@ -628,11 +628,9 @@ export default class UserController extends RouteController {
 					await KeysController.noteWaiting(newUser.id, { actor: req.user.id });
 				}
 			}
-			if (custodyKeyed) {
-				// The group gave an unclaimed writer their first keys: the writer's
-				// server-held letters can be sealed to them now.
-				await KeysController.catchUp('user', newUser.id);
-			}
+			// The group gave an unclaimed writer their first keys: the writer's
+			// server-held letters can be sealed to them now, and the answer says so (#186).
+			const caughtUp = custodyKeyed ? await KeysController.catchUp('user', newUser.id) : undefined;
 			if (
 				AuthzService.isAdmin(req) &&
 				(newUser.role !== undefined || newUser.chapterId !== undefined)
@@ -645,7 +643,11 @@ export default class UserController extends RouteController {
 			// Never echo a password, plain or hashed, back to the client.
 			const { password, ...echoed } = newUser;
 			void password;
-			const result = { updatedRows, newUser: echoed };
+			const result = {
+				updatedRows,
+				newUser: echoed,
+				...(caughtUp !== undefined ? { caughtUp } : {})
+			};
 			if (password !== undefined) {
 				// A new password ends every existing session; the caller who
 				// changed their own gets a fresh token so they stay signed in.

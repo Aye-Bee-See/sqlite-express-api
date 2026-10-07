@@ -59,7 +59,10 @@ test('the check digit: a slip of the pen is refused, not filed', () => {
 	assert.equal(isReference('12345678'), false);
 	assert.equal(isReference('abcdefghi'), false);
 	assert.equal(isReference(''), false);
-	assert.equal(formatReference('482719356'), '4827-1935-6');
+	assert.equal(formatReference('482719358'), '4827-1935-8');
+	// The number the README and the guides print is one a client accepts (#191).
+	assert.ok(isReference('4827-1935-8'));
+	assert.ok(!isReference('4827-1935-6'), 'the old example failed its own check');
 });
 
 test('every outgoing letter carries a reference; the footer says who to write back to, care of whom', async () => {

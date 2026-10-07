@@ -10,6 +10,22 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
+### Envelopes on reads name their group key version; README fixes (#PR)
+
+Closes #191. A group envelope named the group key version it was sealed to
+when it was sent, but reads left it out, so a client could not tell a stale
+envelope from a current one before trying to open it. Every envelope on a
+letter now carries `keyVersion` on reads too: the group key version for a
+group's envelope, `null` for a person's. Two README fixes come with it. The
+example reply reference `4827-1935-6` failed its own check digit, so a client
+would refuse it; it is now `4827-1935-8` everywhere it is printed, and a test
+checks that the documented number passes. The feed table now says
+`letter.queued` carries `{ "paper": true }` for a paper letter.
+
+**For clients:** compare a group envelope's `keyVersion` with the group's
+current one before opening it. If you copied the old example reference into a
+test or a mock-up, use `4827-1935-8`.
+
 ### Invitation 409s say why (#197)
 
 Closes #190. Three `409 InvitationError` refusals carried only a sentence, so

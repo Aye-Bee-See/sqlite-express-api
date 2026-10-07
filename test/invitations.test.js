@@ -388,6 +388,26 @@ test('invitations expire, can be renewed, and can be withdrawn', async () => {
 	assert.equal(withdrawAgain.status, 409);
 	assert.equal(withdrawAgain.body.code, 'invitation.revoked');
 	assert.equal((await del('/invitation/invitation', { id: 999999 }, member)).status, 404);
+
+	// A renew that loses to an acceptance which then fails and hands the invitation
+	// back finds it pending again: nothing was done, and asking again works.
+	const raced = await invite({ kind: 'member', inviteeName: 'Raced' });
+	const renew = Invitation.renew;
+	Invitation.renew = async function (id) {
+		Invitation.renew = renew;
+		assert.ok(await Invitation.consume(id), 'an acceptance takes it');
+		await Invitation.release(id);
+		return null;
+	};
+	let lost;
+	try {
+		lost = await put('/invitation/invitation', { id: raced.id }, member);
+	} finally {
+		Invitation.renew = renew;
+	}
+	assert.equal(lost.status, 409, JSON.stringify(lost.body));
+	assert.equal(lost.body.code, 'invitation.changed_meanwhile');
+	assert.equal((await put('/invitation/invitation', { id: raced.id }, member)).status, 200);
 });
 
 test("a group manages its own invitations only; admins see everyone's", async () => {

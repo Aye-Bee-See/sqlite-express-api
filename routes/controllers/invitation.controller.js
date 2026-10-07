@@ -265,6 +265,10 @@ export default class InvitationController extends RouteController {
 	 * Its status is read again, so a race reports what happened, not what was
 	 * read before it; the condition is that status (`accepted`, `revoked`), the
 	 * same words accepting it would say (#190).
+	 *
+	 * It can read `pending` again: an acceptance that fails partway gives its
+	 * invitation back. That is no reason to refuse, but nothing was done either,
+	 * so it is `changed_meanwhile`, and asking again will work.
 	 */
 	static async #notPending(id, verb) {
 		const now = await Invitation.findByPk(id, { attributes: ['id', 'status'] });
@@ -272,6 +276,15 @@ export default class InvitationController extends RouteController {
 			return new NotFoundError('Invitation ' + id + ' not found');
 		}
 		const status = now.status;
+		if (status === 'pending') {
+			const err = new HttpError(
+				409,
+				'The invitation changed while this was asked; nothing was ' + verb + '. Try again.',
+				'InvitationError'
+			);
+			err.condition = 'changed_meanwhile';
+			return err;
+		}
 		const err = new HttpError(
 			409,
 			'Only a pending invitation can be ' + verb + '; this one is ' + status + '.',

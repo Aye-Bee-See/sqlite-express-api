@@ -22,6 +22,8 @@ same words the accept path already uses:
   `invitation.accepted` or `invitation.revoked`, whichever it is now. The status
   is read again at the refusal, so a race reports what actually happened.
   An expired invitation is still pending, and can still be renewed or withdrawn.
+  If an acceptance that fails partway hands the invitation back as pending in
+  that moment, it is `invitation.changed_meanwhile`, and asking again works.
 
 **For clients:** word these from `code`, as for accepting. A client matching
 the family `invitation` keeps working.

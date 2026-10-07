@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-06
 
-### Envelopes on reads name their group key version; README fixes (#PR)
+### Envelopes on reads name their group key version; README fixes (#198)
 
 Closes #191. A group envelope named the group key version it was sealed to
 when it was sent, but reads left it out, so a client could not tell a stale

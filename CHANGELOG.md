@@ -8,7 +8,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
-## 2026-10-06
+## 2026-10-07
 
 ### Envelopes on reads name their group key version; README fixes (#198)
 
@@ -43,6 +43,8 @@ same words the accept path already uses:
 
 **For clients:** word these from `code`, as for accepting. A client matching
 the family `invitation` keeps working.
+
+## 2026-10-06
 
 ### Batch status refusals name the letters in a field (#196)
 

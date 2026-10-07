@@ -208,6 +208,18 @@ test('the public key comes with its version, and a group envelope must name it',
 	);
 	assert.equal(writerNoVersion.status, 400);
 	assert.match(writerNoVersion.body.errors[0], /orgKeyVersion is required/);
+
+	// Read back, a group envelope still names its version; a person's has none (#191).
+	const asGroup = await get('/messaging/message?id=' + letter.id, first);
+	assert.deepEqual(
+		asGroup.body.data.envelopes.map((e) => [e.readerType, e.keyVersion]),
+		[['chapter', 1]]
+	);
+	const asWriter = await get('/messaging/message?id=' + letter.id, alice);
+	assert.deepEqual(
+		asWriter.body.data.envelopes.map((e) => [e.readerType, e.keyVersion]),
+		[['user', null]]
+	);
 });
 
 test('a group without keys cannot be sealed to', async () => {

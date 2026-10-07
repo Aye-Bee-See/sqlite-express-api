@@ -392,7 +392,10 @@ export default class LetterKey extends Model {
 				map.get(row.message).push({
 					readerType: row.readerType,
 					readerId: row.readerId,
-					wrappedKey: row.wrappedKey
+					wrappedKey: row.wrappedKey,
+					// A group envelope names the group key it was sealed to, so a client can
+					// tell a stale one before trying to open it (#191); null for a person's.
+					keyVersion: row.readerType === 'chapter' ? (row.keyVersion ?? null) : null
 				});
 			}
 		}

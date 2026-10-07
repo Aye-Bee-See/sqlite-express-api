@@ -1594,14 +1594,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "localhost:3000/messaging/reference?number=4827-1935-6",
+							"raw": "localhost:3000/messaging/reference?number=4827-1935-8",
 							"host": ["localhost"],
 							"port": "3000",
 							"path": ["messaging", "reference"],
 							"query": [
 								{
 									"key": "number",
-									"value": "4827-1935-6"
+									"value": "4827-1935-8"
 								}
 							]
 						}
@@ -1621,7 +1621,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"sender\": \"prisoner\",\n    \"reference\": \"4827-1935-6\",\n    \"messageText\": \"Thank you for writing.\"\n}",
+							"raw": "{\n    \"sender\": \"prisoner\",\n    \"reference\": \"4827-1935-8\",\n    \"messageText\": \"Thank you for writing.\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"

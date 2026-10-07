@@ -51,7 +51,7 @@ export function isReference(value) {
 	return luhnCheckDigit(digits.slice(0, -1)) === digits[digits.length - 1];
 }
 
-/** `482719356` as `4827-1935-6`, the way it is printed and read aloud. */
+/** `482719358` as `4827-1935-8`, the way it is printed and read aloud. */
 export function formatReference(digits) {
 	if (typeof digits !== 'string' || digits.length !== REFERENCE_LENGTH) {
 		return digits ?? null;

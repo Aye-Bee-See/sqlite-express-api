@@ -99,11 +99,10 @@ test('who may invite, and for whom', async () => {
 		403,
 		'a group that is not active cannot vouch'
 	);
-	assert.equal(
-		(await post('/invitation/invitation', { ...body, chapter: pending.id }, admin)).status,
-		409,
-		'nor can an admin make it vouch'
-	);
+	const adminVouch = await post('/invitation/invitation', { ...body, chapter: pending.id }, admin);
+	assert.equal(adminVouch.status, 409, 'nor can an admin make it vouch');
+	// The same code as accepting through a group that is no longer active (#190).
+	assert.equal(adminVouch.body.code, 'invitation.inactive');
 
 	assert.equal(
 		(await post('/invitation/invitation', { kind: 'friend', inviteeName: 'X' }, member)).status,
@@ -221,6 +220,14 @@ test('accepting a group invitation creates the group, vouched for, and its first
 	const spent = await get('/invitation/invitation?token=' + created.token);
 	assert.equal(spent.status, 410);
 	assert.equal(spent.body.condition, 'accepted');
+	// Nor can the group that sent it renew or withdraw it now, and it says why (#190).
+	for (const res of [
+		await put('/invitation/invitation', { id: created.id }, member),
+		await del('/invitation/invitation', { id: created.id }, member)
+	]) {
+		assert.equal(res.status, 409, JSON.stringify(res.body));
+		assert.equal(res.body.code, 'invitation.accepted');
+	}
 });
 
 test('a member invitation adds an account to the inviting group, active at once', async () => {
@@ -373,9 +380,34 @@ test('invitations expire, can be renewed, and can be withdrawn', async () => {
 	assert.equal(withdrawn.status, 200);
 	assert.equal(withdrawn.body.data.state, 'revoked');
 	assert.equal((await get('/invitation/invitation?token=' + renewed.body.data.token)).status, 410);
-	assert.equal((await put('/invitation/invitation', { id: created.id }, member)).status, 409);
-	assert.equal((await del('/invitation/invitation', { id: created.id }, member)).status, 409);
+	// Each refusal says what the invitation is now, as a condition (#190).
+	const renewAgain = await put('/invitation/invitation', { id: created.id }, member);
+	assert.equal(renewAgain.status, 409);
+	assert.equal(renewAgain.body.code, 'invitation.revoked');
+	const withdrawAgain = await del('/invitation/invitation', { id: created.id }, member);
+	assert.equal(withdrawAgain.status, 409);
+	assert.equal(withdrawAgain.body.code, 'invitation.revoked');
 	assert.equal((await del('/invitation/invitation', { id: 999999 }, member)).status, 404);
+
+	// A renew that loses to an acceptance which then fails and hands the invitation
+	// back finds it pending again: nothing was done, and asking again works.
+	const raced = await invite({ kind: 'member', inviteeName: 'Raced' });
+	const renew = Invitation.renew;
+	Invitation.renew = async function (id) {
+		Invitation.renew = renew;
+		assert.ok(await Invitation.consume(id), 'an acceptance takes it');
+		await Invitation.release(id);
+		return null;
+	};
+	let lost;
+	try {
+		lost = await put('/invitation/invitation', { id: raced.id }, member);
+	} finally {
+		Invitation.renew = renew;
+	}
+	assert.equal(lost.status, 409, JSON.stringify(lost.body));
+	assert.equal(lost.body.code, 'invitation.changed_meanwhile');
+	assert.equal((await put('/invitation/invitation', { id: raced.id }, member)).status, 200);
 });
 
 test("a group manages its own invitations only; admins see everyone's", async () => {

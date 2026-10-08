@@ -8,6 +8,24 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-10-08
+
+### The README says which hold belongs to which mode (#PR)
+
+Closes #200. "Moved and freed" offered `choose_relay` and its lift, a
+`PUT /messaging/message` with a new `relayChapter`, without saying that both
+are server mode only. In end-to-end mode, the default, a moved letter that
+cannot keep its group is always held as `reseal_needed`, and a sent letter's
+`relayChapter` cannot change (a `400`), so a client that followed the section
+built a group picker that could only fail. The section now marks each reason
+with its mode, and says that sending the letter again does not mean retyping
+it. Docs only: nothing in the API changed.
+
+**For clients:** in end-to-end mode, don't build a group picker for a held
+letter. For `reseal_needed`, open the writer's own copy, prefill a new letter
+with it, let the writer choose the group as for any new letter, send it, then
+delete the held one.
+
 ## 2026-10-07
 
 ### Envelopes on reads name their group key version; README fixes (#198)

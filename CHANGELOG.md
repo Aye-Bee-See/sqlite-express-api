@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-08
 
-### The README says which hold belongs to which mode (#PR)
+### The README says which hold belongs to which mode (#201)
 
 Closes #200. "Moved and freed" offered `choose_relay` and its lift, a
 `PUT /messaging/message` with a new `relayChapter`, without saying that both

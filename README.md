@@ -557,6 +557,8 @@ Without an admin token the same request returns:
 }
 ```
 
+**Changing a role.** An admin changes an account's role with `PUT /auth/user {"id": 7, "role": "admin"}` (`user`, `chapter`, `admin`, or `banned`). The site always keeps one superadmin: a change that would leave no `admin` account, such as the only admin making themselves a writer or banning themselves, is `409` `RoleChangeError` with `code: "role_change.last_admin"`. Make another admin first. Two admins demoting each other at the same moment cannot both succeed.
+
 To get the first admin on a fresh database, either log in as the seeded `admin`, or set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `ADMIN_EMAIL` before booting. See [Configure](#configure).
 
 ## Conventions
@@ -717,7 +719,7 @@ With a code:
 }
 ```
 
-Where `condition` appears: claim tokens and invite codes (`unknown`, `used`, `expired`, `cancelled`, `inactive`), invitations (`unknown`, `expired`, `accepted`, `revoked`, `inactive`), and `AccountDeleteError` (`anonymous`, `only_admin`, `group_owner`, `last_key_holder`), plus any endpoint whose reference lists conditions.
+Where `condition` appears: claim tokens and invite codes (`unknown`, `used`, `expired`, `cancelled`, `inactive`), invitations (`unknown`, `expired`, `accepted`, `revoked`, `inactive`), `AccountDeleteError` (`anonymous`, `only_admin`, `group_owner`, `last_key_holder`), and `RoleChangeError` (`last_admin`), plus any endpoint whose reference lists conditions.
 
 Authentication and authorization failures use the same shape without `error`:
 
@@ -1073,9 +1075,10 @@ What goes with the account: its devices, notification feed, claim tokens, idempo
 
 Refused with `409` `AccountDeleteError`:
 
-- **the only admin account** (make another admin first);
-- **the last holder of a group's key** in end-to-end mode (hand the key to another member with `PUT /auth/member-key` first, or the group could never read its letters again);
-- **a group's shared anonymous account**, for everyone: it holds the anonymous letters of all the people the group wrote for.
+- **the only admin account** (`only_admin`: make another admin first);
+- **a group-owner admin whose group has other group admins** (`group_owner`: pass ownership on first with `PUT /auth/chapter-owner`; see [Group keys](#group-keys), "Ownership");
+- **the last holder of a group's key** in end-to-end mode (`last_key_holder`: hand the key to another member with `PUT /auth/member-key` first, or the group could never read its letters again);
+- **a group's shared anonymous account** (`anonymous`), for everyone: it holds the anonymous letters of all the people the group wrote for.
 
 Clients should say in words what will happen before sending this, and in end-to-end mode remind the person that their recovery code and keys become useless.
 

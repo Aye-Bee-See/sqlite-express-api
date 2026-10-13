@@ -10,6 +10,21 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-13
 
+### A letter to someone already free is held too (#PR)
+
+Closes #202. When a prisoner's status became `free`, the letters already waiting
+for them were held as `prisoner_free`, because a letter mailed to a prison they
+have left may never reach them. A letter written afterwards was not held: it
+went straight to the group's print queue. The reason applies just the same, so
+a letter written to someone already `free` is now created held as
+`prisoner_free`. The group can still print it on purpose (`release: true`), the
+writer can delete it, and correcting the status lifts the hold. A paper letter,
+which starts out `printed`, is not held.
+
+**For clients:** a new letter may come back with `heldReason: "prisoner_free"`.
+Show it as held, as you do for letters held after a release. A warning at
+writing time, which the web already shows, still helps.
+
 ### The last superadmin cannot step down (#208)
 
 Closes #204. Nothing stopped `PUT /auth/user {role}` from leaving the site

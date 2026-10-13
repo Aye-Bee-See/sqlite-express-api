@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-13
 
-### The README says how staff accounts are made in end-to-end mode (#PR)
+### The README says how staff accounts are made in end-to-end mode (#211)
 
 Closes #203. "Creating accounts with other roles" showed a superadmin making a
 `chapter` or `admin` account with `POST /auth/user` and a password. In

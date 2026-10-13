@@ -538,7 +538,17 @@ A `chapter` account is scoped to its group. It sees the threads of the writers i
 
 ### Creating accounts with other roles
 
-Joining with an invite code, and registration where it is open, always yield `role: user`. To create a `chapter`, `admin`, or `banned` account, or any account at all while registration is closed, an admin calls `POST /auth/user` with their token:
+Joining with an invite code, and registration where it is open, always yield `role: user`. Staff accounts are made differently in the two encryption modes.
+
+**In end-to-end mode (the default), an admin does not make accounts for other people.** An account's keys are made on its holder's own device when they sign up, and `POST /auth/user` from an admin cannot carry them: a split account without its keys is refused (`400`, "In end-to-end mode an account is made with its keys"). An account made with a plain password has no keys, the web client will not sign in to it, and whoever chose its password could sign in first and make its keys, so don't use it either. Instead:
+
+- **A group admin** joins through an [invitation](#invitations) of kind `member` (into an existing group) or `group` (founding a new one), choosing their own username, password and keys.
+- **An account already in use** is put in a group, or given another role, with `PUT /auth/user {"id": 7, "role": "chapter", "chapterId": 3}`.
+- **A second superadmin** is someone who joins like anyone else, with an invite code or an invitation, and is then promoted: `PUT /auth/user {"id": 7, "role": "admin"}`.
+
+The first superadmin of a fresh database comes from the bootstrap variables (below). Changing its password moves it to the split scheme, as for any older account.
+
+**In server mode** an admin can still create any account, of any role, with `POST /auth/user` and their token:
 
 ```bash
 curl -s -X POST http://localhost:3000/auth/user \

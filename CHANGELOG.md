@@ -10,6 +10,21 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-13
 
+### The README says how staff accounts are made in end-to-end mode (#PR)
+
+Closes #203. "Creating accounts with other roles" showed a superadmin making a
+`chapter` or `admin` account with `POST /auth/user` and a password. In
+end-to-end mode, the default, that request is refused, because an account's
+keys are made on its holder's device. The section now says how it is done
+there. A group admin joins through a `member` or `group` invitation. An account
+already in use is moved into a group, or given another role, with
+`PUT /auth/user`. A second superadmin is someone who joins like anyone else and
+is then promoted with `{"role": "admin"}`. The `POST /auth/user` example is
+marked as server mode. Docs only.
+
+**For clients:** in end-to-end mode, point an admin's "new staff account"
+action at invitations, and offer promotion on an existing account's page.
+
 ### A letter to someone already free is held too (#210)
 
 Closes #202. When a prisoner's status became `free`, the letters already waiting

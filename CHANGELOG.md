@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-13
 
-### The last superadmin cannot step down (#PR)
+### The last superadmin cannot step down (#208)
 
 Closes #204. Nothing stopped `PUT /auth/user {role}` from leaving the site
 without a superadmin: the only `admin` could make themselves a writer or ban

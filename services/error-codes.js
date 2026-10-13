@@ -231,6 +231,7 @@ export const REFUSAL_FAMILIES = {
 	owner: "Only a group's owner-admin may do this.",
 	pen_name_limit: 'A pen name change refused by the cooldown or the yearly count.',
 	rate_limit: 'Too many requests; Retry-After says when to come back.',
+	role_change: "A change of an account's role that is refused; the condition says why.",
 	request_body:
 		'The body could not be read at all: not JSON, too large, or in an encoding the server does not take.',
 	recovery: 'A recovery code or challenge that does not fit.',

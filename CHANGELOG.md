@@ -8,6 +8,24 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-10-13
+
+### The last superadmin cannot step down (#208)
+
+Closes #204. Nothing stopped `PUT /auth/user {role}` from leaving the site
+without a superadmin: the only `admin` could make themselves a writer or ban
+themselves, after which nobody could approve groups, moderate, or make another
+admin, and only the bootstrap variables and a restart could bring one back. A
+change that would leave no `admin` account is now `409` `RoleChangeError`
+(`code: "role_change.last_admin"`). It is checked first for a clear answer, and
+again inside the write itself, so two admins demoting each other at the same
+moment cannot both succeed. Deleting the only admin account was already
+refused. The README's list of `DELETE /auth/user` refusals now names each
+condition, including `group_owner`, which it left out.
+
+**For clients:** word `role_change.last_admin` on the admin's role control, for
+example "Make another admin first". Nothing else changes.
+
 ## 2026-10-08
 
 ### The README says which hold belongs to which mode (#201)

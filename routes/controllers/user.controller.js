@@ -1,4 +1,4 @@
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import User from '#models/user.model.js';
 import GroupBlock from '#models/group-block.model.js';
 import TwoFactorRecoveryCode from '#models/two-factor-recovery-code.model.js';
@@ -28,6 +28,17 @@ import * as crypto from '#services/crypto.js';
 import Chapter from '#models/chapter.model.js';
 
 export default class UserController extends RouteController {
+	/** The 409 for a role change that would leave the site with no superadmin (#204). */
+	static #lastAdminRefusal() {
+		const err = new HttpError(
+			409,
+			'This is the only admin account. Make another admin first, or nobody could run the site.',
+			'RoleChangeError'
+		);
+		err.condition = 'last_admin';
+		return err;
+	}
+
 	constructor() {
 		/*
 		 * If we use class methods as subfunctions (or callbacks)
@@ -577,6 +588,33 @@ export default class UserController extends RouteController {
 			}
 			// A group-sealed key is checked and stored as one step, so a rotation
 			// cannot land in between and leave the writer's key sealed to the old one.
+			// The last superadmin cannot stop being one: nobody could then approve
+			// groups, moderate, or make another admin (#204). Checked here for the
+			// answer, and again in the write itself, so two admins demoting each other
+			// at once cannot both succeed.
+			let lastAdminChecked = false;
+			if (newUser.role !== undefined && newUser.role !== 'admin') {
+				const current = await User.findByPk(newUser.id, { attributes: ['id', 'role'] });
+				if (current && current.role === 'admin') {
+					const others = await User.count({
+						where: { role: 'admin', id: { [Op.ne]: current.id } }
+					});
+					if (others === 0) {
+						throw UserController.#lastAdminRefusal();
+					}
+					expect = {
+						...expect,
+						[Op.and]: [
+							literal(
+								"(SELECT COUNT(*) FROM `User` WHERE `role` = 'admin' AND `id` != " +
+									Number(current.id) +
+									') > 0'
+							)
+						]
+					};
+					lastAdminChecked = true;
+				}
+			}
 			const updatedRows = sealedTo
 				? await withGroupKeyLock(async () => {
 						const group = await Chapter.findByPk(sealedTo.chapterId);
@@ -591,6 +629,9 @@ export default class UserController extends RouteController {
 					"This account's sign-in scheme changed while the password was being set; read it again.",
 					'AuthSchemeError'
 				);
+			}
+			if (!updatedRows[0] && lastAdminChecked && (await User.findByPk(newUser.id))) {
+				throw UserController.#lastAdminRefusal();
 			}
 			this.requireAffected(updatedRows, 'User ' + newUser.id);
 			if (penName !== undefined && penName !== null && penName !== '') {

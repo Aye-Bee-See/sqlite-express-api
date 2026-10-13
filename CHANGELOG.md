@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-13
 
-### A letter to someone already free is held too (#PR)
+### A letter to someone already free is held too (#210)
 
 Closes #202. When a prisoner's status became `free`, the letters already waiting
 for them were held as `prisoner_free`, because a letter mailed to a prison they

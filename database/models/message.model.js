@@ -29,7 +29,9 @@ import {
 	RETURN_REASONS,
 	DECLINED,
 	DECLINE_REASONS,
-	HELD_CHOOSE_RELAY
+	HELD_CHOOSE_RELAY,
+	HELD_PRISONER_FREE,
+	QUEUED
 } from '#db/letter-status.js';
 
 /** What PUT /messaging/message may change. The thread follows from writer and prisoner; status has its own endpoint. */
@@ -242,6 +244,13 @@ export default class Message extends Model {
 			await Message.refuseBlocked(relayChapter, message.user, callerChapter, { transaction });
 		}
 		const status = initialStatusFor(message.sender, { paper });
+		// A letter to someone already free is held from the start, as the letters
+		// waiting when they were freed are: a letter mailed to a prison they have
+		// left may never reach them (#202). The group can still print it on purpose.
+		const heldReason =
+			status === QUEUED && (await Message.#prisonerIsFree(message.prisoner, { transaction }))
+				? HELD_PRISONER_FREE
+				: null;
 		const resendOf = await this.#checkResend(message, { transaction });
 		let clean = null;
 		if (crypto.isE2E()) {
@@ -273,6 +282,7 @@ export default class Message extends Model {
 				resendOf,
 				relayChapter,
 				status,
+				heldReason,
 				statusChangedAt: new Date(),
 				statusChangedBy: changedBy
 			},
@@ -286,6 +296,15 @@ export default class Message extends Model {
 			await alsoInTransaction(created, transaction);
 		}
 		return created;
+	}
+
+	/** Is this prisoner's status `free`? */
+	static async #prisonerIsFree(prisonerId, { transaction } = {}) {
+		const prisoner = await Prisoner.findByPk(prisonerId, {
+			attributes: ['id', 'status'],
+			transaction
+		});
+		return Boolean(prisoner) && prisoner.status === 'free';
 	}
 
 	/**

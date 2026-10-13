@@ -207,6 +207,39 @@ test('when someone is freed, their writers are told and queued letters wait for 
 	assert.equal((await Message.findByPk(second.id)).heldReason, null);
 });
 
+test('a letter written to someone already free is held from the start', async () => {
+	// The reason for the hold is the same whenever the letter was written (#202).
+	const freed = await person('Already Out');
+	assert.equal(
+		(await put('/prisoner/prisoner', { id: freed.id, status: 'free' }, f.admin)).status,
+		200
+	);
+	const letter = await write(f.alice, freed.id);
+	assert.equal(letter.status, 'queued');
+	assert.equal(letter.heldReason, 'prisoner_free');
+	const printed = await put('/messaging/status', { id: letter.id, status: 'printed' }, f.chapter);
+	assert.equal(printed.status, 409, 'printing it is a decision');
+	assert.equal(printed.body.code, 'letter_held.prisoner_free');
+
+	// A letter the group has on paper is already printed, so there is nothing to hold.
+	const paper = await post(
+		'/messaging/message',
+		{ prisoner: freed.id, sender: 'user', paper: true, relayChapter: f.group.id },
+		f.chapter
+	);
+	assert.equal(paper.status, 201, JSON.stringify(paper.body));
+	assert.equal(paper.body.data.heldReason, null);
+
+	// Someone still inside: no hold.
+	const inside = await write(f.alice, (await person('Still Inside')).id);
+	assert.equal(inside.heldReason, null);
+
+	// The news was wrong: correcting the status lifts the hold, as for any other.
+	const back = await put('/prisoner/prisoner', { id: freed.id, status: 'incarcerated' }, f.admin);
+	assert.equal(back.body.data.mail.released, 1);
+	assert.equal((await Message.findByPk(letter.id)).heldReason, null);
+});
+
 test('an approved proposal that moves someone has the same effect as a direct edit', async () => {
 	const mover = await person('Proposed');
 	const letter = await write(f.alice, mover.id);

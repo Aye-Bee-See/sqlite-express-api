@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
-### README gaps from the web's third round, and two-factor on user records for admins (#PR)
+### README gaps from the web's third round, and two-factor on user records for admins (#215)
 
 Closes #207. README additions:
 

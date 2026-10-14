@@ -185,3 +185,18 @@ test('lookups for missing users are 404 and no-parameter lookups are 400', async
 	assert.equal((await put('/auth/user', { id: 999999, name: 'Valid Name' }, admin)).status, 404);
 	assert.equal((await del('/auth/user', { id: 999999 }, admin)).status, 404);
 });
+
+test('saving an account with nothing changed is a success, not "not found"', async () => {
+	// Sequelize reports no row changed when every value is the one stored (#209).
+	const u = await makeUser({ username: 'unchanged1', name: 'Same Name' });
+	const same = await put('/auth/user', { id: u.id, name: 'Same Name' }, { token: u.token });
+	assert.equal(same.status, 200, JSON.stringify(same.body));
+	const asAdmin = await put('/auth/user', { id: f.admin.id, role: 'admin' }, admin);
+	assert.equal(
+		asAdmin.status,
+		200,
+		'an admin re-sending their own role: ' + JSON.stringify(asAdmin.body)
+	);
+	// An account that does not exist is still not found.
+	assert.equal((await put('/auth/user', { id: 987654, name: 'Nobody' }, admin)).status, 404);
+});

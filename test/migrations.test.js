@@ -622,6 +622,34 @@ test('the return-note migration copies the newest returned note onto each return
 	await old.close();
 });
 
+test('the address-checked migration starts every prisoner at their last edit, so no doubt changes', async () => {
+	const MIGRATION = '2026.10.14T00.00.00.address-checked-at.js';
+	const old = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });
+	const names = (await createMigrator(old, { quiet: true }).pending()).map((m) => m.name);
+	await createMigrator(old, { quiet: true }).up({ to: names[names.indexOf(MIGRATION) - 1] });
+	const at = (day) => `'2026-01-${day} 00:00:00.000 +00:00'`;
+	await old.query(
+		`INSERT INTO Prisons (prisonName, address, createdAt, updatedAt) VALUES ('P', '{}', ${at('01')}, ${at('01')})`
+	);
+	await old.query(
+		`INSERT INTO Prisoners (id, birthName, prison, createdAt, updatedAt) VALUES
+			(1, 'A', 1, ${at('01')}, ${at('05')}),
+			(2, 'B', 1, ${at('01')}, ${at('20')})`
+	);
+	await createMigrator(old, { quiet: true }).up({ to: MIGRATION });
+	const [rows] = await old.query(
+		'SELECT id, addressCheckedAt, updatedAt FROM Prisoners ORDER BY id'
+	);
+	assert.deepEqual(
+		rows.map((r) => r.addressCheckedAt),
+		rows.map((r) => r.updatedAt)
+	);
+	await createMigrator(old, { quiet: true }).down({ to: MIGRATION });
+	const [after] = await old.query('SELECT id FROM Prisoners ORDER BY id');
+	assert.equal(after.length, 2, 'rolling back drops the column and keeps the rows');
+	await old.close();
+});
+
 test('the decline-label migration gives each rule decline the label its rule has, retired or not', async () => {
 	const MIGRATION = '2026.10.03T01.00.00.decline-rule-label.js';
 	const old = new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false });

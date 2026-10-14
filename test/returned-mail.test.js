@@ -10,7 +10,8 @@ import {
 	del,
 	Message,
 	Prison,
-	Prisoner
+	Prisoner,
+	upload
 } from './helpers.js';
 import AuditLog from '../database/models/audit-log.model.js';
 import Notification from '../database/models/notification.model.js';
@@ -211,17 +212,15 @@ test('a letter sent again names the returned one, and each shows the other', asy
 	assert.equal(stored.returnNote, null);
 });
 
-test('mail that comes back as moved puts the address in doubt, for staff, until someone edits the record', async () => {
+test('mail that comes back as moved puts the address in doubt, for staff, until someone edits the address', async () => {
 	const count = async () =>
 		(await get('/moderation/summary', f.admin)).body.data.addressInDoubt.prisoner;
 	const listed = async (who) =>
 		(await get('/prisoner/prisoners?addressInDoubt=true&page_size=100', who)).body.data.map(
 			(p) => p.id
 		);
-	await Prisoner.update(
-		{ bio: 'A longer biography, edited just now.' },
-		{ where: { id: f.prisoner1.id } }
-	);
+	// Earlier tests returned letters to this person: start from an address just checked.
+	await Prisoner.update({ addressCheckedAt: new Date() }, { where: { id: f.prisoner1.id } });
 	const before = await count();
 
 	// "Refused" says nothing about where the person is.
@@ -247,13 +246,38 @@ test('mail that comes back as moved puts the address in doubt, for staff, until 
 	const asPublic = await get('/prisoner/prisoners?addressInDoubt=true&page_size=100');
 	assert.equal(asPublic.body.total, (await get('/prisoner/prisoners?page_size=100')).body.total);
 
-	// Someone looks into it and updates the record: the doubt is answered.
+	// Edits that say nothing about the address leave the doubt where it is (#216):
+	// the status, the biography, and a photo.
 	await new Promise((resolve) => setTimeout(resolve, 5));
 	assert.equal(
 		(await put('/prisoner/prisoner', { id: f.prisoner1.id, status: 'free' }, f.admin)).status,
 		200
 	);
+	assert.equal(
+		(await put('/prisoner/prisoner', { id: f.prisoner1.id, bio: 'A new biography.' }, f.admin))
+			.status,
+		200
+	);
+	const photo = await upload(
+		'/prisoner/photo',
+		{
+			fields: { prisoner: f.prisoner1.id },
+			file: { name: 'a.jpg', type: 'image/jpeg', bytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
+			field: 'photo'
+		},
+		f.admin
+	);
+	assert.equal(photo.status, 201, JSON.stringify(photo.body));
+	assert.equal(await count(), before + 1, 'still in doubt');
+
+	// Someone looks into the address and confirms it, even unchanged: the doubt is answered.
+	const { inmateID } = await Prisoner.findByPk(f.prisoner1.id);
+	assert.equal(
+		(await put('/prisoner/prisoner', { id: f.prisoner1.id, inmateID }, f.admin)).status,
+		200
+	);
 	assert.equal(await count(), before);
+	assert.ok(!(await listed(f.chapter)).includes(f.prisoner1.id));
 });
 
 test('retention removes a returned letter after the window, counted from the day it came back', async () => {

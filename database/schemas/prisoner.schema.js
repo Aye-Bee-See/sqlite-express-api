@@ -134,6 +134,14 @@ const prisonerSchema = {
 	verifiedAt: {
 		type: DataTypes.DATE
 	},
+	/**
+	 * When the address (the facility and the inmate number) was last edited or
+	 * confirmed; set by the server, never directly. What answers an "address in
+	 * doubt" (#216). Staff only.
+	 */
+	addressCheckedAt: {
+		type: DataTypes.DATE
+	},
 	verificationNotes: {
 		type: DataTypes.TEXT
 	},

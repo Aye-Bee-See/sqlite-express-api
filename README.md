@@ -1217,7 +1217,7 @@ curl -s -X POST http://localhost:3000/prisoner/photo \
 
 `201` with `{ id, photo, bytesStored, bytesUploaded }`: the two sizes differ by whatever metadata was stripped. `400` for a file that is not one of the three types (`not_allowed_value`), is larger than `PHOTO_MAX_BYTES` (`out_of_range`, `params.max`), or cannot be read to the end (`wrong_type`); `403` for anyone but a superadmin or a group admin of an active group; `404` for a record the caller cannot see.
 
-An upload or a removal moves the prisoner's `updatedAt`, as any edit of the record does, and the photo's own URL changes with every upload (`&v=`), so a client caching by either sees the change. The `prisoner.photo` audit entry records `credit` and `replaced` (`true` when it replaced an earlier photo), not the old file's name.
+An upload or a removal moves the prisoner's `updatedAt`, as any edit of the record does (it does not answer an address in doubt: see [Moved and freed](#moved-and-freed), "What returns tell the directory"), and the photo's own URL changes with every upload (`&v=`), so a client caching by either sees the change. The `prisoner.photo` audit entry records `credit` and `replaced` (`true` when it replaced an earlier photo), not the old file's name.
 
 #### GET /prisoner/photo?prisoner=&v=
 
@@ -1778,31 +1778,32 @@ The values a list page builds its filter chips from, each with how many records 
 
 #### Prisoner fields
 
-| Field               | Type     | Notes                                                                                                |
-| ------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| `birthName`         | string   | Legal name.                                                                                          |
-| `chosenName`        | string   | Name the person goes by.                                                                             |
-| `prison`            | integer  | Id of an existing prison. A nonexistent id is refused.                                               |
-| `inmateID`          | string   | Facility-issued identifier. Free text.                                                               |
-| `releaseDate`       | datetime | ISO-8601 string.                                                                                     |
-| `bio`               | string   |                                                                                                      |
-| `status`            | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`.                           |
-| `statusNotice`      | string   | Free text shown on the profile, e.g. "In transit, location unconfirmed".                             |
-| `aliases`           | string[] | Alternate names or spellings.                                                                        |
-| `country`           | string   | Country of imprisonment. Free text.                                                                  |
-| `detainedSince`     | datetime | ISO-8601.                                                                                            |
-| `sentence`          | string   | Free text, e.g. "10 years".                                                                          |
-| `charges`           | string   | Free text.                                                                                           |
-| `estimatedRelease`  | string   | Free text, e.g. "2033", "~2029", "Unknown". `releaseDate` remains for a precise date.                |
-| `interests`         | string[] | Tags shown on the profile.                                                                           |
-| `photo`             | object   | Read-only: `{ url, hosted, credit, updatedAt }`, or `null`. The only photo field. [Photos](#photos). |
-| `supportWebsite`    | string   | Must be a URL.                                                                                       |
-| `donationInfo`      | string   | Free text.                                                                                           |
-| `featured`          | boolean  | Shown on the home page. Default `false`.                                                             |
-| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                         |
-| `verifiedAt`        | datetime | When it was verified.                                                                                |
-| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                  |
-| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only.                                            |
+| Field               | Type     | Notes                                                                                                                                |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `birthName`         | string   | Legal name.                                                                                                                          |
+| `chosenName`        | string   | Name the person goes by.                                                                                                             |
+| `prison`            | integer  | Id of an existing prison. A nonexistent id is refused.                                                                               |
+| `inmateID`          | string   | Facility-issued identifier. Free text.                                                                                               |
+| `releaseDate`       | datetime | ISO-8601 string.                                                                                                                     |
+| `bio`               | string   |                                                                                                                                      |
+| `status`            | string   | `pretrial`, `incarcerated`, or `free`. Optional; anything else is a `400`.                                                           |
+| `statusNotice`      | string   | Free text shown on the profile, e.g. "In transit, location unconfirmed".                                                             |
+| `aliases`           | string[] | Alternate names or spellings.                                                                                                        |
+| `country`           | string   | Country of imprisonment. Free text.                                                                                                  |
+| `detainedSince`     | datetime | ISO-8601.                                                                                                                            |
+| `sentence`          | string   | Free text, e.g. "10 years".                                                                                                          |
+| `charges`           | string   | Free text.                                                                                                                           |
+| `estimatedRelease`  | string   | Free text, e.g. "2033", "~2029", "Unknown". `releaseDate` remains for a precise date.                                                |
+| `interests`         | string[] | Tags shown on the profile.                                                                                                           |
+| `photo`             | object   | Read-only: `{ url, hosted, credit, updatedAt }`, or `null`. The only photo field. [Photos](#photos).                                 |
+| `supportWebsite`    | string   | Must be a URL.                                                                                                                       |
+| `donationInfo`      | string   | Free text.                                                                                                                           |
+| `featured`          | boolean  | Shown on the home page. Default `false`.                                                                                             |
+| `verifiedBy`        | integer  | Id of the chapter that last verified the record. Must exist.                                                                         |
+| `verifiedAt`        | datetime | When it was verified.                                                                                                                |
+| `verificationNotes` | string   | **Staff only.** Never returned to anonymous or `user`-role callers.                                                                  |
+| `addressCheckedAt`  | datetime | **Staff only, read-only.** When the address (`prison` or `inmateID`) was last edited or confirmed. What answers an address in doubt. |
+| `recordStatus`      | string   | `draft`, `pending`, or `published` (default). Staff only.                                                                            |
 
 All fields are optional at the database level. Array and object fields are validated for shape; `aliases` and `interests` must be arrays of non-empty strings.
 
@@ -2139,7 +2140,7 @@ When someone's `status` becomes **`free`**, their writers get `prisoner.status` 
 
 A held letter stays `queued`. Moving it to `printed` is refused with `409` `LetterHeldError` unless the request says `"release": true`, so that printing it is a decision and not an oversight. `GET /messaging/messages?held=true` lists held letters (`held=false` the rest). Nobody can set or clear a hold by editing the letter.
 
-**What returns tell the directory.** A return for `transferred`, `released`, or `bad_address` within the last 60 days, on a prisoner whose record nobody has edited since, puts that address in doubt: staff list such records with `GET /prisoner/prisoners?addressInDoubt=true`, and the moderation summary counts them (`addressInDoubt.prisoner`). Editing the record, to correct it or just to confirm it, answers the doubt. Nothing changes by itself, and the public never sees this (the parameter is ignored for them).
+**What returns tell the directory.** A return for `transferred`, `released`, or `bad_address` within the last 60 days, on a prisoner whose address nobody has edited since, puts that address in doubt: staff list such records with `GET /prisoner/prisoners?addressInDoubt=true`, and the moderation summary counts them (`addressInDoubt.prisoner`). Editing the address answers the doubt: `PUT /prisoner/prisoner` (or an approved proposal) carrying `prison` or `inmateID`, a new value or the same one sent again to confirm it. Other edits do not, a status, a biography or a photo among them (decided 14 October 2026). The record's `addressCheckedAt` (staff only) says when the address was last edited or confirmed. Nothing changes by itself, and the public never sees this (the parameter is ignored for them).
 
 **Relay group.** `relayChapter` names the group that prints and mails the letter. It must be one of the facility's relay groups (see [PUT /prison/relay](#put-prisonrelay-and-delete-prisonrelay)). When the body omits it, the server picks one:
 

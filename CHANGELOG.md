@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
-### Only an edit of the address answers an address in doubt (#PR)
+### Only an edit of the address answers an address in doubt (#219)
 
 Closes #216. A prisoner's address is put in doubt when a letter comes back
 `transferred`, `released` or `bad_address`. That was answered by any edit of

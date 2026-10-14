@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
-### A facility read names its relay groups without every prisoner; GET /chapter/filters (#PR)
+### A facility read names its relay groups without every prisoner; GET /chapter/filters (#213)
 
 Closes #205. A facility's relay groups came only with `full=true`, which also
 embeds every prisoner held there, so a page routing one letter loaded the whole

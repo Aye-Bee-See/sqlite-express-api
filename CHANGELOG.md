@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
-### A backup test that failed now and then is fixed (#PR)
+### A backup test that failed now and then is fixed (#218)
 
 Closes #214. Tests only, plus one option. The backup test changed the byte 100
 from the end of a backup and expected "damaged or was changed". When the last

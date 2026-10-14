@@ -104,7 +104,11 @@ export default class UserController extends RouteController {
 
 	async #handlePass(res, user, type, req) {
 		if (user && (await AuthzService.mayManageUser(req, user))) {
-			this.#handleSuccess(res, this.#stripPassword(user, req));
+			const [plain] = await UserController.#withTwoFactorFlag(
+				[this.#stripPassword(user, req)],
+				req
+			);
+			this.#handleSuccess(res, plain);
 			return;
 		}
 		if (
@@ -125,12 +129,32 @@ export default class UserController extends RouteController {
 	 * Send a list of users with password hashes removed. An empty list is a
 	 * successful, empty result, not an error.
 	 */
-	#handleUsers(res, result, limits, req) {
-		this.handlePage(
-			res,
-			{ rows: result.rows.map((user) => this.#stripPassword(user, req)), count: result.count },
-			limits
+	async #handleUsers(res, result, limits, req) {
+		const rows = await UserController.#withTwoFactorFlag(
+			result.rows.map((user) => this.#stripPassword(user, req)),
+			req
 		);
+		this.handlePage(res, { rows, count: result.count }, limits);
+	}
+
+	/**
+	 * For an admin: whether each account has two-factor sign-in on
+	 * (`twoFactorEnabled`), so an accounts list can show it and offer a reset only
+	 * where one applies (#207). One query for the page; the secrets never leave.
+	 */
+	static async #withTwoFactorFlag(rows, req) {
+		if (!AuthzService.isAdmin(req) || rows.length === 0) {
+			return rows;
+		}
+		const on = await User.scope('withTwoFactor').findAll({
+			where: { id: rows.map((row) => row.id), totpEnabledAt: { [Op.ne]: null } },
+			attributes: ['id']
+		});
+		const enabled = new Set(on.map((row) => row.id));
+		for (const row of rows) {
+			row.twoFactorEnabled = enabled.has(row.id);
+		}
+		return rows;
 	}
 
 	/***
@@ -147,7 +171,7 @@ export default class UserController extends RouteController {
 		if (role) {
 			try {
 				const users = await User.getUsersByRole(role, fullBool, limit, offset, q);
-				this.#handleUsers(res, users, limits, req);
+				await this.#handleUsers(res, users, limits, req);
 			} catch (err) {
 				errorVar = !(err instanceof Error) ? new Error(err) : err;
 				this.#handleErr(res, errorVar, 'role');
@@ -155,7 +179,7 @@ export default class UserController extends RouteController {
 		} else {
 			try {
 				const users = await User.getAllUsers(fullBool, limit, offset, q);
-				this.#handleUsers(res, users, limits, req);
+				await this.#handleUsers(res, users, limits, req);
 			} catch (err) {
 				errorVar = !(err instanceof Error) ? new Error(err) : err;
 				this.#handleErr(res, errorVar);

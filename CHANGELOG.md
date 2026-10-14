@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
-### Saving an account with nothing changed no longer says "not found" (#PR)
+### Saving an account with nothing changed no longer says "not found" (#217)
 
 Closes #209. A `PUT /auth/user` whose values were all the ones already stored
 answered `404` "User N not found", because the update reported no row changed

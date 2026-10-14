@@ -367,11 +367,16 @@ async function examine(dir, manifest) {
 
 /**
  * Open a backup, check all of it, and leave nothing behind.
+ * @param {string} file
+ * @param {Uint8Array} privateKey
+ * @param {{tempRoot?: string}} [options]
  * @returns {Promise<object>} what it holds
  * @throws {Error} wrong key, damaged, cut short, or inconsistent
  */
-export async function verifyBackup(file, privateKey) {
-	const dir = await mkdtemp(join(tmpdir(), 'abc-backup-verify-'));
+export async function verifyBackup(file, privateKey, { tempRoot = tmpdir() } = {}) {
+	// `tempRoot`: where the unpacked copy lives while it is checked. The system's
+	// temporary directory unless a caller (a test) wants a folder of its own.
+	const dir = await mkdtemp(join(tempRoot, 'abc-backup-verify-'));
 	try {
 		const manifest = await unpack(file, privateKey, dir);
 		return {

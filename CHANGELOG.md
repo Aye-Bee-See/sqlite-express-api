@@ -10,6 +10,19 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
+### A backup test that failed now and then is fixed (#PR)
+
+Closes #214. Tests only, plus one option. The backup test changed the byte 100
+from the end of a backup and expected "damaged or was changed". When the last
+chunk of the backup happened to be 96 to 98 bytes long, that byte was the
+chunk's length field instead of its contents. Verification then refused the
+file for another reason ("a chunk is too large", "ends in the middle of a
+record"), and the test failed. It now changes a byte inside the first chunk's
+sealed contents, found from the file's own layout. `verifyBackup` also takes an
+optional `tempRoot`, so the test checks that its own folder is left empty
+rather than looking through the shared temporary directory. Backups and their
+verification work as before.
+
 ### Saving an account with nothing changed no longer says "not found" (#217)
 
 Closes #209. A `PUT /auth/user` whose values were all the ones already stored

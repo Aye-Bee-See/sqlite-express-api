@@ -171,38 +171,45 @@ test('decrypted, it is an ordinary tar archive', async () => {
 });
 
 test('the wrong key, a changed byte, and a file cut short are each refused', async () => {
+	// Its own folder for the unpacked copies, so "nothing left behind" is checked
+	// here and not in a temporary directory other things use too (#214).
+	const temp = { tempRoot: mkdtempSync(join(dir, 'verify-')) };
 	const [newest] = await listBackups();
 	await assert.rejects(
-		verifyBackup(newest.file, archive.parseKey(stranger.privateKey, 'key')),
+		verifyBackup(newest.file, archive.parseKey(stranger.privateKey, 'key'), temp),
 		/does not open this backup/
 	);
 	const good = readFileSync(newest.file);
+	// The layout: magic (8), header length (4), header, then chunks of
+	// [length (4)][sealed bytes]. The first chunk's sealed bytes start here.
+	const headerLength = good.readUInt32BE(8);
+	const firstChunk = 12 + headerLength;
+	const firstSealed = firstChunk + 4;
 
+	// One bit changed in the middle of the first chunk's sealed bytes: never a
+	// length field, wherever the chunks happen to end (#214).
 	const flipped = Buffer.from(good);
-	flipped[flipped.length - 100] ^= 1;
+	flipped[firstSealed + Math.floor(good.readUInt32BE(firstChunk) / 2)] ^= 1;
 	const tampered = join(dir, 'tampered.abcbak');
 	writeFileSync(tampered, flipped);
-	await assert.rejects(verifyBackup(tampered, privateKey), /damaged or was changed/);
+	await assert.rejects(verifyBackup(tampered, privateKey, temp), /damaged or was changed/);
 
 	// Cut exactly between two chunks: every chunk left still verifies, and it is still noticed.
-	const headerLength = good.readUInt32BE(8);
-	let at = 12 + headerLength;
+	let at = firstChunk;
 	at += 4 + good.readUInt32BE(at);
 	assert.ok(at < good.length, 'the scan makes the backup more than one chunk long');
 	const cut = join(dir, 'cut.abcbak');
 	writeFileSync(cut, good.subarray(0, at));
-	await assert.rejects(verifyBackup(cut, privateKey), /cut short/);
+	await assert.rejects(verifyBackup(cut, privateKey, temp), /cut short/);
 
 	writeFileSync(join(dir, 'not.abcbak'), 'hello');
 	await assert.rejects(
-		verifyBackup(join(dir, 'not.abcbak'), privateKey),
+		verifyBackup(join(dir, 'not.abcbak'), privateKey, temp),
 		/not a backup|middle of a record/
 	);
-	// Nothing in the clear is left in the temporary directory by a failed or a good verify.
-	assert.deepEqual(
-		readdirSync(tmpdir()).filter((name) => name.startsWith('abc-backup-verify-')),
-		[]
-	);
+	await verifyBackup(newest.file, privateKey, temp);
+	// Nothing in the clear is left behind by a failed or a good verify.
+	assert.deepEqual(readdirSync(temp.tempRoot), []);
 });
 
 test('a file that went missing is reported, and the backup is still made', async () => {

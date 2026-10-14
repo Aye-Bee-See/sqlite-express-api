@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-13
 
-### Two refusals a client can now word by code (#PR)
+### Two refusals a client can now word by code (#212)
 
 Closes #206. The `403` an account of a group that cannot act gets on every
 write had no condition, so its `code` was the bare `authorization`, the same as

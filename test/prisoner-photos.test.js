@@ -18,6 +18,7 @@ const {
 	User
 } = await import('./helpers.js');
 const { readdirSync } = await import('node:fs');
+const AuditLog = (await import('../database/models/audit-log.model.js')).default;
 
 let f;
 let owner;
@@ -149,6 +150,15 @@ test('replacing a photo deletes the file it replaces, and removing it takes both
 		'a new photo is a new URL, so no image cache shows the old one'
 	);
 	assert.equal(filesOnDisk(), before + 1, 'one photo, one file');
+	// The audit says it replaced one, not the old file's name on disk (#207).
+	const entries = await AuditLog.findAll({
+		where: { action: 'prisoner.photo', targetId: fresh.id },
+		order: [['id', 'ASC']]
+	});
+	assert.deepEqual(
+		entries.map((e) => e.details.replaced),
+		[false, true]
+	);
 	const served = await getBytes('/prisoner/photo?prisoner=' + fresh.id);
 	assert.ok(served.bytes.toString('latin1').includes('SECOND-PICTURE'), 'the newer picture');
 

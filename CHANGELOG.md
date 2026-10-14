@@ -10,6 +10,30 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
+### README gaps from the web's third round, and two-factor on user records for admins (#PR)
+
+Closes #207. README additions:
+
+- **`GET /messaging/retention`'s answer**, with its fields.
+- **Retention also removes `declined` letters and `received` replies**, counted
+  from when they reached that status.
+- **Pinning on a letter that has gone out.** Its writer, or the managing group,
+  may still pin or unpin a printed, mailed, returned or declined letter with
+  `keep` alone.
+- **`resent_as` is a list** that comes only on the single read with `full=true`.
+- **A mail rule takes no parameters.**
+- **Photo uploads and `updatedAt`.** An upload moves the prisoner's `updatedAt`.
+  The issue thought it did not; it does.
+
+Two small changes come with them. The `prisoner.photo` audit entry now records
+`replaced: true|false` instead of the old file's name on disk, as #151 meant.
+And user records read by an admin (`GET /auth/users`, `GET /auth/user`) carry
+`twoFactorEnabled`, so an accounts list can show it and offer a two-factor reset
+only where one applies. No secret travels with it.
+
+**For clients:** an admin's accounts list can show `twoFactorEnabled` and hide
+the reset where it is `false`. Nothing else changes.
+
 ### A facility read names its relay groups without every prisoner; GET /chapter/filters (#213)
 
 Closes #205. A facility's relay groups came only with `full=true`, which also

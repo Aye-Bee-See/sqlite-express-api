@@ -45,11 +45,28 @@ test('user list returns full rows without hashes and paginates', async () => {
 		'role',
 		'sessionsRevokedAt',
 		'sponsoredBy',
+		'twoFactorEnabled',
 		'updatedAt',
 		'username'
 	]);
 	const everyone = await get('/auth/users?page_size=100', admin);
 	assert.ok(!JSON.stringify(everyone.body).includes('$2b$'));
+	assert.ok(!/totp/i.test(JSON.stringify(everyone.body)), 'no two-factor secrets, only the flag');
+});
+
+test('an admin sees whether each account has two-factor sign-in on; nobody else does', async () => {
+	// Two-factor is on when it was confirmed (totpEnabledAt); the secret never travels (#207).
+	const on = await makeUser({ username: 'twofactoron' });
+	await User.update({ totpEnabledAt: new Date() }, { where: { id: on.id } });
+	const everyone = await get('/auth/users?page_size=100', admin);
+	const row = (id) => everyone.body.data.find((u) => u.id === id);
+	assert.equal(row(on.id).twoFactorEnabled, true);
+	assert.equal(row(f.admin.id).twoFactorEnabled, false);
+	const one = await get('/auth/user?id=' + on.id, admin);
+	assert.equal(one.body.data.twoFactorEnabled, true);
+	const self = await get('/auth/user?id=' + on.id, { token: on.token });
+	assert.equal(self.status, 200, JSON.stringify(self.body));
+	assert.equal(self.body.data.twoFactorEnabled, undefined, 'admins only');
 });
 
 test('user list filters by role, case-insensitively, and validates the role', async () => {

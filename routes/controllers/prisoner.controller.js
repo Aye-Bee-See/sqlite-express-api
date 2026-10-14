@@ -382,7 +382,11 @@ export default class PrisonerController extends RouteController {
 				// file on disk, never a record pointing at a file that is gone.
 				await removeFile(previous);
 			}
-			await audit(req, 'prisoner.photo', 'prisoner', prisoner.id, { credit, replaced: previous });
+			await audit(req, 'prisoner.photo', 'prisoner', prisoner.id, {
+				credit,
+				// Whether it replaced one, not the old file's name on disk (#151, #207).
+				replaced: Boolean(previous)
+			});
 			this.#handleSuccess(res, {
 				id: prisoner.id,
 				photo: prisoner.photo,

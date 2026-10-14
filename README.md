@@ -534,7 +534,7 @@ Every refusal is a `403` with the general error shape.
 
 A `chapter` account has these rights **through its group**: while the group is `pending` or `suspended` its accounts read what the public reads (published records, no staff-only fields) and write nothing, group keys included.
 
-A `chapter` account is scoped to its group. It sees the threads of the writers its group manages (see [Managed writers](#managed-writers)) and the threads holding letters its group relays (see [Letter lifecycle](#letter-lifecycle)), can send letters for its writers and transcribe prisoner replies on either, and sees nothing else. A `chapter` account that is not yet a member of a group (no `chapterId`), or whose group is not yet `active` (see [Chapter fields](#chapter-fields)), can read what anyone can but cannot propose directory changes, link its group, create writers, or send and relay letters; every such refusal is a `403` whose `info` says which it is. An admin puts an account in a group with `PUT /auth/user` and activates a group with `PUT /chapter/chapter`.
+A `chapter` account is scoped to its group. It sees the threads of the writers its group manages (see [Managed writers](#managed-writers)) and the threads holding letters its group relays (see [Letter lifecycle](#letter-lifecycle)), can send letters for its writers and transcribe prisoner replies on either, and sees nothing else. A `chapter` account that is not yet a member of a group (no `chapterId`), or whose group is not yet `active` (see [Chapter fields](#chapter-fields)), can read what anyone can but cannot propose directory changes, link its group, create writers, or send and relay letters; every such refusal is a `403` whose `info` says which it is, and whose condition says it by code: `authorization.no_group` (no group yet), `authorization.group_pending` (waiting for network approval), or `authorization.group_suspended`. An admin puts an account in a group with `PUT /auth/user` and activates a group with `PUT /chapter/chapter`.
 
 ### Creating accounts with other roles
 
@@ -702,7 +702,7 @@ code = family + ("." + condition, when the refusal has one)
 
 `family` is the error's `name` in snake_case with `Error` dropped, so `InviteCodeError` with `condition: "used"` is `code: "invite_code.used"`, and a plain `NotFoundError` is `code: "not_found"`. The condition is whichever `condition` the answer carries, the error's own or the endpoint's (`GET /auth/user?id=` that finds nobody is `not_found.id`), so `code` never disagrees with `condition`. A body the server cannot read at all is `request_body` with `not_json`, `too_large`, `unsupported_encoding`, `unsupported_charset`, `too_many_parameters` or `unreadable`. Every family is listed in [docs/ERRORS.md](docs/ERRORS.md). **Match the whole code, or just the family before the dot**: a refusal may grow a finer `condition` in a later release, and a build that matched the family keeps working.
 
-**`ids`**, when present, lists the records the refusal is about, so a client can mark them without reading the sentence. A batch sends it: the letters that stopped `PUT /messaging/status/batch`.
+**`ids`**, when present, lists the records the refusal is about, so a client can mark them without reading the sentence. A batch sends it (the letters that stopped `PUT /messaging/status/batch`), and so do the mail-rule refusals (the rule a new one duplicates, or the facilities that carry a rule that cannot be deleted).
 
 `name` and `condition` are still sent, and are not going away; `code` is an addition. A `5xx` is a fault rather than a refusal and carries no `code`. A `400` about a field answers with `problems` instead (above), so every refusal has exactly one thing to key on.
 
@@ -729,7 +729,7 @@ With a code:
 }
 ```
 
-Where `condition` appears: claim tokens and invite codes (`unknown`, `used`, `expired`, `cancelled`, `inactive`), invitations (`unknown`, `expired`, `accepted`, `revoked`, `inactive`), `AccountDeleteError` (`anonymous`, `only_admin`, `group_owner`, `last_key_holder`), and `RoleChangeError` (`last_admin`), plus any endpoint whose reference lists conditions.
+Where `condition` appears: claim tokens and invite codes (`unknown`, `used`, `expired`, `cancelled`, `inactive`), invitations (`unknown`, `expired`, `accepted`, `revoked`, `inactive`), `AccountDeleteError` (`anonymous`, `only_admin`, `group_owner`, `last_key_holder`), `RoleChangeError` (`last_admin`), and the `403` an account of a group that cannot act gets (`no_group`, `group_pending`, `group_suspended`), plus any endpoint whose reference lists conditions.
 
 Authentication and authorization failures use the same shape without `error`:
 
@@ -1723,11 +1723,11 @@ curl -s -X POST http://localhost:3000/prison/mail-rule \
 | `label`       | Required, 3 to 80 characters.                                                                                                             |
 | `description` | Optional.                                                                                                                                 |
 
-`POST` returns `201` with the rule. It answers `409` `DuplicateRuleError`, naming the existing rule, when the list already says the same thing in other words: the same words in another order (`only_english` beside `english_only`), a singular for a plural (`no_polaroid` beside `no_polaroids`), or a label that matches an existing tag or label that way. That check catches slips, not synonyms ("No instant photos" would pass), which is why only admins can add rules.
+`POST` returns `201` with the rule. It answers `409` `DuplicateRuleError`, naming the existing rule (in the sentence, and by id in `ids`), when the list already says the same thing in other words: the same words in another order (`only_english` beside `english_only`), a singular for a plural (`no_polaroid` beside `no_polaroids`), or a label that matches an existing tag or label that way. That check catches slips, not synonyms ("No instant photos" would pass), which is why only admins can add rules.
 
 `PUT /prison/mail-rule {"id": 40, "label": "...", "category": "...", "description": "...", "retired": true}` rewords, recategorises, retires, or restores a rule, and returns it with `prisons`, the number of facilities that carry it. Facilities hold a link, not a copy, so new wording shows everywhere at once. Sending a different `tag` is a `409` `RuleTagError`. A **retired** rule stays on the facilities that have it and can be kept through edits, but cannot be added to another facility and leaves the public list.
 
-`DELETE /prison/mail-rule {"id": 40}` works only for a rule no facility carries; otherwise it is a `409` `RuleInUseError` that says how many do, and the rule should be retired instead. Deleting a facility removes its links, never a rule. All three are recorded in the audit log (`mail-rule.create`, `.update`, `.delete`).
+`DELETE /prison/mail-rule {"id": 40}` works only for a rule no facility carries; otherwise it is a `409` `RuleInUseError` that says how many do, with the facilities themselves in `ids`, and the rule should be retired instead. Deleting a facility removes its links, never a rule. All three are recorded in the audit log (`mail-rule.create`, `.update`, `.delete`).
 
 #### PUT /prison/relay and DELETE /prison/relay
 

@@ -203,6 +203,8 @@ test('a pending group account can read but not act', async () => {
 	);
 	assert.equal(write.status, 403);
 	assert.match(write.body.info, /waiting for network approval/);
+	// Worded by code, not told apart from "not yours" by a missing condition (#206).
+	assert.equal(write.body.code, 'authorization.group_pending');
 	const link = await put(
 		'/prison/relay',
 		{ prison: f.prison.id, chapter: pendingGroup.id },
@@ -213,6 +215,7 @@ test('a pending group account can read but not act', async () => {
 	const writer = await post('/auth/writer', { name: 'Someone' }, pendingMember);
 	assert.equal(writer.status, 403);
 	assert.match(writer.body.info, /waiting for network approval/);
+	assert.equal(writer.body.code, 'authorization.group_pending');
 	assert.deepEqual((await get('/chat/chats', pendingMember)).body.data, []);
 	assert.deepEqual((await get('/messaging/messages', pendingMember)).body.data, []);
 	const letter = await post(
@@ -256,6 +259,7 @@ test('a group without any chapter record is refused with the older message', asy
 	);
 	assert.equal(res.status, 403);
 	assert.match(res.body.info, /not a member of a group yet/);
+	assert.equal(res.body.code, 'authorization.no_group');
 });
 
 // ---- relay availability ---------------------------------------------------
@@ -367,4 +371,15 @@ test('a pending group is told why on every write path, and cannot manage its wri
 		(await put('/messaging/status', { id: letter.id, status: 'printed' }, admin)).status,
 		200
 	);
+});
+
+test('a suspended group is told so, by code', async () => {
+	await Chapter.update({ accountStatus: 'suspended' }, { where: { id: pendingGroup.id } });
+	try {
+		const res = await post('/auth/writer', { name: 'Someone' }, pendingMember);
+		assert.equal(res.status, 403, JSON.stringify(res.body));
+		assert.equal(res.body.code, 'authorization.group_suspended');
+	} finally {
+		await Chapter.update({ accountStatus: 'pending' }, { where: { id: pendingGroup.id } });
+	}
 });

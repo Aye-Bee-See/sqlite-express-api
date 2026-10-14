@@ -87,6 +87,10 @@ test('the same rule in other words is refused, with a pointer to the one that ex
 		assert.equal(res.status, 409, what + ': ' + JSON.stringify(res.body));
 		assert.equal(res.body.name, 'DuplicateRuleError');
 		assert.match(res.body.error, /already has this rule as "(english_only|no_polaroids)"/);
+		// The rule it duplicates, by id, beside the sentence (#206).
+		const named = res.body.error.match(/as "([a-z_]+)"/)[1];
+		const existing = (await list()).find((r) => r.tag === named);
+		assert.deepEqual(res.body.ids, [existing.id]);
 	}
 	assert.equal(await MailRule.count({ where: { tag: ['only_english', 'no_polaroid'] } }), 0);
 });
@@ -127,6 +131,7 @@ test('a rule can be reworded and recategorised; its tag never changes', async ()
 	assert.equal(retagged.body.name, 'RuleTagError');
 	const stolen = await put('/prison/mail-rule', { id: rule.id, label: 'No Polaroids' }, admin);
 	assert.equal(stolen.status, 409, 'cannot take the wording of another rule');
+	assert.deepEqual(stolen.body.ids, [(await list()).find((r) => r.tag === 'no_polaroids').id]);
 	assert.equal(
 		(await put('/prison/mail-rule', { id: 999999, label: 'Nothing' }, admin)).status,
 		404
@@ -143,6 +148,7 @@ test('a rule in use is retired, not deleted; a retired rule stays where it is an
 	assert.equal(refused.status, 409);
 	assert.equal(refused.body.name, 'RuleInUseError');
 	assert.match(refused.body.error, /1 facility carries this rule/);
+	assert.deepEqual(refused.body.ids, [f.prison.id], 'which facilities carry it (#206)');
 
 	const retired = await put('/prison/mail-rule', { id: rule.id, retired: true }, admin);
 	assert.equal(retired.status, 200);

@@ -10,6 +10,23 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-13
 
+### Two refusals a client can now word by code (#PR)
+
+Closes #206. The `403` an account of a group that cannot act gets on every
+write had no condition, so its `code` was the bare `authorization`, the same as
+"not yours". It now says which: `authorization.no_group`,
+`authorization.group_pending`, or `authorization.group_suspended`. The
+mail-rule refusals now carry `ids`, as the batch refusals do since #196.
+`DuplicateRuleError` names the rule it duplicates, and `RuleInUseError` lists
+the facilities that carry the rule (their number is the length of the list).
+
+**For clients:** a client that recognizes the inactive-group refusal as "a
+`403` with no condition", as the web's `isGroupNotActive` does, will no longer
+match it. Match the three codes instead (or `condition` starting with
+`group_`, plus `no_group`). Until then the refusal falls through to the generic
+wording; nothing else breaks. On the mail-rule screens, point at the existing
+rule or list the facilities from `ids`, with no second request.
+
 ### The README says how staff accounts are made in end-to-end mode (#211)
 
 Closes #203. "Creating accounts with other roles" showed a superadmin making a

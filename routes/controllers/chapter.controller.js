@@ -1,7 +1,8 @@
 import RouteController from '#rtControllers/route.controller.js';
 import Chapter, { CHAPTER_FIELDS } from '#models/chapter.model.js';
 import { Op, literal } from 'sequelize';
-import { readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+import { filterValues, readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
+import { publishedWhere } from '#db/record-status.js';
 import { ACCOUNT_STATUSES, CHAPTER_SERVICES } from '#db/validators.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { audit } from '#rtServices/audit.services.js';
@@ -67,6 +68,7 @@ export default class chapterController extends RouteController {
 		this.create = this.create.bind(this);
 		this.getMany = this.getMany.bind(this);
 		this.history = this.history.bind(this);
+		this.filters = this.filters.bind(this);
 		this.getOne = this.getOne.bind(this);
 		this.update = this.update.bind(this);
 		this.remove = this.remove.bind(this);
@@ -124,6 +126,46 @@ export default class chapterController extends RouteController {
 	 * key, who owns it, and its invite codes are the group's own business, and
 	 * only its members and a superadmin see those.
 	 */
+	/**
+	 * GET /chapter/filters: the values the groups list can be filtered by, with
+	 * how many groups have each, as GET /prison/filters does for facilities
+	 * (#205). Counted over the groups this caller can see; accountStatus for
+	 * staff only.
+	 */
+	async filters(req, res) {
+		try {
+			const publishedOnly = AuthzService.publishedOnly(req);
+			const where = publishedOnly ? publishedWhere(true) : {};
+			const fields = publishedOnly
+				? ['country', 'networkRole']
+				: ['country', 'networkRole', 'accountStatus'];
+			const out = await filterValues(Chapter, fields, where);
+			// services is a list on each group, so it is counted here, value by value.
+			const rows = await Chapter.findAll({ attributes: ['services'], where, raw: true });
+			const counts = new Map();
+			for (const row of rows) {
+				let services = row.services;
+				if (typeof services === 'string') {
+					try {
+						services = JSON.parse(services);
+					} catch {
+						services = [];
+					}
+				}
+				for (const service of Array.isArray(services) ? new Set(services) : []) {
+					counts.set(service, (counts.get(service) || 0) + 1);
+				}
+			}
+			out.services = [...counts]
+				.map(([value, count]) => ({ value, count }))
+				.sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+			this.#handleSuccess(res, out);
+		} catch (err) {
+			const errorVar = !(err instanceof Error) ? new Error(err) : err;
+			this.#handleErr(res, errorVar);
+		}
+	}
+
 	async history(req, res) {
 		try {
 			const { id, page, page_size } = req.query;

@@ -39,6 +39,11 @@ class ChapterRoutes {
 		);
 
 		this.Router.get(chapterEnd.get.one, AuthzService.optionalAuthenticate, this.#Controller.getOne);
+		this.Router.get(
+			chapterEnd.get.filters,
+			AuthzService.optionalAuthenticate,
+			this.#Controller.filters
+		);
 
 		// History: who changed this record and when. Staff only — it names people
 		// and can carry staff-only field values.

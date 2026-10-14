@@ -137,6 +137,7 @@ const endpoints = {
 		get: {
 			many: '/chapters',
 			one: '/chapter',
+			filters: '/filters',
 			history: '/history',
 			blocks: '/blocks'
 		},
@@ -998,6 +999,10 @@ const messages = {
 			history: {
 				success: { condition: { par: null } },
 				error: { condition: { par: 'Error reading the history.' } }
+			},
+			filters: {
+				success: { condition: { par: null } },
+				error: { condition: { par: 'Error reading the filter values.' } }
 			},
 			blocks: {
 				success: { condition: { par: null } },

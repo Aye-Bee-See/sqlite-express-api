@@ -8,7 +8,21 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
-## 2026-10-13
+## 2026-10-14
+
+### A facility read names its relay groups without every prisoner; GET /chapter/filters (#213)
+
+Closes #205. A facility's relay groups came only with `full=true`, which also
+embeds every prisoner held there, so a page routing one letter loaded the whole
+facility. Every prison read now carries a light `relay_groups`
+(`id`, `name`, `accountStatus`) without `full`; `full=true` is unchanged. And
+`GET /chapter/filters`, like the prisoner and facility ones, gives the groups
+list its filter values with counts: `country`, `networkRole`, `services`, and
+`accountStatus` for staff.
+
+**For clients:** drop `full=true` where only the relay groups were wanted, and
+route only to groups whose `accountStatus` is `active`. Build the groups page's
+chips from `GET /chapter/filters` instead of the current page.
 
 ### Two refusals a client can now word by code (#212)
 
@@ -26,6 +40,8 @@ match it. Match the three codes instead (or `condition` starting with
 `group_`, plus `no_group`). Until then the refusal falls through to the generic
 wording; nothing else breaks. On the mail-rule screens, point at the existing
 rule or list the facilities from `ids`, with no second request.
+
+## 2026-10-13
 
 ### The README says how staff accounts are made in end-to-end mode (#211)
 

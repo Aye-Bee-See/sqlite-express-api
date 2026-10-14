@@ -834,7 +834,7 @@ Most read endpoints accept `full=true` to embed related records. The string must
 | Endpoint                     | `full=true` adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Users (list, by id, by role) | `chats`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Prisons (list, by id)        | `prisoners`, `relay_groups`. Mail rules are plain fields on the prison and need no `full`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Prisons (list, by id)        | `prisoners`, `relay_groups`. Mail rules are plain fields on the prison and need no `full`. **Without `full`** every prison still carries a light `relay_groups` (`id`, `name`, `accountStatus`): who mails there, which is what routing a letter needs, without every prisoner held at the facility. Only `active` groups route letters, so filter on `accountStatus`                                                                                                                                                                                                                                      |
 | Prisoners (list, by id)      | `prison_details`, `support_groups` (each with a `PrisonerSupport.description`). Without `full`, list rows still carry a small `prison_details` (`id`, `prisonName`, `country`, `routing`) for "Held at" lines                                                                                                                                                                                                                                                                                                                                                                                              |
 | Prisoners by prison          | `prison_details`, `support_groups`, plus `chats` for admin callers only. Without `full`, rows carry the same small `prison_details` summary as the main list                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Chapters (list, by id)       | `supported_prisoners` (each with a `PrisonerSupport.description`), `relay_prisons`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -1752,7 +1752,7 @@ Body: `{"id": 53}`. Fails with `400` while the prison still has prisoners.
 
 Writes are superadmins' only; a group admin proposes through [Moderation](#moderation). See the note under [Prisons](#prisons).
 
-#### GET /prisoner/filters and GET /prison/filters
+#### GET /prisoner/filters, GET /prison/filters and GET /chapter/filters
 
 The values a list page builds its filter chips from, each with how many records carry it, over the records the caller could list (published only for the public; everything for staff). No parameters.
 
@@ -1769,7 +1769,7 @@ The values a list page builds its filter chips from, each with how many records 
 }
 ```
 
-`/prison/filters` answers `country` and `routing` the same way. Sorted by count, then value; `null` values are left out.
+`/prison/filters` answers `country` and `routing` the same way. `/chapter/filters` answers `country`, `networkRole`, and `services` (counted service by service, since a group offers several), plus `accountStatus` for staff. Sorted by count, then value; `null` values are left out.
 
 #### Prisoner fields
 
@@ -2461,6 +2461,7 @@ Body: `{"id": 3}`. Removes the row and the file. Returns `"data": 1`.
 | POST   | `/chapter/chapter`  | Admin or chapter | Create a chapter                                 |
 | GET    | `/chapter/chapters` | Public           | List chapters                                    |
 | GET    | `/chapter/chapter`  | Public           | Get one chapter by id                            |
+| GET    | `/chapter/filters`  | Public           | Filter values with counts for the groups list    |
 | PUT    | `/chapter/chapter`  | Admin or chapter | Update a chapter (a chapter: only its own group) |
 | DELETE | `/chapter/chapter`  | Admin or chapter | Delete a chapter (a chapter: only its own group) |
 

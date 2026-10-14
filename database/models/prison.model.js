@@ -110,10 +110,21 @@ export default class Prison extends Model {
 	 * published ones for non-staff.
 	 */
 	static #includes(publishedOnly, full = true) {
-		if (!full) {
-			return [MailRule.detailsInclude()];
-		}
 		const publishedOnlyOpts = publishedOnly ? { where: publishedWhere(true), required: false } : {};
+		if (!full) {
+			// Without full: the rules, and who mails there, which is what routing a
+			// letter needs, without every prisoner held at the facility (#205).
+			return [
+				MailRule.detailsInclude(),
+				{
+					model: Chapter,
+					as: 'relay_groups',
+					through: { attributes: [] },
+					attributes: ['id', 'name', 'accountStatus'],
+					...publishedOnlyOpts
+				}
+			];
+		}
 		return [
 			MailRule.detailsInclude(),
 			{

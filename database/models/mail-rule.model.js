@@ -134,7 +134,7 @@ export default class MailRule extends Model {
 		await candidate.validate();
 		const existing = await this.lookalike({ tag, label });
 		if (existing) {
-			throw new HttpError(
+			const err = new HttpError(
 				409,
 				'The master list already has this rule as "' +
 					existing.tag +
@@ -143,6 +143,9 @@ export default class MailRule extends Model {
 					'). Use that one, or reword it.',
 				'DuplicateRuleError'
 			);
+			// The rule it duplicates, for a client that words it itself (#206).
+			err.ids = [existing.id];
+			throw err;
 		}
 		return await candidate.save();
 	}
@@ -172,11 +175,13 @@ export default class MailRule extends Model {
 		if (label !== undefined && label !== rule.label) {
 			const existing = await this.lookalike({ label }, rule.id);
 			if (existing) {
-				throw new HttpError(
+				const err = new HttpError(
 					409,
 					'That wording belongs to "' + existing.tag + '" (' + existing.label + ').',
 					'DuplicateRuleError'
 				);
+				err.ids = [existing.id];
+				throw err;
 			}
 		}
 		if (retired !== undefined && typeof retired !== 'boolean') {
@@ -209,9 +214,10 @@ export default class MailRule extends Model {
 			if (!rule) {
 				return null;
 			}
-			const prisons = await this.usage(rule.id);
+			const carriers = await this.carriers(rule.id);
+			const prisons = carriers.length;
 			if (prisons > 0) {
-				throw new HttpError(
+				const err = new HttpError(
 					409,
 					prisons +
 						' facilit' +
@@ -219,10 +225,22 @@ export default class MailRule extends Model {
 						' this rule. Retire it instead (PUT /prison/mail-rule { id, retired: true }).',
 					'RuleInUseError'
 				);
+				// The facilities that carry it: how many, and which (#206).
+				err.ids = carriers;
+				throw err;
 			}
 			await rule.destroy();
 			return rule;
 		});
+	}
+
+	/** The ids of the facilities that carry this rule. */
+	static async carriers(id) {
+		const [rows] = await this.sequelize.query(
+			'SELECT `prison` FROM `PrisonMailRules` WHERE `rule` = :id ORDER BY `prison`',
+			{ replacements: { id } }
+		);
+		return rows.map((row) => Number(row.prison));
 	}
 
 	/** How many facilities carry this rule. */

@@ -134,18 +134,31 @@ export default class AuthzService {
 	 * @returns {Promise<Error>}
 	 */
 	static async groupRefusal(req) {
+		// Each with a condition, so a client words it by code rather than by
+		// telling it apart from "not yours" by the missing condition (#206).
+		const refuse = (message, condition) => {
+			const err = AuthzService.forbidden(message);
+			err.condition = condition;
+			return err;
+		};
 		const chapterId = AuthzService.chapterOf(req);
 		if (!chapterId) {
-			return AuthzService.forbidden(
-				'This chapter account is not a member of a group yet; ask an admin to set chapterId.'
+			return refuse(
+				'This chapter account is not a member of a group yet; ask an admin to set chapterId.',
+				'no_group'
 			);
 		}
 		const chapter = await Chapter.findByPk(chapterId, { attributes: ['id', 'accountStatus'] });
 		const status = chapter ? chapter.accountStatus : 'missing';
-		return AuthzService.forbidden(
-			status === 'pending'
-				? 'Your group is waiting for network approval; an admin has to activate it first.'
-				: 'Your group is ' + status + ' and cannot act in the network.'
+		if (status === 'pending') {
+			return refuse(
+				'Your group is waiting for network approval; an admin has to activate it first.',
+				'group_pending'
+			);
+		}
+		return refuse(
+			'Your group is ' + status + ' and cannot act in the network.',
+			status === 'suspended' ? 'group_suspended' : 'no_group'
 		);
 	}
 

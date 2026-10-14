@@ -10,6 +10,16 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
+### Saving an account with nothing changed no longer says "not found" (#PR)
+
+Closes #209. A `PUT /auth/user` whose values were all the ones already stored
+answered `404` "User N not found", because the update reported no row changed
+and that was read as no row found. A settings form that saved the record back
+unchanged, or an admin re-sending an account's role, hit it. It is now a `200`.
+An account that does not exist is still a `404`.
+
+**For clients:** nothing to change; a save with nothing new in it now succeeds.
+
 ### README gaps from the web's third round, and two-factor on user records for admins (#215)
 
 Closes #207. README additions:

@@ -657,7 +657,12 @@ export default class UserController extends RouteController {
 			if (!updatedRows[0] && lastAdminChecked && (await User.findByPk(newUser.id))) {
 				throw UserController.#lastAdminRefusal();
 			}
-			this.requireAffected(updatedRows, 'User ' + newUser.id);
+			// Every value sent is the one already stored: the update reports no row
+			// changed, but the account is there, so that is a success, not "not found"
+			// (#209). The two conditional writes above have had their say by now.
+			if (updatedRows[0] || !(await User.findByPk(newUser.id, { attributes: ['id'] }))) {
+				this.requireAffected(updatedRows, 'User ' + newUser.id);
+			}
 			if (penName !== undefined && penName !== null && penName !== '') {
 				await User.renamePen(newUser.id, penName, { enforce: penNameEnforced });
 				if (!penNameEnforced) {

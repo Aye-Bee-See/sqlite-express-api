@@ -269,6 +269,11 @@ test('mail that comes back as moved puts the address in doubt, for staff, until 
 	);
 	assert.equal(photo.status, 201, JSON.stringify(photo.body));
 	assert.equal(await count(), before + 1, 'still in doubt');
+	// The record's own page says so too, for staff only (#221).
+	const flag = async (who) =>
+		(await get('/prisoner/prisoner?id=' + f.prisoner1.id, who)).body.data.addressInDoubt;
+	assert.equal(await flag(f.chapter), true);
+	assert.equal(await flag(), undefined, 'not for the public');
 
 	// Someone looks into the address and confirms it, even unchanged: the doubt is answered.
 	const { inmateID } = await Prisoner.findByPk(f.prisoner1.id);
@@ -278,6 +283,7 @@ test('mail that comes back as moved puts the address in doubt, for staff, until 
 	);
 	assert.equal(await count(), before);
 	assert.ok(!(await listed(f.chapter)).includes(f.prisoner1.id));
+	assert.equal(await flag(f.admin), false);
 });
 
 test('retention removes a returned letter after the window, counted from the day it came back', async () => {

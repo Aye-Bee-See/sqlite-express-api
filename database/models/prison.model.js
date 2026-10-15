@@ -120,7 +120,7 @@ export default class Prison extends Model {
 					model: Chapter,
 					as: 'relay_groups',
 					through: { attributes: [] },
-					attributes: ['id', 'name', 'accountStatus'],
+					attributes: ['id', 'name', 'subregion', 'country', 'accountStatus'],
 					...publishedOnlyOpts
 				}
 			];

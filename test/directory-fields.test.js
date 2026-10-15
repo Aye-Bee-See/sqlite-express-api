@@ -286,7 +286,9 @@ test('groups accept profile fields, validate services and links, and filter by c
 			socialLinks: { mastodon: 'https://kolektiva.social/@abcby', x: '' },
 			services: ['international_relay', 'translation_assistance'],
 			announcement: 'Letter night Friday',
-			vouchedBy: group.id
+			vouchedBy: group.id,
+			// Active, so the public directory lists it (#222).
+			accountStatus: 'active'
 		},
 		admin
 	);

@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-15
 
-### The public sees active groups only (#PR)
+### The public sees active groups only (#226)
 
 Closes #222. The public groups list, a group's public page, and the counts in
 `GET /chapter/filters` showed every published group, so a suspended one was

@@ -10,6 +10,19 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-15
 
+### A prisoner's page says whether its address is in doubt (#PR)
+
+Closes #221. Whether a record's address is in doubt existed only as a list
+filter and a count, and a client cannot work it out itself: it depends on
+returns of letters that staff may not read. A staff screen for one record had
+to search the list to answer a yes or no. `GET /prisoner/prisoner?id=` now
+carries `addressInDoubt: true|false` for staff, beside `addressCheckedAt`, by
+the same rule as `?addressInDoubt=true`. The public never sees it.
+
+**For clients:** on the record's own page, show the warning and the action
+that answers it (sending the facility or inmate number, see #219) from
+`addressInDoubt`.
+
 ### Only an edit of the address answers an address in doubt (#219)
 
 Closes #216. A prisoner's address is put in doubt when a letter comes back

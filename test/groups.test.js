@@ -320,9 +320,16 @@ test('groups filter by network role and account status', async () => {
 	assert.ok(collecting.body.data.some((c) => c.name === 'Both Ways'));
 	assert.ok(!collecting.body.data.some((c) => c.name === 'Relay Hub'));
 	assert.equal((await get('/chapter/chapters?networkRole=both')).status, 400);
-	const pending = await get('/chapter/chapters?accountStatus=pending&page_size=100');
+	// Staff filter by any status; the public sees active groups only (#222).
+	const pending = await get('/chapter/chapters?accountStatus=pending&page_size=100', admin);
 	assert.ok(pending.body.data.every((c) => c.accountStatus === 'pending'));
 	assert.ok(pending.body.data.some((c) => c.id === pendingGroup.id));
+	const publicPending = await get('/chapter/chapters?accountStatus=pending&page_size=100');
+	assert.deepEqual(
+		publicPending.body.data,
+		[],
+		'a filter narrows the public view, never widens it'
+	);
 	const combined = await get('/chapter/chapters?networkRole=collecting&q=Both&page_size=100');
 	assert.deepEqual(
 		combined.body.data.map((c) => c.name),
@@ -382,4 +389,39 @@ test('a suspended group is told so, by code', async () => {
 	} finally {
 		await Chapter.update({ accountStatus: 'pending' }, { where: { id: pendingGroup.id } });
 	}
+});
+
+test('the public sees active groups only: list, page, and filter counts agree (#222)', async () => {
+	const suspendedGroup = await Chapter.createChapter({
+		name: 'Paused Group',
+		location: {},
+		country: 'Narnia',
+		accountStatus: 'suspended'
+	});
+	const listed = await get('/chapter/chapters?page_size=100');
+	assert.ok(!listed.body.data.some((c) => c.id === suspendedGroup.id), 'not listed');
+	assert.equal(
+		(await get('/chapter/chapter?id=' + suspendedGroup.id)).status,
+		404,
+		'no public page'
+	);
+	const counts = await get('/chapter/filters');
+	assert.ok(!counts.body.data.country.some((c) => c.value === 'Narnia'), 'not counted');
+	// The public list and the public counts are the same set of groups.
+	const total = listed.body.total;
+	const counted = counts.body.data.networkRole.reduce((sum, r) => sum + r.count, 0);
+	assert.equal(counted, total);
+
+	// Staff see it, and so do the group's own accounts.
+	assert.equal((await get('/chapter/chapter?id=' + suspendedGroup.id, admin)).status, 200);
+	assert.ok(
+		(await get('/chapter/filters', admin)).body.data.country.some((c) => c.value === 'Narnia')
+	);
+	const ownMember = await makeUser({ role: 'chapter', username: 'pausedmember' });
+	await User.update({ chapterId: suspendedGroup.id }, { where: { id: ownMember.id } });
+	const own = await get('/chapter/chapter?id=' + suspendedGroup.id, { token: ownMember.token });
+	assert.equal(own.status, 200, JSON.stringify(own.body));
+	assert.equal(own.body.data.accountStatus, 'suspended');
+	// The pending fixture group's own account sees its group too.
+	assert.equal((await get('/chapter/chapter?id=' + pendingGroup.id, pendingMember)).status, 200);
 });

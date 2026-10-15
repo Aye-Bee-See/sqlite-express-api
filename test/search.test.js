@@ -32,8 +32,9 @@ before(async () => {
 		prison: f.prison.id,
 		status: 'pretrial'
 	});
-	await Chapter.createChapter({ name: 'Portland ABC', location: {} });
-	await Chapter.createChapter({ name: 'NYC ABC', location: {} });
+	// Active, so the public directory lists them (#222).
+	await Chapter.createChapter({ name: 'Portland ABC', location: {}, accountStatus: 'active' });
+	await Chapter.createChapter({ name: 'NYC ABC', location: {}, accountStatus: 'active' });
 });
 after(stopServer);
 

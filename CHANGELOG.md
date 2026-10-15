@@ -10,6 +10,22 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-15
 
+### The public sees active groups only (#PR)
+
+Closes #222. The public groups list, a group's public page, and the counts in
+`GET /chapter/filters` showed every published group, so a suspended one was
+still listed although it cannot relay letters. The web hid such groups itself,
+so its filter chips promised groups the list then left out. Now the public sees
+a group only while its record is `published` and its `accountStatus` is
+`active` (decided 15 October 2026), and the list, the page and the counts are
+the same set. Staff see every group. A group's own accounts now always see
+their own group, which also fixes a pending group's admins being unable to read
+their group's page.
+
+**For clients:** the public groups list no longer needs its own
+`accountStatus=active` filter, and the filter counts can be shown as they are.
+A suspended group's public page is now a `404`.
+
 ### Only an edit of the address answers an address in doubt (#219)
 
 Closes #216. A prisoner's address is put in doubt when a letter comes back

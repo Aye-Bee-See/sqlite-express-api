@@ -10,6 +10,22 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-14
 
+### Only an edit of the address answers an address in doubt (#219)
+
+Closes #216. A prisoner's address is put in doubt when a letter comes back
+`transferred`, `released` or `bad_address`. That was answered by any edit of
+the record, because it was measured against `updatedAt`, so uploading a photo
+or editing a biography cleared the doubt although nobody had looked at the
+address. Now only an edit of the address answers it (decided 14 October 2026):
+`prison` or `inmateID`, a new value or the same one sent again to confirm it,
+directly or through an approved proposal. A new staff-only, read-only field,
+`addressCheckedAt`, records when that last happened. Migration
+`2026.10.14T00.00.00.address-checked-at.js` starts every existing record at its
+last edit, so no record's doubt changes on the day it runs.
+
+**For clients:** on a staff screen offering to answer a doubt, send the
+facility or the inmate number, even unchanged. Other edits no longer clear it.
+
 ### A backup test that failed now and then is fixed (#218)
 
 Closes #214. Tests only, plus one option. The backup test changed the byte 100

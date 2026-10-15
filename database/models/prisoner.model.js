@@ -43,7 +43,7 @@ export const PRISONER_FIELDS = [
 ];
 
 /** Columns hidden from anonymous and user-role callers. */
-export const PRISONER_STAFF_ONLY = ['verificationNotes'];
+export const PRISONER_STAFF_ONLY = ['verificationNotes', 'addressCheckedAt'];
 
 export default class Prisoner extends Model {
 	static init(sequelize) {
@@ -89,8 +89,9 @@ export default class Prisoner extends Model {
 	/**
 	 * Prisoners whose address the post has put in doubt: a letter to them came
 	 * back as transferred, released, or undeliverable within the last
-	 * ADDRESS_DOUBT_DAYS, and nobody has edited the record since. Editing the
-	 * record (a new facility, or just confirming it) clears it.
+	 * ADDRESS_DOUBT_DAYS, and nobody has edited the address since. Editing the
+	 * address (the facility or the inmate number, a new one or the same one sent
+	 * again to confirm it) clears it; other edits, a photo for one, do not (#216).
 	 */
 	static addressInDoubtWhere(now = new Date()) {
 		const cutoff = new Date(now.getTime() - ADDRESS_DOUBT_DAYS * 24 * 60 * 60 * 1000)
@@ -108,7 +109,7 @@ export default class Prisoner extends Model {
 						') ' +
 						'AND `s`.`createdAt` >= ' +
 						this.sequelize.escape(cutoff) +
-						' AND `s`.`createdAt` > `Prisoner`.`updatedAt`)'
+						' AND `s`.`createdAt` > COALESCE(`Prisoner`.`addressCheckedAt`, `Prisoner`.`createdAt`))'
 				)
 			}
 		};
@@ -323,7 +324,12 @@ export default class Prisoner extends Model {
 	// Update
 
 	static async updatePrisoner(prisoner) {
-		return await updateById(this, prisoner.id, pick(prisoner, PRISONER_FIELDS));
+		const values = pick(prisoner, PRISONER_FIELDS);
+		if (values.prison !== undefined || values.inmateID !== undefined) {
+			// The address was edited or confirmed: that, and only that, answers a doubt (#216).
+			values.addressCheckedAt = new Date();
+		}
+		return await updateById(this, prisoner.id, values);
 	}
 
 	/**

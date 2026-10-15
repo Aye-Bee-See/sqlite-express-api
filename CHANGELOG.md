@@ -10,6 +10,26 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-15
 
+### The sign-in recipe has a floor, and a client refuses less (#221)
+
+Docs only. The server names the cost of the sign-in derivation
+(`kdfParams` from `GET /auth/login-params`) and is handed its result, the
+auth key. At a trivial cost that key is cheap to turn back into the password,
+which the split scheme exists to prevent, and a client cannot tell a tampered
+server from a misconfigured one. The README now states the rule, decided
+15 October 2026: the recipe is never cheaper than the default (`opslimit` 2,
+`memlimit` 67108864), the server never writes one below it, and a client must
+refuse to sign in on a handshake that names less, with nothing sent. The floor
+is for the handshake only; a key wrapped long ago under a cheaper recipe still
+opens. The README also records the ceiling the clients keep for themselves
+(10 passes, 1 GiB), so a wrong or hostile value cannot have a phone hash for
+hours. No account on any deployment has a recipe below the default: the
+server has only ever written the default.
+
+**For clients:** refuse a handshake below the floor, with a sentence and
+nothing sent. The Android app has done so since android-client #35; iOS
+should match.
+
 ### Only an edit of the address answers an address in doubt (#219)
 
 Closes #216. A prisoner's address is put in doubt when a letter comes back

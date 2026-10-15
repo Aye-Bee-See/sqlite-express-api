@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-15
 
-### The sign-in recipe has a floor, and a client refuses less (#221)
+### The sign-in recipe has a floor, and a client refuses less (#225)
 
 Docs only. The server names the cost of the sign-in derivation
 (`kdfParams` from `GET /auth/login-params`) and is handed its result, the

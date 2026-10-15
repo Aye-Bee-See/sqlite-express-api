@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-10-15
 
-### The light relay groups say where each group is (#PR)
+### The light relay groups say where each group is (#224)
 
 Closes #223. The `relay_groups` every prison read has carried since #213 now
 include `subregion` and `country` beside `id`, `name` and `accountStatus`, so

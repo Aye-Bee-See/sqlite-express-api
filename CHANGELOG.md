@@ -8,7 +8,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
-## 2026-10-14
+## 2026-10-15
 
 ### Only an edit of the address answers an address in doubt (#219)
 
@@ -25,6 +25,8 @@ last edit, so no record's doubt changes on the day it runs.
 
 **For clients:** on a staff screen offering to answer a doubt, send the
 facility or the inmate number, even unchanged. Other edits no longer clear it.
+
+## 2026-10-14
 
 ### A backup test that failed now and then is fixed (#218)
 

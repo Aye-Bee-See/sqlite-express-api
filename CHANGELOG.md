@@ -10,6 +10,17 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-11-13
 
+### The database driver's install script is approved again (#PR)
+
+`package.json` lists the packages whose install scripts npm may run. It still
+named `sqlite3@5.1.7`, although the API has used `sqlite3` 6.0.1 since 24
+September, so every `npm ci` warned that sqlite3's script was not covered. The
+npm in use today runs it anyway, which is why nothing broke; an npm that
+enforces the list would skip it, leave the database driver uninstalled, and
+the API would not start. The list now names 6.0.1.
+
+**For clients:** nothing changes.
+
 ### A prisoner's page says whether its address is in doubt (#227)
 
 Closes #221. Whether a record's address is in doubt existed only as a list

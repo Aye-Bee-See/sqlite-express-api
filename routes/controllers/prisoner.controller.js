@@ -150,7 +150,19 @@ export default class PrisonerController extends RouteController {
 		const { publishedOnly } = readOptions(req);
 		try {
 			const prisoner = await Prisoner.getPrisonerByID(id, { full: full === 'true', publishedOnly });
-			this.#handleSuccess(res, this.requireFound(prisoner, 'Prisoner ' + id));
+			this.requireFound(prisoner, 'Prisoner ' + id);
+			if (!publishedOnly) {
+				// Staff only, beside addressCheckedAt: whether the address is in doubt now,
+				// by the same rule as ?addressInDoubt=true. A client cannot work it out:
+				// the returns behind it are on letters staff may not read (#221).
+				prisoner.setDataValue(
+					'addressInDoubt',
+					(await Prisoner.count({
+						where: { [Op.and]: [{ id: prisoner.id }, Prisoner.addressInDoubtWhere()] }
+					})) > 0
+				);
+			}
+			this.#handleSuccess(res, prisoner);
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
 			this.#handleErr(res, errorVar);

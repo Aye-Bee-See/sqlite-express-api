@@ -8,7 +8,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
-## 2026-10-15
+## 2026-11-13
 
 ### A prisoner's page says whether its address is in doubt (#227)
 
@@ -49,6 +49,8 @@ the group already. `full=true` is unchanged.
 
 **For clients:** drop the extra `GET /chapter/chapters?ids=` and read the place
 from `relay_groups`.
+
+## 2026-10-15
 
 ### Only an edit of the address answers an address in doubt (#219)
 

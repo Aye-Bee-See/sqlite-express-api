@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-11-13
 
-### The database driver's install script is approved again (#PR)
+### The database driver's install script is approved again (#229)
 
 `package.json` lists the packages whose install scripts npm may run. It still
 named `sqlite3@5.1.7`, although the API has used `sqlite3` 6.0.1 since 24

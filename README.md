@@ -2527,6 +2527,8 @@ curl -s -X POST http://localhost:3000/chapter/chapter \
 
 Parameters: `page`, `page_size`, `q`, `sort`, and (staff) `recordStatus`.
 
+**The public sees active groups only** (decided 15 October 2026): a group is listed, has a public page (`GET /chapter/chapter?id=`), and is counted by `GET /chapter/filters` only while its record is `published` and its `accountStatus` is `active`. A pending or suspended group cannot relay letters, so it is not shown for writers to count on. A filter such as `accountStatus=pending` narrows what the public sees and never widens it, so for the public it finds nothing. Staff see every group, and a group's own accounts always see their own group, whatever its status.
+
 ```json
 {
 	"data": [

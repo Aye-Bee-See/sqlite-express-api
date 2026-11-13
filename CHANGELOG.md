@@ -26,6 +26,17 @@ their group's page.
 `accountStatus=active` filter, and the filter counts can be shown as they are.
 A suspended group's public page is now a `404`.
 
+### The light relay groups say where each group is (#224)
+
+Closes #223. The `relay_groups` every prison read has carried since #213 now
+include `subregion` and `country` beside `id`, `name` and `accountStatus`, so
+a letter form can show where each group is, and a writer with a choice can pick
+the nearer one, without fetching the groups again. Both are public fields of
+the group already. `full=true` is unchanged.
+
+**For clients:** drop the extra `GET /chapter/chapters?ids=` and read the place
+from `relay_groups`.
+
 ### Only an edit of the address answers an address in doubt (#219)
 
 Closes #216. A prisoner's address is put in doubt when a letter comes back

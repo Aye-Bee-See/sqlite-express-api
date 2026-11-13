@@ -13,10 +13,22 @@ before(async () => {
 after(stopServer);
 
 test('a plain facility read names its relay groups, without the prisoners', async () => {
+	await Chapter.update(
+		{ subregion: 'Portland, OR', country: 'United States' },
+		{ where: { id: f.group.id } }
+	);
 	const one = await get('/prison/prison?id=' + f.prison.id);
 	assert.equal(one.status, 200, JSON.stringify(one.body));
+	const group = await Chapter.findByPk(f.group.id);
 	assert.deepEqual(one.body.data.relay_groups, [
-		{ id: f.group.id, name: f.group.name, accountStatus: 'active' }
+		{
+			id: f.group.id,
+			name: f.group.name,
+			// Where it is, so a writer choosing between groups can pick the nearer one (#223).
+			subregion: group.subregion,
+			country: group.country,
+			accountStatus: 'active'
+		}
 	]);
 	assert.equal(one.body.data.prisoners, undefined, 'no prisoners without full=true');
 

@@ -23,6 +23,22 @@ the same rule as `?addressInDoubt=true`. The public never sees it.
 that answers it (sending the facility or inmate number, see #219) from
 `addressInDoubt`.
 
+### The public sees active groups only (#226)
+
+Closes #222. The public groups list, a group's public page, and the counts in
+`GET /chapter/filters` showed every published group, so a suspended one was
+still listed although it cannot relay letters. The web hid such groups itself,
+so its filter chips promised groups the list then left out. Now the public sees
+a group only while its record is `published` and its `accountStatus` is
+`active` (decided 15 October 2026), and the list, the page and the counts are
+the same set. Staff see every group. A group's own accounts now always see
+their own group, which also fixes a pending group's admins being unable to read
+their group's page.
+
+**For clients:** the public groups list no longer needs its own
+`accountStatus=active` filter, and the filter counts can be shown as they are.
+A suspended group's public page is now a `404`.
+
 ### The light relay groups say where each group is (#224)
 
 Closes #223. The `relay_groups` every prison read has carried since #213 now

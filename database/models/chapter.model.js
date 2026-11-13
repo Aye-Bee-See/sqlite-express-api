@@ -1,4 +1,4 @@
-import { Model } from 'sequelize';
+import { Model, Op } from 'sequelize';
 import Schemas from '#schemas/all.schema.js';
 import pick, { updateById } from '#db/pick.js';
 import Hooks from '#hooks/all.hooks.js';
@@ -241,7 +241,9 @@ export default class Chapter extends Model {
 	} = {}) {
 		return await this.findAndCountAll({
 			...this.publicAttributes(publishedOnly),
-			where: { ...where, ...publishedWhere(publishedOnly) },
+			// Both at once: a caller's own filter (accountStatus=pending, say) narrows
+			// what the public may see, and is never replaced by it.
+			where: publishedOnly ? { [Op.and]: [where, this.publicWhere(true)] } : where,
 			include: full ? this.#includes(publishedOnly) : [],
 			limit,
 			offset,
@@ -251,13 +253,22 @@ export default class Chapter extends Model {
 	}
 
 	/**
+	 * What the public may see of groups: published records of groups that are
+	 * active. A suspended group cannot relay letters, so it is not listed for
+	 * writers to count on (decided 15 October 2026, #222); staff see every group.
+	 */
+	static publicWhere(publishedOnly) {
+		return publishedOnly ? { ...publishedWhere(true), accountStatus: 'active' } : {};
+	}
+
+	/**
 	 * @param {number|string} id
 	 * @param {{full?: boolean, publishedOnly?: boolean}} options
 	 */
 	static async getChapterByID(id, { full = false, publishedOnly = false } = {}) {
 		return await this.findOne({
 			...this.publicAttributes(publishedOnly),
-			where: { id, ...publishedWhere(publishedOnly) },
+			where: { id, ...this.publicWhere(publishedOnly) },
 			include: full ? this.#includes(publishedOnly) : []
 		});
 	}

@@ -2,7 +2,6 @@ import RouteController from '#rtControllers/route.controller.js';
 import Chapter, { CHAPTER_FIELDS } from '#models/chapter.model.js';
 import { Op, literal } from 'sequelize';
 import { filterValues, readOptions, SORT_BY_CREATED } from '#rtControllers/directory.helpers.js';
-import { publishedWhere } from '#db/record-status.js';
 import { ACCOUNT_STATUSES, CHAPTER_SERVICES } from '#db/validators.js';
 import AuthzService from '#rtServices/authz.services.js';
 import { audit } from '#rtServices/audit.services.js';
@@ -106,8 +105,14 @@ export default class chapterController extends RouteController {
 	async getOne(req, res) {
 		const { id, full } = req.query;
 		const { publishedOnly } = readOptions(req);
+		// A group's own accounts always see their group, even while it is pending or
+		// suspended and so not public: it is theirs, and they need to know its state.
+		const own = id !== undefined && String(AuthzService.chapterOf(req)) === String(id);
 		try {
-			const chapter = await Chapter.getChapterByID(id, { full: full === 'true', publishedOnly });
+			const chapter = await Chapter.getChapterByID(id, {
+				full: full === 'true',
+				publishedOnly: publishedOnly && !own
+			});
 			this.#handleSuccess(res, this.requireFound(chapter, 'Chapter ' + id));
 		} catch (err) {
 			const errorVar = !(err instanceof Error) ? new Error(err) : err;
@@ -135,7 +140,8 @@ export default class chapterController extends RouteController {
 	async filters(req, res) {
 		try {
 			const publishedOnly = AuthzService.publishedOnly(req);
-			const where = publishedOnly ? publishedWhere(true) : {};
+			// The same groups the public list shows: published and active (#222).
+			const where = Chapter.publicWhere(publishedOnly);
 			const fields = publishedOnly
 				? ['country', 'networkRole']
 				: ['country', 'networkRole', 'accountStatus'];

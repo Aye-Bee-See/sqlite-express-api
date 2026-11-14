@@ -302,6 +302,19 @@ test('an owner moved out of the chapter, or made a writer, owns it no more', asy
 		previous: owner.id,
 		by: 'superadmin'
 	});
+	// The group's history says so too: its last owner entry no longer names the moved account.
+	const lastOwnerEntry = async () =>
+		await AuditLog.findOne({
+			where: { action: 'chapter.owner', resource: 'chapter', targetId: f.group.id },
+			order: [['id', 'DESC']]
+		});
+	assert.deepEqual((await lastOwnerEntry()).details, {
+		from: owner.id,
+		to: null,
+		by: 'superadmin',
+		reason: 'moved'
+	});
+	assert.equal((await lastOwnerEntry()).actor, f.admin.id);
 	assert.equal(
 		(await put('/auth/user', { id: owner.id, chapterId: f.group.id }, f.admin)).status,
 		200
@@ -313,6 +326,16 @@ test('an owner moved out of the chapter, or made a writer, owns it no more', asy
 	);
 	assert.equal((await put('/auth/user', { id: owner.id, role: 'user' }, f.admin)).status, 200);
 	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, null);
+	assert.deepEqual((await lastOwnerEntry()).details, {
+		from: owner.id,
+		to: null,
+		by: 'superadmin',
+		reason: 'role'
+	});
+	// A change that leaves the owner where they are writes no owner entry.
+	const entries = await AuditLog.count({ where: { action: 'chapter.owner' } });
+	assert.equal((await put('/auth/user', { id: owner.id, role: 'user' }, f.admin)).status, 200);
+	assert.equal(await AuditLog.count({ where: { action: 'chapter.owner' } }), entries);
 	await User.update({ role: 'chapter' }, { where: { id: owner.id } });
 	await Chapter.setOwner(f.group.id, owner.id, null);
 });

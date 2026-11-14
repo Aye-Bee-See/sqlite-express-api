@@ -684,6 +684,14 @@ export default class UserController extends RouteController {
 				});
 				for (const chapter of leaving) {
 					if (await Chapter.setOwner(chapter.id, null, newUser.id)) {
+						// In the group's history as well, like any other change of owner: without
+						// it the last entry there still names this account as the owner.
+						await audit(req, 'chapter.owner', 'chapter', chapter.id, {
+							from: newUser.id,
+							to: null,
+							by: 'superadmin',
+							reason: demoted ? 'role' : 'moved'
+						});
 						await KeysController.tellGroup(
 							chapter.id,
 							{

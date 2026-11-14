@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-11-14
 
-### A group's history says when a superadmin's change takes its owner away (#PR)
+### A group's history says when a superadmin's change takes its owner away (#231)
 
 When a superadmin moves a group's owner to another group, or gives them a role
 other than group admin (superadmin, writer), the API stops them owning the

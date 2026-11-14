@@ -8,6 +8,25 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-11-14
+
+### A group's history says when a superadmin's change takes its owner away (#231)
+
+When a superadmin moves a group's owner to another group, or gives them a role
+other than group admin (superadmin, writer), the API stops them owning the
+group and tells its members, but the group's history recorded nothing. Its last
+ownership entry still named that account as owner. This happened on production
+on 13 November, when a group owner was promoted to superadmin. Now the change
+writes a `chapter.owner` entry like any other change of owner: `from` the
+account, `to: null`, `by: "superadmin"`, and a new `reason`, `moved` or `role`.
+The superadmin who made the change is its actor. Entries already in the history
+are not changed.
+
+**For clients:** a group's history can now show an ownership entry whose `to`
+is `null`: say the group has no owner since then, and word `reason` (`moved`:
+"moved to another group", `role`: "no longer a group admin"). Web issue #68
+already asks for names in place of account numbers in these entries.
+
 ## 2026-11-13
 
 ### The database driver's install script is approved again (#229)

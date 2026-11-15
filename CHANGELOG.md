@@ -10,7 +10,7 @@ The public test server follows `main` within the hour, so anything below is live
 
 ## 2026-11-15
 
-### A group's owner or last key holder is not moved or promoted until they hand it on (#PR)
+### A group's owner or last key holder is not moved or promoted until they hand it on (#232)
 
 Deleting an account was already refused when the account owned a group that
 had other group admins, or held the last copy of a group's key. Changing the

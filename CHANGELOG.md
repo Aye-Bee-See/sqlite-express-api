@@ -32,9 +32,16 @@ group admin out of their group in the same two cases, with `409`
 
 A ban is never refused this way: banning is how a superadmin stops a rogue
 owner, and they name the next owner afterwards. For both checks, and for
-deleting an account, a copy of the key held by an account that is no longer
-one of the group's admins no longer counts as a holder, since nobody can hand
-it on. Groups already stranded are not changed; they are recovered by making
+deleting an account, only copies of the key held by the group's current group
+admins count, since nobody else can hand one on. One exception for deleting:
+an account that is no longer one of the group's admins but holds the only copy
+of its key left anywhere is refused (`last_key_holder`), because making it a
+group admin of the group again is how the group gets its key back.
+
+Every change of role or group, and a group's first key setup, now run under
+the lock that changes of a group's key holders already took, so a promotion
+and a key setup (or two changes) at the same moment cannot each pass a check
+the other is about to undo. Groups already stranded are not changed; they are recovered by making
 the old owner a group admin of the group again, naming them owner, and having
 them hand the key and ownership on.
 

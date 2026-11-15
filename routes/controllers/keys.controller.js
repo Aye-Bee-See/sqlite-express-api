@@ -619,43 +619,50 @@ export default class KeysController extends RouteController {
 					code: 'required'
 				});
 			}
-			const member = this.requireFound(await User.findByPk(memberId), 'User ' + memberId);
-			if (String(member.chapterId) !== String(chapter.id)) {
-				throw new ValidationError({
-					message: 'User ' + memberId + ' is not a member of chapter ' + chapter.id + '.',
-					field: 'chapter',
-					code: 'not_eligible'
+			// Under the lock a change of role or chapter takes (PUT /auth/user), with the
+			// account read there: a group admin promoted or moved at this moment must not
+			// leave as the only holder of a key set up behind that change's check.
+			const { member, becameOwner } = await withGroupKeyLock(async () => {
+				const member = this.requireFound(await User.findByPk(memberId), 'User ' + memberId);
+				if (member.role !== 'chapter' || String(member.chapterId) !== String(chapter.id)) {
+					throw new ValidationError({
+						message: 'User ' + memberId + ' is not a group admin of chapter ' + chapter.id + '.',
+						field: 'chapter',
+						code: 'not_eligible'
+					});
+				}
+				if (!member.publicKey) {
+					throw new HttpError(
+						409,
+						'User ' +
+							memberId +
+							' has no public key yet; the first holder needs one to open the group key.',
+						'KeyChangeError'
+					);
+				}
+				// Bootstrap once: the write succeeds only while the key is still unset.
+				const [count] = await Chapter.update(
+					{ publicKey, keyVersion: 1 },
+					{ where: { id: chapter.id, publicKey: null } }
+				);
+				if (count === 0) {
+					throw new HttpError(
+						409,
+						'This group already has a public key; add members with /auth/member-key.',
+						'KeyChangeError'
+					);
+				}
+				await OrgMemberKey.put({
+					chapterId: chapter.id,
+					userId: member.id,
+					wrappedOrgPrivateKey,
+					addedBy: req.user.id
 				});
-			}
-			if (!member.publicKey) {
-				throw new HttpError(
-					409,
-					'User ' +
-						memberId +
-						' has no public key yet; the first holder needs one to open the group key.',
-					'KeyChangeError'
-				);
-			}
-			// Bootstrap once: the write succeeds only while the key is still unset.
-			const [count] = await Chapter.update(
-				{ publicKey, keyVersion: 1 },
-				{ where: { id: chapter.id, publicKey: null } }
-			);
-			if (count === 0) {
-				throw new HttpError(
-					409,
-					'This group already has a public key; add members with /auth/member-key.',
-					'KeyChangeError'
-				);
-			}
-			await OrgMemberKey.put({
-				chapterId: chapter.id,
-				userId: member.id,
-				wrappedOrgPrivateKey,
-				addedBy: req.user.id
+				// The chapter's first key holder is its group-owner admin, unless it has one.
+				const becameOwner =
+					!chapter.ownerId && (await Chapter.setOwner(chapter.id, member.id, null));
+				return { member, becameOwner };
 			});
-			// The chapter's first key holder is its group-owner admin, unless it has one.
-			const becameOwner = !chapter.ownerId && (await Chapter.setOwner(chapter.id, member.id, null));
 			await audit(req, 'chapter.keys', 'chapter', chapter.id, {
 				firstMember: member.id,
 				...(becameOwner ? { owner: member.id } : {})

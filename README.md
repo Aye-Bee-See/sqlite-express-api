@@ -1088,7 +1088,7 @@ Refused with `409` `AccountDeleteError`:
 
 - **the only admin account** (`only_admin`: make another admin first);
 - **a group-owner admin whose group has other group admins** (`group_owner`: pass ownership on first with `PUT /auth/chapter-owner`; see [Group keys](#group-keys), "Ownership");
-- **the last holder of a group's key** in end-to-end mode (`last_key_holder`: hand the key to another member with `PUT /auth/member-key` first, or the group could never read its letters again). A copy still held by an account that is no longer one of the group's admins does not count: nobody can hand it on;
+- **the last holder of a group's key** in end-to-end mode (`last_key_holder`: hand the key to another member with `PUT /auth/member-key` first, or the group could never read its letters again). Only copies held by the group's current group admins count, since nobody else can hand one on; but an account that is no longer one of the group's admins and holds the only copy of its key left anywhere is refused too, because making it a group admin of the group again is how the group gets its key back;
 - **a group's shared anonymous account** (`anonymous`), for everyone: it holds the anonymous letters of all the people the group wrote for.
 
 Clients should say in words what will happen before sending this, and in end-to-end mode remind the person that their recovery code and keys become useless.

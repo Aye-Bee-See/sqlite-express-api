@@ -56,8 +56,9 @@ export async function eraseRefusal(user) {
 /**
  * What stands in the way of this account no longer being a group admin of the
  * given chapters (all of them when `chapterIds` is null), or null: it owns one
- * that has other group admins, or it is the last of a chapter's group admins
- * to hold the chapter's key. Shared by deleting an account and by changing its
+ * that has other group admins, it is the last of a chapter's group admins to
+ * hold the chapter's key, or (no longer a group admin there) it holds the only
+ * copy of that key left anywhere. Shared by deleting an account and by changing its
  * role or chapter, so neither can leave a group with nobody to hand the key on.
  *
  * @param {import('sequelize').Model} user
@@ -87,29 +88,42 @@ export async function staffRefusal(user, chapterIds, refuse) {
 	}
 	const held = await OrgMemberKey.findAll({ where: { userId: user.id, ...scope } });
 	for (const row of held) {
-		// A copy held by somebody who is no longer one of the chapter's group admins
-		// cannot be handed on or used, so it does not count.
-		const holders = await OrgMemberKey.findAll({
+		const others = await OrgMemberKey.findAll({
 			where: { chapterId: row.chapterId, userId: { [Op.ne]: user.id } },
 			attributes: ['userId']
 		});
-		const others =
-			holders.length === 0
+		// A copy is usable only by one of the chapter's group admins: anyone else
+		// cannot open the chapter's letters with it or hand it on.
+		const usable =
+			others.length === 0
 				? 0
 				: await User.count({
 						where: {
-							id: holders.map((h) => h.userId),
+							id: others.map((h) => h.userId),
 							chapterId: row.chapterId,
 							role: 'chapter'
 						}
 					});
-		if (others === 0) {
-			const group = await Chapter.findByPk(row.chapterId, { attributes: ['id', 'name'] });
+		const group = async () =>
+			(await Chapter.findByPk(row.chapterId, { attributes: ['name'] }))?.name ?? 'its group';
+		if (user.role === 'chapter' && String(user.chapterId) === String(row.chapterId)) {
+			if (usable === 0) {
+				return refuse(
+					'last_key_holder',
+					'This account is the last holder of the key of ' +
+						(await group()) +
+						'. Hand the key to another member first (PUT /auth/member-key), or the group could never read its letters again.'
+				);
+			}
+		} else if (others.length === 0) {
+			// Not one of the chapter's group admins any more, so this copy is not in use,
+			// but it is the only one left anywhere: making the account a group admin of
+			// the chapter again is the only way the chapter gets its key back.
 			return refuse(
 				'last_key_holder',
-				'This account is the last holder of the key of ' +
-					(group ? group.name : 'its group') +
-					'. Hand the key to another member first (PUT /auth/member-key), or the group could never read its letters again.'
+				'This account holds the only remaining copy of the key of ' +
+					(await group()) +
+					'. Make it a group admin of that group again and hand the key on first, or the group could never read its letters again.'
 			);
 		}
 	}

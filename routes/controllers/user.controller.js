@@ -672,23 +672,27 @@ export default class UserController extends RouteController {
 			}
 			// An account that stops being one of a chapter's group admins must not
 			// take the chapter's ownership, or its last usable copy of the key, with
-			// it: the same two refusals as deleting the account. Checked and written
-			// under the lock every change of a chapter's key holders takes, so two
-			// holders moved at once cannot each count on the other staying.
-			const leaving = await UserController.#leaving(newUser);
+			// it: the same two refusals as deleting the account. Every change of role
+			// or chapter runs under the lock every change of a chapter's key holders
+			// takes, and reads the account's chapter there: two changes at once cannot
+			// each check a chapter the other is about to change.
+			const staffing = newUser.role !== undefined || newUser.chapterId !== undefined;
 			const updatedRows = sealedTo
 				? await withGroupKeyLock(async () => {
 						const group = await Chapter.findByPk(sealedTo.chapterId);
 						KeysController.requireCurrentGroupKey(group, sealedTo.version);
 						return await User.updateUser(newUser, { expect });
 					})
-				: leaving
+				: staffing
 					? await withGroupKeyLock(async () => {
-							const refusal = await staffRefusal(
-								leaving,
-								[leaving.chapterId],
-								UserController.#roleChangeRefusal
-							);
+							const leaving = await UserController.#leaving(newUser);
+							const refusal =
+								leaving &&
+								(await staffRefusal(
+									leaving,
+									[leaving.chapterId],
+									UserController.#roleChangeRefusal
+								));
 							if (refusal) {
 								throw refusal;
 							}

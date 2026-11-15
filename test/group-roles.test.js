@@ -425,6 +425,37 @@ test('the only group admin of a keyed chapter cannot be made a superadmin and le
 	assert.equal(moved.body.code, 'role_change.last_key_holder');
 });
 
+test('old copies of a key held outside the group do not block deleting an account, except the last copy anywhere', async () => {
+	// Two accounts that once held a chapter's key and are no longer its group admins
+	// (moved or banned before the guards, as on production on 13 November).
+	const gone = await Chapter.createChapter({
+		name: 'Gone',
+		location: {},
+		accountStatus: 'active'
+	});
+	const keyOf = (holder) =>
+		OrgMemberKey.put({
+			chapterId: gone.id,
+			userId: holder.id,
+			wrappedOrgPrivateKey: Buffer.from('sealed for ' + holder.id).toString('base64'),
+			addedBy: holder.id
+		});
+	const x = await makeUser({ role: 'user', username: 'formerholderx' });
+	const y = await makeUser({ role: 'admin', username: 'formerholdery' });
+	await keyOf(x);
+	await keyOf(y);
+
+	// Neither can hand the key on, so neither copy is in use; one may go.
+	const first = await del('/auth/user', { id: x.id }, f.admin);
+	assert.equal(first.status, 200, JSON.stringify(first.body));
+	// The other is the only copy left anywhere: kept, because making the account a
+	// group admin of the chapter again is how the chapter gets its key back.
+	const last = await del('/auth/user', { id: y.id }, f.admin);
+	assert.equal(last.status, 409, JSON.stringify(last.body));
+	assert.equal(last.body.code, 'account_delete.last_key_holder');
+	assert.match(last.body.error, /only remaining copy of the key of Gone/);
+});
+
 test('a chapter that joins by invitation gets its founder as group-owner admin', async () => {
 	const invite = await post(
 		'/invitation/invitation',

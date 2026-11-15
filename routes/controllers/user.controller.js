@@ -14,7 +14,7 @@ import { inTransaction } from '#services/serial.js';
 import * as authScheme from '#services/auth-scheme.js';
 import { openRegistration } from '#constants';
 import PenName from '#models/pen-name.model.js';
-import { eraseAccount, eraseRefusal } from '#db/erase-account.js';
+import { eraseAccount, eraseRefusal, staffRefusal } from '#db/erase-account.js';
 import bcrypt from 'bcrypt';
 import { audit } from '#rtServices/audit.services.js';
 import KeysController from '#rtControllers/keys.controller.js';
@@ -37,6 +37,37 @@ export default class UserController extends RouteController {
 		);
 		err.condition = 'last_admin';
 		return err;
+	}
+
+	static #roleChangeRefusal(condition, message) {
+		const err = new HttpError(409, message, 'RoleChangeError');
+		err.condition = condition;
+		return err;
+	}
+
+	/**
+	 * The chapter this change takes a group admin out of, or null. Banning is
+	 * left out on purpose: a ban is how a superadmin stops a rogue owner, and
+	 * it must not wait on that owner handing anything over; a superadmin names
+	 * the next owner afterwards (PUT /auth/chapter-owner).
+	 */
+	static async #leaving(change) {
+		if (change.role === undefined && change.chapterId === undefined) {
+			return null;
+		}
+		if (change.role === 'banned') {
+			return null;
+		}
+		const current = await User.findByPk(change.id, { attributes: ['id', 'role', 'chapterId'] });
+		if (!current || current.role !== 'chapter' || !current.chapterId) {
+			return null;
+		}
+		const role = change.role ?? current.role;
+		const chapterId = change.chapterId !== undefined ? change.chapterId : current.chapterId;
+		if (role === 'chapter' && String(chapterId) === String(current.chapterId)) {
+			return null;
+		}
+		return current;
 	}
 
 	constructor() {
@@ -639,13 +670,35 @@ export default class UserController extends RouteController {
 					lastAdminChecked = true;
 				}
 			}
+			// An account that stops being one of a chapter's group admins must not
+			// take the chapter's ownership, or its last usable copy of the key, with
+			// it: the same two refusals as deleting the account. Every change of role
+			// or chapter runs under the lock every change of a chapter's key holders
+			// takes, and reads the account's chapter there: two changes at once cannot
+			// each check a chapter the other is about to change.
+			const staffing = newUser.role !== undefined || newUser.chapterId !== undefined;
 			const updatedRows = sealedTo
 				? await withGroupKeyLock(async () => {
 						const group = await Chapter.findByPk(sealedTo.chapterId);
 						KeysController.requireCurrentGroupKey(group, sealedTo.version);
 						return await User.updateUser(newUser, { expect });
 					})
-				: await User.updateUser(newUser, { expect });
+				: staffing
+					? await withGroupKeyLock(async () => {
+							const leaving = await UserController.#leaving(newUser);
+							const refusal =
+								leaving &&
+								(await staffRefusal(
+									leaving,
+									[leaving.chapterId],
+									UserController.#roleChangeRefusal
+								));
+							if (refusal) {
+								throw refusal;
+							}
+							return await User.updateUser(newUser, { expect });
+						})
+					: await User.updateUser(newUser, { expect });
 			if (!updatedRows[0] && newUser.password !== undefined && (await User.findByPk(newUser.id))) {
 				// The row is there and did not match: its scheme changed while this ran.
 				throw new HttpError(

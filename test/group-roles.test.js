@@ -281,63 +281,179 @@ test('ownership passes to one other group admin, by the owner or by a superadmin
 	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, chain[1].owner);
 });
 
-test('an owner moved out of the chapter, or made a writer, owns it no more', async () => {
+test('an owner, or the last group admin holding the key, is not moved out or given another role until they hand it on', async () => {
 	assert.equal(
 		(await put('/auth/chapter-owner', { chapter: f.group.id, user: owner.id }, f.admin)).status,
 		200
 	);
-	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, owner.id);
 	const other = await Chapter.createChapter({
 		name: 'Other',
 		location: {},
 		accountStatus: 'active'
 	});
+	const entries = await AuditLog.count({ where: { action: 'chapter.owner' } });
+	// The chapter has other group admins: ownership is passed on first, as for deleting the account.
+	for (const change of [
+		{ chapterId: other.id },
+		{ chapterId: null },
+		{ role: 'user' },
+		{ role: 'admin' }
+	]) {
+		const res = await put('/auth/user', { id: owner.id, ...change }, f.admin);
+		assert.equal(res.status, 409, JSON.stringify(change) + ' ' + JSON.stringify(res.body));
+		assert.equal(res.body.name, 'RoleChangeError');
+		assert.equal(res.body.condition, 'group_owner');
+		assert.equal(res.body.code, 'role_change.group_owner');
+		assert.match(res.body.error, /Hand ownership to another group admin first/);
+	}
+	const after = await User.findByPk(owner.id);
+	assert.deepEqual([after.role, after.chapterId], ['chapter', f.group.id], 'nothing changed');
+	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, owner.id);
+	assert.equal(await AuditLog.count({ where: { action: 'chapter.owner' } }), entries);
+	// A change that keeps them a group admin of the chapter is no change of either.
 	assert.equal(
-		(await put('/auth/user', { id: owner.id, chapterId: other.id }, f.admin)).status,
+		(await put('/auth/user', { id: owner.id, role: 'chapter', chapterId: f.group.id }, f.admin))
+			.status,
 		200
 	);
+
+	// A ban is not held up: it is how a rogue owner is stopped. The chapter is
+	// told, its history says why, and a superadmin names the next owner.
+	assert.equal((await put('/auth/user', { id: owner.id, role: 'banned' }, f.admin)).status, 200);
 	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, null);
 	assert.deepEqual((await told(second.id, 'group.owner')).at(-1).detail, {
 		owner: null,
 		previous: owner.id,
 		by: 'superadmin'
 	});
-	// The group's history says so too: its last owner entry no longer names the moved account.
-	const lastOwnerEntry = async () =>
+	const lastOwnerEntry = async (chapterId) =>
 		await AuditLog.findOne({
-			where: { action: 'chapter.owner', resource: 'chapter', targetId: f.group.id },
+			where: { action: 'chapter.owner', resource: 'chapter', targetId: chapterId },
 			order: [['id', 'DESC']]
 		});
-	assert.deepEqual((await lastOwnerEntry()).details, {
-		from: owner.id,
-		to: null,
-		by: 'superadmin',
-		reason: 'moved'
-	});
-	assert.equal((await lastOwnerEntry()).actor, f.admin.id);
-	assert.equal(
-		(await put('/auth/user', { id: owner.id, chapterId: f.group.id }, f.admin)).status,
-		200
-	);
-	// The chapter has a key and no owner: the superadmin names one.
-	assert.equal(
-		(await put('/auth/chapter-owner', { chapter: f.group.id, user: owner.id }, f.admin)).status,
-		200
-	);
-	assert.equal((await put('/auth/user', { id: owner.id, role: 'user' }, f.admin)).status, 200);
-	assert.equal((await Chapter.findByPk(f.group.id)).ownerId, null);
-	assert.deepEqual((await lastOwnerEntry()).details, {
+	assert.deepEqual((await lastOwnerEntry(f.group.id)).details, {
 		from: owner.id,
 		to: null,
 		by: 'superadmin',
 		reason: 'role'
 	});
-	// A change that leaves the owner where they are writes no owner entry.
-	const entries = await AuditLog.count({ where: { action: 'chapter.owner' } });
-	assert.equal((await put('/auth/user', { id: owner.id, role: 'user' }, f.admin)).status, 200);
-	assert.equal(await AuditLog.count({ where: { action: 'chapter.owner' } }), entries);
+	assert.equal((await lastOwnerEntry(f.group.id)).actor, f.admin.id);
 	await User.update({ role: 'chapter' }, { where: { id: owner.id } });
-	await Chapter.setOwner(f.group.id, owner.id, null);
+	assert.equal(
+		(await put('/auth/chapter-owner', { chapter: f.group.id, user: owner.id }, f.admin)).status,
+		200
+	);
+
+	// The only group admin of a chapter without a key may be moved: ownership
+	// goes with nobody left to pass it to, and the history says it went.
+	const lone = await makeUser({ role: 'chapter', username: 'loneowner' });
+	await User.update({ chapterId: other.id }, { where: { id: lone.id } });
+	await Chapter.setOwner(other.id, lone.id, null);
+	assert.equal((await put('/auth/user', { id: lone.id, chapterId: null }, f.admin)).status, 200);
+	assert.equal((await Chapter.findByPk(other.id)).ownerId, null);
+	assert.deepEqual((await lastOwnerEntry(other.id)).details, {
+		from: lone.id,
+		to: null,
+		by: 'superadmin',
+		reason: 'moved'
+	});
+});
+
+test('the only group admin of a keyed chapter cannot be made a superadmin and leave it stranded', async () => {
+	// One group admin sets the key and owns the chapter: the way a group starts.
+	const solo = await Chapter.createChapter({
+		name: 'Solo',
+		location: {},
+		accountStatus: 'active'
+	});
+	const founder = await makeUser({ role: 'chapter', username: 'solofounder' });
+	await User.update({ chapterId: solo.id }, { where: { id: founder.id } });
+	const founderKeys = client.accountKeys(founder.password, 'R-solofounder');
+	const first = { token: founder.token, id: founder.id, keys: founderKeys };
+	assert.equal((await put('/auth/keys', founderKeys.fields, first)).status, 200);
+	const soloKey = client.keypair();
+	const sealedFor = (who) => client.seal(who.keys.fields.publicKey, bytes(soloKey.privateKey));
+	const set = await put(
+		'/auth/chapter-keys',
+		{ chapter: solo.id, publicKey: soloKey.publicKey, wrappedOrgPrivateKey: sealedFor(first) },
+		first
+	);
+	assert.equal(set.status, 200, JSON.stringify(set.body));
+	assert.equal((await Chapter.findByPk(solo.id)).ownerId, founder.id);
+
+	// Promoting them would leave the chapter with no owner and nobody able to hand the key on.
+	const alone = await put('/auth/user', { id: founder.id, role: 'admin' }, f.admin);
+	assert.equal(alone.status, 409, JSON.stringify(alone.body));
+	assert.equal(alone.body.code, 'role_change.last_key_holder');
+	assert.match(alone.body.error, /last holder of the key of Solo/);
+	assert.equal((await User.findByPk(founder.id)).role, 'chapter');
+
+	// A second group admin joins: now it is ownership that has to move first.
+	const account = await makeUser({ role: 'chapter', username: 'solosecond' });
+	await User.update({ chapterId: solo.id }, { where: { id: account.id } });
+	const secondKeys = client.accountKeys(account.password, 'R-solosecond');
+	const next = { token: account.token, id: account.id, keys: secondKeys };
+	assert.equal((await put('/auth/keys', secondKeys.fields, next)).status, 200);
+	assert.equal(
+		(await put('/auth/user', { id: founder.id, role: 'admin' }, f.admin)).body.code,
+		'role_change.group_owner'
+	);
+
+	// The founder hands the key over and passes ownership; then the promotion goes through.
+	assert.equal(
+		(
+			await put(
+				'/auth/member-key',
+				{ chapter: solo.id, user: next.id, keyVersion: 1, wrappedOrgPrivateKey: sealedFor(next) },
+				first
+			)
+		).status,
+		200
+	);
+	assert.equal(
+		(await put('/auth/chapter-owner', { chapter: solo.id, user: next.id }, first)).status,
+		200
+	);
+	const promoted = await put('/auth/user', { id: founder.id, role: 'admin' }, f.admin);
+	assert.equal(promoted.status, 200, JSON.stringify(promoted.body));
+	assert.equal((await Chapter.findByPk(solo.id)).ownerId, next.id, 'the new owner stays owner');
+
+	// The promoted account's old copy no longer counts: the new owner is now the
+	// last group admin holding the key, and cannot be moved out either.
+	const moved = await put('/auth/user', { id: next.id, chapterId: null }, f.admin);
+	assert.equal(moved.status, 409, JSON.stringify(moved.body));
+	assert.equal(moved.body.code, 'role_change.last_key_holder');
+});
+
+test('old copies of a key held outside the group do not block deleting an account, except the last copy anywhere', async () => {
+	// Two accounts that once held a chapter's key and are no longer its group admins
+	// (moved or banned before the guards, as on production on 13 November).
+	const gone = await Chapter.createChapter({
+		name: 'Gone',
+		location: {},
+		accountStatus: 'active'
+	});
+	const keyOf = (holder) =>
+		OrgMemberKey.put({
+			chapterId: gone.id,
+			userId: holder.id,
+			wrappedOrgPrivateKey: Buffer.from('sealed for ' + holder.id).toString('base64'),
+			addedBy: holder.id
+		});
+	const x = await makeUser({ role: 'user', username: 'formerholderx' });
+	const y = await makeUser({ role: 'admin', username: 'formerholdery' });
+	await keyOf(x);
+	await keyOf(y);
+
+	// Neither can hand the key on, so neither copy is in use; one may go.
+	const first = await del('/auth/user', { id: x.id }, f.admin);
+	assert.equal(first.status, 200, JSON.stringify(first.body));
+	// The other is the only copy left anywhere: kept, because making the account a
+	// group admin of the chapter again is how the chapter gets its key back.
+	const last = await del('/auth/user', { id: y.id }, f.admin);
+	assert.equal(last.status, 409, JSON.stringify(last.body));
+	assert.equal(last.body.code, 'account_delete.last_key_holder');
+	assert.match(last.body.error, /only remaining copy of the key of Gone/);
 });
 
 test('a chapter that joins by invitation gets its founder as group-owner admin', async () => {

@@ -8,6 +8,50 @@ The public test server follows `main` within the hour, so anything below is live
 
 ---
 
+## 2026-11-15
+
+### A group's owner or last key holder is not moved or promoted until they hand it on (#232)
+
+Deleting an account was already refused when the account owned a group that
+had other group admins, or held the last copy of a group's key. Changing the
+account's role or group was not, and that is how the one group on production
+was stranded on 13 November: its owner, who was also the only member holding
+its key, was made a superadmin. The group was left with no owner, and only
+the owner can hand the key on, so nobody new can be given it. A superadmin
+cannot fix that alone either, because ownership only goes to a group admin
+who holds the key.
+
+Now `PUT /auth/user` refuses a change of `role` or `chapterId` that takes a
+group admin out of their group in the same two cases, with `409`
+`RoleChangeError`:
+
+- `group_owner` (`code: "role_change.group_owner"`): they own the group and it
+  has other group admins. Pass ownership on first (`PUT /auth/chapter-owner`).
+- `last_key_holder` (`role_change.last_key_holder`): no other group admin of
+  the group holds its key. Hand the key over first (`PUT /auth/member-key`).
+
+A ban is never refused this way: banning is how a superadmin stops a rogue
+owner, and they name the next owner afterwards. For both checks, and for
+deleting an account, only copies of the key held by the group's current group
+admins count, since nobody else can hand one on. One exception for deleting:
+an account that is no longer one of the group's admins but holds the only copy
+of its key left anywhere is refused (`last_key_holder`), because making it a
+group admin of the group again is how the group gets its key back.
+
+Every change of role or group, and a group's first key setup, now run under
+the lock that changes of a group's key holders already took, so a promotion
+and a key setup (or two changes) at the same moment cannot each pass a check
+the other is about to undo. Groups already stranded are not changed; they are recovered by making
+the old owner a group admin of the group again, naming them owner, and having
+them hand the key and ownership on.
+
+**For clients:** the superadmin's role and group controls can now get
+`RoleChangeError` with `group_owner` or `last_key_holder`, the same pair
+`AccountDeleteError` already carries. Word them like the deletion refusals
+("Pass ownership of {group} to another group admin first", "Hand {group}'s
+key to another member first") and keep the form as it was. Nothing changes
+for a group admin's own screens.
+
 ## 2026-11-14
 
 ### A group's history says when a superadmin's change takes its owner away (#231)

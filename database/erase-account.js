@@ -37,7 +37,7 @@ function refusal(condition, message) {
  * @returns {Promise<HttpError|null>}
  */
 export async function eraseRefusal(user) {
-	const { User, OrgMemberKey, Chapter } = Models;
+	const { User } = Models;
 	if (user.anonymousForChapter) {
 		return refusal(
 			'anonymous',
@@ -50,13 +50,34 @@ export async function eraseRefusal(user) {
 			'This is the only admin account. Make another admin first, or nobody could run the site.'
 		);
 	}
-	const owned = await Chapter.findAll({ where: { ownerId: user.id }, attributes: ['id', 'name'] });
+	return await staffRefusal(user, null, refusal);
+}
+
+/**
+ * What stands in the way of this account no longer being a group admin of the
+ * given chapters (all of them when `chapterIds` is null), or null: it owns one
+ * that has other group admins, or it is the last of a chapter's group admins
+ * to hold the chapter's key. Shared by deleting an account and by changing its
+ * role or chapter, so neither can leave a group with nobody to hand the key on.
+ *
+ * @param {import('sequelize').Model} user
+ * @param {number[]|null} chapterIds
+ * @param {(condition: string, message: string) => Error} refuse makes the error
+ * @returns {Promise<Error|null>}
+ */
+export async function staffRefusal(user, chapterIds, refuse) {
+	const { User, OrgMemberKey, Chapter } = Models;
+	const scope = chapterIds === null ? {} : { chapterId: chapterIds };
+	const owned = await Chapter.findAll({
+		where: { ownerId: user.id, ...(chapterIds === null ? {} : { id: chapterIds }) },
+		attributes: ['id', 'name']
+	});
 	for (const group of owned) {
 		const others = await User.count({
 			where: { chapterId: group.id, role: 'chapter', id: { [Op.ne]: user.id } }
 		});
 		if (others > 0) {
-			return refusal(
+			return refuse(
 				'group_owner',
 				'This account is the group-owner admin of ' +
 					group.name +
@@ -64,14 +85,27 @@ export async function eraseRefusal(user) {
 			);
 		}
 	}
-	const held = await OrgMemberKey.findAll({ where: { userId: user.id } });
+	const held = await OrgMemberKey.findAll({ where: { userId: user.id, ...scope } });
 	for (const row of held) {
-		const others = await OrgMemberKey.count({
-			where: { chapterId: row.chapterId, userId: { [Op.ne]: user.id } }
+		// A copy held by somebody who is no longer one of the chapter's group admins
+		// cannot be handed on or used, so it does not count.
+		const holders = await OrgMemberKey.findAll({
+			where: { chapterId: row.chapterId, userId: { [Op.ne]: user.id } },
+			attributes: ['userId']
 		});
+		const others =
+			holders.length === 0
+				? 0
+				: await User.count({
+						where: {
+							id: holders.map((h) => h.userId),
+							chapterId: row.chapterId,
+							role: 'chapter'
+						}
+					});
 		if (others === 0) {
 			const group = await Chapter.findByPk(row.chapterId, { attributes: ['id', 'name'] });
-			return refusal(
+			return refuse(
 				'last_key_holder',
 				'This account is the last holder of the key of ' +
 					(group ? group.name : 'its group') +
